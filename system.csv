@@ -1,0 +1,5 @@
+system,tag,roles,queue
+Fugaku,fugaku_login1,build,none
+Fugaku,fugaku_jacamar,run,FJ
+FugakuLN,fugaku_login1,build_run,none
+FugakuCN,fugaku_jacamar,build_run,FJ

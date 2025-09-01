@@ -1,0 +1,12 @@
+# GitLab CI-generated file
+.gitlab-ci.generated.yml
+
+# Received results directory
+result_server/received/
+
+# Python bytecode cache
+result_server/routes/__pycache__/
+
+# editor backup files
+*~
+*.bak

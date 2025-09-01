@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Uploaded Results</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+
+  <h1>Hardware environment</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>SYSTEM</th>
+        <th>CPU Name</th>
+        <th>CPU/node</th>
+        <th>CPU Core Count</th>
+        <th>GPU Name</th>
+        <th>GPU/node</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if sys == 'FugakuCN' or sys == 'Fugaku' %}
+         <tr>
+           <td>FugakuCN</td>
+           <td>A64FX</td>
+           <td>1</td>
+           <td>48</td>
+           <td> - </td>
+           <td> - </td>
+         </tr>
+      {% endif %}
+      {% if sys == 'FugakuLN' %}
+         <tr>
+           <td>FugakuLN</td>
+           <td>Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz</td>
+           <td>2</td>
+           <td>16</td>
+           <td> - </td>
+           <td> - </td>
+         </tr>
+      {% endif %}
+      {% if sys == 'qc-h100' %}
+         <tr>
+           <td>qc-h100</td>
+           <td>AMD EPYC 9534</td>
+           <td>2</td>
+           <td>64</td>
+           <td>NVIDIA H100</td>
+           <td>4</td>
+         </tr>
+      {% endif %}
+ <!--
+ #
+ # Copy the template below and add a new item.
+ #
+ -->
+      {% if sys == '__SYSTEM_' %}
+         <tr>
+           <th> __SYSTEM_ </th>
+           <th> __CPU Name_ </th>
+           <th> __CPU/node_ </th>
+           <th> __CPU Core Count_ </th>
+           <th> __GPU Name_ </th>
+           <th> __GPU/node_ </th>
+         </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <br>
+  <button onclick="history.back()">Back</button>
+
+</body>
+</html>

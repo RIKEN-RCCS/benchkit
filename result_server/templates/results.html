@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Uploaded Results</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .underline-link {
+            text-decoration: underline;
+            color: darkblue;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        function filterTable() {
+            const input = document.getElementById("filterInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#resultsTable tbody tr");
+
+            rows.forEach(row => {
+                const rowText = row.innerText.toLowerCase();
+                const terms = input.split(/\s+/).filter(t => t.length > 0);
+                const match = terms.every(term => rowText.includes(term));
+                row.style.display = match ? "" : "none";
+            });
+        }
+    </script>
+</head>
+<body>
+
+<h1>Uploaded Results</h1>
+
+<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
+<br><br>
+
+<table id="resultsTable">
+    <thead>
+    <tr>
+        {% for col_name, _ in columns %}
+           {% if col_name == "Timestamp" or col_name == "SYSTEM" or col_name == "CODE" or col_name == "FOM" or col_name == "FOM version" or col_name == "Exp" or col_name == "Nodes" or col_name == "JSON" or col_name == "PA Data" %}
+              <th>{{ col_name }}</th>
+           {% endif %}
+        {% endfor %}
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            {% for _, key in columns %}
+                    {% if key == "json_link" or key == "data_link" %}
+                      <td>
+                        {% if row[key] %}
+                            <a href="/results/{{ row[key] }}">
+                                {% if key == "json_link" %}
+                                    json
+                                {% elif key == "data_link" %}
+                                    data
+                                {% endif %}
+			    </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                      </td>
+                    {% endif%}
+                    {% if key == "system" %}
+                      <td>
+                        <a href="{{ url_for('hard_env', sys=row[key]) }}" class="underline-link">
+                           {{ row[key] }}
+                        </a>
+                      </td>
+                    {% else %}
+                       {% if key == "timestamp" or key == "code" or key == "fom" or key == "fom_version" or key == "exp" or key == "nodes" %}
+                         <td>
+                           {{ row[key] }}
+                         </td>
+                       {% endif %}
+                    {% endif %}
+            {% endfor %}
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>

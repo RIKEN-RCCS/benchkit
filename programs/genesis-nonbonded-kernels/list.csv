@@ -1,0 +1,4 @@
+system,mode,queue_group,nodes,numproc_node,nthreads,elapse
+Fugaku,cross,small,1,1,6,0:10:00
+FugakuLN,native,small,1,1,6,0:10:00
+FugakuCN,native,small,1,1,6,0:10:00

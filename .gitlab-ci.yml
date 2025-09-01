@@ -1,0 +1,23 @@
+stages:
+  - generate
+  - trigger
+
+generate_matrix:
+  stage: generate
+  script:
+    - bash ./scripts/matrix_generate.sh
+  tags:
+    - general
+  artifacts:
+    paths:
+      - .gitlab-ci.generated.yml
+    expire_in: 1 hour
+
+trigger_child_pipeline:
+  stage: trigger
+  trigger:
+    include:
+      - artifact: .gitlab-ci.generated.yml
+        job: generate_matrix
+    strategy: depend
+  needs: [generate_matrix]
