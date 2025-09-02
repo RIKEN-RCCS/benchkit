@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 system="$1"
+nodes="$2"
 
 echo "[FS_Benchmarks/QWS] Running on system: $system"
 ls
@@ -27,7 +28,8 @@ case "$system" in
   FugakuLN)
     echo 'dummy call for CB test: QWS program: ./main 32 6 4 3   1 1 1 1    -1   -1  6 50'
     mkdir -p ../results
-    echo FOM:123.56 > ../results/result
+    #echo FOM:123.56 > ../results/result
+    echo FOM:123.56 FOM_version:dummy Exp:ChechingPrivateRepo node_count:$nodes > ../results/result
 
     mkdir -p pa
     echo dummy > ./pa/padat.0
