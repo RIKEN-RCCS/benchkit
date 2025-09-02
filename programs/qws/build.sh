@@ -18,9 +18,9 @@ case "$system" in
 	#fcc --version
 	;;
     FugakuLN)
-	#make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
-	echo "touch main (THIS IS a dummy executable to check CI jobs)"
-	touch main ############################# THIS IS a dummy executable to check CI jobs
+	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
+	#echo "touch main (THIS IS a dummy executable to check CI jobs)"
+	#touch main ############################# THIS IS a dummy executable to check CI jobs
 	#gcc -v
 	;;
     *)
