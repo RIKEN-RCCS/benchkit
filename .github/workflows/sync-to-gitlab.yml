@@ -1,0 +1,26 @@
+name: Sync all branches to GitLab
+
+on:
+  push:
+    branches:
+      - '**'   # 全ブランチを対象にする
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 全ブランチとタグを取得
+
+      - name: Push all branches and tags to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+        run: |
+          git config user.name "github-bot"
+          git config user.email "bot@example.com"
+          git remote add gitlab https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}
+          # 全ブランチ・タグを強制同期
+          git push gitlab --all --force
+          git push gitlab --tags --force
