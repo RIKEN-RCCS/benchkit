@@ -57,7 +57,8 @@ cp -pr programs/qws/ programs/<code>
 ## 4. build.sh の確認
 
 ```bash
-# サンプルビルドを試す（富岳ログインノードで試す場合）
+# 富岳ログインノードでは、Xeon 向けビルド(FugakuLN)と、A64FX向けビルド(Fugaku)の確認ができます。
+# FugakuCNは、計算ノード内でのビルド＆ランをするモードのため、ログインノードでのビルド確認はできません。
 bash programs/<code>/build.sh FugakuLN
 
 # artifacts 内のファイルを確認
@@ -71,11 +72,16 @@ ls artifacts/
 ## 5. run.sh の確認
 
 ```bash
-# サンプル実行を試す（富岳ログインノードで試す場合。1はnodesですが、FugakuLNでは無意味なパラメータです。）
+# 富岳ログインノードでXeon環境でrun.shを試す場合はFugakuLNです。FugakuLNの場合、nodesは1にしてください。
 bash programs/<code>/run.sh FugakuLN 1
 
 # results 内に結果が生成されることを確認
 ls results/
+
+# ベンチマークの結果は、results/result に書きます。
+# 各行が 1 つのベンチマークに対応しています。
+# 各行は必ず性能指標（FOM:）のkeyを含む必要があります。
+cat results/result
 ```
 
 ---
@@ -83,12 +89,13 @@ ls results/
 ## 6. test\_submit.sh によるbatch jobを用いた確認
 
 ```bash
+# 富岳ログインで、A64FX用実行ファイルを用いたrun.sh、FugakuCNとFugakuのテストをできます。
+# 事前に"build.sh Fugaku"を用いてA64FX用実行ファイルを作成しておきます。
 bash scripts/test_submit.sh <code> n
 ```
 
 * `list.csv` のヘッダーを除いた n 行目を読み取り、適切な batch job を投げます
 * 現状は `FugakuCN` と `Fugaku` 向けで、将来的に対応システムが追加される予定です
-* 各システムでの `build.sh` / `run.sh` の個別確認は、このテストスクリプトを実行することで代替されます
 
 ---
 
