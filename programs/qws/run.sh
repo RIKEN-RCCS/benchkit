@@ -65,6 +65,9 @@ case "$system" in
 	tar -czf ../results/padata0.tgz ./pa
 	#ls ../results/
 	;;
+    RC_GH200)
+	echo FOM:11.22 FOM_version:dummy Exp:DummyFrom_qc-gh200 node_count:$nodes >> ../results/result
+	;;
     *)
 	echo "Unknown Running system: $system"
 	exit 1

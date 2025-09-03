@@ -19,9 +19,11 @@ case "$system" in
 	;;
     FugakuLN)
 	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
-	#echo "touch main (THIS IS a dummy executable to check CI jobs)"
-	#touch main ############################# THIS IS a dummy executable to check CI jobs
 	#gcc -v
+	;;
+    RC_GH200)
+	echo "touch main (THIS IS a dummy executable to check CI jobs)"
+	touch main ############################# THIS IS a dummy executable to check CI jobs
 	;;
     *)
 	echo "Unknown system: $system"
