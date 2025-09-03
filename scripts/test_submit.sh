@@ -49,6 +49,9 @@ elapse="${cols[6]}"
 # --- 値を表示 ---
 echo "system=$system, mode=$mode, queue_group=$queue_group, nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 
+# --- 投入用スクリプト作成 ---
+echo bash programs/$code/run.sh $system $nodes > script.sh
+
 # --- FugakuLN は submit テスト対象外 ---
 if [[ "$system" == "FugakuLN" ]]; then
     echo "Notice: system=$system → submit test will NOT be performed."
@@ -56,8 +59,9 @@ if [[ "$system" == "FugakuLN" ]]; then
 fi
 
 
-echo bash programs/$code/run.sh $system $nodes > script.sh
 
+# --- Fugaku or FugakuCN ---
+if [[ "$system" == "Fugaku" || "$system" == "FugakuCN" ]]; then
 echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
       --mpi max-proc-per-node=$numproc_node \
       -S -x PJM_LLIO_GFSCACHE=/vol0004:/vol0003 \
@@ -67,4 +71,13 @@ pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
       --mpi max-proc-per-node=$numproc_node \
       -S -x PJM_LLIO_GFSCACHE=/vol0004:/vol0003 \
       script.sh
+fi
+
+# --- RC_GH200 ---
+if [[ "$system" == "RC_GH200" ]]; then
+    echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+	 --wrap="bash programs/$code/run.sh $system $nodes"
+    sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+	   --wrap="bash programs/${code}/run.sh $system $nodes"
+fi
 
