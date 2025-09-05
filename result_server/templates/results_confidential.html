@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Confidential Results</title>
+    <style>
+        /* 共通テーブルスタイル */
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        tr:hover { background-color: #f5f5f5; }
+        .underline-link { text-decoration: underline; color: darkblue; cursor: pointer; }
+
+        /* OTPモーダル */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999;
+        }
+        .modal {
+            background: white; padding: 20px; border-radius: 8px; text-align: center;
+        }
+    </style>
+    <script>
+        function filterTable() {
+            const input = document.getElementById("filterInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#resultsTable tbody tr");
+
+            rows.forEach(row => {
+                const rowText = row.innerText.toLowerCase();
+                const terms = input.split(/\s+/).filter(t => t.length > 0);
+                const match = terms.every(term => rowText.includes(term));
+                row.style.display = match ? "" : "none";
+            });
+        }
+    </script>
+</head>
+<body>
+
+<h1>Confidential Results</h1>
+
+{% if not authenticated %}
+  <div class="overlay">
+      <div class="modal">
+          <h3>データの閲覧には認証が必要です</h3>
+
+          {% if otp_stage == "email" %}
+              <form method="POST">
+                  <input type="email" name="email" placeholder="メールアドレス" required>
+                  <button type="submit">OTPを送信</button>
+              </form>
+          {% elif otp_stage == "otp" %}
+              <form method="POST">
+                  <input type="text" name="otp" maxlength="6" placeholder="OTP (6桁)" required>
+                  <button type="submit">認証する</button>
+              </form>
+          {% endif %}
+      </div>
+  </div>
+{% endif %}
+
+<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
+<br><br>
+
+{% include "_results_table.html" %}
+
+</body>
+</html>

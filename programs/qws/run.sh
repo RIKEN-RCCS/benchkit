@@ -66,7 +66,14 @@ case "$system" in
 	#ls ../results/
 	;;
     RC_GH200)
-	echo FOM:11.22 FOM_version:dummy Exp:DummyFrom_qc-gh200 node_count:$nodes >> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_null node_count:$nodes >> ../results/result
+	# with confidential key
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamA node_count:$nodes confidential:TeamA>> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamB node_count:$nodes confidential:TeamB>> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamC node_count:$nodes confidential:TeamC>> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamD node_count:$nodes confidential:TeamD>> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamE node_count:$nodes confidential:TeamE>> ../results/result
+	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamF node_count:$nodes confidential:TeamF>> ../results/result
 	;;
     *)
 	echo "Unknown Running system: $system"

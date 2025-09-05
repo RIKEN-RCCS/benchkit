@@ -6,7 +6,9 @@ result_server/received/
 
 # Python bytecode cache
 result_server/routes/__pycache__/
+result_server/utils/__pycache__/
 
-# editor backup files
+# editor backup files and caches
 *~
 *.bak
+*.pyc
