@@ -48,10 +48,17 @@ def _read_confidential_from_json(json_file: str):
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
         c = data.get("confidential")
+#        if isinstance(c, list):
+#            return [str(x) for x in c if x]
+#        elif isinstance(c, str) and c.strip():
+#            return [c.strip()]
         if isinstance(c, list):
-            return [str(x) for x in c if x]
-        elif isinstance(c, str) and c.strip():
-            return [c.strip()]
+            return [str(x).strip() for x in c if x and str(x).lower() != "null"]
+        elif isinstance(c, str):
+            c = c.strip()
+            if c and c.lower() != "null":
+                return [c]
+
         return []
     except Exception:
         return []
