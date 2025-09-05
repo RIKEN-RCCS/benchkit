@@ -99,12 +99,21 @@ while IFS= read -r line; do
   fi
 
   # Description
-  if echo "$line" | grep -q 'Description:'; then
-      discription=$(echo "$line" | grep -Eo 'Description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+  if echo "$line" | grep -q 'description:'; then
+      discription=$(echo "$line" | grep -Eo 'description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
   else
       discription=null
   fi
 
+  
+  # Confidential
+  if echo "$line" | grep -q 'confidential:'; then
+      confidential=$(echo "$line" | grep -Eo 'confidential:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+  else
+      confidential=null
+  fi
+
+  
   # --- JSON ---
   cat <<EOF > results/result${i}.json
 {
@@ -121,7 +130,8 @@ while IFS= read -r line; do
   "node_count": "$node_count",
   "uname": "$uname_info",
   "cpu_cores": "$cpu_cores",
-  "discription": "$discription"
+  "discription": "$discription",
+  "confidential": "$confidential"
 }
 EOF
 

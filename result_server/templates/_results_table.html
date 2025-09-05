@@ -1,0 +1,39 @@
+<!-- templates/_results_table.html -->
+<table id="resultsTable">
+    <thead>
+    <tr>
+        {% for col_name, _ in columns %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data"] %}
+              <th>{{ col_name }}</th>
+           {% endif %}
+        {% endfor %}
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            {% for _, key in columns %}
+                {% if key in ["json_link", "data_link"] %}
+                    <td>
+                        {% if row[key] %}
+                            <a href="/results/{{ row[key] }}">
+                                {{ "json" if key == "json_link" else "data" }}
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                {% elif key == "system" %}
+                    <td>
+                        <a href="{{ url_for('hard_env', sys=row[key]) }}" class="underline-link">
+                           {{ row[key] }}
+                        </a>
+                    </td>
+                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes"] %}
+                    <td>{{ row[key] }}</td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>

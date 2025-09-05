@@ -1,111 +1,101 @@
 import os
-import json
-from flask import Blueprint, render_template, send_from_directory, abort, jsonify
-import re
-from datetime import datetime
+from flask import (
+    Blueprint, render_template, request, session,
+    redirect, url_for, flash, abort
+)
+from utils.results_loader import load_results_table
+from utils.otp_manager import send_otp, verify_otp, get_affiliations
+from utils.result_file import load_result_file, get_file_confidential_tags
 
 results_bp = Blueprint("results", __name__)
 SAVE_DIR = "received"
 
+
+# ==========================================
+# 公開用の結果一覧ページ
+# ==========================================
 @results_bp.route("/results")
-def list_results():
-    files = os.listdir(SAVE_DIR)
-    json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
-    tgz_files = [f for f in files if f.endswith(".tgz")]
-
-    rows = []
-    for json_file in json_files:
-        json_path = os.path.join(SAVE_DIR, json_file)
-        try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            code = data.get("code", "N/A")
-            sys = data.get("system", "N/A")
-            fom = data.get("FOM", "N/A")
-            fom_version = data.get("FOM_version", "N/A")
-            exp = data.get("Exp", "N/A")
-            cpu = data.get("cpu_name", "N/A")
-            gpu = data.get("gpu_name", "N/A")
-            nodes = data.get("node_count", "N/A")
-            cpus = data.get("cpus_per_node", "N/A")
-            gpus = data.get("gpus_per_node", "N/A")
-            cpu_cores = data.get("cpu_cores", "N/A")
-        except Exception:
-            code = sys = fom = cpu = gpu = nodes = cpus = gpus = cpu_cores = "Invalid"
-
-        match = re.search(r"\d{8}_\d{6}", json_file)
-        if match:
-            try:
-                ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
-                timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                timestamp = "Invalid"
-        else:
-            timestamp = "Unknown"
-
-        uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
-        if uuid_match:
-            uid = uuid_match.group(0)
-        else:
-            uid = None
-
-        if uid:
-            tgz_file = next((f for f in tgz_files if uid in f), None)
-        else:
-            tgz_file = None
-
-        row = {
-            "timestamp": timestamp,
-            "code": code,
-            "exp": exp,
-            "fom": fom,
-            "fom_version": fom_version,
-            "system": sys,
-            "cpu": cpu,
-            "gpu": gpu,
-            "nodes": nodes,
-            "cpus": cpus,
-            "gpus": gpus,
-            "cpu_cores": cpu_cores,
-            "json_link": json_file,
-            "data_link": tgz_file,
-        }
-
-        rows.append(row)
-
-    columns = [
-        ("Timestamp", "timestamp"),
-        ("CODE", "code"),
-        ("Exp", "exp"),
-        ("FOM", "fom"),
-        ("FOM version", "fom_version"),
-        ("SYSTEM", "system"),
-        ("CPU Name", "cpu"),
-        ("GPU Name", "gpu"),
-        ("Nodes", "nodes"),
-        ("CPU/node", "cpus"),
-        ("GPU/node", "gpus"),
-        ("CPU Core Count", "cpu_cores"),
-        ("JSON", "json_link"),
-        ("PA Data", "data_link"),
-    ]
-
-    return render_template("results.html", columns=columns, rows=rows)
+def results():
+    rows, columns = load_results_table(public_only=True)
+    return render_template("results.html", rows=rows, columns=columns)
 
 
+# ==========================================
+# 機密データ付きの結果ページ（OTP認証付き）
+# ==========================================
+@results_bp.route("/results_confidential", methods=["GET", "POST"])
+def results_confidential():
+    # フォーム送信処理
+    if request.method == "POST":
+        email = request.form.get("email")
+        otp = request.form.get("otp")
+
+        if email and not otp:
+            # STEP1: メール送信
+            success, msg = send_otp(email)
+            if success:
+                flash("OTPをメールに送信しました")
+                session["otp_email"] = email
+                session["otp_stage"] = "otp"
+            else:
+                flash(msg)
+                session.pop("otp_email", None)
+                session["otp_stage"] = "email"
+            return redirect(url_for("results.results_confidential"))
+
+        elif otp:
+            # STEP2: OTP検証
+            otp_email = session.get("otp_email")
+            if otp_email and verify_otp(otp_email, otp):
+                session["authenticated_confidential"] = True
+                flash("認証成功")
+                session.pop("otp_stage", None)  # 認証済みなので削除
+            else:
+                flash("OTP認証失敗")
+                session.pop("otp_email", None)
+                session.pop("authenticated_confidential", None)
+                session["otp_stage"] = "email"
+            return redirect(url_for("results.results_confidential"))
+
+    # OTPステージ判定
+    authenticated = session.get("authenticated_confidential", False)
+    otp_email = session.get("otp_email")
+
+    if authenticated:
+        otp_stage = None  # 認証済みなのでフォームは出さない
+    elif otp_email:
+        otp_stage = "otp"  # OTP入力待ち
+    else:
+        otp_stage = "email"  # メール入力待ち
+
+
+    # 結果テーブル読み込み（confidential制御は utils 内で処理）
+    rows, columns = load_results_table(
+        public_only=False,
+        session_email=otp_email,
+        authenticated=authenticated
+    )
+
+    return render_template(
+        "results_confidential.html",
+        rows=rows,
+        columns=columns,
+        authenticated=authenticated,
+        otp_stage=otp_stage
+    )
+
+# ==========================================
+# 個別結果ファイルの表示/ダウンロード
+# ==========================================
 @results_bp.route("/results/<filename>")
 def show_result(filename):
-    filepath = os.path.join(SAVE_DIR, filename)
-    if not os.path.exists(filepath):
-        abort(404)
+    tags = get_file_confidential_tags(filename)
 
-    if filename.endswith(".json"):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return jsonify(data)
-        except json.JSONDecodeError:
-            abort(400, "Invalid JSON")
-    else:
-        return send_from_directory(SAVE_DIR, filename)
-    
+    if tags:
+        authenticated = session.get("authenticated_confidential", False)
+        email = session.get("otp_email")
+        affs = get_affiliations(email) if email else []
+        if not authenticated or not (set(tags) & set(affs)):
+            abort(403, "このファイルにアクセスする権限がありません")
+
+    return load_result_file(filename)
