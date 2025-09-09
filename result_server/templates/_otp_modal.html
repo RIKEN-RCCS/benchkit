@@ -1,0 +1,19 @@
+{% if not authenticated %}
+<div class="overlay">
+    <div class="modal">
+        <h3>データの閲覧には認証が必要です</h3>
+
+        {% if otp_stage == "email" %}
+        <form method="POST">
+            <input type="email" name="email" placeholder="メールアドレス" required>
+            <button type="submit">OTPを送信</button>
+        </form>
+        {% elif otp_stage == "otp" %}
+        <form method="POST">
+            <input type="text" name="otp" maxlength="6" placeholder="OTP (6桁)" required>
+            <button type="submit">認証する</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

@@ -18,7 +18,6 @@ from routes.upload_tgz import upload_bp
 # Create the Flask app and specify the templates folder
 app = Flask(__name__, template_folder="templates")
 
-
 # Set a secret key for session management (required for flash and OTP sessions)
 # In production, use a secure random key, e.g., os.urandom(24)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
@@ -37,5 +36,6 @@ def hard_env(sys):
 if __name__ == "__main__":
     # Ensure the directory to store received files exists
     os.makedirs("received", exist_ok=True)
+    os.makedirs("estimated_results", exist_ok=True)
     # Start the server, listening on all interfaces at port 8800
     app.run(host="0.0.0.0", port=8800)

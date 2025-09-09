@@ -5,34 +5,58 @@ from datetime import datetime
 from utils.result_file import get_file_confidential_tags
 from utils.otp_manager import get_affiliations
 
+#--------------------------------------------------------------------------------------------------------------
+def load_json_with_confidential_filter(json_file, directory, affs=None, public_only=True, authenticated=False):
+    """
+    指定ディレクトリの JSON を読み込み、confidential タグに基づいて
+    フィルタリングする。
+    
+    Args:
+        json_file (str): JSON ファイル名
+        directory (str): ファイルのあるディレクトリ
+        affs (list, optional): セッションユーザーの所属リスト
+        public_only (bool): 公開のみかどうか
+        authenticated (bool): 認証済みかどうか
+    
+    Returns:
+        dict or None: 読み込んだ JSON データ（フィルタに引っかかれば None）
+    """
+    if affs is None:
+        affs = []
+
+    tags = get_file_confidential_tags(json_file, directory)
+    #print(f"Processing {json_file}, tags={tags}, public_only={public_only}, authenticated={authenticated}, flush=True)
+    if public_only and tags:
+        return None
+    if tags and not authenticated:
+        return None
+    if tags and affs:
+        if not (set(tags) & set(affs)):
+            return None
+
+    try:
+        with open(os.path.join(directory, json_file), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception:
+        return None
+#--------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------
+
 SAVE_DIR = "received"
+ESTIMATED_DIR = "estimated_results"
 
 def load_results_table(public_only=True, session_email=None, authenticated=False):
+    affs = get_affiliations(session_email) if session_email else []
     files = os.listdir(SAVE_DIR)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
     tgz_files = [f for f in files if f.endswith(".tgz")]
 
     rows = []
     for json_file in json_files:
-        tags = get_file_confidential_tags(json_file)
-
-        if public_only and tags:
+        data = load_json_with_confidential_filter(json_file, SAVE_DIR, affs, public_only, authenticated)
+        if data is None:
             continue
-
-        if tags and not authenticated:
-            # 認証なしならスキップ
-            continue
-        if tags and session_email:
-            affs = get_affiliations(session_email)
-            if not (set(tags) & set(affs)):
-                continue
-
-        # JSON読み込み
-        try:
-            with open(os.path.join(SAVE_DIR, json_file), "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
 
         code = data.get("code", "N/A")
         sys = data.get("system", "N/A")
@@ -92,5 +116,56 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
         ("CPU Core Count", "cpu_cores"),
         ("JSON", "json_link"),
         ("PA Data", "data_link"),
+    ]
+    return rows, columns
+
+
+def load_estimated_results_table(public_only=True, session_email=None, authenticated=False):
+    affs = get_affiliations(session_email) if session_email else []
+    files = os.listdir(ESTIMATED_DIR)
+    json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
+
+    rows = []
+    for json_file in json_files:
+        data = load_json_with_confidential_filter(json_file, ESTIMATED_DIR, affs, public_only, authenticated)
+        if data is None:
+            continue
+
+        current = data.get("current system", {})
+        future = data.get("future system", {})
+
+        row = {
+#            "timestamp": timestamp,
+            "code": data.get("code", ""),
+            "exp": data.get("exp", ""),
+            "benchmark_system": data.get("benchmark_system", ""),
+            "benchmark_fom": data.get("benchmark_fom", ""),
+            "benchmark_nodes": data.get("benchmark_nodes", ""),
+            "systemA_fom": current.get("fom", ""),
+            "systemA_method": current.get("method", ""),
+            "systemA_nodes": current.get("nodes", ""),
+            "systemB_fom": future.get("fom", ""),
+            "systemB_method": future.get("method", ""),
+            "systemB_nodes": future.get("nodes", ""),
+            "performance_ratio": data.get("performance_ratio", ""),
+            "json_link": json_file,
+        }
+        rows.append(row)
+
+    columns = [
+        #("Timestamp", "timestamp"),
+        ("CODE", "code"),
+        ("Exp", "exp"),
+        ("Benchmark System", "benchmark_system"),
+        ("Benchmark FOM", "benchmark_fom"),
+        ("Benchmark Nodes", "benchmark_nodes"),
+        ("System A FOM", "systemA_fom"),
+        ("System A Method", "systemA_method"),
+        ("System A Nodes", "systemA_nodes"),
+        ("System B FOM", "systemB_fom"),
+        ("System B Method", "systemB_method"),
+        ("System B Nodes", "systemB_nodes"),
+        ("Performance Ratio", "performance_ratio"),
+        ("JSON", "json_link"),
     ]
     return rows, columns
