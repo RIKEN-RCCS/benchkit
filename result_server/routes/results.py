@@ -36,7 +36,7 @@ def serve_confidential_file(filename, dir_path, session_key_authenticated, sessi
 # ==========================================
 # 公開用の結果一覧ページ
 # ==========================================
-@results_bp.route("/results", strict_slashes=False)
+@results_bp.route("results", strict_slashes=False)
 def results():
     rows, columns = load_results_table(public_only=True)
     return render_template("results.html", rows=rows, columns=columns)
@@ -106,7 +106,7 @@ def render_confidential_table(template_name, public_only, session_key_authentica
     )
 
 
-@results_bp.route("/results_confidential", methods=["GET", "POST"], strict_slashes=False)
+@results_bp.route("results_confidential", methods=["GET", "POST"], strict_slashes=False)
 def results_confidential():
     if request.method == "POST":
         return handle_otp_post("authenticated_confidential", "otp_email", "results.results_confidential")
@@ -115,7 +115,7 @@ def results_confidential():
                                      session_key_email="otp_email")
 
 
-@results_bp.route("/estimated_results", methods=["GET", "POST"], strict_slashes=False)
+@results_bp.route("estimated_results", methods=["GET", "POST"], strict_slashes=False)
 def estimated_results():
     if request.method == "POST":
         return handle_otp_post("authenticated_estimated", "otp_email_estimated", "results.estimated_results")
@@ -127,11 +127,11 @@ def estimated_results():
 # ==========================================
 # 個別結果ファイルの表示/ダウンロード
 # ==========================================
-@results_bp.route("/results/<filename>")
+@results_bp.route("results/<filename>")
 def show_result(filename):
     return serve_confidential_file(filename, SAVE_DIR, "authenticated_confidential", "otp_email")
 
 
-@results_bp.route("/estimated_results/<filename>")
+@results_bp.route("estimated_results/<filename>")
 def show_estimated_result(filename):
     return serve_confidential_file(filename, ESTIMATE_DIR, "authenticated_estimated", "otp_email_estimated")

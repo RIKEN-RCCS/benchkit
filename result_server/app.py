@@ -44,9 +44,9 @@ def create_app(prefix="", base_dir=None):
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # Register route blueprints
-    app.register_blueprint(receive_bp)
-    app.register_blueprint(results_bp)
-    app.register_blueprint(upload_bp)
+    app.register_blueprint(receive_bp, url_prefix=prefix)
+    app.register_blueprint(results_bp, url_prefix=prefix)
+    app.register_blueprint(upload_bp, url_prefix=prefix)
 
     @app.route(f"{prefix}/hard_env/<sys>")
     def hard_env(sys):

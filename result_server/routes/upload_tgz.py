@@ -8,7 +8,7 @@ upload_bp = Blueprint("upload", __name__)
 EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
 SAVE_DIR = "received"
 
-@upload_bp.route("/upload-tgz", methods=["POST"])
+@upload_bp.route("upload-tgz", methods=["POST"])
 def upload_tgz():
     api_key = request.headers.get("X-API-Key")
     if api_key != EXPECTED_API_KEY:

@@ -8,7 +8,7 @@ receive_bp = Blueprint("receive", __name__)
 EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
 SAVE_DIR = "received"
 
-@receive_bp.route("/write-api", methods=["POST"])
+@receive_bp.route("write-api", methods=["POST"])
 def receive():
     api_key = request.headers.get("X-API-Key")
     if api_key != EXPECTED_API_KEY:
