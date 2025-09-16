@@ -10,32 +10,74 @@ if not EXPECTED_API_KEY:
     sys.exit(1)
 
 # Import Flask and route blueprints
-from flask import Flask, render_template
+from flask import Flask, render_template, current_app
 from routes.receive import receive_bp
 from routes.results import results_bp
 from routes.upload_tgz import upload_bp
 
-# Create the Flask app and specify the templates folder
-app = Flask(__name__, template_folder="templates")
+# -----------------------------------------
+# Create Flask application
+# -----------------------------------------
+def create_app(prefix="", base_dir=None):
 
-# Set a secret key for session management (required for flash and OTP sessions)
-# In production, use a secure random key, e.g., os.urandom(24)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
+    """
+    prefix: URL prefix (""=For main, "/dev"=For develop)
+    base_dir: For main : main, For develop: dev1)
+    """
+    if base_dir is None:
+        raise ValueError("base_dir must be specified")
 
-# Register route blueprints
-app.register_blueprint(receive_bp)
-app.register_blueprint(results_bp)
-app.register_blueprint(upload_bp)
+    # Create the Flask app and specify the templates folder
+    app = Flask(__name__, template_folder="templates")
 
-@app.route('/hard_env/<sys>')
-def hard_env(sys):
-    return render_template('hard_env.html', sys=sys)
+    # Set a secret key for session management (required for flash and OTP sessions)
+    # In production, use a secure random key, e.g., os.urandom(24)
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
 
-#---------------------------------------------------------------------------------
-# Run the Flask app only if this script is run directly (not imported as a module)
+    # make dir, !!!!!!!!                   received & estimated_results
+    received_dir = os.path.join(base_dir, "received")
+    estimated_dir = os.path.join(base_dir, "estimated_results")
+    os.makedirs(received_dir, exist_ok=True)
+    os.makedirs(estimated_dir, exist_ok=True)
+
+    app.config["RECEIVED_DIR"] = received_dir
+    app.config["ESTIMATED_DIR"] = estimated_dir
+
+    # Register route blueprints
+    app.register_blueprint(receive_bp)
+    app.register_blueprint(results_bp)
+    app.register_blueprint(upload_bp)
+
+    @app.route(f"{prefix}/hard_env/<sys>")
+    def hard_env(sys):
+        return render_template("hard_env.html", sys=sys)
+
+    return app
+
+
+# -----------------------------------------
+# Create main, dev application
+# -----------------------------------------
+BASE_PATH = os.getenv("BASE_PATH")
+if not BASE_PATH:
+    sys.stderr.write("ERROR: BASE_PATH environment variable is not set.\n")
+    sys.exit(1)
+
+
+# Main
+app = create_app(prefix="", base_dir=os.path.join(BASE_PATH, "main"))
+
+# Develop
+app_dev = create_app(prefix="/dev", base_dir=os.path.join(BASE_PATH, "dev1"))
+
+
+@app.route("/")
+def index():
+    return "Flask app is running!"
+
+# -----------------------------------------
+# Development server startup (only when running python app.py directly)
+# Ignored when running with Gunicorn
+# -----------------------------------------
 if __name__ == "__main__":
-    # Ensure the directory to store received files exists
-    os.makedirs("received", exist_ok=True)
-    os.makedirs("estimated_results", exist_ok=True)
-    # Start the server, listening on all interfaces at port 8800
     app.run(host="0.0.0.0", port=8800)
