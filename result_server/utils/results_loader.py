@@ -131,8 +131,8 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
         if data is None:
             continue
 
-        current = data.get("current system", {})
-        future = data.get("future system", {})
+        current = data.get("current_system", {})
+        future = data.get("future_system", {})
 
         row = {
 #            "timestamp": timestamp,
@@ -142,11 +142,13 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
             "benchmark_fom": data.get("benchmark_fom", ""),
             "benchmark_nodes": data.get("benchmark_nodes", ""),
             "systemA_fom": current.get("fom", ""),
-            "systemA_method": current.get("method", ""),
+            "systemA_system": current.get("system", ""),
             "systemA_nodes": current.get("nodes", ""),
+            "systemA_method": current.get("method", ""),
             "systemB_fom": future.get("fom", ""),
-            "systemB_method": future.get("method", ""),
+            "systemB_system": future.get("system", ""),
             "systemB_nodes": future.get("nodes", ""),
+            "systemB_method": future.get("method", ""),
             "performance_ratio": data.get("performance_ratio", ""),
             "json_link": json_file,
         }
@@ -160,11 +162,11 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
         ("Benchmark FOM", "benchmark_fom"),
         ("Benchmark Nodes", "benchmark_nodes"),
         ("System A FOM", "systemA_fom"),
-        ("System A Method", "systemA_method"),
         ("System A Nodes", "systemA_nodes"),
+        ("System A Method", "systemA_method"),
         ("System B FOM", "systemB_fom"),
-        ("System B Method", "systemB_method"),
         ("System B Nodes", "systemB_nodes"),
+        ("System B Method", "systemB_method"),
         ("Performance Ratio", "performance_ratio"),
         ("JSON", "json_link"),
     ]
