@@ -82,6 +82,8 @@ ${job_prefix}_send_results:
   stage: send_results
   needs: [\"${job_prefix}_run\"]
   tags: [general]
+  environment:
+    name: \$CI_COMMIT_BRANCH
   script:
     - bash scripts/send_results.sh
 
@@ -119,6 +121,8 @@ ${job_prefix}_send_results:
   stage: send_results
   needs: [\"${job_prefix}_build_run\"]
   tags: [general]
+  environment:
+    name: \$CI_COMMIT_BRANCH
   script:
     - bash scripts/send_results.sh
 
