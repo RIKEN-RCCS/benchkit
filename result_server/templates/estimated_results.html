@@ -21,21 +21,24 @@
     <tr>
       <th rowspan="2">Code</th>
       <th rowspan="2">Exp</th>
-      <th colspan="3">System A</th>
-      <th colspan="3">System B</th>
-      <th colspan="2">Benchmark</th>
+      <th colspan="4">System A</th>
+      <th colspan="4">System B</th>
+      <th colspan="3">Benchmark</th>
       <th rowspan="2">JSON</th>
       <th rowspan="2">Ratio</th>
     </tr>
     <tr>
       <th>FOM</th>
-      <th>Method</th>
+      <th>System</th>
       <th>Nodes</th>
-      <th>FOM</th>
       <th>Method</th>
-      <th>Nodes</th>
       <th>FOM</th>
       <th>System</th>
+      <th>Nodes</th>
+      <th>Method</th>
+      <th>FOM</th>
+      <th>System</th>
+      <th>Nodes</th>
     </tr>
   </thead>
   <tbody>
@@ -44,13 +47,16 @@
       <td>{{ r.code }}</td>
       <td>{{ r.exp }}</td>
       <td>{{ r.systemA_fom }}</td>
-      <td>{{ r.systemA_method }}</td>
+      <td>{{ r.systemA_system }}</td>
       <td>{{ r.systemA_nodes }}</td>
+      <td>{{ r.systemA_method }}</td>
       <td>{{ r.systemB_fom }}</td>
-      <td>{{ r.systemB_method }}</td>
+      <td>{{ r.systemB_system }}</td>
       <td>{{ r.systemB_nodes }}</td>
+      <td>{{ r.systemB_method }}</td>
       <td>{{ r.benchmark_fom }}</td>
       <td>{{ r.benchmark_system }}</td>
+      <td>{{ r.benchmark_nodes }}</td>
       <td>
         <a href="{{ url_for('results.show_estimated_result', filename=r.json_link) }}">json</a>
       </td>
