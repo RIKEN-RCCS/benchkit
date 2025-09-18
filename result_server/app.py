@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import timedelta
 
 # Retrieve the API key from environment variable (needed in receive.py)
 EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
@@ -32,7 +33,24 @@ def create_app(prefix="", base_dir=None):
 
     # Set a secret key for session management (required for flash and OTP sessions)
     # In production, use a secure random key, e.g., os.urandom(24)
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
+    #app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
+
+    # --- Secret Key ---
+    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    if not secret_key:
+        raise RuntimeError("FLASK_SECRET_KEY must be set in production")
+    app.secret_key = secret_key
+
+    # --- セッションCookieのセキュリティ設定 ---
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,       # HTTPS必須
+        SESSION_COOKIE_HTTPONLY=True,     # JSからのアクセス禁止
+        SESSION_COOKIE_SAMESITE="Strict", # もしくは "Lax"
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),  # セッション寿命を短めに
+    )
+
+
+
 
     # make dir, !!!!!!!!                   received & estimated_results
     received_dir = os.path.join(base_dir, "received")

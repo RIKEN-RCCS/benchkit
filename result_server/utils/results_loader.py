@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from utils.result_file import get_file_confidential_tags
 from utils.otp_manager import get_affiliations
+from flask import url_for
 
 #--------------------------------------------------------------------------------------------------------------
 def load_json_with_confidential_filter(json_file, directory, affs=None, public_only=True, authenticated=False):
@@ -70,6 +71,7 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
         gpus = data.get("gpus_per_node", "N/A")
         cpu_cores = data.get("cpu_cores", "N/A")
 
+        # get timestamp and uuid
         match = re.search(r"\d{8}_\d{6}", json_file)
         timestamp = "Unknown"
         if match:
@@ -96,8 +98,13 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
             "cpus": cpus,
             "gpus": gpus,
             "cpu_cores": cpu_cores,
-            "json_link": json_file,
-            "data_link": tgz_file,
+            # error handling to avoid strange link generation such as ../resuts//dev/results/result_...json
+            #"json_link": url_for("results.show_result", filename=json_file.split("results/")[-1].lstrip("/")),
+            #"data_link": url_for("results.show_result", filename=tgz_file.split("results/")[-1].lstrip("/")) if tgz_file else None,
+            "json_link": url_for("results.show_result", filename=json_file),
+            "data_link": url_for("results.show_result", filename=tgz_file) if tgz_file else None,
+            #"json_link": json_file,
+            #"data_link": tgz_file,
         }
         rows.append(row)
 
@@ -131,40 +138,55 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
         if data is None:
             continue
 
-        current = data.get("current system", {})
-        future = data.get("future system", {})
+        current = data.get("current_system", {})
+        future = data.get("future_system", {})
+
+        # get timestamp and uuid
+        match = re.search(r"\d{8}_\d{6}", json_file)
+        timestamp = "Unknown"
+        if match:
+            try:
+                ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
+                timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+
+        uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
+        uid = uuid_match.group(0) if uuid_match else None
 
         row = {
-#            "timestamp": timestamp,
+            "timestamp": timestamp,
             "code": data.get("code", ""),
             "exp": data.get("exp", ""),
             "benchmark_system": data.get("benchmark_system", ""),
             "benchmark_fom": data.get("benchmark_fom", ""),
             "benchmark_nodes": data.get("benchmark_nodes", ""),
             "systemA_fom": current.get("fom", ""),
-            "systemA_method": current.get("method", ""),
+            "systemA_system": current.get("system", ""),
             "systemA_nodes": current.get("nodes", ""),
+            "systemA_method": current.get("method", ""),
             "systemB_fom": future.get("fom", ""),
-            "systemB_method": future.get("method", ""),
+            "systemB_system": future.get("system", ""),
             "systemB_nodes": future.get("nodes", ""),
+            "systemB_method": future.get("method", ""),
             "performance_ratio": data.get("performance_ratio", ""),
             "json_link": json_file,
         }
         rows.append(row)
 
     columns = [
-        #("Timestamp", "timestamp"),
+        ("Timestamp", "timestamp"),
         ("CODE", "code"),
         ("Exp", "exp"),
         ("Benchmark System", "benchmark_system"),
         ("Benchmark FOM", "benchmark_fom"),
         ("Benchmark Nodes", "benchmark_nodes"),
         ("System A FOM", "systemA_fom"),
-        ("System A Method", "systemA_method"),
         ("System A Nodes", "systemA_nodes"),
+        ("System A Method", "systemA_method"),
         ("System B FOM", "systemB_fom"),
-        ("System B Method", "systemB_method"),
         ("System B Nodes", "systemB_nodes"),
+        ("System B Method", "systemB_method"),
         ("Performance Ratio", "performance_ratio"),
         ("JSON", "json_link"),
     ]

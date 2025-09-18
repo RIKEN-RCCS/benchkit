@@ -16,7 +16,7 @@
                 {% if key in ["json_link", "data_link"] %}
                     <td>
                         {% if row[key] %}
-                            <a href="/results/{{ row[key] }}">
+                            <a href="{{ row[key] }}">
                                 {{ "json" if key == "json_link" else "data" }}
                             </a>
                         {% else %}
