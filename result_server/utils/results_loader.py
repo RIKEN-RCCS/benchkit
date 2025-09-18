@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from utils.result_file import get_file_confidential_tags
 from utils.otp_manager import get_affiliations
+from flask import url_for
 
 #--------------------------------------------------------------------------------------------------------------
 def load_json_with_confidential_filter(json_file, directory, affs=None, public_only=True, authenticated=False):
@@ -97,8 +98,13 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
             "cpus": cpus,
             "gpus": gpus,
             "cpu_cores": cpu_cores,
-            "json_link": json_file,
-            "data_link": tgz_file,
+            # error handling to avoid strange link generation such as ../resuts//dev/results/result_...json
+            #"json_link": url_for("results.show_result", filename=json_file.split("results/")[-1].lstrip("/")),
+            #"data_link": url_for("results.show_result", filename=tgz_file.split("results/")[-1].lstrip("/")) if tgz_file else None,
+            "json_link": url_for("results.show_result", filename=json_file),
+            "data_link": url_for("results.show_result", filename=tgz_file) if tgz_file else None,
+            #"json_link": json_file,
+            #"data_link": tgz_file,
         }
         rows.append(row)
 
