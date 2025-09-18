@@ -70,6 +70,7 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
         gpus = data.get("gpus_per_node", "N/A")
         cpu_cores = data.get("cpu_cores", "N/A")
 
+        # get timestamp and uuid
         match = re.search(r"\d{8}_\d{6}", json_file)
         timestamp = "Unknown"
         if match:
@@ -134,8 +135,21 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
         current = data.get("current_system", {})
         future = data.get("future_system", {})
 
+        # get timestamp and uuid
+        match = re.search(r"\d{8}_\d{6}", json_file)
+        timestamp = "Unknown"
+        if match:
+            try:
+                ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
+                timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+
+        uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
+        uid = uuid_match.group(0) if uuid_match else None
+
         row = {
-#            "timestamp": timestamp,
+            "timestamp": timestamp,
             "code": data.get("code", ""),
             "exp": data.get("exp", ""),
             "benchmark_system": data.get("benchmark_system", ""),
@@ -155,7 +169,7 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
         rows.append(row)
 
     columns = [
-        #("Timestamp", "timestamp"),
+        ("Timestamp", "timestamp"),
         ("CODE", "code"),
         ("Exp", "exp"),
         ("Benchmark System", "benchmark_system"),

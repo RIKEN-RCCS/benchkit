@@ -19,6 +19,7 @@
 <table border="1">
   <thead>
     <tr>
+      <th rowspan="2">Timestamp</th>
       <th rowspan="2">Code</th>
       <th rowspan="2">Exp</th>
       <th colspan="4">System A</th>
@@ -44,6 +45,7 @@
   <tbody>
     {% for r in rows %}
     <tr>
+      <td>{{ r.timestamp }}</td>
       <td>{{ r.code }}</td>
       <td>{{ r.exp }}</td>
       <td>{{ r.systemA_fom }}</td>
