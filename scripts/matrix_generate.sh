@@ -7,6 +7,19 @@ OUTPUT_FILE=".gitlab-ci.generated.yml"
 
 source ./scripts/job_functions.sh
 
+CODE_FILTER=""
+SYSTEM_FILTER=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    code=*) CODE_FILTER="${1#code=}" ;;
+    system=*) SYSTEM_FILTER="${1#system=}" ;;
+    *) echo "Unknown argument: $1"; exit 1 ;;
+  esac
+  shift
+done
+
+
 echo "# Auto-generated GitLab CI configuration" > "$OUTPUT_FILE"
 echo "
 stages:
@@ -20,10 +33,14 @@ stages:
 for listfile in programs/*/list.csv; do
   program_dir=$(dirname "$listfile")
   program=$(basename "$program_dir")
-  
+ 
+  [[ -n "$CODE_FILTER" && "$program" != "$CODE_FILTER" ]] && continue
+
   while IFS=, read -r system mode queue_group nodes numproc_node nthreads elapse; do
     [[ "$system" == "system" ]] && continue  # skip header
     [[ "$system" == *"#"* ]] && continue  # skip #
+
+    [[ -n "$SYSTEM_FILTER" && "$system" != "$SYSTEM_FILTER" ]] && continue
 
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"
