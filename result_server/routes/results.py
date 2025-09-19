@@ -4,7 +4,8 @@ from flask import (
     redirect, url_for, flash, abort, send_from_directory
 )
 from utils.results_loader import load_results_table, load_estimated_results_table
-from utils.otp_manager import send_otp, verify_otp, get_affiliations
+#from utils.otp_manager import get_affiliations
+from utils.otp_redis_manager import send_otp, verify_otp, invalidate_otp, is_allowed, get_affiliations
 from utils.result_file import load_result_file, get_file_confidential_tags
 
 results_bp = Blueprint("results", __name__)
@@ -51,28 +52,27 @@ def handle_otp_post(session_key_authenticated, session_key_email, route_name):
 
     if email and not otp:
         success, msg = send_otp(email)
-        if success:
-            flash("OTPをメールに送信しました")
+        flash(msg)
+        if success and is_allowed(email):
+            session.clear()
             session[session_key_email] = email
             session["otp_stage"] = "otp"
         else:
-            flash(msg)
-            session.pop(session_key_email, None)
+            session.clear()
             session["otp_stage"] = "email"
         return redirect(url_for(route_name))
 
     elif otp:
         otp_email = session.get(session_key_email)
         if otp_email and verify_otp(otp_email, otp):
+            session.clear()
             session[session_key_authenticated] = True
             flash("認証成功")
-            session.pop("otp_stage", None)
         else:
-            flash("OTP認証失敗")
-            session.pop(session_key_email, None)
-            session.pop(session_key_authenticated, None)
-            session["otp_stage"] = "email"
+            session.clear()
+            flash("認証失敗")
         return redirect(url_for(route_name))
+
 
 
 def render_confidential_table(template_name, public_only, session_key_authenticated, session_key_email, loader_func=None):
