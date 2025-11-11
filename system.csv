@@ -4,3 +4,5 @@ Fugaku,fugaku_jacamar,run,FJ
 FugakuLN,fugaku_login1,build_run,none
 FugakuCN,fugaku_jacamar,build_run,FJ
 RC_GH200,cloud_jacamar,build_run,SLURM_RC_GH200
+MiyabiG,miyabi_g_login,build,none
+MiyabiG,miyabi_g_jacamar,run,PBS_MiyabiG
