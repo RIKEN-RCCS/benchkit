@@ -137,7 +137,7 @@ ${job_prefix}_build_run:
 ${job_prefix}_send_results:
   stage: send_results
   needs: [\"${job_prefix}_build_run\"]
-  tags: [general]
+  tags: [fncx-curl-jq]
   environment:
     name: \$CI_COMMIT_BRANCH
   script:
