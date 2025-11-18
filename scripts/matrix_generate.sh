@@ -90,13 +90,6 @@ ${job_prefix}_run:
     - echo \"[RUN] $program on $system\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/result.sh $program $system
-    - pwd
-    - ls
-    - ls -l results
-    - sync
-    - env
-    - mkdir -p \$RUNNER_TEMP_PROJECT_DIR/results/
-    - cp -r \$CI_PROJECT_DIR/results/* \$RUNNER_TEMP_PROJECT_DIR/results/
   artifacts:
     paths:
       - results/
