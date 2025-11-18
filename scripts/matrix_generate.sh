@@ -90,6 +90,9 @@ ${job_prefix}_run:
     - echo \"[RUN] $program on $system\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/result.sh $program $system
+    - pwd
+    - ls
+    - ls -l results
   artifacts:
     paths:
       - results/
