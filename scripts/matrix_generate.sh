@@ -93,6 +93,7 @@ ${job_prefix}_run:
     - pwd
     - ls
     - ls -l results
+    - env
   artifacts:
     paths:
       - results/
