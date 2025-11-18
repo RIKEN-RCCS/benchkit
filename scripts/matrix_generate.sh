@@ -93,6 +93,7 @@ ${job_prefix}_run:
     - pwd
     - ls
     - ls -l results
+    - sync
     - env
     - mkdir -p \$RUNNER_TEMP_PROJECT_DIR/results/
     - cp -r \$CI_PROJECT_DIR/results/* \$RUNNER_TEMP_PROJECT_DIR/results/
