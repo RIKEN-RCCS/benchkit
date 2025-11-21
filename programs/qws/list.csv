@@ -3,4 +3,5 @@ system,mode,queue_group,nodes,numproc_node,nthreads,elapse
 #FugakuLN,native,small,1,1,1,0:10:00
 #FugakuCN,native,small,1,4,12,0:10:00
 #FugakuCN,native,small,2,4,12,0:10:00
-RC_GH200,native,dummy,1,1,12,0:10:00
+#RC_GH200,native,dummy,1,1,12,0:10:00
+MiyabiG,cross,debug-g,1,1,1,0:10:00

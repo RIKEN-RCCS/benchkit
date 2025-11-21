@@ -2,10 +2,14 @@ stages:
   - generate
   - trigger
 
+variables:
+  code: ""
+  system: ""
+
 generate_matrix:
   stage: generate
   script:
-    - bash ./scripts/matrix_generate.sh
+    - bash ./scripts/matrix_generate.sh code=$code system=$system
   tags:
     - general
   artifacts:
