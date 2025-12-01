@@ -1,5 +1,5 @@
 queue,submit_cmd,template
 FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0004"
 SLURM_RC_GH200,sbatch,"-p qc-gh200 -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"
-PBS_MiyabiG,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=gq49"
+PBS_Miyabi,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=gq49"
 none,none,none

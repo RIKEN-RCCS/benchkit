@@ -50,7 +50,8 @@ elapse="${cols[6]}"
 echo "system=$system, mode=$mode, queue_group=$queue_group, nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 
 # --- 投入用スクリプト作成 ---
-echo bash programs/$code/run.sh $system $nodes > script.sh
+echo cd $PWD > script.sh
+echo bash programs/$code/run.sh $system $nodes >> script.sh
 
 # --- FugakuLN は submit テスト対象外 ---
 if [[ "$system" == "FugakuLN" ]]; then
@@ -79,5 +80,21 @@ if [[ "$system" == "RC_GH200" ]]; then
 	 --wrap="bash programs/$code/run.sh $system $nodes"
     sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	   --wrap="bash programs/${code}/run.sh $system $nodes"
+fi
+
+# --- MiyabiC ---
+if [[ "$system" == "MiyabiC" ]]; then
+    echo qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+	 script.sh
+    qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+	 script.sh
+fi
+
+# --- MiyabiG ---
+if [[ "$system" == "MiyabiG" ]]; then
+    echo qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+	 script.sh
+    qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+	 script.sh
 fi
 
