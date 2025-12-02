@@ -59,6 +59,7 @@ cp -pr programs/qws/ programs/<code>
 ```bash
 # 富岳ログインノードでは、Xeon 向けビルド(FugakuLN)と、A64FX向けビルド(Fugaku)の確認ができます。
 # FugakuCNは、計算ノード内でのビルド＆ランをするモードのため、ログインノードでのビルド確認はできません。
+# Miyabiログインノードでは、Miyabi-C, Miyabi-Gむけビルドがそれぞれ確認できます。
 bash programs/<code>/build.sh FugakuLN
 
 # artifacts 内のファイルを確認
@@ -91,11 +92,13 @@ cat results/result
 ```bash
 # 富岳ログインで、A64FX用実行ファイルを用いたrun.sh、FugakuCNとFugakuのテストをできます。
 # 事前に"build.sh Fugaku"を用いてA64FX用実行ファイルを作成しておきます。
+# Miyabiログインノードでも、同様のテストが可能です。
+# (トークンを消費するプロジェクトはgroupsの第二要素目が自動で選択されます。変更したい場合はscripts/test_submit.shを編集します）
 bash scripts/test_submit.sh <code> n
 ```
 
 * `list.csv` のヘッダーを除いた n 行目を読み取り、適切な batch job を投げます
-* 現状は `FugakuCN` と `Fugaku` 向けで、将来的に対応システムが追加される予定です
+* 現状は `FugakuCN` , `Fugaku` , `RC_GH200` , `MiyabiC` , `MiyabiG` , 向けで、対応システムは順次追加されます。
 
 ---
 

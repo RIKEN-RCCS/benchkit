@@ -29,6 +29,9 @@ case "$system" in
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
  	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
         ;;
+    MiyabiC)
+ 	make -j 8 fugaku_benchmark= omp=1  compiler=intel arch=skylake rdma= mpi=1 powerapi=
+        ;;
     *)
 	echo "Unknown system: $system"
 	exit 1

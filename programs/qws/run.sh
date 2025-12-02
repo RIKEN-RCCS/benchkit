@@ -75,7 +75,7 @@ case "$system" in
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamE node_count:$nodes confidential:TeamE>> ../results/result
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamF node_count:$nodes confidential:TeamF>> ../results/result
 	;;
-     MiyabiG)
+     MiyabiG|MiyabiC)
 	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	./check.sh CASE0 data/CASE0
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
