@@ -1,5 +1,14 @@
 # システム情報の統一定義
 SYSTEM_INFO = {
+    'Fugaku': {
+        'name': 'Fugaku',
+        'cpu_name': 'A64FX',
+        'cpu_per_node': 1,
+        'cpu_cores': 48,
+        'gpu_name': '-',
+        'gpu_per_node': '-',
+        'memory': '32GB'
+    },
     'FugakuCN': {
         'name': 'FugakuCN',
         'cpu_name': 'A64FX',
