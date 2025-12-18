@@ -45,6 +45,28 @@
         opacity: 1;
     }
 
+    /* 左端の列用ツールチップ（右寄せ） */
+    .tooltip-left .tooltiptext {
+        left: 0;
+        margin-left: 0;
+    }
+    .tooltip-left .tooltiptext::after {
+        left: 20px;
+        margin-left: -5px;
+    }
+
+    /* 右端の列用ツールチップ（左寄せ） */
+    .tooltip-right .tooltiptext {
+        right: 0;
+        left: auto;
+        margin-left: 0;
+    }
+    .tooltip-right .tooltiptext::after {
+        right: 20px;
+        left: auto;
+        margin-left: 0;
+    }
+
     /* OTPモーダル */
     .overlay {
         position: fixed;

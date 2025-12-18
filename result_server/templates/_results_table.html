@@ -6,7 +6,7 @@
            {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data"] %}
               <th>
                 {% if col_name == "Timestamp" %}
-                  <span class="tooltip">{{ col_name }}
+                  <span class="tooltip tooltip-left">{{ col_name }}
                     <span class="tooltiptext">Date and time when benchmark execution completed and results were automatically submitted to server</span>
                   </span>
                 {% elif col_name == "SYSTEM" %}
@@ -22,7 +22,7 @@
                     <span class="tooltiptext">Experimental conditions and parameter settings</span>
                   </span>
                 {% elif col_name == "JSON" %}
-                  <span class="tooltip">{{ col_name }}
+                  <span class="tooltip tooltip-right">{{ col_name }}
                     <span class="tooltiptext">Detailed benchmark results in JSON format</span>
                   </span>
                 {% elif col_name == "FOM version" %}
@@ -30,7 +30,7 @@
                     <span class="tooltiptext">Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries</span>
                   </span>
                 {% elif col_name == "PA Data" %}
-                  <span class="tooltip">{{ col_name }}
+                  <span class="tooltip tooltip-right">{{ col_name }}
                     <span class="tooltiptext">Performance Analysis data archive (detailed profiling data)</span>
                   </span>
                 {% else %}
