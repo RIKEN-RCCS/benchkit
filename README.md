@@ -106,6 +106,39 @@ FugakuCN,native,small,1,1,6,0:10:00
 
 ---
 
+## CI実行制御
+
+### GitHub → GitLab 同期とCI制御
+
+このプロジェクトは GitHub で開発し、GitLab でベンチマーク CI を実行する構成になっています。
+
+**同期の仕組み：**
+- GitHub への push → GitHub Actions で GitLab に自動同期（`.github/workflows/sync-to-gitlab.yml`）
+- GitLab への同期 → GitLab CI でベンチマーク実行（`.gitlab-ci.yml`）
+
+### CI実行のスキップ制御
+
+重いベンチマーク処理を避けるため、以下の場合は GitLab CI が自動的にスキップされます：
+
+**自動スキップされるファイル変更：**
+- `README.md`, `ADD_APP.md` （ドキュメント）
+- `result_server/templates/*.html` （Webテンプレート）
+- `.kiro/**/*` （Kiro設定ファイル）
+- `.vscode/**/*` （VSCode設定）
+
+**手動スキップ：**
+```bash
+git commit -m "Fix typo [skip ci]"
+```
+コミットメッセージに `[skip ci]` を含めることで明示的にスキップ可能。
+
+**CI実行される場合：**
+- `programs/`, `scripts/` 内のファイル変更
+- `system.csv`, `queue.csv`, `.gitlab-ci.yml` の変更
+- 上記スキップ対象以外のファイル変更
+
+---
+
 ##  Systemごとの実行条件分岐
 `build.sh`と`run.sh` は `system` を引数に受け取り、実行環境（モジュール、MPI設定など）を`sytem`に応じて切り替えることが可能。
 
