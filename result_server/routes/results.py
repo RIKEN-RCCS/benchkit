@@ -7,6 +7,7 @@ from utils.results_loader import load_results_table, load_estimated_results_tabl
 #from utils.otp_manager import get_affiliations
 from utils.otp_redis_manager import send_otp, verify_otp, invalidate_otp, is_allowed, get_affiliations
 from utils.result_file import load_result_file, get_file_confidential_tags
+from utils.system_info import get_all_systems_info
 
 results_bp = Blueprint("results", __name__)
 SAVE_DIR = "received"
@@ -40,7 +41,8 @@ def serve_confidential_file(filename, dir_path, session_key_authenticated, sessi
 @results_bp.route("results", strict_slashes=False)
 def results():
     rows, columns = load_results_table(public_only=True)
-    return render_template("results.html", rows=rows, columns=columns)
+    systems_info = get_all_systems_info()
+    return render_template("results.html", rows=rows, columns=columns, systems_info=systems_info)
 
 
 # ==========================================
@@ -97,12 +99,14 @@ def render_confidential_table(template_name, public_only, session_key_authentica
         authenticated=authenticated
     )
 
+    systems_info = get_all_systems_info()
     return render_template(
         template_name,
         rows=rows,
         columns=columns,
         authenticated=authenticated,
-        otp_stage=otp_stage
+        otp_stage=otp_stage,
+        systems_info=systems_info
     )
 
 

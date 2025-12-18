@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Available Computing Systems</title>
+    {% include "_table_base.html" %}
+</head>
+<body>
+
+<h1>Available Computing Systems</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>SYSTEM</th>
+            <th>CPU Name</th>
+            <th>CPU/node</th>
+            <th>CPU Core Count</th>
+            <th>GPU Name</th>
+            <th>GPU/node</th>
+            <th>Memory</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for system_name, info in systems_info.items() %}
+        <tr>
+            <td><strong>{{ info.name }}</strong></td>
+            <td>{{ info.cpu_name }}</td>
+            <td>{{ info.cpu_per_node }}</td>
+            <td>{{ info.cpu_cores }}</td>
+            <td>{{ info.gpu_name }}</td>
+            <td>{{ info.gpu_per_node }}</td>
+            <td>{{ info.memory }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<br>
+<button onclick="history.back()">Back</button>
+
+</body>
+</html>

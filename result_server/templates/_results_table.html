@@ -59,26 +59,15 @@
                     <td>
                         <span class="tooltip">{{ row[key] }}
                             <span class="tooltiptext">
-                                {% if row[key] == 'MiyabiG' %}
-                                    <strong>MiyabiG</strong><br>
-                                    CPU: NVIDIA Grace CPU (72 cores)<br>
-                                    GPU: NVIDIA Hopper H100 GPU<br>
-                                    Memory: 120GB
-                                {% elif row[key] == 'MiyabiC' %}
-                                    <strong>MiyabiC</strong><br>
-                                    CPU: Intel Xeon Max 9480 (112 cores)<br>
-                                    Memory: 128GB<br>
-                                    GPU: None
-                                {% elif row[key] == 'FugakuCN' %}
-                                    <strong>FugakuCN</strong><br>
-                                    CPU: A64FX (48 cores)<br>
-                                    Memory: 32GB<br>
-                                    GPU: None
-                                {% elif row[key] == 'FugakuLN' %}
-                                    <strong>FugakuLN</strong><br>
-                                    CPU: Intel Xeon Gold 6242 (32 cores)<br>
-                                    Memory: 96GB<br>
-                                    GPU: None
+                                {% set sys_info = systems_info.get(row[key]) %}
+                                {% if sys_info %}
+                                    <strong>{{ sys_info.name }}</strong><br>
+                                    CPU: {{ sys_info.cpu_name }}<br>
+                                    CPU/node: {{ sys_info.cpu_per_node }}<br>
+                                    CPU Cores: {{ sys_info.cpu_cores }}<br>
+                                    {% if sys_info.gpu_name != '-' %}GPU: {{ sys_info.gpu_name }}<br>
+                                    GPU/node: {{ sys_info.gpu_per_node }}<br>{% endif %}
+                                    Memory: {{ sys_info.memory }}
                                 {% else %}
                                     {{ row[key] }} system details
                                 {% endif %}

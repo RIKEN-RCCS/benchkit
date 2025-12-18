@@ -94,9 +94,11 @@ def create_app(prefix="", base_dir=None):
     app.register_blueprint(results_bp, url_prefix=prefix)
     app.register_blueprint(upload_bp, url_prefix=prefix)
 
-    @app.route(f"{prefix}/hard_env/<sys>")
-    def hard_env(sys):
-        return render_template("hard_env.html", sys=sys)
+    @app.route(f"{prefix}/systemlist")
+    def systemlist():
+        from utils.system_info import get_all_systems_info
+        systems_info = get_all_systems_info()
+        return render_template("systemlist.html", systems_info=systems_info)
 
     return app
 
