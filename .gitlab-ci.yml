@@ -1,3 +1,26 @@
+# CI Execution Control
+# 
+# This pipeline executes heavy benchmark processing, so we implement controls to avoid unnecessary executions.
+#
+# CI Control Methods:
+# 1. [skip ci] - Skip entire pipeline (most reliable)
+#    Example: git commit -m "Fix documentation [skip ci]"
+#    Effect: GitLab does not create the pipeline at all, completely skipped
+#
+# 2. rules-based individual job control - Skip only when specific files are changed
+#    Effect: Pipeline is created but individual jobs are skipped based on conditions
+#
+# Files that automatically skip CI:
+# - README.md, ADD_APP.md (documentation)
+# - result_server/templates/*.html (web templates)
+# - .kiro/**/* (Kiro configuration)
+# - .vscode/**/* (VSCode settings)
+#
+# Important Notes:
+# - trigger_child_pipeline depends on generate_matrix, so we use needs: optional: true
+# - This prevents trigger_child_pipeline from failing when generate_matrix is skipped
+# - Both jobs use the same rules to maintain consistency
+
 stages:
   - generate
   - trigger
@@ -35,4 +58,17 @@ trigger_child_pipeline:
       - artifact: .gitlab-ci.generated.yml
         job: generate_matrix
     strategy: depend
-  needs: [generate_matrix]
+  needs:
+    - job: generate_matrix
+      optional: true
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
+      when: never
+    - changes:
+        - "README.md"
+        - "ADD_APP.md"
+        - "result_server/templates/*.html"
+        - ".kiro/**/*"
+        - ".vscode/**/*"
+      when: never
+    - when: always
