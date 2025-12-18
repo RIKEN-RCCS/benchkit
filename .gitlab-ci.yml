@@ -37,6 +37,14 @@ generate_matrix:
     expire_in: 1 hour
   rules:
     - changes:
+        - ".gitlab-ci.yml"
+        - ".github/workflows/*.yml"
+        - "programs/**/*"
+        - "scripts/**/*"
+        - "system.csv"
+        - "queue.csv"
+      when: always
+    - changes:
         - "README.md"
         - "ADD_APP.md"
         - "result_server/templates/*.html"
@@ -56,6 +64,14 @@ trigger_child_pipeline:
     - job: generate_matrix
       optional: true
   rules:
+    - changes:
+        - ".gitlab-ci.yml"
+        - ".github/workflows/*.yml"
+        - "programs/**/*"
+        - "scripts/**/*"
+        - "system.csv"
+        - "queue.csv"
+      when: always
     - changes:
         - "README.md"
         - "ADD_APP.md"
