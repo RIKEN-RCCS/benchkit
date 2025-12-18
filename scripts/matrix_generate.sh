@@ -90,6 +90,8 @@ ${job_prefix}_run:
     - echo \"[RUN] $program on $system\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/result.sh $program $system
+  after_script:
+    - bash scripts/wait_for_nfs.sh results
   artifacts:
     paths:
       - results/
@@ -129,6 +131,8 @@ ${job_prefix}_build_run:
     - bash $program_path/build.sh $system
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/result.sh $program $system
+  after_script:
+    - bash scripts/wait_for_nfs.sh results
   artifacts:
     paths:
       - results/
