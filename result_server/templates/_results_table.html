@@ -4,7 +4,23 @@
     <tr>
         {% for col_name, _ in columns %}
            {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data"] %}
-              <th>{{ col_name }}</th>
+              <th>
+                {% if col_name == "SYSTEM" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Computing system name. Click for hardware details</span>
+                  </span>
+                {% elif col_name == "FOM" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Figure of Merit - Benchmark performance metric value</span>
+                  </span>
+                {% elif col_name == "Exp" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Experimental conditions and parameter settings</span>
+                  </span>
+                {% else %}
+                  {{ col_name }}
+                {% endif %}
+              </th>
            {% endif %}
         {% endfor %}
     </tr>
@@ -25,9 +41,33 @@
                     </td>
                 {% elif key == "system" %}
                     <td>
-                        <a href="{{ url_for('hard_env', sys=row[key]) }}" class="underline-link">
-                           {{ row[key] }}
-                        </a>
+                        <span class="tooltip">{{ row[key] }}
+                            <span class="tooltiptext">
+                                {% if row[key] == 'MiyabiG' %}
+                                    <strong>MiyabiG</strong><br>
+                                    CPU: NVIDIA Grace CPU (72 cores)<br>
+                                    GPU: NVIDIA Hopper H100 GPU<br>
+                                    Memory: 120GB
+                                {% elif row[key] == 'MiyabiC' %}
+                                    <strong>MiyabiC</strong><br>
+                                    CPU: Intel Xeon Max 9480 (112 cores)<br>
+                                    Memory: 128GB<br>
+                                    GPU: None
+                                {% elif row[key] == 'FugakuCN' %}
+                                    <strong>FugakuCN</strong><br>
+                                    CPU: A64FX (48 cores)<br>
+                                    Memory: 32GB<br>
+                                    GPU: None
+                                {% elif row[key] == 'FugakuLN' %}
+                                    <strong>FugakuLN</strong><br>
+                                    CPU: Intel Xeon Gold 6242 (32 cores)<br>
+                                    Memory: 96GB<br>
+                                    GPU: None
+                                {% else %}
+                                    {{ row[key] }} system details
+                                {% endif %}
+                            </span>
+                        </span>
                     </td>
                 {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes"] %}
                     <td>{{ row[key] }}</td>

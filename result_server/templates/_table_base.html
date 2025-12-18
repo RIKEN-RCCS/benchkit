@@ -6,6 +6,45 @@
     tr:hover { background-color: #f5f5f5; }
     .underline-link { text-decoration: underline; color: darkblue; cursor: pointer; }
 
+    /* ツールチップスタイル */
+    .tooltip {
+        position: relative;
+        cursor: help;
+        border-bottom: 1px dotted #999;
+    }
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 300px;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -150px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+    .tooltip .tooltiptext::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+    }
+
     /* OTPモーダル */
     .overlay {
         position: fixed;
