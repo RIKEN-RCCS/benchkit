@@ -4,14 +4,11 @@ on:
   push:
     branches:
       - '**'   # 全ブランチを対象にする
-  # [skip ci] があっても同期は実行する
   workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # 同期は [skip ci] に関係なく常に実行
-    if: "!contains(github.event.head_commit.message, '[skip sync]')"
     steps:
       - uses: actions/checkout@v3
         with:

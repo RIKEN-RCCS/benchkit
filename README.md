@@ -118,7 +118,7 @@ FugakuCN,native,small,1,1,6,0:10:00
 
 ### CI実行のスキップ制御
 
-重いベンチマーク処理を避けるため、以下の場合は GitLab CI が自動的にスキップされます：
+重いベンチマーク処理を避けるため、以下のファイルのみが変更された場合は GitLab CI が自動的にスキップされます：
 
 **自動スキップされるファイル変更：**
 - `README.md`, `ADD_APP.md` （ドキュメント）
@@ -126,16 +126,11 @@ FugakuCN,native,small,1,1,6,0:10:00
 - `.kiro/**/*` （Kiro設定ファイル）
 - `.vscode/**/*` （VSCode設定）
 
-**手動スキップ：**
-```bash
-git commit -m "Fix typo [skip ci]"
-```
-コミットメッセージに `[skip ci]` を含めることで明示的にスキップ可能。
-
 **CI実行される場合：**
 - `programs/`, `scripts/` 内のファイル変更
 - `system.csv`, `queue.csv`, `.gitlab-ci.yml` の変更
 - 上記スキップ対象以外のファイル変更
+- 上記スキップ対象ファイルと他のファイルが同時に変更された場合
 
 ---
 

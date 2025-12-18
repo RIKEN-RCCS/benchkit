@@ -2,13 +2,9 @@
 # 
 # This pipeline executes heavy benchmark processing, so we implement controls to avoid unnecessary executions.
 #
-# CI Control Methods:
-# 1. [skip ci] - Skip entire pipeline (most reliable)
-#    Example: git commit -m "Fix documentation [skip ci]"
-#    Effect: GitLab does not create the pipeline at all, completely skipped
-#
-# 2. rules-based individual job control - Skip only when specific files are changed
-#    Effect: Pipeline is created but individual jobs are skipped based on conditions
+# CI Control Method:
+# - File-based automatic skip: Skip CI when only specific files are changed
+#   Effect: Pipeline is created but jobs are skipped based on file changes
 #
 # Files that automatically skip CI:
 # - README.md, ADD_APP.md (documentation)
@@ -40,8 +36,6 @@ generate_matrix:
       - .gitlab-ci.generated.yml
     expire_in: 1 hour
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
-      when: never
     - changes:
         - "README.md"
         - "ADD_APP.md"
@@ -62,8 +56,6 @@ trigger_child_pipeline:
     - job: generate_matrix
       optional: true
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
-      when: never
     - changes:
         - "README.md"
         - "ADD_APP.md"
