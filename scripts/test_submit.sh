@@ -22,7 +22,8 @@ if [ ! -f "$list_file" ]; then
 fi
 
 # --- ヘッダを除いて列をチェック ---
-line=$(tail -n +2 "$list_file" | sed -n "${sys}p")
+#line=$(tail -n +2 "$list_file" | sed -n "${sys}p")
+line=$(tail -n +2 "$list_file" | grep "${sys}")
 if [ -z "$line" ]; then
     echo "Error: Line $sys does not exist in $list_file"
     exit 1
