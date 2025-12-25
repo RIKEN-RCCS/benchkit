@@ -6,7 +6,19 @@ echo "[LQCD_dw_solver] Building on system: $system"
 mkdir -p artifacts
 #git clone https://github.com/RIKEN-LQCD/qws.git
 
-TARDIR=/vol0004/share/ra000001/kanamori/benchkit
+TARDIR=./
+case "$system" in
+  Fugaku*)
+    TARDIR=/vol0004/share/ra000001/kanamori/benchkit
+    ;;
+  Miyabi*)
+    TARDIR=/work/xg24i061/share/benchkit_src
+    ;;
+  *)
+    ;;
+esac
+echo "soruce location " $TARDIR
+
 TARBALL=LQCD_dw_solver_20251209_773762.tar.gz
 SRC=`echo $TARBALL|sed -e "s/\.tar\.gz//"`
 DIR=LQCD_dw_solver
@@ -19,6 +31,8 @@ fi
 cd $DIR
 
 BIN=benchmark/domainwall/bridge.elf
+BIN_openacc=benchmark/domainwall/bridge_openacc.elf
+BIN_cuda=benchmark/domainwall/bridge_cuda.elf
 
 case "$system" in
     Fugaku)
@@ -31,6 +45,7 @@ case "$system" in
       cd benchmark/domainwall/
       make -j 8
       cd -
+      cp $BIN ../artifacts
       #fccpx --version
       ;;
     FugakuCN)
@@ -44,6 +59,7 @@ case "$system" in
       cd benchmark/domainwall/
       make -j 12
       cd -
+      cp $BIN ../artifacts
       ;;
     FugakuLN)
       echo "touch $BIN (THIS IS a dummy)"
@@ -56,20 +72,44 @@ case "$system" in
       cd benchmark/domainwall/
       make -j 8
       cd -
+      cp $BIN ../artifacts
       ;;
-    MiyabiGOpenACC|OpenACC)
+    MiyabiG) 
+      # OpenACC
       cp Makefile_openacc Makefile
       make -j 8 lib
       cd benchmark/domainwall/
       make -j 8
       cd -
+      mv $BIN $BIN_openacc
+      cp $BIN_openacc ../artifacts
+      # CUDA
+      rm -r build
+      cp Makefile_cuda Makefile
+      make clean
+      make -j 8 lib
+      cd benchmark/domainwall/
+      make clean
+      make -j 8
+      cd -
+      mv $BIN $BIN_cuda
+      cp $BIN_cuda ../artifacts
       ;;
-    MiyabiGCUDA|CUDA)
+    OpenACC)
+      cp Makefile_openacc Makefile
+      make -j 8 lib
+      cd benchmark/domainwall/
+      make -j 8
+      cd -
+      cp $BIN ../artifacts
+      ;;
+    CUDA)
       cp Makefile_cuda Makefile
       make -j 8 lib
       cd benchmark/domainwall/
       make -j 8
       cd -
+      cp $BIN ../artifacts
       ;;
     *)
 	echo "Unknown system: $system"
@@ -78,4 +118,4 @@ case "$system" in
 esac
 
 echo "Storing executables and related artifacts for subsequent CI/CD jobs."
-cp $BIN ../artifacts
+#cp $BIN ../artifacts # moved to each section

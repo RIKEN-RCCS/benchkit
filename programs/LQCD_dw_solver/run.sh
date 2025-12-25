@@ -4,7 +4,19 @@ system="$1"
 nodes="$2"
 mkdir -p results && > results/result
 
-TARDIR=/vol0004/share/ra000001/kanamori/benchkit
+TARDIR=./
+case "$system" in
+  Fugaku*)
+    TARDIR=/vol0004/share/ra000001/kanamori/benchkit
+    ;;
+  Miyabi*)
+    TARDIR=/work/xg24i061/share/benchkit_src
+    ;;
+  *)
+    ;;
+esac
+echo "soruce location " $TARDIR
+
 TARBALL=LQCD_dw_solver_20251209_773762.tar.gz
 SRC=`echo $TARBALL|sed -e "s/\.tar\.gz//"`
 DIR=LQCD_dw_solver
@@ -14,7 +26,9 @@ if [ ! -e $DIR ]; then
   tar -zxf $TARBALL
   ln -s $SRC $DIR
 fi
-cp artifacts/bridge.elf $DIR/run/
+
+RESULT=../../results/result
+cp artifacts/bridge*.elf $DIR/run/
 
 cd $DIR/run
 BIN=./bridge.elf
@@ -33,7 +47,12 @@ get_fom () {
   LOG=$1
   FOM1=`get_etime_solver $LOG`
   FOM2=`get_etime_total $LOG`
-  echo FOM:${FOM1}" : "${FOM2} > ../../results/result
+  #echo FOM:${FOM1}" : "${FOM2} > ../../results/result
+  if [$# -ne 1 ]; then
+      echo FOM:${FOM1}" : "${FOM2}
+  else
+      echo FOM:${FOM1}" : "${FOM2} $2
+  fi
 }
 
 check () {
@@ -63,7 +82,7 @@ case "$system" in
         this_log=`ls ./run.log.*.0|tail -n 1`
 	[[ -f $this_log ]] && cp $this_log run.log
         check run.log
-        get_fom run.log
+        get_fom run.log >> $RESULT
         ;;
       12)
         cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,16,16,24/" -e "s/xxx_grid_size_xxx/2,2,4,3/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
@@ -73,7 +92,7 @@ case "$system" in
         this_log=`./run.log.*.0|tail -n 1`
 	[[ -f $this_log ]] && cp this_log run.log
         check run.log
-        get_fom run.log
+        get_fom run.log >> $RESULT
         ;;
       *)
         echo "Unknown number of nodes: $nodes"
@@ -84,26 +103,30 @@ case "$system" in
       ;;
   FugakuLN )
       echo 'dummy call for CB test: LQCD-dw-solver'
-      echo FOM: 123 : 456 > ../../results/result
+      echo FOM: 123 : 456 > $RESULT
       ;;
-  MiyabiGOpenACC|MiyabiGCUDA| OpenACC|CUDA )
-    cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml
-    mpiexec -np 1 ./bridge.elf alt_accel > run.log
-    check run.log
-    get_fom run.log
-    ;;
+  MiyabiG )
+      # openacc
+      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml
+      mpiexec -np 1 ./bridge_openacc.elf alt_accel > run.log
+      check run.log
+      get_fom run.log "target: OpenACC " > $RESULT
+      mpiexec -np 1 ./bridge_cuda.elf alt_accel > run_cuda.log
+      check run_cuda.log
+      get_fom run_cuda.log "target: CUCA" >> $RESULT
+      ;;
   MiyabiC )
-    cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
-    mpiexec -np 2 ./bridge.elf alt_simd > run.log
-    check run.log
-    get_fom run.log
-    ;;
+      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
+      mpiexec -np 2 ./bridge.elf alt_simd > run.log
+      check run.log
+      get_fom run.log >> $RESULT
+      ;;
   AVX512 )
-    cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/8/" > main.yaml
-mpiexec -np 1 ./bridge.elf alt_simd > run.log
-    check run.log
-    get_fom run.log
-    ;;
+      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/8/" > main.yaml
+      mpiexec -np 1 ./bridge.elf alt_simd > run.log
+      check run.log
+      get_fom run.log >> $RESULT
+      ;;
   *)
     echo "Unknown Running system: $system"
     exit 1
