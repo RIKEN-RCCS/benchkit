@@ -37,6 +37,15 @@ for listfile in programs/*/list.csv; do
   [[ -n "$CODE_FILTER" && "$program" != "$CODE_FILTER" ]] && continue
 
   while IFS=, read -r system mode queue_group nodes numproc_node nthreads elapse; do
+    # Trim whitespace from all variables
+    system=$(echo "$system" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    mode=$(echo "$mode" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    queue_group=$(echo "$queue_group" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    nodes=$(echo "$nodes" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    numproc_node=$(echo "$numproc_node" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    nthreads=$(echo "$nthreads" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    elapse=$(echo "$elapse" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    
     [[ "$system" == "system" ]] && continue  # skip header
     [[ "$system" == *"#"* ]] && continue  # skip #
 
