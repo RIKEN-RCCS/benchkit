@@ -1,17 +1,36 @@
 #!/bin/bash
 # --- args checking ---
 if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <code> <system number of programs/<code>/list.csv>"
+  echo "Usage: $0 <code> <line_number>"
+  echo "  <code>: program name (directory under programs/)"
+  echo "  <line_number>: line number in programs/<code>/list.csv (1-based, excluding header)"
+  echo ""
   echo "Example: $0 myprog 2"
+  echo "  This will use the 2nd configuration line from programs/myprog/list.csv"
   exit 1
 fi
 
 code=$1
-sys=$2
+list_csv_line_num=$2
+
+# --- validate line number argument ---
+if ! [[ "$list_csv_line_num" =~ ^[0-9]+$ ]]; then
+  echo "Error: <line_number> must be a positive integer, got: '$list_csv_line_num'"
+  echo "Note: Use line number (1-based), not system name"
+  echo "Example: $0 $code 1"
+  exit 1
+fi
+
+if [ "$list_csv_line_num" -le 0 ]; then
+  echo "Error: <line_number> must be greater than 0, got: $list_csv_line_num"
+  exit 1
+fi
 
 # --- checking dir and list ---
 if [ ! -d "programs/$code" ]; then
   echo "Error: programs/$code does not exist"
+  echo "Available programs:"
+  ls -1 programs/ 2>/dev/null | grep -v "^$" | head -10
   exit 1
 fi
 
@@ -21,10 +40,24 @@ if [ ! -f "$list_file" ]; then
   exit 1
 fi
 
+# --- check if line number is within range ---
+total_lines=$(tail -n +2 "$list_file" | wc -l)
+if [ "$list_csv_line_num" -gt "$total_lines" ]; then
+  echo "Error: Line $list_csv_line_num does not exist in $list_file"
+  echo "Available lines: 1 to $total_lines"
+  echo ""
+  echo "Contents of $list_file:"
+  echo "Line# | Configuration"
+  echo "------|-------------"
+  echo "  H   | $(head -1 "$list_file")"  # header
+  tail -n +2 "$list_file" | nl -v1 -w5 -s' | '  # numbered lines with better formatting
+  exit 1
+fi
+
 # --- ヘッダを除いて列をチェック ---
-line=$(tail -n +2 "$list_file" | sed -n "${sys}p")
+line=$(tail -n +2 "$list_file" | sed -n "${list_csv_line_num}p")
 if [ -z "$line" ]; then
-    echo "Error: Line $sys does not exist in $list_file"
+    echo "Error: Line $list_csv_line_num does not exist in $list_file"
     exit 1
 fi
 
@@ -46,8 +79,13 @@ numproc_node="${cols[4]}"
 nthreads="${cols[5]}"
 elapse="${cols[6]}"
 
-# --- 値を表示 ---
-echo "system=$system, mode=$mode, queue_group=$queue_group, nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
+# --- 選択された設定を表示 ---
+echo "Selected configuration from $list_file (line $list_csv_line_num):"
+echo "  $line"
+echo ""
+echo "Parsed values:"
+echo "  system=$system, mode=$mode, queue_group=$queue_group"
+echo "  nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 
 # --- 投入用スクリプト作成 ---
 echo cd $PWD > script.sh
