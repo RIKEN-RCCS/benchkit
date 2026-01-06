@@ -100,9 +100,9 @@ while IFS= read -r line; do
 
   # Description
   if echo "$line" | grep -q 'description:'; then
-      discription=$(echo "$line" | grep -Eo 'description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+      description=$(echo "$line" | grep -Eo 'description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
   else
-      discription=null
+      description=null
   fi
 
   
@@ -127,10 +127,9 @@ while IFS= read -r line; do
   "node_count": "$node_count",
   "cpus_per_node": "$cpus_per_node",
   "gpus_per_node": "$gpus_per_node",
-  "node_count": "$node_count",
   "uname": "$uname_info",
   "cpu_cores": "$cpu_cores",
-  "discription": "$discription",
+  "description": "$description",
   "confidential": "$confidential"
 }
 EOF
