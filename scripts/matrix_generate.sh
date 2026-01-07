@@ -123,8 +123,8 @@ ${job_prefix}_run:
     - echo \"Job submission parameters: \$SCHEDULER_PARAMETERS\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - echo \"Run script completed, checking for results...\"
-    - ls -la . || echo \"Cannot list current directory\"
-    - if [[ -d results ]]; then echo \"Results directory exists\"; ls -la results/; else echo \"Results directory missing\"; fi
+    - ls -la .
+    - ls -la results/ || echo \"Results directory not found\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
@@ -169,8 +169,8 @@ ${job_prefix}_build_run:
     - bash $program_path/build.sh $system
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - echo \"Run script completed, checking for results...\"
-    - ls -la . || echo \"Cannot list current directory\"
-    - if [[ -d results ]]; then echo \"Results directory exists\"; ls -la results/; else echo \"Results directory missing\"; fi
+    - ls -la .
+    - ls -la results/ || echo \"Results directory not found\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
