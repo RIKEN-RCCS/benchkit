@@ -126,6 +126,9 @@ ${job_prefix}_run:
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   needs: [${job_prefix}_build]
+  before_script:
+    - mkdir -p results
+    - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting job\"
     - ls -la $program_path/
@@ -174,6 +177,9 @@ ${job_prefix}_build_run:
   tags: [\"$build_run_tag\"]
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
+  before_script:
+    - mkdir -p results
+    - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting build and run\"
     - bash $program_path/build.sh $system

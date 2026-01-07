@@ -29,8 +29,13 @@ echo "QWS directory status: $(ls -la qws 2>&1)" >> "$DEBUG_LOG"
 
 # build.shで作ったものをartifactsから取ってくる
 echo "Copying main executable from artifacts..." >> "$DEBUG_LOG"
-cp artifacts/main qws
-echo "Main executable copied" >> "$DEBUG_LOG"
+if [[ -f artifacts/main ]]; then
+    cp artifacts/main qws
+    echo "Main executable copied successfully" >> "$DEBUG_LOG"
+else
+    echo "ERROR: artifacts/main not found" >> "$DEBUG_LOG"
+    ls -la artifacts/ >> "$DEBUG_LOG" 2>&1
+fi
 
 cd qws
 echo "Changed to qws directory: $(pwd)" >> "$DEBUG_LOG"
@@ -102,3 +107,14 @@ case "$system" in
 	exit 1
 	;;
 esac
+
+# Log completion
+echo "QWS run.sh completed successfully at $(date)" >> "$DEBUG_LOG"
+echo "Final results directory contents:" >> "$DEBUG_LOG"
+ls -la ../results/ >> "$DEBUG_LOG" 2>&1
+
+# Force NFS sync
+cd ..
+sync
+sleep 5
+echo "Forced NFS sync completed" >> debug_run.log
