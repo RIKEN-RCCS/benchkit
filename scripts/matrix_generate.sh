@@ -128,15 +128,16 @@ ${job_prefix}_run:
   needs: [${job_prefix}_build]
   script:
     - echo \"Starting job\"
-    - echo \"About to execute run.sh\"
     - ls -la $program_path/
-    - echo \"Executing: bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"run.sh execution completed\"
     - echo \"Job completed\"
     - ls -la .
-    - cat debug_run.log || echo \"No debug_run.log found\"
+    - cat debug_run.log
     - bash scripts/result.sh $program $system
+    - echo \"After result.sh execution\"
+    - ls -la results/
+    - echo \"Results directory contents count\"
+    - ls results/ | wc -l
   after_script:
     - bash scripts/wait_for_nfs.sh results
   artifacts:
@@ -180,6 +181,10 @@ ${job_prefix}_build_run:
     - echo \"Job completed\"
     - ls -la .
     - bash scripts/result.sh $program $system
+    - echo \"After result.sh execution\"
+    - ls -la results/
+    - echo \"Results directory contents count\"
+    - ls results/ | wc -l
   after_script:
     - bash scripts/wait_for_nfs.sh results
   artifacts:
