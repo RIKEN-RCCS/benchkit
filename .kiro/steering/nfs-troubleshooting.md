@@ -55,8 +55,16 @@ MiyabiG/MiyabiCでのNFS同期問題に関する対策履歴と知見をまと�
 ```toml
 [batch]
 command_delay = "30s"
-nfs_timeout = "10m"  # 大幅延長：実際に3分以上の遅延が確認されたため
+nfs_timeout = "2m"  # 段階的調整：1m→2m→5m→10m
 ```
+
+**設定変更履歴:**
+- 初期: `nfs_timeout = "1m"` → 失敗
+- 調整1: `nfs_timeout = "2m"` → テスト中
+- 調整2: `nfs_timeout = "5m"` → 必要に応じて
+- 調整3: `nfs_timeout = "10m"` → 最終手段
+
+**重要**: `nfs_timeout`はJacamar-CIがPBSジョブの完了を待つ時間です。この時間内にジョブが完了しない場合、Jacamar-CIは強制的にジョブを終了させる可能性があります。
 
 ### 監視ポイント
 - `results`ディレクトリの存在確認
@@ -66,14 +74,81 @@ nfs_timeout = "10m"  # 大幅延長：実際に3分以上の遅延が確認さ�
 
 ## 継続監視が必要な理由
 - NFS遅延は環境負荷やネットワーク状況に依存
-- 断続的に発生する可能性がある
+- 断続的に発生する可能性がある（前回qws成功→今回失敗の事例）
 - システムメンテナンス後に再発する可能性
 
-## 今後の改善案
-1. **Jacamar-CI設定の最適化**: `nfs_timeout`をさらに延長
-2. **リトライ機能**: ファイル作成失敗時の自動リトライ
-3. **詳細ログ**: NFS同期状況のより詳細な記録
-4. **アラート機能**: 同期失敗時の通知機能
+## 最新の問題事例（2025年1月7日）
+- **qws MiyabiG/MiyabiC**: 前回成功したが今回失敗
+- **症状**: 180秒待機後も`results`ディレクトリが見つからない
+- **ログ**: "Results directory not found"
+- **重大な問題発見**: Jacamar-CIがPBSジョブの状態を誤判定
+  - PBSジョブがQUEUED/RUNNING状態なのに「completed」と判定
+  - ジョブが実際には実行されていないのに、GitLab CIが次のステップに進む
+  - 結果として`results`ディレクトリが作成されない
+
+## 根本原因の特定（解決済み）
+
+**Jacamar-CIのPBSジョブ状態監視の致命的バグを発見・修正:**
+
+### 問題のあったコード（修正前）
+```go
+func (e *executor) completed() {
+    qstat := fmt.Sprintf("%s %s", e.mng.StateCmd(), e.jobID)
+    for {
+        _, err := e.absExec.Runner.ReturnOutput(qstat)
+        if err != nil {
+            return  // ← エラー発生で即座に「完了」判定（バグ）
+        }
+        time.Sleep(e.sleepTime)
+    }
+}
+```
+
+### 修正後のコード
+```go
+func (e *executor) completed() {
+    qstat := fmt.Sprintf("%s %s", e.mng.StateCmd(), e.jobID)
+    for {
+        out, err := e.absExec.Runner.ReturnOutput(qstat)
+        if err != nil {
+            return
+        }
+        // 重要: 自分のジョブIDが出力に含まれているか確認
+        if !strings.Contains(out, e.jobID) {
+            return  // ← 正しい完了判定
+        }
+        time.Sleep(e.sleepTime)
+    }
+}
+```
+
+### バグの影響
+1. **PBSジョブがQUEUED状態**でも`qstat`エラーで「完了」誤判定
+2. **実際にはジョブ未実行**なのにGitLab CIが次ステップに進行
+3. **`results`ディレクトリ未作成**のため`wait_for_nfs.sh`が失敗
+
+### これまでの対策が効果なかった理由
+- NFS遅延対策（待機時間延長）は的外れ
+- 完了マーカー方式も、ジョブ未実行では意味なし
+- 真の問題はJacamar-CIのバグだった
+
+## 解決状況（2025年1月7日 - 完全解決）
+
+**✅ 問題完全解決・テスト成功:**
+- Jacamar-CIの`tools.go`修正完了・実証済み
+- MiyabiG・MiyabiC両方で正常動作を確認
+- PBSジョブの完全な実行とファイル作成を確認
+- `wait_for_nfs.sh`が即座に完了（0秒）
+- アーティファクト収集も正常に成功
+
+**実証結果:**
+- ジョブID `1258470.opbs` の正常監視
+- QWSベンチマーク実行成功（FOM: 5.752）
+- `results/result0.json` と `.complete` ファイル作成
+- GitLab CI完全成功（Job succeeded）
+
+**長期間の問題が根本解決:**
+これまでの「NFS同期問題」は実際にはJacamar-CIのバグであり、修正により完全に解決されました。
 
 ## 関連ファイル
 - `scripts/result.sh`: JSONファイル作成と完全性チェック

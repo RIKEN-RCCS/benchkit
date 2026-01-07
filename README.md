@@ -4,6 +4,10 @@ BenchKit は、複数のアプリケーションを多拠点環境で継続的�
 FugakuNEXTプロジェクトのBenchmarkフレームワークのプロトタイプも兼ねています。このリポジトリは将来的に統合されたり削除される可能性があります。
 必要であればFugakuNEXT向け性能推定用リポジトリのCI/CDもトリガします。
 
+**📋 新しいアプリケーションの追加方法**: [ADD_APP.md](ADD_APP.md) を参照してください。
+
+**🔧 システム追加時のトラブルシューティング**: [TROUBLESHOOTING_SYSTEMS.md](TROUBLESHOOTING_SYSTEMS.md) を参照してください。
+
 ---
 
 ## 目的
