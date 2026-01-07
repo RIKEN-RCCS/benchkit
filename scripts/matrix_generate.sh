@@ -92,6 +92,8 @@ for listfile in programs/*/list.csv; do
      fi
 
 	schedule_parameter=$(expand_template "$template")
+	# Escape special characters for YAML
+	schedule_parameter=$(echo "$schedule_parameter" | sed 's/"/\\"/g')
 
     if [[ "$mode" == "cross" ]]; then
       build_tag=$(awk -F, -v s="$system" '$1==s && $3=="build" {print $2}' "$SYSTEM_FILE")
@@ -125,14 +127,10 @@ ${job_prefix}_run:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   needs: [${job_prefix}_build]
   script:
-    - echo \"Starting job execution\"
-    - echo \"Program: $program, System: $system\"
-    - ls -la $program_path/
+    - echo \"Starting job\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"After run.sh execution\"
+    - echo \"Job completed\"
     - ls -la .
-    - cat debug_run.log || echo \"No debug log found\"
-    - ls -la results/ || echo \"No results directory\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
@@ -172,12 +170,10 @@ ${job_prefix}_build_run:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   script:
     - echo \"Starting build and run\"
-    - echo \"Program: $program, System: $system\"
     - bash $program_path/build.sh $system
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"After execution\"
+    - echo \"Job completed\"
     - ls -la .
-    - ls -la results/ || echo \"No results directory\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
