@@ -119,7 +119,6 @@ ${job_prefix}_build:
 
 ${job_prefix}_run:
   stage: run
-  timeout: 3h
   id_tokens:
     CI_JOB_JWT:
       aud: https://gitlab.swc.r-ccs.riken.jp
@@ -172,7 +171,6 @@ ${job_prefix}_send_results:
       echo "
 ${job_prefix}_build_run:
   stage: build_run
-  timeout: 3h
   id_tokens:
     CI_JOB_JWT:
       aud: https://gitlab.swc.r-ccs.riken.jp

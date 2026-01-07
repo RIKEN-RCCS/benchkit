@@ -24,28 +24,23 @@ while [[ $wait_time -lt $max_wait ]]; do
   fi
   
   if [[ -e "$target" ]]; then
-    # If target is results directory, also check for completion marker and JSON files
+    # If target is results directory, also check for JSON files
     if [[ "$target" == "results" && -d "results" ]]; then
       echo "Results directory found, checking contents..."
       ls -la results/ 2>/dev/null || echo "Cannot list results directory"
       
-      # Check for completion marker first
-      if [[ -f "results/.complete" ]]; then
-        json_count=$(ls results/*.json 2>/dev/null | wc -l)
-        if [[ $json_count -gt 0 ]]; then
-          echo "Target found: $target (with completion marker and $json_count JSON files)"
-          echo "Final results directory contents:"
-          ls -la results/
-          # Additional wait to ensure all files are visible
-          sleep 15
-          sync
-          echo "NFS synchronization complete"
-          exit 0
-        else
-          echo "Completion marker found but no JSON files yet... ($wait_time/$max_wait seconds)"
-        fi
+      json_count=$(ls results/*.json 2>/dev/null | wc -l)
+      if [[ $json_count -gt 0 ]]; then
+        echo "Target found: $target (with $json_count JSON files)"
+        echo "Final results directory contents:"
+        ls -la results/
+        # Additional wait to ensure all files are visible
+        sleep 15
+        sync
+        echo "NFS synchronization complete"
+        exit 0
       else
-        echo "Results directory found but no completion marker yet... ($wait_time/$max_wait seconds)"
+        echo "Results directory found but no JSON files yet... ($wait_time/$max_wait seconds)"
         echo "Current results contents:"
         ls -la results/ 2>/dev/null || echo "Results directory empty or inaccessible"
       fi
