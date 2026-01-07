@@ -119,12 +119,7 @@ ${job_prefix}_run:
   needs: [${job_prefix}_build]
   script:
     - echo \"[RUN] $program on $system\"
-    - echo \"Current directory: \$(pwd)\"
-    - echo \"Job submission parameters: \$SCHEDULER_PARAMETERS\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"Run script completed, checking for results...\"
-    - ls -la .
-    - ls -la results/ || echo \"Results directory not found\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
@@ -164,13 +159,8 @@ ${job_prefix}_build_run:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   script:
     - echo \"[BUILD_RUN:native] $program on $system\"
-    - echo \"Current directory: \$(pwd)\"
-    - echo \"Job submission parameters: \$SCHEDULER_PARAMETERS\"
     - bash $program_path/build.sh $system
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"Run script completed, checking for results...\"
-    - ls -la .
-    - ls -la results/ || echo \"Results directory not found\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
