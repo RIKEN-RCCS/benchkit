@@ -48,7 +48,7 @@ get_fom () {
   FOM1=`get_etime_solver $LOG`
   FOM2=`get_etime_total $LOG`
   #echo FOM:${FOM1}" : "${FOM2} > ../../results/result
-  if [$# -ne 1 ]; then
+  if [ $# -ne 1 ]; then
       echo FOM:${FOM1}" : "${FOM2}
   else
       echo FOM:${FOM1}" : "${FOM2} $2
