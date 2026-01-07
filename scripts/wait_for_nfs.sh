@@ -24,11 +24,6 @@ while [[ $wait_time -lt $max_wait ]]; do
   fi
   
   if [[ -e "$target" ]]; then
-    # If target is results directory, also check for JSON files
-    if [[ "$target" == "results" && -d "results" ]]; then
-      echo "Results directory found, checking contents..."
-      ls -la results/ 2>/dev/null || echo "Cannot list results directory"
-      
     # If target is results directory, also check for completion marker and JSON files
     if [[ "$target" == "results" && -d "results" ]]; then
       echo "Results directory found, checking contents..."
