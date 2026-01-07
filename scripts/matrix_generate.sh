@@ -125,15 +125,9 @@ ${job_prefix}_run:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   needs: [${job_prefix}_build]
   script:
-    - echo \"[RUN] $program on $system\"
-    - echo \"About to execute run.sh with parameters: $system $nodes ${numproc_node} ${nthreads}\"
-    - echo \"Current working directory: \$(pwd)\"
-    - echo \"Listing program directory: $program_path\"
-    - ls -la $program_path/
+    - bash scripts/debug_job.sh $program $system $nodes ${numproc_node} ${nthreads} $program_path
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"run.sh completed with exit code: \$?\"
-    - echo \"Checking for results directory...\"
-    - ls -la . | grep results || echo \"No results directory found\"
+    - bash scripts/check_results.sh \$?
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
@@ -172,15 +166,10 @@ ${job_prefix}_build_run:
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   script:
-    - echo \"[BUILD_RUN:native] $program on $system\"
-    - echo \"About to execute build.sh and run.sh\"
-    - echo \"Current working directory: \$(pwd)\"
+    - bash scripts/debug_job.sh $program $system $nodes ${numproc_node} ${nthreads} $program_path
     - bash $program_path/build.sh $system
-    - echo \"build.sh completed with exit code: \$?\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"run.sh completed with exit code: \$?\"
-    - echo \"Checking for results directory...\"
-    - ls -la . | grep results || echo \"No results directory found\"
+    - bash scripts/check_results.sh \$?
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
