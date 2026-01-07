@@ -29,16 +29,22 @@ echo "QWS directory status: $(ls -la qws 2>&1)" >> "$DEBUG_LOG"
 
 # build.shで作ったものをartifactsから取ってくる
 echo "Copying main executable from artifacts..." >> "$DEBUG_LOG"
+echo "Artifacts directory contents:" >> "$DEBUG_LOG"
+ls -la artifacts/ >> "$DEBUG_LOG" 2>&1
+
 if [[ -f artifacts/main ]]; then
     cp artifacts/main qws
     echo "Main executable copied successfully" >> "$DEBUG_LOG"
 else
     echo "ERROR: artifacts/main not found" >> "$DEBUG_LOG"
-    ls -la artifacts/ >> "$DEBUG_LOG" 2>&1
+    echo "Cannot proceed without main executable" >> "$DEBUG_LOG"
+    exit 1
 fi
 
 cd qws
 echo "Changed to qws directory: $(pwd)" >> "$DEBUG_LOG"
+echo "QWS directory contents:" >> "$DEBUG_LOG"
+ls -la . >> "$DEBUG_LOG" 2>&1
 
 
 
@@ -97,10 +103,17 @@ case "$system" in
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamF node_count:$nodes confidential:TeamF>> ../results/result
 	;;
      MiyabiG|MiyabiC)
+	echo "Executing MiyabiG/MiyabiC benchmark..." >> "$DEBUG_LOG"
+	echo "Running: mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50" >> "$DEBUG_LOG"
 	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
+	echo "mpirun completed with exit code: $?" >> "$DEBUG_LOG"
+	echo "Running check.sh..." >> "$DEBUG_LOG"
 	./check.sh CASE0 data/CASE0
+	echo "check.sh completed with exit code: $?" >> "$DEBUG_LOG"
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
+	echo "Extracted FOM: $FOM" >> "$DEBUG_LOG"
 	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo "Result written to ../results/result" >> "$DEBUG_LOG"
 	;;
     *)
 	echo "Unknown Running system: $system"

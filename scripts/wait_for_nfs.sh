@@ -12,7 +12,7 @@ echo "Working directory: $(pwd)"
 echo "Initial directory listing:"
 ls -la . 2>/dev/null || echo "Cannot list current directory"
 
-max_wait=180  # Increased to 3 minutes
+max_wait=600  # Increased to 10 minutes
 wait_time=0
 
 while [[ $wait_time -lt $max_wait ]]; do
