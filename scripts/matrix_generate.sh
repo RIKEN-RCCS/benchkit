@@ -31,7 +31,6 @@ echo "# Auto-generated GitLab CI configuration" > "$OUTPUT_FILE"
 echo "
 stages:
   - build
-  - build_run
   - run
   - send_results
 " >> "$OUTPUT_FILE"
@@ -169,7 +168,7 @@ ${job_prefix}_send_results:
       
       echo "
 ${job_prefix}_build_run:
-  stage: build_run
+  stage: build
   id_tokens:
     CI_JOB_JWT:
       aud: https://gitlab.swc.r-ccs.riken.jp
