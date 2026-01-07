@@ -135,7 +135,6 @@ ${job_prefix}_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - echo \"Job completed\"
     - ls -la .
-    - cat debug_run.log
     - bash scripts/result.sh $program $system
     - echo \"After result.sh execution\"
     - ls -la results/
