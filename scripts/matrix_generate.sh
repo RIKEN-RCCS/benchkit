@@ -34,7 +34,18 @@ for listfile in programs/*/list.csv; do
   program_dir=$(dirname "$listfile")
   program=$(basename "$program_dir")
  
-  [[ -n "$CODE_FILTER" && "$program" != "$CODE_FILTER" ]] && continue
+  [[ -n "$CODE_FILTER" ]] && {
+    # Support comma-separated code list
+    IFS=',' read -ra CODE_LIST <<< "$CODE_FILTER"
+    code_match=false
+    for filter_code in "${CODE_LIST[@]}"; do
+      if [[ "$program" == "$filter_code" ]]; then
+        code_match=true
+        break
+      fi
+    done
+    [[ "$code_match" == false ]] && continue
+  }
 
   while IFS=, read -r system mode queue_group nodes numproc_node nthreads elapse; do
     # Trim whitespace from all variables
@@ -49,7 +60,18 @@ for listfile in programs/*/list.csv; do
     [[ "$system" == "system" ]] && continue  # skip header
     [[ "$system" == *"#"* ]] && continue  # skip #
 
-    [[ -n "$SYSTEM_FILTER" && "$system" != "$SYSTEM_FILTER" ]] && continue
+    [[ -n "$SYSTEM_FILTER" ]] && {
+      # Support comma-separated system list
+      IFS=',' read -ra SYSTEM_LIST <<< "$SYSTEM_FILTER"
+      system_match=false
+      for filter_system in "${SYSTEM_LIST[@]}"; do
+        if [[ "$system" == "$filter_system" ]]; then
+          system_match=true
+          break
+        fi
+      done
+      [[ "$system_match" == false ]] && continue
+    }
 
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"

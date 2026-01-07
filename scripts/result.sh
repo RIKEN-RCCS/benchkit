@@ -134,7 +134,21 @@ while IFS= read -r line; do
 }
 EOF
 
-  echo "results/result${i}.json created."
+  # Ensure file is completely written and synced
+  sync
+  sleep 2
+  
+  # Verify file integrity locally
+  if [[ -s "results/result${i}.json" ]] && jq . "results/result${i}.json" >/dev/null 2>&1; then
+    echo "results/result${i}.json created and verified locally."
+  else
+    echo "WARNING: results/result${i}.json may be incomplete, retrying..."
+    sleep 5
+    sync
+    if [[ ! -s "results/result${i}.json" ]]; then
+      echo "ERROR: Failed to create valid results/result${i}.json"
+    fi
+  fi
 
   # error at a64fx
   #  "gcc_version": "$gcc_version",
@@ -142,3 +156,9 @@ EOF
   i=$(expr $i + 1)
 
 done < results/result
+
+# Create completion marker after all JSON files are created
+echo "All result JSON files created at $(date)" > results/.complete
+sync
+sleep 5
+echo "Result processing completed. Created $i JSON files."
