@@ -2,7 +2,17 @@
 set -e
 system="$1"
 nodes="$2"
+
+# Debug output to log file
+DEBUG_LOG="../debug_run.log"
+echo "=== QWS Run Debug Log ===" > "$DEBUG_LOG"
+echo "System: $system" >> "$DEBUG_LOG"
+echo "Nodes: $nodes" >> "$DEBUG_LOG"
+echo "Current directory: $(pwd)" >> "$DEBUG_LOG"
+echo "Date: $(date)" >> "$DEBUG_LOG"
+
 mkdir -p results && > results/result
+echo "Results directory created" >> "$DEBUG_LOG"
 
 
 # results/result の各行は 1 つのベンチマークに対応しています。
@@ -13,11 +23,17 @@ mkdir -p results && > results/result
 
 #---------------------------------------------------------------------- 以下を編集します。
 #コードを取得。既存ならskip。
+echo "Checking for qws directory..." >> "$DEBUG_LOG"
 [[ -d qws ]] || git clone https://github.com/RIKEN-LQCD/qws.git
+echo "QWS directory status: $(ls -la qws 2>&1)" >> "$DEBUG_LOG"
+
 # build.shで作ったものをartifactsから取ってくる
+echo "Copying main executable from artifacts..." >> "$DEBUG_LOG"
 cp artifacts/main qws
+echo "Main executable copied" >> "$DEBUG_LOG"
 
 cd qws
+echo "Changed to qws directory: $(pwd)" >> "$DEBUG_LOG"
 
 
 

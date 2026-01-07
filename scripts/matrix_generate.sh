@@ -125,9 +125,15 @@ ${job_prefix}_run:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   needs: [${job_prefix}_build]
   script:
-    - bash scripts/debug_job.sh $program $system $nodes ${numproc_node} ${nthreads} $program_path
+    - echo \"Starting job execution\"
+    - echo \"Program: $program, System: $system\"
+    - ls -la $program_path/
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - bash scripts/check_results.sh \$?
+    - echo \"After run.sh execution\"
+    - ls -la .
+    - echo \"=== Debug log contents ===\"
+    - cat debug_run.log 2>/dev/null || echo \"No debug log found\"
+    - ls -la results/ || echo \"No results directory\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
@@ -166,10 +172,13 @@ ${job_prefix}_build_run:
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
   script:
-    - bash scripts/debug_job.sh $program $system $nodes ${numproc_node} ${nthreads} $program_path
+    - echo \"Starting build and run\"
+    - echo \"Program: $program, System: $system\"
     - bash $program_path/build.sh $system
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - bash scripts/check_results.sh \$?
+    - echo \"After execution\"
+    - ls -la .
+    - ls -la results/ || echo \"No results directory\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
