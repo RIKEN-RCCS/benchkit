@@ -128,9 +128,14 @@ ${job_prefix}_run:
   needs: [${job_prefix}_build]
   script:
     - echo \"Starting job\"
+    - echo \"About to execute run.sh\"
+    - ls -la $program_path/
+    - echo \"Executing: bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
+    - echo \"run.sh exit code: \$?\"
     - echo \"Job completed\"
     - ls -la .
+    - cat debug_run.log || echo \"No debug_run.log found\"
     - bash scripts/result.sh $program $system
   after_script:
     - bash scripts/wait_for_nfs.sh results
