@@ -132,7 +132,7 @@ ${job_prefix}_run:
     - ls -la $program_path/
     - echo \"Executing: bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}\"
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
-    - echo \"run.sh exit code: \$?\"
+    - echo \"run.sh execution completed\"
     - echo \"Job completed\"
     - ls -la .
     - cat debug_run.log || echo \"No debug_run.log found\"
