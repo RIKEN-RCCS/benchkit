@@ -131,8 +131,7 @@ ${job_prefix}_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - echo \"After run.sh execution\"
     - ls -la .
-    - echo \"=== Debug log contents ===\"
-    - cat debug_run.log 2>/dev/null || echo \"No debug log found\"
+    - cat debug_run.log || echo \"No debug log found\"
     - ls -la results/ || echo \"No results directory\"
     - bash scripts/result.sh $program $system
   after_script:
