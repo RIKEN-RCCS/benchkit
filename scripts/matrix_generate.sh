@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# GitLab CI YAML Generation Rules:
+# 1. Keep script sections simple - avoid complex shell constructs in YAML
+# 2. Use basic commands only (echo, bash, ls)
+# 3. Avoid conditional statements, pipes, or complex variable expansions in script arrays
+# 4. For debugging, add simple echo statements rather than complex logic
+# 5. If complex logic is needed, put it in separate shell scripts and call them
+
 SYSTEM_FILE="system.csv"
 QUEUE_FILE="queue.csv"
 OUTPUT_FILE=".gitlab-ci.generated.yml"

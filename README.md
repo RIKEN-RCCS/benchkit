@@ -47,6 +47,48 @@ benchkit/
 └── queue.csv # queueシステム定義
 ```
 
+## CI実行制御
+
+このパイプラインは重いベンチマーク処理を実行するため、不要な実行を避ける制御機能を実装しています。
+
+### 制御方法
+- **ファイルベース自動スキップ**: 特定ファイルのみの変更時はCIをスキップ
+  - 効果: パイプラインは作成されるが、ファイル変更に基づいてジョブがスキップされる
+
+### 自動スキップ対象ファイル
+- README.md, ADD_APP.md（ドキュメント）
+- result_server/templates/*.html（Webテンプレート）
+- .kiro/**/*（Kiro設定）
+- .vscode/**/*（VSCode設定）
+
+### コミットメッセージによる実行制御
+- `[system:システム名]`: 特定システムのみ実行（例: `[system:MiyabiG,MiyabiC]`）
+- `[code:プログラム名]`: 特定プログラムのみ実行（例: `[code:qws,genesis]`）
+- 組み合わせ可能: `[system:MiyabiG] [code:qws]`
+
+### APIトリガー制御
+```bash
+curl -X POST --fail \
+  -F token=$TOKEN \
+  -F ref=main \
+  -F "variables[system]=MiyabiG,MiyabiC" \
+  -F "variables[code]=qws" \
+  https://your-gitlab-server.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
+```
+
+## 開発ガイドライン
+
+### GitLab CI YAML生成ルール
+`scripts/matrix_generate.sh`でYAMLを生成する際は以下のルールを守ってください：
+
+1. **scriptセクションはシンプルに**: 複雑なシェル構文をYAML内で使用しない
+2. **基本コマンドのみ使用**: echo, bash, ls等の単純なコマンドのみ
+3. **条件文・パイプ・複雑な変数展開を避ける**: script配列内では使用しない
+4. **デバッグは単純なecho文で**: 複雑なロジックは避ける
+5. **複雑な処理は別スクリプトに**: 必要な場合は独立したシェルスクリプトを作成して呼び出す
+
+---
+
 
 ---
 
