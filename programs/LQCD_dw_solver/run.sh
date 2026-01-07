@@ -10,7 +10,7 @@ case "$system" in
     TARDIR=/vol0004/share/ra000001/kanamori/benchkit
     ;;
   Miyabi*)
-    TARDIR=/work/xg24i061/share/benchkit_src
+    TARDIR=/home/q49000/benchkit_appsrc
     ;;
   *)
     ;;
