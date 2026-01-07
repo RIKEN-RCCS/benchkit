@@ -31,21 +31,29 @@ variables:
     # Priority 1: API trigger variables (from curl -F "variables[system]=...")
     if [[ -n "$system" ]]; then
       echo "System filter from API variable: $system"
-    elif [[ "$CI_COMMIT_MESSAGE" =~ \[system:([^\]]+)\] ]]; then
-      export system="${BASH_REMATCH[1]}"
-      echo "System filter from commit message: $system"
     else
-      echo "No system filter detected, running all systems"
+      # Extract from commit message using sed
+      system_match=$(echo "$CI_COMMIT_MESSAGE" | sed -n 's/.*\[system:\([^]]*\)\].*/\1/p')
+      if [[ -n "$system_match" ]]; then
+        export system="$system_match"
+        echo "System filter from commit message: $system"
+      else
+        echo "No system filter detected, running all systems"
+      fi
     fi
   - |
     # Priority 1: API trigger variables (from curl -F "variables[code]=...")
     if [[ -n "$code" ]]; then
       echo "Code filter from API variable: $code"
-    elif [[ "$CI_COMMIT_MESSAGE" =~ \[code:([^\]]+)\] ]]; then
-      export code="${BASH_REMATCH[1]}"
-      echo "Code filter from commit message: $code"
     else
-      echo "No code filter detected, running all programs"
+      # Extract from commit message using sed
+      code_match=$(echo "$CI_COMMIT_MESSAGE" | sed -n 's/.*\[code:\([^]]*\)\].*/\1/p')
+      if [[ -n "$code_match" ]]; then
+        export code="$code_match"
+        echo "Code filter from commit message: $code"
+      else
+        echo "No code filter detected, running all programs"
+      fi
     fi
 
 generate_matrix:
