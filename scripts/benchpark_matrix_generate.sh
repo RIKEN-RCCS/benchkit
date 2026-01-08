@@ -35,7 +35,7 @@ cat "$BENCHPARK_LIST"
 echo "Debug: Starting CSV processing"
 
 line_count=0
-while IFS=, read -r system app description; do
+while IFS=, read -r system app description || [[ -n "$system" ]]; do
   line_count=$((line_count + 1))
   echo "Debug: Line $line_count - Processing system=$system, app=$app"
   
