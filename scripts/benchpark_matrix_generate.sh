@@ -102,7 +102,6 @@ ${job_prefix}_setup:
       - benchpark-workspace/
     expire_in: 1 week
 
-  echo "
 ${job_prefix}_run:
   stage: benchpark_run
   id_tokens:
@@ -118,9 +117,8 @@ ${job_prefix}_run:
   artifacts:
     paths:
       - benchpark-workspace/
-    expire_in: 1 week"
+    expire_in: 1 week
 
-  echo "
 ${job_prefix}_results:
   stage: benchpark_results
   tags: [\"$build_run_tag\"]
@@ -133,7 +131,7 @@ ${job_prefix}_results:
   artifacts:
     paths:
       - results/
-    expire_in: 1 week"
+    expire_in: 1 week
 
 " >> "$OUTPUT_FILE"
 
