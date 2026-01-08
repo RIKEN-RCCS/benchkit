@@ -104,9 +104,6 @@ ${job_prefix}_setup:
 
 ${job_prefix}_run:
   stage: benchpark_run
-  id_tokens:
-    CI_JOB_JWT:
-      aud: https://gitlab.swc.r-ccs.riken.jp
   tags: [\"$build_run_tag\"]
   needs: [${job_prefix}_setup]
   script:
