@@ -103,12 +103,12 @@ fi
 if [[ "$system" == "Fugaku" || "$system" == "FugakuCN" ]]; then
 echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
       --mpi max-proc-per-node=$numproc_node \
-      -S -x PJM_LLIO_GFSCACHE=/vol0004:/vol0003 \
+      -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
       script.sh
 
 pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
       --mpi max-proc-per-node=$numproc_node \
-      -S -x PJM_LLIO_GFSCACHE=/vol0004:/vol0003 \
+      -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
       script.sh
 fi
 
