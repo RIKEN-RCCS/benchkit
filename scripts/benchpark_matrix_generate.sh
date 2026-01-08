@@ -73,7 +73,7 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
     continue
   fi
 
-  echo "
+      echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
   tags: [\"$build_run_tag\"]
