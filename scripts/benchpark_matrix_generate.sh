@@ -25,8 +25,6 @@ echo "# Auto-generated BenchPark GitLab CI configuration" > "$OUTPUT_FILE"
 echo "
 stages:
   - benchpark_setup
-  - benchpark_run
-  - benchpark_results
 " >> "$OUTPUT_FILE"
 
 while IFS=, read -r system app description || [[ -n "$system" ]]; do
@@ -64,6 +62,8 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
   }
 
   job_prefix="benchpark_${system}_${app}"
+  # Replace problematic characters for YAML job names
+  job_prefix=$(echo "$job_prefix" | sed 's/-/_/g')
   
   # Get system configuration
   build_run_tag=$(get_benchpark_system_tag "$system")
@@ -80,30 +80,10 @@ ${job_prefix}_setup:
   script:
     - echo \"Setting up BenchPark for $app on $system\"
     - bash scripts/benchpark_runner.sh setup $system $app
-  artifacts:
-    paths:
-      - benchpark-workspace/
-    expire_in: 1 week
-
-${job_prefix}_run:
-  stage: benchpark_run
-  tags: [\"$build_run_tag\"]
-  needs: [${job_prefix}_setup]
-  script:
-    - echo \"Running BenchPark experiment: $app on $system\"
+    - echo \"Running BenchPark experiment $app on $system\"
     - bash scripts/benchpark_runner.sh run $system $app
     - echo \"Waiting for Ramble jobs to complete\"
     - bash scripts/benchpark_runner.sh wait $system $app
-  artifacts:
-    paths:
-      - benchpark-workspace/
-    expire_in: 1 week
-
-${job_prefix}_results:
-  stage: benchpark_results
-  tags: [\"$build_run_tag\"]
-  needs: [${job_prefix}_run]
-  script:
     - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"

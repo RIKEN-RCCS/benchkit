@@ -66,6 +66,8 @@ rules:
 ### 3. **アーティファクト管理**
 - `.gitlab-ci.benchpark.yml`は`.gitignore`に追加済み
 - BenchParkワークスペースも`.gitignore`に追加済み
+- **重要**: `benchpark-workspace/`は巨大なため、アーティファクトとして保存禁止
+- 結果ファイル（`results/`）のみを保存する
 
 ---
 
