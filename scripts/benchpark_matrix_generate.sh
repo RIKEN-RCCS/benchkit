@@ -34,13 +34,17 @@ echo "Debug: File contents:"
 cat "$BENCHPARK_LIST"
 echo "Debug: Starting CSV processing"
 
+line_count=0
 while IFS=, read -r system app description; do
+  line_count=$((line_count + 1))
+  echo "Debug: Line $line_count - Processing system=$system, app=$app"
+  
   # Trim whitespace
   system=$(echo "$system" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   app=$(echo "$app" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   description=$(echo "$description" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   
-  echo "Debug: Processing system=$system, app=$app"
+  echo "Debug: After trim - system=$system, app=$app"
   
   [[ "$system" == "system" ]] && { echo "Debug: Skipping header"; continue; }  # skip header
   [[ "$system" == *"#"* ]] && { echo "Debug: Skipping comment"; continue; }     # skip comments
@@ -133,6 +137,7 @@ ${job_prefix}_results:
 
 done < "$BENCHPARK_LIST"
 
+echo "Debug: Finished processing CSV. Total lines processed: $line_count"
 echo "BenchPark GitLab CI configuration generated: $OUTPUT_FILE"
 echo "Generated jobs:"
 grep "^[a-zA-Z].*:$" "$OUTPUT_FILE" || echo "No jobs found in generated file"
