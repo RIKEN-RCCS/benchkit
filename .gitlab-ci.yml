@@ -27,6 +27,7 @@ variables:
   code: ""
   system: ""
   benchpark: "false"
+  park_only: "false"
 
 # Extract system and code filters from API variables or commit message
 .filters: &filters
@@ -72,6 +73,10 @@ generate_matrix:
       - .gitlab-ci.generated.yml
     expire_in: 1 hour
   rules:
+    - if: '$park_only == "true"'
+      when: never  # park_onlyモードでは無効
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
+      when: never  # [park-only]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
         - ".github/workflows/*.yml"
@@ -100,6 +105,10 @@ trigger_child_pipeline:
     - job: generate_matrix
       optional: true
   rules:
+    - if: '$park_only == "true"'
+      when: never  # park_onlyモードでは無効
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
+      when: never  # [park-only]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
         - ".github/workflows/*.yml"
@@ -128,6 +137,10 @@ generate_benchpark_matrix:
       - .gitlab-ci.benchpark.yml
     expire_in: 1 hour
   rules:
+    - if: '$park_only == "true"'
+      when: always  # park_onlyモードでは常に実行
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
+      when: always  # [park-only]コミットメッセージでは常に実行
     - if: '$benchpark == "true"'
       when: always
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
@@ -150,6 +163,10 @@ trigger_benchpark_pipeline:
     - job: generate_benchpark_matrix
       optional: true
   rules:
+    - if: '$park_only == "true"'
+      when: always  # park_onlyモードでは常に実行
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
+      when: always  # [park-only]コミットメッセージでは常に実行
     - if: '$benchpark == "true"'
       when: always
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'

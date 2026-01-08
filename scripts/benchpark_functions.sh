@@ -36,7 +36,7 @@ get_benchpark_system_tag() {
       tag="fugaku_login1"
       ;;
     "qc-gh200")
-      tag="qc-gh200-login"
+      tag="rccs_cloud_login"
       ;;
     *)
       echo "Unknown system: $system" >&2
