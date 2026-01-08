@@ -29,6 +29,11 @@ stages:
   - benchpark_results
 " >> "$OUTPUT_FILE"
 
+echo "Debug: Reading from $BENCHPARK_LIST"
+echo "Debug: File contents:"
+cat "$BENCHPARK_LIST"
+echo "Debug: Starting CSV processing"
+
 while IFS=, read -r system app description; do
   # Trim whitespace
   system=$(echo "$system" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -37,10 +42,10 @@ while IFS=, read -r system app description; do
   
   echo "Debug: Processing system=$system, app=$app"
   
-  [[ "$system" == "system" ]] && continue  # skip header
-  [[ "$system" == *"#"* ]] && continue     # skip comments
+  [[ "$system" == "system" ]] && { echo "Debug: Skipping header"; continue; }  # skip header
+  [[ "$system" == *"#"* ]] && { echo "Debug: Skipping comment"; continue; }     # skip comments
 
-  echo "Debug: After header/comment check"
+  echo "Debug: After header/comment check - processing $system $app"
 
   # Apply filters
   [[ -n "$SYSTEM_FILTER" ]] && {
