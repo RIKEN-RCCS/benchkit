@@ -35,8 +35,12 @@ while IFS=, read -r system app description; do
   app=$(echo "$app" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   description=$(echo "$description" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   
+  echo "Debug: Processing system=$system, app=$app"
+  
   [[ "$system" == "system" ]] && continue  # skip header
   [[ "$system" == *"#"* ]] && continue     # skip comments
+
+  echo "Debug: After header/comment check"
 
   # Apply filters
   [[ -n "$SYSTEM_FILTER" ]] && {
@@ -63,6 +67,8 @@ while IFS=, read -r system app description; do
     [[ "$app_match" == false ]] && continue
   }
 
+  echo "Debug: Passed all filters, generating job for $system $app"
+
   job_prefix="benchpark_${system}_${app}"
   
   # Get system configuration
@@ -72,6 +78,8 @@ while IFS=, read -r system app description; do
     echo "Warning: No tag found for system $system"
     continue
   fi
+  
+  echo "Debug: Using tag $build_run_tag for system $system"
 
   echo "
 ${job_prefix}_setup:
@@ -121,3 +129,5 @@ ${job_prefix}_results:
 done < "$BENCHPARK_LIST"
 
 echo "BenchPark GitLab CI configuration generated: $OUTPUT_FILE"
+echo "Generated jobs:"
+grep "^[a-zA-Z].*:$" "$OUTPUT_FILE" || echo "No jobs found in generated file"
