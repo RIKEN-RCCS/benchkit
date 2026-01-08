@@ -20,8 +20,6 @@
 stages:
   - generate
   - trigger
-  - benchpark_generate
-  - benchpark_trigger
 
 variables:
   code: ""
@@ -127,7 +125,7 @@ trigger_child_pipeline:
     - when: always
 # BenchPark Monitor Jobs
 generate_benchpark_matrix:
-  stage: benchpark_generate
+  stage: generate
   script:
     - bash ./scripts/benchpark_matrix_generate.sh system=$system
   tags:
@@ -153,7 +151,7 @@ generate_benchpark_matrix:
     - when: never
 
 trigger_benchpark_pipeline:
-  stage: benchpark_trigger
+  stage: trigger
   trigger:
     include:
       - artifact: .gitlab-ci.benchpark.yml
