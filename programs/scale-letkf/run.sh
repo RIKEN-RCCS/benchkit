@@ -20,13 +20,13 @@ case "$system" in
     case "$nodes" in
       3)
         echo "copy essential files ... `date`"
-        cp -a artifacts/scale-letkf-FugakuNEXT/test/benchmark.Fugaku_128x128 $TESTDIR
+        cp -a artifacts/test/benchmark.Fugaku_128x128 $TESTDIR
         cd $TESTDIR
         bash prep.sh
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_pp_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_init_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/letkf/letkf bin/
+        cp -a ../artifacts/bin/scale-rm_pp_ens bin/
+        cp -a ../artifacts/bin/scale-rm_init_ens bin/
+        cp -a ../artifacts/bin/scale-rm_ens bin/
+        cp -a ../artifacts/bin/letkf bin/
         echo "expand database archive ... `date`"
         tar zxf $SCALE_DATABASE
         echo "expand testdata archive ... `date`"
@@ -62,13 +62,13 @@ case "$system" in
       ;;
       75)
         echo "copy essential files ... `date`"
-        cp -a artifacts/scale-letkf-FugakuNEXT/test/benchmark.Fugaku_1280x1280 $TESTDIR
+        cp -a artifacts/test/benchmark.Fugaku_1280x1280 $TESTDIR
         cd $TESTDIR
         bash prep.sh
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_pp_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_init_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/letkf/letkf bin/
+        cp -a ../artifacts/bin/scale-rm_pp_ens bin/
+        cp -a ../artifacts/bin/scale-rm_init_ens bin/
+        cp -a ../artifacts/bin/scale-rm_ens bin/
+        cp -a ../artifacts/bin/letkf bin/
         echo "expand database archive ... `date`"
         tar zxf $SCALE_DATABASE
         echo "expand testdata archive ... `date`"
@@ -114,19 +114,19 @@ case "$system" in
     module load system/qc-gh200
     module load nvhpc/25.9
 
-    source artifacts/scale-letkf-FugakuNEXT/setup-env.RC_GH200.sh
+    source artifacts/setup-env.RC_GH200.sh
     export OMP_NUM_THREADS=1
 
     case "$nodes" in
       1)
         echo "copy essential files ... `date`"
-        cp -a artifacts/scale-letkf-FugakuNEXT/test/benchmark.RC_GH200_128x128 $TESTDIR
+        cp -a artifacts/test/benchmark.RC_GH200_128x128 $TESTDIR
         cd $TESTDIR
         bash prep.sh
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_pp_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_init_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/ensmodel/scale-rm_ens bin/
-        cp -a ../artifacts/scale-letkf-FugakuNEXT/scale/scale-letkf/scale/letkf/letkf bin/
+        cp -a ../artifacts/bin/scale-rm_pp_ens bin/
+        cp -a ../artifacts/bin/scale-rm_init_ens bin/
+        cp -a ../artifacts/bin/scale-rm_ens bin/
+        cp -a ../artifacts/bin/letkf bin/
         echo "expand database archive ... `date`"
         tar zxf $SCALE_DATABASE
         echo "expand testdata archive ... `date`"
