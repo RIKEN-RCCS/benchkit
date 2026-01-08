@@ -6,6 +6,8 @@ BenchKit は、複数のアプリケーションを多拠点環境で継続的�
 
 **🔧 システム追加時のトラブルシューティング**: [TROUBLESHOOTING_SYSTEMS.md](TROUBLESHOOTING_SYSTEMS.md) を参照してください。
 
+**🔗 BenchParkモニター機能**: [BENCHPARK_MONITOR.md](BENCHPARK_MONITOR.md) を参照してください。
+
 ---
 
 ## 目的
@@ -14,6 +16,7 @@ BenchKit は、複数のアプリケーションを多拠点環境で継続的�
 - ビルドと実行の分離・統合に対応（クロスコンパイルやJacamar-CI利用）
 - サイト依存の環境条件への対応
 - ベンチマーク結果の保存・可視化・性能推定
+- **BenchParkフレームワークとの統合**（Spack/Rambleベースのベンチマーク管理）
 
 ---
 
@@ -25,6 +28,9 @@ benchkit/
 │       ├── build.sh      # システム別ビルドスクリプト
 │       ├── run.sh        # システム別実行スクリプト
 │       └── list.csv      # ベンチマーク実行条件定義
+├── config/
+│   └── benchpark-monitor/
+│       └── list.csv      # BenchPark監視対象定義
 ├── result_server/
 │   ├── routes/
 │   │   ├── receive.py    # ベンチマーク結果(JSON)受信
@@ -39,8 +45,13 @@ benchkit/
 │   ├── result.sh         # 結果JSON変換
 │   ├── send_results.sh   # 結果転送
 │   ├── wait_for_nfs.sh   # NFS同期待機
-│   └── test_submit.sh    # テスト実行用
+│   ├── test_submit.sh    # テスト実行用
+│   ├── benchpark_matrix_generate.sh # BenchPark用CI生成
+│   ├── benchpark_functions.sh       # BenchPark共通関数
+│   ├── benchpark_runner.sh          # BenchPark実行管理
+│   └── convert_benchpark_results.py # BenchPark結果変換
 ├── .gitlab-ci.yml        # メインCI定義
+├── benchpark/            # BenchParkフレームワーク（サブモジュール）
 ├── system.csv           # 実行システム定義
 ├── queue.csv            # キューシステム定義
 └── README.md
@@ -142,6 +153,15 @@ curl -X POST --fail \
   -F "variables[system]=MiyabiG,MiyabiC" \
   -F "variables[code]=qws" \
   https://gitlab.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
+```
+
+**BenchPark統合実行：**
+```bash
+# BenchPark用CI設定生成
+bash scripts/benchpark_matrix_generate.sh
+
+# 特定システムでBenchPark実行
+bash scripts/benchpark_matrix_generate.sh system=fugaku app=qws
 ```
 
 ---

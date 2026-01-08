@@ -20,10 +20,13 @@
 stages:
   - generate
   - trigger
+  - benchpark_generate
+  - benchpark_trigger
 
 variables:
   code: ""
   system: ""
+  benchpark: "false"
 
 # Extract system and code filters from API variables or commit message
 .filters: &filters
@@ -113,3 +116,47 @@ trigger_child_pipeline:
         - ".vscode/**/*"
       when: never
     - when: always
+# BenchPark Monitor Jobs
+generate_benchpark_matrix:
+  stage: benchpark_generate
+  script:
+    - bash ./scripts/benchpark_matrix_generate.sh system=$system
+  tags:
+    - general
+  artifacts:
+    paths:
+      - .gitlab-ci.benchpark.yml
+    expire_in: 1 hour
+  rules:
+    - if: '$benchpark == "true"'
+      when: always
+    - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
+      when: always
+    - changes:
+        - "config/benchpark-monitor/**/*"
+        - "scripts/benchpark_*"
+        - "BENCHPARK_MONITOR.md"
+      when: always
+    - when: never
+
+trigger_benchpark_pipeline:
+  stage: benchpark_trigger
+  trigger:
+    include:
+      - artifact: .gitlab-ci.benchpark.yml
+        job: generate_benchpark_matrix
+    strategy: depend
+  needs:
+    - job: generate_benchpark_matrix
+      optional: true
+  rules:
+    - if: '$benchpark == "true"'
+      when: always
+    - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
+      when: always
+    - changes:
+        - "config/benchpark-monitor/**/*"
+        - "scripts/benchpark_*"
+        - "BENCHPARK_MONITOR.md"
+      when: always
+    - when: never

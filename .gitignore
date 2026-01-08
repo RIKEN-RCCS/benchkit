@@ -1,5 +1,6 @@
 # GitLab CI-generated file
 .gitlab-ci.generated.yml
+.gitlab-ci.benchpark.yml
 
 # Received results directory
 result_server/received/
@@ -7,6 +8,12 @@ result_server/received/
 # Python bytecode cache
 result_server/routes/__pycache__/
 result_server/utils/__pycache__/
+
+# BenchPark repository (external reference)
+benchpark/
+
+# BenchPark workspace (generated during CI)
+benchpark-workspace/
 
 # editor backup files and caches
 *~
