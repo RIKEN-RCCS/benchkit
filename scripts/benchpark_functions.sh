@@ -11,7 +11,7 @@ get_benchpark_installation_path() {
       echo "/vol0004/apps/benchpark"  # Fugakuの既存BenchParkパス
       ;;
     "qc-gh200")
-      echo "/lvs0/rccs-nghpcadu/nakamura/benchkit_monitoring/benchpark"  # QC-GH200の既存BenchParkパス
+      echo "/etc/gitlab-runner/benchkit_monitoring/benchpark"  # QC-GH200の既存BenchParkパス
       ;;
     *)
       # デフォルトは環境変数またはPATHから検索
