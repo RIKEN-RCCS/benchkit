@@ -47,11 +47,16 @@ get_fom () {
   LOG=$1
   FOM1=`get_etime_solver $LOG`
   FOM2=`get_etime_total $LOG`
-  #echo FOM:${FOM1}" : "${FOM2} > ../../results/result
-  if [ $# -ne 1 ]; then
-      echo FOM:${FOM1}" : "${FOM2}
+  
+  if [ $# -eq 1 ]; then
+      echo "FOM:${FOM1} FOM_version:LQCD_dw_solver Exp:solver node_count:$nodes"
+      echo "FOM:${FOM2} FOM_version:LQCD_dw_solver Exp:total node_count:$nodes"
   else
-      echo FOM:${FOM1}" : "${FOM2} $2
+      # 第2引数をExp名として使用
+      # 注意: 暫定的にtarget情報をExpに付け加えます。
+      TARGET=$(echo "$2" | sed 's/target: //' | sed 's/ $//')
+      echo "FOM:${FOM1} FOM_version:LQCD_dw_solver Exp:solver_${TARGET} node_count:$nodes"
+      echo "FOM:${FOM2} FOM_version:LQCD_dw_solver Exp:total_${TARGET} node_count:$nodes"
   fi
 }
 
@@ -89,8 +94,8 @@ case "$system" in
         export OMP_NUM_THREADS=12
         export FLIB_BARRIER=HARD
         mpiexec -np 48 -std-proc run.log $BIN alt_qxs
-        this_log=`./run.log.*.0|tail -n 1`
-	[[ -f $this_log ]] && cp this_log run.log
+        this_log=`ls ./run.log.*.0|tail -n 1`
+	[[ -f $this_log ]] && cp $this_log run.log
         check run.log
         get_fom run.log >> $RESULT
         ;;
