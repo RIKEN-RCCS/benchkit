@@ -13,6 +13,11 @@ SYSTEM="qc-gh200"
 BENCHPARK_ROOT="/home/users/nakamura/src/benchpark/r-ccs-fork/benchpark"
 
 case "$ACTION" in
+  "setup")
+    echo "Setting up BenchPark for $APP on $SYSTEM"
+    echo "Note: Setup is handled by BenchPark workspace initialization"
+    ;;
+    
   "run")
     echo "Running BenchPark experiment: $APP on $SYSTEM"
     
@@ -45,9 +50,10 @@ case "$ACTION" in
     ;;
     
   *)
-    echo "Usage: $0 {run|wait} <app>"
-    echo "  run:  Submit BenchPark experiment (QC-GH200)"
-    echo "  wait: Wait for jobs to complete"
+    echo "Usage: $0 {setup|run|wait} <app>"
+    echo "  setup: Prepare BenchPark (QC-GH200)"
+    echo "  run:   Submit BenchPark experiment (QC-GH200)"
+    echo "  wait:  Wait for jobs to complete"
     exit 1
     ;;
 esac
