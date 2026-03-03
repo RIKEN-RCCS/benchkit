@@ -6,24 +6,13 @@
 get_benchpark_installation_path() {
   local system="$1"
   
-  case "$system" in
-    "fugaku")
-      echo "/vol0004/apps/benchpark"  # Fugakuの既存BenchParkパス
-      ;;
-    "qc-gh200")
-      echo "/etc/gitlab-runner/benchkit_monitoring/benchpark"  # QC-GH200の既存BenchParkパス
-      ;;
-    *)
-      # デフォルトは環境変数またはPATHから検索
-      if [[ -n "$BENCHPARK_ROOT" ]]; then
-        echo "$BENCHPARK_ROOT"
-      elif command -v benchpark >/dev/null 2>&1; then
-        dirname "$(dirname "$(which benchpark)")"
-      else
-        echo ""
-      fi
-      ;;
-  esac
+  if [[ -n "$BENCHPARK_ROOT" ]]; then
+    echo "$BENCHPARK_ROOT"
+    elif command -v benchpark >/dev/null 2>&1; then
+      dirname "$(dirname "$(which benchpark)")"
+  else
+    echo ""
+  fi
 }
 
 # システムに対応するGitLab Runnerタグを取得
@@ -88,28 +77,28 @@ wait_for_ramble_jobs() {
   
   echo "Waiting for Ramble jobs to complete in workspace: $workspace"
   
+  cd "$workspace"
+  
   while [[ $elapsed -lt $max_wait_time ]]; do
-    # Rambleワークスペースでジョブ状態を確認
-    cd "$workspace"
+    # SLURMのジョブ状態を確認（squeue）
+    local job_count=$(squeue -u "$USER" 2>/dev/null | wc -l)
     
-    # ramble workspace statusでジョブ状態を確認
-    if ramble workspace status | grep -q "No active experiments"; then
-      echo "All Ramble jobs completed"
-      return 0
-    fi
+    echo "Checking SLURM job status... (elapsed: ${elapsed}s, jobs: $((job_count - 1)))"
     
-    # 実行中のジョブがあるかチェック
-    if ramble workspace status | grep -q "RUNNING\|QUEUED"; then
+    # ジョブがある場合は待機
+    if [[ $job_count -gt 1 ]]; then
       echo "Jobs still running, waiting..."
       sleep $check_interval
       elapsed=$((elapsed + check_interval))
-    else
-      echo "All jobs completed or failed"
-      return 0
+      continue
     fi
+    
+    # ジョブがない場合は完了
+    echo "All jobs completed"
+    return 0
   done
   
-  echo "Timeout waiting for Ramble jobs to complete"
+  echo "Timeout waiting for Ramble jobs to complete after ${max_wait_time}s"
   return 1
 }
 
