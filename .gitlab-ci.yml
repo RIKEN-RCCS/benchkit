@@ -84,8 +84,7 @@ generate_matrix:
         - "queue.csv"
       when: always
     - changes:
-        - "README.md"
-        - "ADD_APP.md"
+        - "*.md"
         - "result_server/templates/*.html"
         - ".kiro/**/*"
         - ".vscode/**/*"
@@ -116,8 +115,7 @@ trigger_child_pipeline:
         - "queue.csv"
       when: always
     - changes:
-        - "README.md"
-        - "ADD_APP.md"
+        - "*.md"
         - "result_server/templates/*.html"
         - ".kiro/**/*"
         - ".vscode/**/*"
