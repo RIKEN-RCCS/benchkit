@@ -79,11 +79,11 @@ ${job_prefix}_setup:
   tags: [\"$build_run_tag\"]
   script:
     - echo \"Setting up BenchPark for $app on $system\"
-    - bash scripts/benchpark_runner.sh setup $system $app
+    - bash scripts/benchpark_runner.sh setup $app
     - echo \"Running BenchPark experiment $app on $system\"
-    - bash scripts/benchpark_runner.sh run $system $app
+    - bash scripts/benchpark_runner.sh run $app
     - echo \"Waiting for Ramble jobs to complete\"
-    - bash scripts/benchpark_runner.sh wait $system $app
+    - bash scripts/benchpark_runner.sh wait $app
     - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
