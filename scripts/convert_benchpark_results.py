@@ -102,9 +102,23 @@ def parse_ramble_results_txt(result_file):
                     experiment_name = parts[1].split(" figures of merit:")[0]
                 break
         
-        # メトリクスを抽出（簡易版）
-        # 実際の詳細な解析は別途実装が必要
-        metrics['raw_content'] = content[:500]  # 最初の500文字を保存
+        # メトリクスを抽出（数値のみ）
+        for line in lines:
+            # "Bandwidth = 6.50 MB/s" のようなパターンを抽出
+            if " = " in line and ("MB/s" in line or "us" in line or "Latency" in line or "Bandwidth" in line):
+                try:
+                    parts = line.split(" = ")
+                    if len(parts) == 2:
+                        key = parts[0].strip()
+                        # 値から単位を削除
+                        value_str = parts[1].split()[0]
+                        try:
+                            value = float(value_str)
+                            metrics[key] = value
+                        except ValueError:
+                            pass
+                except:
+                    pass
         
         return {
             'experiment': experiment_name,
