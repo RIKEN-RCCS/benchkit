@@ -17,6 +17,14 @@ from pathlib import Path
 
 def find_benchpark_results(workspace_path, system, app):
     """BenchPark結果ファイルを検索"""
+    # results.latest.txtを優先的に使用
+    latest_results = os.path.join(workspace_path, "results.latest.txt")
+    
+    if os.path.exists(latest_results):
+        print(f"Found latest results: {latest_results}")
+        return [latest_results]
+    
+    # フォールバック: JSON形式の結果を検索
     results_pattern = f"{workspace_path}/experiments/*/results/*.json"
     result_files = glob.glob(results_pattern)
     
@@ -30,6 +38,11 @@ def find_benchpark_results(workspace_path, system, app):
 
 def parse_benchpark_result(result_file):
     """BenchPark結果ファイルを解析"""
+    # results.latest.txtの場合
+    if result_file.endswith("results.latest.txt") or result_file.endswith(".txt"):
+        return parse_ramble_results_txt(result_file)
+    
+    # JSON形式の場合
     try:
         with open(result_file, 'r') as f:
             data = json.load(f)
@@ -61,6 +74,44 @@ def parse_benchpark_result(result_file):
             'metrics': metrics,
             'execution_time': execution_time,
             'raw_data': data
+        }
+        
+    except Exception as e:
+        print(f"Error parsing {result_file}: {e}")
+        return None
+
+
+def parse_ramble_results_txt(result_file):
+    """Rambleの結果テキストファイルを解析"""
+    try:
+        with open(result_file, 'r') as f:
+            content = f.read()
+        
+        # 簡易的な解析: 最初の実験名とメトリクスを抽出
+        lines = content.split('\n')
+        
+        experiment_name = "unknown"
+        metrics = {}
+        
+        # 最初の実験名を抽出
+        for line in lines:
+            if "Experiment " in line and "figures of merit:" in line:
+                # "Experiment osu-micro-benchmarks.osu_bibw.osu-micro-benchmarks_osu_bibw_test_mpi_2 figures of merit:"
+                parts = line.split("Experiment ")
+                if len(parts) > 1:
+                    experiment_name = parts[1].split(" figures of merit:")[0]
+                break
+        
+        # メトリクスを抽出（簡易版）
+        # 実際の詳細な解析は別途実装が必要
+        metrics['raw_content'] = content[:500]  # 最初の500文字を保存
+        
+        return {
+            'experiment': experiment_name,
+            'workload': 'unknown',
+            'metrics': metrics,
+            'execution_time': 0,
+            'raw_data': {'content': content}
         }
         
     except Exception as e:

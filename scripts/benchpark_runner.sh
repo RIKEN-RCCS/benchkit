@@ -46,7 +46,20 @@ case "$ACTION" in
     # SLURMのジョブ完了を待機
     wait_for_ramble_jobs "$BENCHPARK_ROOT/workspace/riken-cloud-gh200-nvhpc/${APP}/workspace"
     
-    echo "BenchPark jobs completed"
+    # ジョブ完了後、Rambleワークスペースを解析
+    echo "Analyzing Ramble workspace results"
+    RAMBLE_WORKSPACE="$BENCHPARK_ROOT/workspace/riken-cloud-gh200-nvhpc/${APP}/workspace"
+    
+    # setup.shで環境変数を設定
+    . "$BENCHPARK_ROOT/workspace/setup.sh"
+    
+    # ワークスペースをアクティベート
+    ramble workspace activate "$RAMBLE_WORKSPACE"
+    
+    # 結果を解析
+    ramble workspace analyze
+    
+    echo "BenchPark jobs completed and analyzed"
     ;;
     
   *)
