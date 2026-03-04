@@ -151,14 +151,19 @@ def main():
     system = sys.argv[1]
     app = sys.argv[2]
     
-    # ワークスペースパスを構築
-    workspace_path = f"benchpark-workspace/{system}/{app}"
+    # QC-GH200専用のワークスペースパス
+    if system == "qc-gh200":
+        workspace_path = f"/home/users/nakamura/src/benchpark/r-ccs-fork/benchpark/workspace/riken-cloud-gh200-nvhpc/{app}/workspace"
+    else:
+        # 他のシステムの場合
+        workspace_path = f"benchpark-workspace/{system}/{app}"
     
     if not os.path.exists(workspace_path):
         print(f"Error: Workspace not found: {workspace_path}")
         sys.exit(1)
     
     print(f"Converting BenchPark results for {app} on {system}")
+    print(f"Workspace path: {workspace_path}")
     
     # BenchPark結果を検索
     result_files = find_benchpark_results(workspace_path, system, app)
