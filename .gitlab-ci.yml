@@ -137,6 +137,8 @@ generate_benchpark_matrix:
       when: always  # park_onlyモードでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: always  # [park-only]コミットメッセージでは常に実行
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
+      when: always  # [park-send]コミットメッセージでは常に実行（結果送信のみ）
     - if: '$benchpark == "true"'
       when: always
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
@@ -163,6 +165,8 @@ trigger_benchpark_pipeline:
       when: always  # park_onlyモードでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: always  # [park-only]コミットメッセージでは常に実行
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
+      when: always  # [park-send]コミットメッセージでは常に実行（結果送信のみ）
     - if: '$benchpark == "true"'
       when: always
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'

@@ -11,11 +11,19 @@ source ./scripts/benchpark_functions.sh
 
 SYSTEM_FILTER=""
 APP_FILTER=""
+SEND_ONLY="false"
+
+# コミットメッセージから[park-send]を検出
+if [[ "${CI_COMMIT_MESSAGE:-}" =~ \[park-send\] ]]; then
+  SEND_ONLY="true"
+  echo "Detected [park-send] mode: result sending only"
+fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     system=*) SYSTEM_FILTER="${1#system=}" ;;
     app=*) APP_FILTER="${1#app=}" ;;
+    send_only=*) SEND_ONLY="${1#send_only=}" ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
   shift
@@ -73,7 +81,29 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
     continue
   fi
 
-      echo "
+  # Generate different job based on SEND_ONLY mode
+  if [[ "$SEND_ONLY" == "true" ]]; then
+    # Send-only mode: skip setup/run/wait, only convert and send
+    echo "
+${job_prefix}_send:
+  stage: benchpark_setup
+  tags: [\"$build_run_tag\"]
+  script:
+    - echo \"Converting BenchPark results for $app on $system\"
+    - python3 scripts/convert_benchpark_results.py $system $app
+    - echo \"Results converted to BenchKit format\"
+    - ls -la results/
+    - echo \"Sending results to server\"
+    - bash scripts/send_results.sh
+  artifacts:
+    paths:
+      - results/
+    expire_in: 1 week
+
+" >> "$OUTPUT_FILE"
+  else
+    # Full mode: setup, run, wait, convert, and send
+    echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
   tags: [\"$build_run_tag\"]
@@ -88,7 +118,7 @@ ${job_prefix}_setup:
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
-    - echo \"Sending BenchPark results to server\"
+    - echo \"Sending results to server\"
     - bash scripts/send_results.sh
   artifacts:
     paths:
@@ -96,6 +126,7 @@ ${job_prefix}_setup:
     expire_in: 1 week
 
 " >> "$OUTPUT_FILE"
+  fi
 
 done < "$BENCHPARK_LIST"
 
