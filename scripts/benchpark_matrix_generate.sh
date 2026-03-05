@@ -85,7 +85,7 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
 
   # Generate different job based on SEND_ONLY mode
   if [[ "$SEND_ONLY" == "true" ]]; then
-    # Send-only mode: convert results, then send in separate job
+    # Send-only mode: convert on login node with artifact, then send on fncx-curl-jq
     echo "
 ${job_prefix}_convert:
   stage: benchpark_setup
@@ -110,7 +110,7 @@ ${job_prefix}_send:
 
 " >> "$OUTPUT_FILE"
   else
-    # Full mode: setup on Jacamar-CI, run (includes wait) on login node, send on fncx-curl-jq
+    # Full mode: setup on Jacamar-CI, run+convert on login node with artifact, send on fncx-curl-jq
     echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
@@ -128,9 +128,9 @@ ${job_prefix}_run:
   tags: [\"$login_tag\"]
   needs: [\"${job_prefix}_setup\"]
   script:
-    - echo \"Running BenchPark experiment $app on $system (includes wait)\"
+    - echo \"Running BenchPark experiment $app on $system\"
     - bash scripts/benchpark_runner.sh run $app
-    - echo \"Converting BenchPark results for $app on $system\"
+    - echo \"Converting BenchPark results\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
