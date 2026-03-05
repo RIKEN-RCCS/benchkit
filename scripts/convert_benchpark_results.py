@@ -82,128 +82,127 @@ def parse_benchpark_result(result_file):
 
 
 def parse_ramble_results_txt(result_file):
-    """Rambleの結果テキストファイルを解析"""
+    """Rambleの結果テキストファイルを解析（複数実験対応）
+    
+    results.latest.txtには複数の実験結果が含まれる可能性がある。
+    各実験は "Experiment <name> figures of merit:" で始まる。
+    """
     try:
         with open(result_file, 'r') as f:
             content = f.read()
         
-        # 簡易的な解析: 最初の実験名とメトリクスを抽出
-        lines = content.split('\n')
+        # 実験ごとに分割
+        experiments = []
+        current_experiment = None
+        current_lines = []
         
-        experiment_name = "unknown"
-        metrics = {}
-        
-        # 最初の実験名を抽出
-        for line in lines:
+        for line in content.split('\n'):
+            # 新しい実験の開始
             if "Experiment " in line and "figures of merit:" in line:
-                # "Experiment osu-micro-benchmarks.osu_bibw.osu-micro-benchmarks_osu_bibw_test_mpi_2 figures of merit:"
+                # 前の実験を保存
+                if current_experiment:
+                    experiments.append({
+                        'name': current_experiment,
+                        'lines': current_lines
+                    })
+                
+                # 新しい実験を開始
                 parts = line.split("Experiment ")
                 if len(parts) > 1:
-                    experiment_name = parts[1].split(" figures of merit:")[0]
-                break
+                    current_experiment = parts[1].split(" figures of merit:")[0]
+                    current_lines = [line]
+            elif current_experiment:
+                current_lines.append(line)
         
-        # メトリクスを抽出（数値のみ）
-        for line in lines:
-            # "Bandwidth = 6.50 MB/s" のようなパターンを抽出
-            if " = " in line and ("MB/s" in line or "us" in line or "Latency" in line or "Bandwidth" in line):
+        # 最後の実験を保存
+        if current_experiment:
+            experiments.append({
+                'name': current_experiment,
+                'lines': current_lines
+            })
+        
+        # 各実験を解析
+        parsed_experiments = []
+        for exp in experiments:
+            metrics = {}
+            mpi_processes = 2  # デフォルト
+            
+            # MPI プロセス数を抽出（例: mpi_2 → 2）
+            if "_mpi_" in exp['name']:
                 try:
-                    parts = line.split(" = ")
-                    if len(parts) == 2:
-                        key = parts[0].strip()
-                        # 値から単位を削除
-                        value_str = parts[1].split()[0]
-                        try:
-                            value = float(value_str)
-                            metrics[key] = value
-                        except ValueError:
-                            pass
+                    mpi_str = exp['name'].split("_mpi_")[-1]
+                    mpi_processes = int(mpi_str)
                 except:
                     pass
+            
+            # メトリクスを抽出
+            for line in exp['lines']:
+                if " = " in line:
+                    try:
+                        parts = line.split(" = ")
+                        if len(parts) == 2:
+                            key = parts[0].strip()
+                            # 値から単位を削除
+                            value_parts = parts[1].split()
+                            if value_parts:
+                                try:
+                                    value = float(value_parts[0])
+                                    metrics[key] = value
+                                except ValueError:
+                                    pass
+                    except:
+                        pass
+            
+            parsed_experiments.append({
+                'experiment': exp['name'],
+                'workload': exp['name'].split('.')[1] if '.' in exp['name'] else 'unknown',
+                'metrics': metrics,
+                'mpi_processes': mpi_processes,
+                'execution_time': 0,
+                'raw_data': {'lines': exp['lines']}
+            })
         
-        return {
-            'experiment': experiment_name,
-            'workload': 'unknown',
-            'metrics': metrics,
-            'execution_time': 0,
-            'raw_data': {'content': content}
-        }
+        return parsed_experiments
         
     except Exception as e:
         print(f"Error parsing {result_file}: {e}")
-        return None
+        return []
 
 
-def convert_to_benchkit_format(parsed_results, system, app):
-    """BenchKit形式のJSONに変換"""
+def convert_to_benchkit_format(parsed_result, system, app):
+    """BenchKit形式のJSONに変換（単一実験用）"""
     
-    # 複数の結果がある場合は平均値を計算
-    if not parsed_results:
+    if not parsed_result:
         return None
     
-    # 基本情報
+    # 実験名からワークロード名を抽出
+    experiment_name = parsed_result.get('experiment', 'unknown')
+    workload = parsed_result.get('workload', 'unknown')
+    mpi_processes = parsed_result.get('mpi_processes', 1)
+    
+    # メトリクスから代表的なFOM値を選択
+    # TODO: 将来的にはベクトル的なFOM（メッセージサイズごとの値）に対応する必要がある
+    metrics = parsed_result.get('metrics', {})
+    fom_value = "0"
+    fom_key = "unknown"
+    
+    if metrics:
+        # 最初のメトリクスを代表値として使用
+        fom_key = list(metrics.keys())[0]
+        fom_value = str(metrics[fom_key])
+    
+    # BenchKit形式のJSON構造
     result = {
-        "timestamp": datetime.now().isoformat(),
+        "code": f"benchpark-{app}",
         "system": system,
-        "program": f"benchpark-{app}",
-        "description": f"BenchPark {app} benchmark on {system}",
-        "node_count": 1,  # BenchParkから取得できない場合のデフォルト
-        "process_count": 1,
-        "thread_count": 1,
-        "execution_time": 0,
-        "performance_metrics": {},
-        "benchpark_data": []
+        "FOM": fom_value,
+        "FOM_version": experiment_name,
+        "Exp": workload,
+        "node_count": "1",
+        "cpus_per_node": str(mpi_processes),
+        "description": "dummy",
+        "confidential": "null"
     }
-    
-    # 全結果を統合
-    total_time = 0
-    all_metrics = {}
-    
-    for parsed in parsed_results:
-        if parsed is None:
-            continue
-            
-        # 実行時間を累積
-        total_time += parsed['execution_time']
-        
-        # メトリクスを統合
-        for key, value in parsed['metrics'].items():
-            if key not in all_metrics:
-                all_metrics[key] = []
-            all_metrics[key].append(value)
-        
-        # 生データを保存
-        result["benchpark_data"].append(parsed['raw_data'])
-    
-    # 平均値を計算
-    if parsed_results:
-        result["execution_time"] = total_time / len(parsed_results)
-        
-        for key, values in all_metrics.items():
-            if values:
-                result["performance_metrics"][key] = sum(values) / len(values)
-    
-    # ノード数などの情報をBenchParkデータから抽出を試行
-    for parsed in parsed_results:
-        if parsed and 'raw_data' in parsed:
-            raw = parsed['raw_data']
-            
-            # ノード数の抽出を試行
-            if 'n_nodes' in raw:
-                result["node_count"] = raw['n_nodes']
-            elif 'nodes' in raw:
-                result["node_count"] = raw['nodes']
-            
-            # プロセス数の抽出を試行
-            if 'n_ranks' in raw:
-                result["process_count"] = raw['n_ranks']
-            elif 'processes' in raw:
-                result["process_count"] = raw['processes']
-            
-            # スレッド数の抽出を試行
-            if 'omp_num_threads' in raw:
-                result["thread_count"] = raw['omp_num_threads']
-            elif 'threads' in raw:
-                result["thread_count"] = raw['threads']
     
     return result
 
@@ -238,35 +237,49 @@ def main():
         sys.exit(1)
     
     # 結果を解析
-    parsed_results = []
+    all_experiments = []
     for result_file in result_files:
         parsed = parse_benchpark_result(result_file)
         if parsed:
-            parsed_results.append(parsed)
+            # parse_benchpark_result()はリストを返す可能性がある（複数実験）
+            if isinstance(parsed, list):
+                all_experiments.extend(parsed)
+            else:
+                all_experiments.append(parsed)
     
-    if not parsed_results:
+    if not all_experiments:
         print("No valid results found")
         sys.exit(1)
     
-    # BenchKit形式に変換
-    benchkit_result = convert_to_benchkit_format(parsed_results, system, app)
-    
-    if not benchkit_result:
-        print("Failed to convert results")
-        sys.exit(1)
+    print(f"Found {len(all_experiments)} experiments")
     
     # 結果ディレクトリを作成
     os.makedirs("results", exist_ok=True)
     
-    # JSONファイルとして保存
-    output_file = f"results/benchpark_{system}_{app}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    # 各実験を個別のJSONファイルとして保存
+    output_files = []
+    for i, experiment in enumerate(all_experiments):
+        # BenchKit形式に変換
+        benchkit_result = convert_to_benchkit_format(experiment, system, app)
+        
+        if not benchkit_result:
+            print(f"Failed to convert experiment {i+1}")
+            continue
+        
+        # 実験名をファイル名に含める
+        exp_name = experiment.get('experiment', f'exp{i+1}').replace('.', '_').replace('/', '_')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_file = f"results/benchpark_{system}_{app}_{exp_name}_{timestamp}.json"
+        
+        with open(output_file, 'w') as f:
+            json.dump(benchkit_result, f, indent=2)
+        
+        output_files.append(output_file)
+        print(f"Experiment {i+1}/{len(all_experiments)}: {experiment.get('experiment', 'unknown')}")
+        print(f"  FOM: {benchkit_result['FOM']}")
+        print(f"  Saved to: {output_file}")
     
-    with open(output_file, 'w') as f:
-        json.dump(benchkit_result, f, indent=2)
-    
-    print(f"Results converted and saved to: {output_file}")
-    print(f"Execution time: {benchkit_result['execution_time']:.2f} seconds")
-    print(f"Performance metrics: {len(benchkit_result['performance_metrics'])} items")
+    print(f"\nTotal: {len(output_files)} result files created")
 
 
 if __name__ == "__main__":
