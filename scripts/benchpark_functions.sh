@@ -101,8 +101,6 @@ wait_for_ramble_jobs() {
   
   echo "Waiting for Ramble jobs to complete in workspace: $workspace"
   
-  cd "$workspace"
-  
   # ジョブIDが指定されている場合は、そのジョブのみを監視
   if [[ -n "$job_ids" ]]; then
     echo "Monitoring specific job IDs: $job_ids"
