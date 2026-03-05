@@ -15,7 +15,8 @@ get_benchpark_installation_path() {
   fi
 }
 
-# システムに対応するGitLab Runnerタグを取得
+# システムに対応するGitLab Runnerタグを取得（計算ノード用）
+# setupなど計算ノードで実行する必要がある処理用
 get_benchpark_system_tag() {
   local system="$1"
   local tag=""
@@ -25,7 +26,7 @@ get_benchpark_system_tag() {
       tag="fugaku_login1"
       ;;
     "qc-gh200")
-      tag="rccs_cloud_login"
+      tag="cloud_jacamar"
       ;;
     *)
       echo "Unknown system: $system" >&2
