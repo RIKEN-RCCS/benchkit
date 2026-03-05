@@ -276,7 +276,8 @@ def main():
         
         # BenchKit互換のファイル名形式（result*.json）
         # 既存のsend_results.shがそのまま使える
-        output_file = f"results/result{i+1}.json"
+        # BenchKitはresult0.jsonから始まる
+        output_file = f"results/result{i}.json"
         
         with open(output_file, 'w') as f:
             json.dump(benchkit_result, f, indent=2)
