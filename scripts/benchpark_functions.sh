@@ -36,6 +36,28 @@ get_benchpark_system_tag() {
   echo "$tag"
 }
 
+# システムに対応するログインノード用GitLab Runnerタグを取得
+# convert/sendなどログインノードで実行可能な処理用
+get_benchpark_login_tag() {
+  local system="$1"
+  local tag=""
+  
+  case "$system" in
+    "fugaku")
+      tag="fugaku_login1"
+      ;;
+    "qc-gh200")
+      tag="rccs_cloud_login"
+      ;;
+    *)
+      echo "Unknown system: $system" >&2
+      return 1
+      ;;
+  esac
+  
+  echo "$tag"
+}
+
 # BenchParkワークスペースのパスを取得
 get_benchpark_workspace() {
   local system="$1"
@@ -71,6 +93,7 @@ get_benchpark_system_path() {
 # Rambleジョブの完了を待機
 wait_for_ramble_jobs() {
   local workspace="$1"
+  local job_ids="$2"
   local max_wait_time=3600  # 1時間
   local check_interval=60   # 1分間隔
   local elapsed=0
@@ -79,24 +102,50 @@ wait_for_ramble_jobs() {
   
   cd "$workspace"
   
-  while [[ $elapsed -lt $max_wait_time ]]; do
-    # SLURMのジョブ状態を確認（squeue）
-    local job_count=$(squeue -u "$USER" 2>/dev/null | wc -l)
+  # ジョブIDが指定されている場合は、そのジョブのみを監視
+  if [[ -n "$job_ids" ]]; then
+    echo "Monitoring specific job IDs: $job_ids"
     
-    echo "Checking SLURM job status... (elapsed: ${elapsed}s, jobs: $((job_count - 1)))"
-    
-    # ジョブがある場合は待機
-    if [[ $job_count -gt 1 ]]; then
-      echo "Jobs still running, waiting..."
+    while [[ $elapsed -lt $max_wait_time ]]; do
+      local all_completed=true
+      
+      for job_id in $job_ids; do
+        # 特定のジョブIDの状態を確認
+        if squeue -j "$job_id" 2>/dev/null | grep -q "$job_id"; then
+          echo "Job $job_id still running (elapsed: ${elapsed}s)"
+          all_completed=false
+          break
+        fi
+      done
+      
+      if $all_completed; then
+        echo "All specified jobs completed"
+        return 0
+      fi
+      
       sleep $check_interval
       elapsed=$((elapsed + check_interval))
-      continue
-    fi
+    done
+  else
+    # ジョブIDが取得できなかった場合は、ユーザーの全ジョブを監視（フォールバック）
+    echo "Monitoring all user jobs (fallback mode)"
     
-    # ジョブがない場合は完了
-    echo "All jobs completed"
-    return 0
-  done
+    while [[ $elapsed -lt $max_wait_time ]]; do
+      local job_count=$(squeue -u "$USER" 2>/dev/null | wc -l)
+      
+      echo "Checking SLURM job status... (elapsed: ${elapsed}s, jobs: $((job_count - 1)))"
+      
+      if [[ $job_count -gt 1 ]]; then
+        echo "Jobs still running, waiting..."
+        sleep $check_interval
+        elapsed=$((elapsed + check_interval))
+        continue
+      fi
+      
+      echo "All jobs completed"
+      return 0
+    done
+  fi
   
   echo "Timeout waiting for Ramble jobs to complete after ${max_wait_time}s"
   return 1

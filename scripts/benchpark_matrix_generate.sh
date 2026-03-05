@@ -74,20 +74,22 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
   job_prefix=$(echo "$job_prefix" | sed 's/-/_/g')
   
   # Get system configuration
-  build_run_tag=$(get_benchpark_system_tag "$system")
+  # setupはJacamar-CIタグ、それ以外はログインノードタグ
+  jacamar_tag=$(get_benchpark_system_tag "$system")
+  login_tag=$(get_benchpark_login_tag "$system")
   
-  if [[ -z "$build_run_tag" ]]; then
+  if [[ -z "$jacamar_tag" ]] || [[ -z "$login_tag" ]]; then
     echo "Warning: No tag found for system $system"
     continue
   fi
 
   # Generate different job based on SEND_ONLY mode
   if [[ "$SEND_ONLY" == "true" ]]; then
-    # Send-only mode: skip setup/run/wait, only convert and send
+    # Send-only mode: skip setup/run/wait, only convert and send on login node
     echo "
 ${job_prefix}_send:
   stage: benchpark_setup
-  tags: [\"$build_run_tag\"]
+  tags: [\"$login_tag\"]
   script:
     - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
@@ -102,18 +104,26 @@ ${job_prefix}_send:
 
 " >> "$OUTPUT_FILE"
   else
-    # Full mode: setup, run, wait, convert, and send
+    # Full mode: setup on Jacamar-CI, run (includes wait) + convert + send on login node
     echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
-  tags: [\"$build_run_tag\"]
+  tags: [\"$jacamar_tag\"]
   script:
     - echo \"Setting up BenchPark for $app on $system\"
     - bash scripts/benchpark_runner.sh setup $app
-    - echo \"Running BenchPark experiment $app on $system\"
+  artifacts:
+    paths:
+      - benchpark-workspace/
+    expire_in: 1 day
+
+${job_prefix}_run:
+  stage: benchpark_setup
+  tags: [\"$login_tag\"]
+  needs: [\"${job_prefix}_setup\"]
+  script:
+    - echo \"Running BenchPark experiment $app on $system (includes wait)\"
     - bash scripts/benchpark_runner.sh run $app
-    - echo \"Waiting for Ramble jobs to complete\"
-    - bash scripts/benchpark_runner.sh wait $app
     - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"

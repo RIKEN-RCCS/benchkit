@@ -33,25 +33,30 @@ case "$ACTION" in
       exit 1
     fi
     
-    # Rambleでジョブ投入
+    # Rambleでジョブ投入し、ジョブIDを取得
     echo "Submitting Ramble jobs from workspace: $RAMBLE_WORKSPACE"
-    ramble --workspace-dir "$RAMBLE_WORKSPACE" on
+    ramble_output=$(ramble --workspace-dir "$RAMBLE_WORKSPACE" on 2>&1)
+    echo "$ramble_output"
+    
+    # SLURMジョブIDを抽出（例: "Submitted batch job 12345"）
+    job_ids=$(echo "$ramble_output" | grep -oP 'Submitted batch job \K\d+' || true)
+    
+    if [[ -z "$job_ids" ]]; then
+      echo "Warning: Could not extract SLURM job IDs from ramble output"
+      echo "Falling back to user-based job monitoring"
+      job_ids=""
+    else
+      echo "Extracted SLURM job IDs: $job_ids"
+    fi
     
     echo "BenchPark experiment submitted"
-    ;;
     
-  "wait")
+    # ジョブ完了を待機（ジョブIDを渡す）
     echo "Waiting for BenchPark jobs to complete"
-    
-    # SLURMのジョブ完了を待機
-    wait_for_ramble_jobs "$BENCHPARK_ROOT/workspace/riken-cloud-gh200-nvhpc/${APP}/workspace"
+    wait_for_ramble_jobs "$RAMBLE_WORKSPACE" "$job_ids"
     
     # ジョブ完了後、Rambleワークスペースを解析
     echo "Analyzing Ramble workspace results"
-    RAMBLE_WORKSPACE="$BENCHPARK_ROOT/workspace/riken-cloud-gh200-nvhpc/${APP}/workspace"
-    
-    # setup.shで環境変数を設定
-    . "$BENCHPARK_ROOT/workspace/setup.sh"
     
     # ワークスペースをアクティベート
     ramble workspace activate "$RAMBLE_WORKSPACE"
@@ -63,10 +68,9 @@ case "$ACTION" in
     ;;
     
   *)
-    echo "Usage: $0 {setup|run|wait} <app>"
+    echo "Usage: $0 {setup|run} <app>"
     echo "  setup: Prepare BenchPark (QC-GH200)"
-    echo "  run:   Submit BenchPark experiment (QC-GH200)"
-    echo "  wait:  Wait for jobs to complete"
+    echo "  run:   Submit BenchPark experiment and wait for completion (QC-GH200)"
     exit 1
     ;;
 esac
