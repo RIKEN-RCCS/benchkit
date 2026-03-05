@@ -75,6 +75,8 @@ generate_matrix:
       when: never  # park_onlyモードでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: never  # [park-only]コミットメッセージでは無効
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
+      when: never  # [park-send]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
         - ".github/workflows/*.yml"
@@ -106,6 +108,8 @@ trigger_child_pipeline:
       when: never  # park_onlyモードでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: never  # [park-only]コミットメッセージでは無効
+    - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
+      when: never  # [park-send]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
         - ".github/workflows/*.yml"

@@ -199,15 +199,20 @@ def convert_to_benchkit_format(parsed_result, system, app):
         fom_key = list(metrics.keys())[0]
         fom_value = str(metrics[fom_key])
     
-    # BenchKit形式のJSON構造
+    # BenchKit形式のJSON構造（必須フィールドを追加）
     result = {
         "code": f"benchpark-{app}",
         "system": system,
         "FOM": fom_value,
         "FOM_version": experiment_name,
         "Exp": workload,
+        "cpu_name": "-",
+        "gpu_name": "-",
         "node_count": "1",
         "cpus_per_node": str(mpi_processes),
+        "gpus_per_node": "0",
+        "uname": "-",
+        "cpu_cores": "0",
         "description": "dummy",
         "confidential": "null"
     }
