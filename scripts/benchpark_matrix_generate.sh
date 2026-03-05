@@ -85,15 +85,18 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
 
   # Generate different job based on SEND_ONLY mode
   if [[ "$SEND_ONLY" == "true" ]]; then
-    # Send-only mode: convert on login node with artifact, then send on fncx-curl-jq
+    # Send-only mode: convert on login node, send on fncx-curl-jq
     echo "
 ${job_prefix}_convert:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
   script:
+    - mkdir -p results
+    - echo \"convert_started\" > results/convert.txt
     - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
+    - echo \"convert_completed\" >> results/convert.txt
     - ls -la results/
   artifacts:
     paths:
@@ -105,12 +108,15 @@ ${job_prefix}_send:
   tags: [fncx-curl-jq]
   needs: [\"${job_prefix}_convert\"]
   script:
-    - echo \"Sending BenchPark results to server\"
+    - echo \"Checking CI variables\"
+    - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
+    - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
+    - echo \"Sending results to server\"
     - bash scripts/send_results.sh
 
 " >> "$OUTPUT_FILE"
   else
-    # Full mode: setup on Jacamar-CI, run+convert on login node with artifact, send on fncx-curl-jq
+    # Full mode: setup on Jacamar-CI, run on login node, convert+send on fncx-curl-jq
     echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
@@ -118,21 +124,34 @@ ${job_prefix}_setup:
   script:
     - echo \"Setting up BenchPark for $app on $system\"
     - bash scripts/benchpark_runner.sh setup $app
-  artifacts:
-    paths:
-      - benchpark-workspace/
-    expire_in: 1 day
 
 ${job_prefix}_run:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
   needs: [\"${job_prefix}_setup\"]
   script:
+    - mkdir -p results
+    - echo \"run_started\" > results/run.txt
     - echo \"Running BenchPark experiment $app on $system\"
     - bash scripts/benchpark_runner.sh run $app
-    - echo \"Converting BenchPark results\"
+    - echo \"run_completed\" >> results/run.txt
+    - ls -la results/
+  artifacts:
+    paths:
+      - results/
+    expire_in: 1 week
+
+${job_prefix}_convert:
+  stage: benchpark_setup
+  tags: [\"$login_tag\"]
+  needs: [\"${job_prefix}_run\"]
+  script:
+    - mkdir -p results
+    - echo \"convert_started\" > results/convert.txt
+    - echo \"Converting BenchPark results for $app on $system\"
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
+    - echo \"convert_completed\" >> results/convert.txt
     - ls -la results/
   artifacts:
     paths:
@@ -142,9 +161,12 @@ ${job_prefix}_run:
 ${job_prefix}_send:
   stage: benchpark_setup
   tags: [fncx-curl-jq]
-  needs: [\"${job_prefix}_run\"]
+  needs: [\"${job_prefix}_convert\"]
   script:
-    - echo \"Sending BenchPark results to server\"
+    - echo \"Checking CI variables\"
+    - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
+    - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
+    - echo \"Sending results to server\"
     - bash scripts/send_results.sh
 
 " >> "$OUTPUT_FILE"
