@@ -95,6 +95,9 @@ ${job_prefix}_send:
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
+    - echo \"Checking CI variables\"
+    - echo \"RESULT_SERVER is set: \${RESULT_SERVER:+yes}\"
+    - echo \"RESULT_SERVER_KEY is set: \${RESULT_SERVER_KEY:+yes}\"
     - echo \"Sending results to server\"
     - bash scripts/send_results.sh
   artifacts:

@@ -161,8 +161,11 @@ trigger_benchpark_pipeline:
       - artifact: .gitlab-ci.benchpark.yml
         job: generate_benchpark_matrix
     strategy: depend
+  inherit:
+    variables: true
   needs:
     - job: generate_benchpark_matrix
+      optional: true
       optional: true
   rules:
     - if: '$park_only == "true"'
