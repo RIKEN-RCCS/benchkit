@@ -85,9 +85,9 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
 
   # Generate different job based on SEND_ONLY mode
   if [[ "$SEND_ONLY" == "true" ]]; then
-    # Send-only mode: skip setup/run/wait, only convert and send on login node
+    # Send-only mode: convert results, then send in separate job
     echo "
-${job_prefix}_send:
+${job_prefix}_convert:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
   script:
@@ -95,21 +95,22 @@ ${job_prefix}_send:
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
-    - echo \"Checking CI variables\"
-    - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
-    - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
-    - echo \"Checking JSON file format\"
-    - hexdump -C results/result0.json | tail -n 5
-    - echo \"Sending results to server\"
-    - bash scripts/send_results.sh
   artifacts:
     paths:
       - results/
     expire_in: 1 week
 
+${job_prefix}_send:
+  stage: benchpark_setup
+  tags: [fncx-curl-jq]
+  needs: [\"${job_prefix}_convert\"]
+  script:
+    - echo \"Sending BenchPark results to server\"
+    - bash scripts/send_results.sh
+
 " >> "$OUTPUT_FILE"
   else
-    # Full mode: setup on Jacamar-CI, run (includes wait) + convert + send on login node
+    # Full mode: setup on Jacamar-CI, run (includes wait) on login node, send on fncx-curl-jq
     echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
@@ -133,12 +134,18 @@ ${job_prefix}_run:
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
-    - echo \"Sending results to server\"
-    - bash scripts/send_results.sh
   artifacts:
     paths:
       - results/
     expire_in: 1 week
+
+${job_prefix}_send:
+  stage: benchpark_setup
+  tags: [fncx-curl-jq]
+  needs: [\"${job_prefix}_run\"]
+  script:
+    - echo \"Sending BenchPark results to server\"
+    - bash scripts/send_results.sh
 
 " >> "$OUTPUT_FILE"
   fi
