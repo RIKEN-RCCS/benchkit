@@ -286,6 +286,7 @@ def main():
         
         with open(output_file, 'w') as f:
             json.dump(benchkit_result, f, indent=2)
+            f.write('\n')  # 末尾に改行を追加（BenchKit互換）
         
         output_files.append(output_file)
         print(f"Experiment {i+1}/{len(all_experiments)}: {experiment.get('experiment', 'unknown')}")
