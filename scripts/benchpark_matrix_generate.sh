@@ -116,7 +116,7 @@ ${job_prefix}_send:
 
 " >> "$OUTPUT_FILE"
   else
-    # Full mode: setup on Jacamar-CI, run on login node, convert+send on fncx-curl-jq
+    # Full mode: setup on Jacamar-CI, run on login node, convert on login node, send on fncx-curl-jq
     echo "
 ${job_prefix}_setup:
   stage: benchpark_setup
@@ -136,10 +136,6 @@ ${job_prefix}_run:
     - bash scripts/benchpark_runner.sh run $app
     - echo \"run_completed\" >> results/run.txt
     - ls -la results/
-  artifacts:
-    paths:
-      - results/
-    expire_in: 1 week
 
 ${job_prefix}_convert:
   stage: benchpark_setup
