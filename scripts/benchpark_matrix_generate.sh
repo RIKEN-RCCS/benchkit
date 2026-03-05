@@ -96,8 +96,8 @@ ${job_prefix}_send:
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
     - echo \"Checking CI variables\"
-    - echo \"RESULT_SERVER is set: \${RESULT_SERVER:+yes}\"
-    - echo \"RESULT_SERVER_KEY is set: \${RESULT_SERVER_KEY:+yes}\"
+    - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
+    - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
     - echo \"Sending results to server\"
     - bash scripts/send_results.sh
   artifacts:
