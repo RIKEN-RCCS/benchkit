@@ -137,11 +137,19 @@ def parse_ramble_results_txt(result_file):
             
             # メトリクスを抽出
             for line in exp['lines']:
+                # "Message Size:"で始まる行はコンテキスト名なのでスキップ
+                if line.strip().startswith("Message Size:"):
+                    continue
+                
                 if " = " in line:
                     try:
                         parts = line.split(" = ")
                         if len(parts) == 2:
                             key = parts[0].strip()
+                            # "modifier::exit-code::"などの特殊なキーはスキップ
+                            if "::" in key:
+                                continue
+                            
                             # 値から単位を削除
                             value_parts = parts[1].split()
                             if value_parts:
