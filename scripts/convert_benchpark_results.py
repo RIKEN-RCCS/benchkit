@@ -274,10 +274,9 @@ def main():
             print(f"Failed to convert experiment {i+1}")
             continue
         
-        # 実験名をファイル名に含める
-        exp_name = experiment.get('experiment', f'exp{i+1}').replace('.', '_').replace('/', '_')
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = f"results/benchpark_{system}_{app}_{exp_name}_{timestamp}.json"
+        # BenchKit互換のファイル名形式（result*.json）
+        # 既存のsend_results.shがそのまま使える
+        output_file = f"results/result{i+1}.json"
         
         with open(output_file, 'w') as f:
             json.dump(benchkit_result, f, indent=2)

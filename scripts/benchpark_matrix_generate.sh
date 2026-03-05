@@ -88,6 +88,8 @@ ${job_prefix}_setup:
     - python3 scripts/convert_benchpark_results.py $system $app
     - echo \"Results converted to BenchKit format\"
     - ls -la results/
+    - echo \"Sending BenchPark results to server\"
+    - bash scripts/send_results.sh
   artifacts:
     paths:
       - results/
