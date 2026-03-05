@@ -98,6 +98,8 @@ ${job_prefix}_send:
     - echo \"Checking CI variables\"
     - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
     - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
+    - echo \"Checking JSON file format\"
+    - hexdump -C results/result0.json | tail -n 5
     - echo \"Sending results to server\"
     - bash scripts/send_results.sh
   artifacts:
