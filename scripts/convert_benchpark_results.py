@@ -82,7 +82,7 @@ def parse_benchpark_result(result_file):
 
 
 def parse_ramble_results_txt(result_file):
-    """Rambleの結果テキストファイルを解析（複数実験対応）
+    """Rambleの結果テキストファイルを解析（複数実験対応、ベクトル型メトリクス対応）
     
     results.latest.txtには複数の実験結果が含まれる可能性がある。
     各実験は "Experiment <name> figures of merit:" で始まる。
@@ -124,7 +124,10 @@ def parse_ramble_results_txt(result_file):
         # 各実験を解析
         parsed_experiments = []
         for exp in experiments:
-            metrics = {}
+            # メトリクスを抽出（ベクトル型対応）
+            vector_metrics = {}  # {message_size: {metric_name: value}}
+            scalar_metrics = {}
+            spack_packages = []
             mpi_processes = 2  # デフォルト
             
             # MPI プロセス数を抽出（例: mpi_2 → 2）
@@ -135,12 +138,43 @@ def parse_ramble_results_txt(result_file):
                 except:
                     pass
             
-            # メトリクスを抽出
+            current_message_size = None
+            in_software_section = False
+            
             for line in exp['lines']:
-                # "Message Size:"で始まる行はコンテキスト名なのでスキップ
-                if line.strip().startswith("Message Size:"):
+                # Software definitionsセクションの検出
+                if "Software definitions:" in line:
+                    in_software_section = True
                     continue
                 
+                # Spackパッケージ情報の抽出
+                if in_software_section:
+                    if "spack packages:" in line:
+                        continue
+                    # パッケージ行: "  package-name @version"
+                    if line.strip() and not line.strip().startswith("Experiment"):
+                        parts = line.strip().split()
+                        if len(parts) >= 2 and parts[1].startswith('@'):
+                            pkg_name = parts[0]
+                            pkg_version = parts[1][1:]  # @を除去
+                            spack_packages.append({
+                                'name': pkg_name,
+                                'version': pkg_version
+                            })
+                    continue
+                
+                # Message Sizeコンテキストの検出
+                if line.strip().startswith("Message Size:"):
+                    try:
+                        size_str = line.split("Message Size:")[1].split("context")[0].strip()
+                        current_message_size = int(size_str)
+                        if current_message_size not in vector_metrics:
+                            vector_metrics[current_message_size] = {}
+                    except:
+                        current_message_size = None
+                    continue
+                
+                # メトリクス値の抽出
                 if " = " in line:
                     try:
                         parts = line.split(" = ")
@@ -155,7 +189,20 @@ def parse_ramble_results_txt(result_file):
                             if value_parts:
                                 try:
                                     value = float(value_parts[0])
-                                    metrics[key] = value
+                                    unit = value_parts[1] if len(value_parts) > 1 else ""
+                                    
+                                    # Message Sizeコンテキスト内のメトリクス
+                                    if current_message_size is not None:
+                                        vector_metrics[current_message_size][key] = {
+                                            'value': value,
+                                            'unit': unit
+                                        }
+                                    else:
+                                        # スカラーメトリクス
+                                        scalar_metrics[key] = {
+                                            'value': value,
+                                            'unit': unit
+                                        }
                                 except ValueError:
                                     pass
                     except:
@@ -164,9 +211,10 @@ def parse_ramble_results_txt(result_file):
             parsed_experiments.append({
                 'experiment': exp['name'],
                 'workload': exp['name'].split('.')[1] if '.' in exp['name'] else 'unknown',
-                'metrics': metrics,
                 'mpi_processes': mpi_processes,
-                'execution_time': 0,
+                'vector_metrics': vector_metrics,
+                'scalar_metrics': scalar_metrics,
+                'spack_packages': spack_packages,
                 'raw_data': {'lines': exp['lines']}
             })
         
@@ -178,7 +226,7 @@ def parse_ramble_results_txt(result_file):
 
 
 def convert_to_benchkit_format(parsed_result, system, app):
-    """BenchKit形式のJSONに変換（単一実験用）"""
+    """BenchKit形式のJSONに変換（ベクトル型メトリクス対応）"""
     
     if not parsed_result:
         return None
@@ -188,34 +236,133 @@ def convert_to_benchkit_format(parsed_result, system, app):
     workload = parsed_result.get('workload', 'unknown')
     mpi_processes = parsed_result.get('mpi_processes', 1)
     
-    # メトリクスから代表的なFOM値を選択
-    # TODO: 将来的にはベクトル的なFOM（メッセージサイズごとの値）に対応する必要がある
-    metrics = parsed_result.get('metrics', {})
-    fom_value = "0"
-    fom_key = "unknown"
+    # ベクトル型メトリクスの処理
+    vector_metrics_data = parsed_result.get('vector_metrics', {})
+    scalar_metrics_data = parsed_result.get('scalar_metrics', {})
+    spack_packages = parsed_result.get('spack_packages', [])
     
-    if metrics:
-        # 最初のメトリクスを代表値として使用
-        fom_key = list(metrics.keys())[0]
-        fom_value = str(metrics[fom_key])
+    # FOM値の決定（最大メッセージサイズの最初のメトリクス）
+    fom_value = 0
+    fom_unit = ""
+    fom_type = "unknown"
     
-    # BenchKit形式のJSON構造（必須フィールドを追加）
+    if vector_metrics_data:
+        # 最大メッセージサイズを取得
+        max_msg_size = max(vector_metrics_data.keys())
+        metrics_at_max = vector_metrics_data[max_msg_size]
+        
+        if metrics_at_max:
+            # 最初のメトリクスを代表値として使用
+            first_metric_name = list(metrics_at_max.keys())[0]
+            fom_value = metrics_at_max[first_metric_name]['value']
+            fom_unit = metrics_at_max[first_metric_name]['unit']
+            fom_type = first_metric_name
+    
+    # ベクトル型メトリクスをtable形式に変換
+    vector_table = None
+    x_axis_name = "message_size"
+    x_axis_unit = "bytes"
+    
+    if vector_metrics_data:
+        # メッセージサイズでソート
+        sorted_sizes = sorted(vector_metrics_data.keys())
+        
+        # カラム名を取得（最初のメッセージサイズから）
+        if sorted_sizes:
+            first_size_metrics = vector_metrics_data[sorted_sizes[0]]
+            metric_names = list(first_size_metrics.keys())
+            columns = ["message_size"] + metric_names
+            
+            # 行データを構築
+            rows = []
+            for msg_size in sorted_sizes:
+                row = [msg_size]
+                for metric_name in metric_names:
+                    if metric_name in vector_metrics_data[msg_size]:
+                        row.append(vector_metrics_data[msg_size][metric_name]['value'])
+                    else:
+                        row.append(None)
+                rows.append(row)
+            
+            vector_table = {
+                "columns": columns,
+                "rows": rows
+            }
+    
+    # Spackビルド情報の構築
+    build_info = None
+    if spack_packages:
+        # コンパイラとMPIを特定
+        compiler_name = None
+        compiler_version = None
+        mpi_name = None
+        mpi_version = None
+        
+        for pkg in spack_packages:
+            pkg_name = pkg['name'].lower()
+            if 'gcc' in pkg_name or 'clang' in pkg_name or 'intel' in pkg_name:
+                compiler_name = pkg['name']
+                compiler_version = pkg['version']
+            elif 'mpi' in pkg_name or pkg_name in ['openmpi', 'mpich', 'mvapich']:
+                mpi_name = pkg['name']
+                mpi_version = pkg['version']
+        
+        build_info = {
+            "tool": "spack",
+            "spack": {
+                "spack_version": "0.22.0",  # TODO: 実際のバージョンを取得
+                "spec": f"{app} %{compiler_name}@{compiler_version}" if compiler_name else f"{app}",
+                "compiler": {
+                    "name": compiler_name or "unknown",
+                    "version": compiler_version or "unknown"
+                },
+                "mpi": {
+                    "name": mpi_name or "unknown",
+                    "version": mpi_version or "unknown"
+                },
+                "packages": spack_packages
+            }
+        }
+    
+    # タイムスタンプはサーバ側で自動追加されるため不要
+    
+    # BenchKit形式のJSON構造（新形式）
     result = {
         "code": f"benchpark-{app}",
         "system": system,
+        "Exp": workload,
         "FOM": fom_value,
         "FOM_version": experiment_name,
-        "Exp": workload,
-        "cpu_name": "-",
-        "gpu_name": "-",
-        "node_count": "1",
-        "cpus_per_node": str(mpi_processes),
-        "gpus_per_node": "0",
-        "uname": "-",
-        "cpu_cores": "0",
-        "description": "dummy",
-        "confidential": "null"
+        "FOM_unit": fom_unit,
+        "cpu_name": "-",  # TODO: システム情報から取得
+        "gpu_name": "-",  # TODO: システム情報から取得
+        "node_count": 1,
+        "cpus_per_node": mpi_processes,
+        "gpus_per_node": 0,
+        "cpu_cores": 0,  # TODO: システム情報から取得
+        "uname": "-",  # TODO: システム情報から取得
+        "description": None,
+        "confidential": False,
+        "metrics": {
+            "scalar": {
+                "FOM": fom_value
+            }
+        }
     }
+    
+    # ベクトル型メトリクスを追加
+    if vector_table:
+        result["metrics"]["vector"] = {
+            "x_axis": {
+                "name": x_axis_name,
+                "unit": x_axis_unit
+            },
+            "table": vector_table
+        }
+    
+    # ビルド情報を追加
+    if build_info:
+        result["build"] = build_info
     
     return result
 
