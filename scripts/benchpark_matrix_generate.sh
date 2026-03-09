@@ -90,6 +90,9 @@ while IFS=, read -r system app description || [[ -n "$system" ]]; do
 ${job_prefix}_convert:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   script:
     - mkdir -p results
     - echo \"convert_started\" > results/convert.txt
@@ -106,6 +109,9 @@ ${job_prefix}_convert:
 ${job_prefix}_send:
   stage: benchpark_setup
   tags: [fncx-curl-jq]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   needs: [\"${job_prefix}_convert\"]
   script:
     - echo \"Checking CI variables\"
@@ -121,6 +127,9 @@ ${job_prefix}_send:
 ${job_prefix}_setup:
   stage: benchpark_setup
   tags: [\"$jacamar_tag\"]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   script:
     - echo \"Setting up BenchPark for $app on $system\"
     - bash scripts/benchpark_runner.sh setup $app
@@ -128,6 +137,9 @@ ${job_prefix}_setup:
 ${job_prefix}_run:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   needs: [\"${job_prefix}_setup\"]
   script:
     - mkdir -p results
@@ -140,6 +152,9 @@ ${job_prefix}_run:
 ${job_prefix}_convert:
   stage: benchpark_setup
   tags: [\"$login_tag\"]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   needs: [\"${job_prefix}_run\"]
   script:
     - mkdir -p results
@@ -157,6 +172,9 @@ ${job_prefix}_convert:
 ${job_prefix}_send:
   stage: benchpark_setup
   tags: [fncx-curl-jq]
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.swc.r-ccs.riken.jp
   needs: [\"${job_prefix}_convert\"]
   script:
     - echo \"Checking CI variables\"
