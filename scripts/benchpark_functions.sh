@@ -25,7 +25,7 @@ get_benchpark_system_tag() {
     "fugaku")
       tag="fugaku_login1"
       ;;
-    "qc-gh200")
+    "RC_GH200")
       tag="cloud_jacamar"
       ;;
     *)
@@ -47,7 +47,7 @@ get_benchpark_login_tag() {
     "fugaku")
       tag="fugaku_login1"
       ;;
-    "qc-gh200")
+    "RC_GH200")
       tag="rccs_cloud_login"
       ;;
     *)
@@ -82,7 +82,7 @@ get_benchpark_system_path() {
     "fugaku")
       echo "systems/riken-fugaku/system.py"
       ;;
-    "qc-gh200")
+    "RC_GH200")
       echo "systems/qc-gh200/system.py"
       ;;
     *)

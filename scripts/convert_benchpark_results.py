@@ -415,7 +415,7 @@ def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
         "cpu_cores": 0,  # TODO: システム情報から取得
         "uname": "-",  # TODO: システム情報から取得
         "description": None,
-        "confidential": False,
+        "confidential": None,
         "metrics": {
             "scalar": {
                 "FOM": fom_value
@@ -449,7 +449,7 @@ def main():
     app = sys.argv[2]
     
     # QC-GH200専用のワークスペースパス
-    if system == "qc-gh200":
+    if system == "RC_GH200":
         workspace_path = f"/home/users/nakamura/src/benchpark/r-ccs-fork/benchpark/workspace/riken-cloud-gh200-nvhpc/{app}/workspace"
     else:
         # 他のシステムの場合
