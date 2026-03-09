@@ -15,6 +15,69 @@ from datetime import datetime
 from pathlib import Path
 
 
+def extract_node_count_from_experiment(workspace_path, experiment_name):
+    """実験のexecute_experimentスクリプトからノード数を抽出
+    
+    Args:
+        workspace_path: BenchParkワークスペースのパス
+        experiment_name: 実験名（例: osu-micro-benchmarks.osu_bibw.osu-micro-benchmarks_osu_bibw_test_mpi_2）
+    
+    Returns:
+        int: ノード数（取得できない場合は1）
+    """
+    try:
+        # all_experimentsファイルのパス
+        all_experiments_file = os.path.join(workspace_path, "all_experiments")
+        
+        if not os.path.exists(all_experiments_file):
+            print(f"Warning: all_experiments file not found: {all_experiments_file}")
+            return 1
+        
+        # all_experimentsファイルを読み込み
+        with open(all_experiments_file, 'r') as f:
+            content = f.read()
+        
+        # 実験名に対応するexecute_experimentスクリプトのパスを検索
+        # 例: sbatch /path/to/osu-micro-benchmarks_osu_bibw_test_mpi_2/execute_experiment
+        experiment_id = experiment_name.split('.')[-1]  # 最後の部分を取得
+        
+        for line in content.split('\n'):
+            if experiment_id in line and 'execute_experiment' in line:
+                # sbatchスクリプトのパスを抽出
+                parts = line.split()
+                if len(parts) >= 2:
+                    script_path = parts[1]
+                    
+                    # execute_experimentスクリプトを読み込み
+                    if os.path.exists(script_path):
+                        with open(script_path, 'r') as script_file:
+                            script_content = script_file.read()
+                        
+                        # sbatchオプションから-Nの値を抽出
+                        # 例: #SBATCH -N 2 または #SBATCH --nodes=2
+                        import re
+                        
+                        # -N <数値> の形式
+                        match = re.search(r'#SBATCH\s+-N\s+(\d+)', script_content)
+                        if match:
+                            return int(match.group(1))
+                        
+                        # --nodes=<数値> の形式
+                        match = re.search(r'#SBATCH\s+--nodes=(\d+)', script_content)
+                        if match:
+                            return int(match.group(1))
+                    else:
+                        print(f"Warning: execute_experiment script not found: {script_path}")
+                break
+        
+        print(f"Warning: Could not extract node count for experiment: {experiment_name}")
+        return 1
+        
+    except Exception as e:
+        print(f"Error extracting node count: {e}")
+        return 1
+
+
 def find_benchpark_results(workspace_path, system, app):
     """BenchPark結果ファイルを検索"""
     # results.latest.txtを優先的に使用
@@ -225,8 +288,15 @@ def parse_ramble_results_txt(result_file):
         return []
 
 
-def convert_to_benchkit_format(parsed_result, system, app):
-    """BenchKit形式のJSONに変換（ベクトル型メトリクス対応）"""
+def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
+    """BenchKit形式のJSONに変換（ベクトル型メトリクス対応）
+    
+    Args:
+        parsed_result: 解析済みの実験結果
+        system: システム名
+        app: アプリケーション名
+        workspace_path: BenchParkワークスペースのパス（ノード数抽出用）
+    """
     
     if not parsed_result:
         return None
@@ -235,6 +305,9 @@ def convert_to_benchkit_format(parsed_result, system, app):
     experiment_name = parsed_result.get('experiment', 'unknown')
     workload = parsed_result.get('workload', 'unknown')
     mpi_processes = parsed_result.get('mpi_processes', 1)
+    
+    # ノード数を抽出
+    node_count = extract_node_count_from_experiment(workspace_path, experiment_name)
     
     # ベクトル型メトリクスの処理
     vector_metrics_data = parsed_result.get('vector_metrics', {})
@@ -336,7 +409,7 @@ def convert_to_benchkit_format(parsed_result, system, app):
         "FOM_unit": fom_unit,
         "cpu_name": "-",  # TODO: システム情報から取得
         "gpu_name": "-",  # TODO: システム情報から取得
-        "node_count": 1,
+        "node_count": node_count,
         "cpus_per_node": mpi_processes,
         "gpus_per_node": 0,
         "cpu_cores": 0,  # TODO: システム情報から取得
@@ -420,7 +493,7 @@ def main():
     output_files = []
     for i, experiment in enumerate(all_experiments):
         # BenchKit形式に変換
-        benchkit_result = convert_to_benchkit_format(experiment, system, app)
+        benchkit_result = convert_to_benchkit_format(experiment, system, app, workspace_path)
         
         if not benchkit_result:
             print(f"Failed to convert experiment {i+1}")
