@@ -314,13 +314,13 @@ def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
     scalar_metrics_data = parsed_result.get('scalar_metrics', {})
     spack_packages = parsed_result.get('spack_packages', [])
     
-    # FOM値の決定（最大メッセージサイズの最初のメトリクス）
+    # FOM値の決定（ベクトル型優先、なければスカラー型）
     fom_value = 0
     fom_unit = ""
     fom_type = "unknown"
     
     if vector_metrics_data:
-        # 最大メッセージサイズを取得
+        # ベクトル型メトリクス：最大メッセージサイズの最初のメトリクス
         max_msg_size = max(vector_metrics_data.keys())
         metrics_at_max = vector_metrics_data[max_msg_size]
         
@@ -330,6 +330,12 @@ def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
             fom_value = metrics_at_max[first_metric_name]['value']
             fom_unit = metrics_at_max[first_metric_name]['unit']
             fom_type = first_metric_name
+    elif scalar_metrics_data:
+        # スカラー型メトリクス：最初のメトリクスを使用
+        first_metric_name = list(scalar_metrics_data.keys())[0]
+        fom_value = scalar_metrics_data[first_metric_name]['value']
+        fom_unit = scalar_metrics_data[first_metric_name]['unit']
+        fom_type = first_metric_name
     
     # ベクトル型メトリクスをtable形式に変換
     vector_table = None
@@ -417,11 +423,17 @@ def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
         "description": None,
         "confidential": None,
         "metrics": {
-            "scalar": {
-                "FOM": fom_value
-            }
+            "scalar": {}
         }
     }
+    
+    # スカラー型メトリクスを追加
+    if scalar_metrics_data:
+        for metric_name, metric_data in scalar_metrics_data.items():
+            result["metrics"]["scalar"][metric_name] = metric_data['value']
+    
+    # FOM値も追加（後方互換性のため）
+    result["metrics"]["scalar"]["FOM"] = fom_value
     
     # ベクトル型メトリクスを追加
     if vector_table:
