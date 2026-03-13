@@ -90,24 +90,21 @@ git commit -m "Update documentation
 BenchPark関連の変更をコミットする前に確認してください：
 
 - [ ] **BenchPark機能のフルテスト（結果送信あり）**: `[park-only]`を含める
-  - `scripts/benchpark_*.sh`の修正
-  - `scripts/benchpark_functions.sh`の修正
-  - `scripts/convert_benchpark_results.py`の修正
-  - setup, run, wait, 結果変換、結果送信まで実行される
+  - `benchpark-bridge/scripts/`の修正
+  - `benchpark-bridge/config/apps.csv`の修正
+  - setup, run, 結果変換、結果送信まで実行される
 
 - [ ] **BenchPark結果送信のみ**: `[park-send]`を含める
   - 結果変換ロジックの修正
   - 既存の結果を再送信したい場合
-  - setup, run, waitはスキップされる
+  - setup, runはスキップされる
   
 - [ ] **ドキュメントのみ更新**: `[skip-ci]`を含める
-  - `BENCHPARK_TODO.md`の更新
-  - `BENCHPARK_MONITOR.md`の更新
-  - `BENCHPARK_RESULTS_FORMAT.md`の更新
+  - `.kiro/steering/benchpark-*.md`の更新
   - その他ドキュメントファイル
   
 - [ ] **BenchPark設定変更**: `[benchpark]`を含める
-  - `config/benchpark-monitor/list.csv`の変更
+  - `benchpark-bridge/config/apps.csv`の変更
   
 - [ ] **既存機能の修正**: タグなし
   - `programs/*/`の修正
@@ -174,10 +171,18 @@ BenchPark関連の変更をコミットする前に確認してください：
 
 ### ✅ 許可される配置
 ```
-config/benchpark-monitor/        # BenchPark設定（新規ディレクトリ）
-scripts/benchpark_*.sh           # BenchPark専用スクリプト
-scripts/convert_benchpark_*.py   # BenchPark専用Python
-BENCHPARK_*.md                   # BenchPark専用ドキュメント
+benchpark-bridge/                # BenchPark統合ディレクトリ
+├── config/
+│   └── apps.csv                 # 監視対象定義
+└── scripts/
+    ├── common.sh                # 共通関数
+    ├── ci_generator.sh          # CI YAML生成
+    ├── runner.sh                # BenchPark実行
+    └── result_converter.py      # 結果変換
+
+.kiro/steering/
+└── benchpark-*.md               # BenchPark関連ドキュメント
+
 .gitlab-ci.benchpark.yml         # 生成されるCI設定（gitignore済み）
 ```
 
@@ -205,10 +210,11 @@ BenchParkモニター機能は以下の場合**のみ**実行：
 rules:
   - if: '$benchpark == "true"'           # API変数での明示指定
   - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'  # コミットメッセージ指定
+  - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'  # BenchPark専用実行
+  - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'  # 結果送信のみ
   - changes:                             # BenchPark関連ファイル変更
-      - "config/benchpark-monitor/**/*"
-      - "scripts/benchpark_*"
-      - "BENCHPARK_*.md"
+      - "benchpark-bridge/**/*"
+      - ".kiro/steering/benchpark-*.md"
   - when: never                          # その他は実行しない
 ```
 
