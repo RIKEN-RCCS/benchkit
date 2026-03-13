@@ -3,7 +3,7 @@ set -euo pipefail
 
 # BenchPark実行管理スクリプト（QC-GH200専用）
 
-source ./scripts/benchpark_functions.sh
+source ./benchpark-bridge/scripts/common.sh
 
 ACTION="$1"
 APP="$2"

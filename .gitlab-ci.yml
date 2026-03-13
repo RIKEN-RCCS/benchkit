@@ -129,7 +129,7 @@ trigger_child_pipeline:
 generate_benchpark_matrix:
   stage: generate
   script:
-    - bash ./scripts/benchpark_matrix_generate.sh system=$system
+    - bash ./benchpark-bridge/scripts/ci_generator.sh system=$system
   tags:
     - general
   artifacts:
@@ -148,9 +148,7 @@ generate_benchpark_matrix:
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
       when: always
     - changes:
-        - "config/benchpark-monitor/**/*"
-        - "scripts/benchpark_*"
-        - "BENCHPARK_MONITOR.md"
+        - "benchpark-bridge/**/*"
       when: always
     - when: never
 
@@ -179,8 +177,6 @@ trigger_benchpark_pipeline:
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
       when: always
     - changes:
-        - "config/benchpark-monitor/**/*"
-        - "scripts/benchpark_*"
-        - "BENCHPARK_MONITOR.md"
+        - "benchpark-bridge/**/*"
       when: always
     - when: never

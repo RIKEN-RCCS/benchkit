@@ -4,10 +4,10 @@ set -euo pipefail
 # BenchPark統合用のGitLab CI YAML生成スクリプト
 # 既存のmatrix_generate.shとは独立して動作
 
-BENCHPARK_LIST="config/benchpark-monitor/list.csv"
+BENCHPARK_LIST="benchpark-bridge/config/apps.csv"
 OUTPUT_FILE=".gitlab-ci.benchpark.yml"
 
-source ./scripts/benchpark_functions.sh
+source ./benchpark-bridge/scripts/common.sh
 
 SYSTEM_FILTER=""
 APP_FILTER=""
@@ -97,7 +97,7 @@ ${job_prefix}_convert:
     - mkdir -p results
     - echo \"convert_started\" > results/convert.txt
     - echo \"Converting BenchPark results for $app on $system\"
-    - python3 scripts/convert_benchpark_results.py $system $app
+    - python3 benchpark-bridge/scripts/result_converter.py $system $app
     - echo \"Results converted to BenchKit format\"
     - echo \"convert_completed\" >> results/convert.txt
     - ls -la results/
@@ -132,7 +132,7 @@ ${job_prefix}_setup:
       aud: https://gitlab.swc.r-ccs.riken.jp
   script:
     - echo \"Setting up BenchPark for $app on $system\"
-    - bash scripts/benchpark_runner.sh setup $app
+    - bash benchpark-bridge/scripts/runner.sh setup $app
 
 ${job_prefix}_run:
   stage: benchpark_setup
@@ -145,7 +145,7 @@ ${job_prefix}_run:
     - mkdir -p results
     - echo \"run_started\" > results/run.txt
     - echo \"Running BenchPark experiment $app on $system\"
-    - bash scripts/benchpark_runner.sh run $app
+    - bash benchpark-bridge/scripts/runner.sh run $app
     - echo \"run_completed\" >> results/run.txt
     - ls -la results/
 
@@ -160,7 +160,7 @@ ${job_prefix}_convert:
     - mkdir -p results
     - echo \"convert_started\" > results/convert.txt
     - echo \"Converting BenchPark results for $app on $system\"
-    - python3 scripts/convert_benchpark_results.py $system $app
+    - python3 benchpark-bridge/scripts/result_converter.py $system $app
     - echo \"Results converted to BenchKit format\"
     - echo \"convert_completed\" >> results/convert.txt
     - ls -la results/
