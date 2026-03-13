@@ -460,9 +460,15 @@ def main():
     system = sys.argv[1]
     app = sys.argv[2]
     
-    # QC-GH200専用のワークスペースパス
+    # RC_GH200専用のワークスペースパス（アプリごとに異なるパス）
     if system == "RC_GH200":
-        workspace_path = f"/home/users/nakamura/src/benchpark/r-ccs-fork/benchpark/workspace/riken-cloud-gh200-nvhpc/{app}/workspace"
+        if app == "osu-micro-benchmarks":
+            workspace_path = "/home/users/nakamura/benchpark_output/work2026/GH200_nvhpc/osu-micro-benchmarks/workspace"
+        elif app == "gpcnet":
+            workspace_path = "/home/users/nakamura/benchpark_output/work2026/GH200/gpcnet_network_test/workspace"
+        else:
+            # デフォルトパス
+            workspace_path = f"/home/users/nakamura/benchpark_output/work2026/GH200/{app}/workspace"
     else:
         # 他のシステムの場合
         workspace_path = f"benchpark-workspace/{system}/{app}"

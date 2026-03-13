@@ -1,2 +1,3 @@
 system,app,description
 RC_GH200,osu-micro-benchmarks,OSU Micro-Benchmarks on RC_GH200 system
+RC_GH200,gpcnet,GPCNet network performance test on RC_GH200 system
