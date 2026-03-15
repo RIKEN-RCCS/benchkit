@@ -68,7 +68,6 @@ benchkit/
 │   ├── check_results.sh      # 結果確認
 │   └── debug_job.sh          # デバッグ用
 ├── .gitlab-ci.yml            # メインCI定義
-├── benchpark/                # BenchParkフレームワーク（サブモジュール）
 ├── system.csv                # 実行システム定義
 ├── queue.csv                 # キューシステム定義
 └── README.md
