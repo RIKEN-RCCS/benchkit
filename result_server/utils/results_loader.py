@@ -41,21 +41,79 @@ def load_json_with_confidential_filter(json_file, directory, affs=None, public_o
         return data
     except Exception:
         return None
-#--------------------------------------------------------------------------------------------------------------
+
 #--------------------------------------------------------------------------------------------------------------
 
-SAVE_DIR = "received"
-ESTIMATED_DIR = "estimated_results"
+def load_single_result(filename, save_dir):
+    """
+    指定ファイル名のJSONを読み込み dict で返す。
+    ファイルが存在しない場合は None を返す。
+    権限チェックはルート側で実施するため、ここでは単純なJSON読み込みのみ行う。
 
-def load_results_table(public_only=True, session_email=None, authenticated=False):
+    Args:
+        filename (str): JSONファイル名
+        save_dir (str): ファイルのあるディレクトリ（必須）
+
+    Returns:
+        dict or None: 読み込んだJSONデータ、ファイルが存在しない場合はNone
+    """
+    filepath = os.path.join(save_dir, filename)
+    if not os.path.isfile(filepath):
+        return None
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def load_multiple_results(filenames, save_dir):
+    """
+    複数の結果JSONを読み込み、タイムスタンプ昇順でソートしたリストを返す。
+
+    Args:
+        filenames (list[str]): JSONファイル名のリスト
+        save_dir (str): ファイルのあるディレクトリ（必須）
+
+    Returns:
+        list[dict]: [{"filename": str, "timestamp": str, "data": dict}, ...]
+            タイムスタンプ昇順でソート済み
+    """
+    results = []
+    for filename in filenames:
+        data = load_single_result(filename, save_dir)
+        if data is None:
+            continue
+
+        # ファイル名から YYYYMMDD_HHMMSS パターンでタイムスタンプを抽出
+        timestamp = "Unknown"
+        match = re.search(r"\d{8}_\d{6}", filename)
+        if match:
+            try:
+                ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
+                timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+        results.append({
+            "filename": filename,
+            "timestamp": timestamp,
+            "data": data,
+        })
+
+    # タイムスタンプ昇順でソート（"Unknown" は先頭に来る）
+    results.sort(key=lambda r: r["timestamp"])
+    return results
+
+def load_results_table(directory, public_only=True, session_email=None, authenticated=False):
     affs = get_affiliations(session_email) if session_email else []
-    files = os.listdir(SAVE_DIR)
+    files = os.listdir(directory)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
     tgz_files = [f for f in files if f.endswith(".tgz")]
 
     rows = []
     for json_file in json_files:
-        data = load_json_with_confidential_filter(json_file, SAVE_DIR, affs, public_only, authenticated)
+        data = load_json_with_confidential_filter(json_file, directory, affs, public_only, authenticated)
         if data is None:
             continue
 
@@ -78,12 +136,16 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
             try:
                 ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
                 timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except Exception:
                 pass
 
         uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
         uid = uuid_match.group(0) if uuid_match else None
         tgz_file = next((f for f in tgz_files if uid in f), None) if uid else None
+
+        # metrics.vector の有無を判定
+        metrics = data.get("metrics", {})
+        has_vector = isinstance(metrics, dict) and "vector" in metrics
 
         row = {
             "timestamp": timestamp,
@@ -98,13 +160,11 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
             "cpus": cpus,
             "gpus": gpus,
             "cpu_cores": cpu_cores,
-            # error handling to avoid strange link generation such as ../resuts//dev/results/result_...json
-            #"json_link": url_for("results.show_result", filename=json_file.split("results/")[-1].lstrip("/")),
-            #"data_link": url_for("results.show_result", filename=tgz_file.split("results/")[-1].lstrip("/")) if tgz_file else None,
             "json_link": url_for("results.show_result", filename=json_file),
             "data_link": url_for("results.show_result", filename=tgz_file) if tgz_file else None,
-            #"json_link": json_file,
-            #"data_link": tgz_file,
+            "has_vector": has_vector,
+            "detail_link": url_for("results.result_detail", filename=json_file) if has_vector else None,
+            "filename": json_file,
         }
         rows.append(row)
 
@@ -127,14 +187,14 @@ def load_results_table(public_only=True, session_email=None, authenticated=False
     return rows, columns
 
 
-def load_estimated_results_table(public_only=True, session_email=None, authenticated=False):
+def load_estimated_results_table(directory, public_only=True, session_email=None, authenticated=False):
     affs = get_affiliations(session_email) if session_email else []
-    files = os.listdir(ESTIMATED_DIR)
+    files = os.listdir(directory)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
 
     rows = []
     for json_file in json_files:
-        data = load_json_with_confidential_filter(json_file, ESTIMATED_DIR, affs, public_only, authenticated)
+        data = load_json_with_confidential_filter(json_file, directory, affs, public_only, authenticated)
         if data is None:
             continue
 
@@ -148,7 +208,7 @@ def load_estimated_results_table(public_only=True, session_email=None, authentic
             try:
                 ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
                 timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except Exception:
                 pass
 
         uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)

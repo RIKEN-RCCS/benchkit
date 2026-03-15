@@ -12,10 +12,10 @@ for json_file in results/result*.json; do
   echo "Processing $json_file"
   cat "$json_file"
 
-  echo "Posting $json_file to ${RESULT_SERVER}/write-api"
+  echo "Posting $json_file to ${RESULT_SERVER}/api/ingest/result"
 
   # Post JSON and capture response
-  response=$(curl --fail -sS -X POST "${RESULT_SERVER}/write-api" \
+  response=$(curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/result" \
     -H "X-API-Key: ${RESULT_SERVER_KEY}" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file")
@@ -54,7 +54,7 @@ for json_file in results/result*.json; do
   # Upload TGZ if it exists
   if [[ -f "$tgz_file" ]]; then
     echo "Uploading $tgz_file with UUID $uuid"
-    curl --fail -sS -X POST "${RESULT_SERVER}/upload-tgz" \
+    curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/padata" \
       -H "X-API-Key: ${RESULT_SERVER_KEY}" \
       -F "id=${uuid}" \
       -F "timestamp=${timestamp}" \

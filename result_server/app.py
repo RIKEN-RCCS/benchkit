@@ -13,9 +13,9 @@ if not EXPECTED_API_KEY:
 # Import Flask and route blueprints
 from flask import Flask, render_template, current_app
 from flask_session import Session
-from routes.receive import receive_bp
+from routes.api import api_bp
 from routes.results import results_bp
-from routes.upload_tgz import upload_bp
+from routes.estimated import estimated_bp
 
 # -----------------------------------------
 # Create Flask application
@@ -90,9 +90,9 @@ def create_app(prefix="", base_dir=None):
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # Register route blueprints
-    app.register_blueprint(receive_bp, url_prefix=prefix)
-    app.register_blueprint(results_bp, url_prefix=prefix)
-    app.register_blueprint(upload_bp, url_prefix=prefix)
+    app.register_blueprint(api_bp, url_prefix=prefix)
+    app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
+    app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
 
     @app.route(f"{prefix}/systemlist")
     def systemlist():
