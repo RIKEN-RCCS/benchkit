@@ -1,7 +1,7 @@
 <!-- 共通ナビゲーション -->
 <nav style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
-    <a href="/results" style="text-decoration: none; color: #007bff; margin-right: 15px;">📊 Results</a>
-    <a href="/systemlist" style="text-decoration: none; color: #007bff; margin-right: 15px;">🖥️ Systems</a>
-    <a href="/results/confidential" style="text-decoration: none; color: #007bff; margin-right: 15px;">🔒 Confidential Results</a>
-    <a href="/estimated" style="text-decoration: none; color: #007bff;">🔐 Estimated Results</a>
+    <a href="{{ url_for('results.results') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">📊 Results</a>
+    <a href="{{ url_for('systemlist') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">🖥️ Systems</a>
+    <a href="{{ url_for('results.results_confidential') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">🔒 Confidential Results</a>
+    <a href="{{ url_for('estimated.estimated_results') }}" style="text-decoration: none; color: #007bff;">🔐 Estimated Results</a>
 </nav>

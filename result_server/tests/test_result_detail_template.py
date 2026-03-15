@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 from flask import Flask
 from routes.results import results_bp
+from routes.estimated import estimated_bp
 
 
 @pytest.fixture
@@ -40,7 +41,14 @@ def app():
         template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
     app.register_blueprint(results_bp, url_prefix="/")
+    app.register_blueprint(estimated_bp, url_prefix="/estimated")
     app.config["TESTING"] = True
+
+    # ナビゲーションテンプレートが url_for('systemlist') を参照するためダミールートを登録
+    @app.route("/systemlist")
+    def systemlist():
+        return ""
+
     return app
 
 
@@ -96,8 +104,8 @@ class TestResultDetailTemplate:
         assert "osu_bibw" in html
         assert "6.47" in html
         assert "MB/s" in html
-        # 戻りリンク
-        assert "/results" in html
+        # 戻りリンク（url_forで生成されるため、results blueprintのルートURL）
+        assert "Back to Results" in html
         # ナビゲーション
         assert "Results" in html
 
