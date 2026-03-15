@@ -55,8 +55,6 @@ benchkit/
 │   │   ├── otp_redis_manager.py  # OTP認証（Redis）
 │   │   └── otp_manager.py        # OTP認証（ファイルベース）
 │   ├── tests/                    # テストスイート
-│   ├── config/
-│   │   └── allowed_emails.json   # OTP許可メールリスト
 │   ├── app.py                    # 本番用アプリ（main + dev）
 │   └── app_dev.py                # ローカル開発用（Redis/OTP不要）
 ├── scripts/
