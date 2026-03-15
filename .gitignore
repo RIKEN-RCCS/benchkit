@@ -15,6 +15,13 @@ benchpark/
 # BenchPark workspace (generated during CI)
 benchpark-workspace/
 
+# Dev mode data and config (NEVER commit)
+result_server/_dev_data/
+result_server/config/allowed_emails.json
+
+# Flask session files
+result_server/flask_session/
+
 # editor backup files and caches
 *~
 *.bak
