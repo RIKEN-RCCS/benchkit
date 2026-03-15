@@ -226,16 +226,7 @@
         if (checked.length < 2) return;
         var files = [];
         checked.forEach(function(cb) { files.push(cb.value); });
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/results/compare';
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'files';
-        input.value = files.join(',');
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
+        window.location.href = '{{ url_for("results.result_compare") }}?files=' + encodeURIComponent(files.join(','));
     };
 
     document.querySelectorAll('.compare-checkbox').forEach(function(cb) {

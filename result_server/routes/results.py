@@ -122,13 +122,10 @@ def results_confidential():
 # リグレッション比較ページ
 # GET/POST /results/compare
 # ==========================================
-@results_bp.route("/compare", methods=["GET", "POST"])
+@results_bp.route("/compare", methods=["GET"])
 def result_compare():
     """複数結果のリグレッション比較ページ"""
-    if request.method == "POST":
-        files_param = request.form.get("files", "")
-    else:
-        files_param = request.args.get("files", "")
+    files_param = request.args.get("files", "")
     filenames = [f.strip() for f in files_param.split(",") if f.strip()]
 
     if len(filenames) < 2:
