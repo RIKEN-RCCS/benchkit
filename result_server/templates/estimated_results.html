@@ -60,7 +60,7 @@
       <td>{{ r.benchmark_system }}</td>
       <td>{{ r.benchmark_nodes }}</td>
       <td>
-        <a href="{{ url_for('results.show_estimated_result', filename=r.json_link) }}">json</a>
+        <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>
       </td>
       <td>{{ r.performance_ratio }}</td>
     </tr>

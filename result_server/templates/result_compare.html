@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Compare Results</title>
+    {% include "_table_base.html" %}
+    <style>
+        .section { margin-bottom: 30px; }
+        .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        .back-link { margin-bottom: 15px; display: inline-block; }
+        .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+
+{% include "_navigation.html" %}
+
+<a href="/results" class="back-link">&larr; Back to Results</a>
+
+<h1>Compare Results</h1>
+
+{% if results %}
+{% if mixed %}
+<p style="color: #c00; background: #fff3f3; padding: 8px 12px; border: 1px solid #fcc; border-radius: 4px;">
+    Warning: Selected results have different system/code combinations. Comparison may not be meaningful.
+</p>
+{% endif %}
+<p>{{ results[0]['data'].get('system', '') }} / {{ results[0]['data'].get('code', '') }} — Comparing {{ results | length }} results</p>
+
+<!-- ベクトル型メトリクス重ね合わせグラフ -->
+{% set has_any_vector = [] %}
+{% for r in results %}
+  {% if r['data'].get('metrics', {}).get('vector') %}
+    {% if has_any_vector.append(1) %}{% endif %}
+  {% endif %}
+{% endfor %}
+
+{% if has_any_vector %}
+<div class="section">
+    <h2>Vector Metrics - Overlay Graph</h2>
+    <div class="chart-container">
+        <canvas id="compareVectorChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- FOM時系列グラフ -->
+<div class="section">
+    <h2>FOM Timeline</h2>
+    <div class="chart-container">
+        <canvas id="fomTimelineChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+{% if results %}
+<div id="resultsJsonData" style="display:none;" data-results='{{ results | tojson }}'></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+var resultsData = JSON.parse(document.getElementById('resultsJsonData').getAttribute('data-results'));
+
+var palette = [
+    'rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)',
+    'rgba(75, 192, 192, 1)', 'rgba(255, 206, 86, 1)',
+    'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)'
+];
+
+var vectorCanvas = document.getElementById('compareVectorChart');
+if (vectorCanvas) {
+    var datasets = [];
+    var colorIdx = 0;
+    resultsData.forEach(function(r) {
+        var vector = (r.data.metrics || {}).vector;
+        if (!vector) return;
+        var columns = vector.table.columns;
+        var rows = vector.table.rows;
+        for (var i = 1; i < columns.length; i++) {
+            var color = palette[colorIdx % palette.length];
+            datasets.push({
+                label: r.timestamp + ' - ' + columns[i],
+                data: rows.map(function(row) { return {x: row[0], y: row[i]}; }),
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.1)'),
+                showLine: true, fill: false, tension: 0.1, pointRadius: 2
+            });
+            colorIdx++;
+        }
+    });
+    new Chart(vectorCanvas.getContext('2d'), {
+        type: 'scatter',
+        data: { datasets: datasets },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { type: 'logarithmic', title: { display: true, text: 'message_size (bytes)' } },
+                y: { title: { display: true, text: 'Value' } }
+            }
+        }
+    });
+}
+
+var fomCanvas = document.getElementById('fomTimelineChart');
+if (fomCanvas) {
+    var fomLabels = resultsData.map(function(r) { return r.timestamp; });
+    var fomValues = resultsData.map(function(r) { return r.data.FOM; });
+    var fomUnit = resultsData[0].data.FOM_unit || '';
+    new Chart(fomCanvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: fomLabels,
+            datasets: [{
+                label: 'FOM (' + fomUnit + ')',
+                data: fomValues,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                fill: true, tension: 0.1, pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { title: { display: true, text: 'Timestamp' } },
+                y: { title: { display: true, text: 'FOM (' + fomUnit + ')' } }
+            }
+        }
+    });
+}
+</script>
+{% endif %}
+
+</body>
+</html>

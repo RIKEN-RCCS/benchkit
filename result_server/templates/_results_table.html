@@ -1,7 +1,22 @@
 <!-- templates/_results_table.html -->
+<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <label>SYSTEM: <select id="filterSystem" onchange="applyFilters()"><option value="">All</option></select></label>
+    <label>CODE: <select id="filterCode" onchange="applyFilters()"><option value="">All</option></select></label>
+    <label>Exp: <select id="filterExp" onchange="applyFilters()"><option value="">All</option></select></label>
+    <button id="selectAllVisibleBtn" onclick="selectAllVisible()">Select All Visible</button>
+    <button id="deselectAllBtn" onclick="deselectAll()">Deselect All</button>
+    <button id="compareBtn" disabled onclick="navigateToCompare()">Compare</button>
+    <span id="compareHint" style="color: #888; font-size: 0.9em;">Select 2 or more to compare</span>
+</div>
+
 <table id="resultsTable">
     <thead>
     <tr>
+        <th style="width: 30px; text-align: center;">
+            <span class="tooltip">Compare
+                <span class="tooltiptext">Select results to compare using checkboxes</span>
+            </span>
+        </th>
         {% for col_name, _ in columns %}
            {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data"] %}
               <th>
@@ -39,11 +54,19 @@
               </th>
            {% endif %}
         {% endfor %}
+        <th>
+            <span class="tooltip tooltip-right">Detail
+                <span class="tooltiptext">Link to detail page for vector metrics</span>
+            </span>
+        </th>
     </tr>
     </thead>
     <tbody>
     {% for row in rows %}
-        <tr>
+        <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
+            <td style="text-align: center;">
+                <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
+            </td>
             {% for _, key in columns %}
                 {% if key in ["json_link", "data_link"] %}
                     <td>
@@ -78,7 +101,147 @@
                     <td>{{ row[key] }}</td>
                 {% endif %}
             {% endfor %}
+            <td>
+                {% if row.has_vector and row.detail_link %}
+                    <a href="{{ row.detail_link }}">Detail</a>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
         </tr>
     {% endfor %}
     </tbody>
 </table>
+
+<script>
+(function() {
+    var compareBtn = document.getElementById('compareBtn');
+    var compareHint = document.getElementById('compareHint');
+    var filterSystem = document.getElementById('filterSystem');
+    var filterCode = document.getElementById('filterCode');
+    var filterExp = document.getElementById('filterExp');
+
+    // Build a map of code -> Set of exps from all rows
+    var codeToExps = {};
+    var allRows = document.querySelectorAll('#resultsTable tbody tr');
+    allRows.forEach(function(r) {
+        var code = r.dataset.code || '';
+        var exp = r.dataset.exp || '';
+        if (code) {
+            if (!codeToExps[code]) codeToExps[code] = new Set();
+            if (exp) codeToExps[code].add(exp);
+        }
+    });
+
+    function updateCompareButton() {
+        var checked = document.querySelectorAll('.compare-checkbox:checked');
+        if (checked.length >= 2) {
+            compareBtn.disabled = false;
+            compareHint.textContent = checked.length + ' selected';
+        } else {
+            compareBtn.disabled = true;
+            compareHint.textContent = 'Select 2 or more to compare';
+        }
+    }
+
+    function fillSelect(sel, values, keepValue) {
+        var prev = keepValue !== undefined ? keepValue : sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        var sorted = Array.from(values).sort();
+        sorted.forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            sel.appendChild(opt);
+        });
+        // Restore previous selection if still available
+        if (prev && sorted.indexOf(prev) !== -1) {
+            sel.value = prev;
+        } else {
+            sel.value = '';
+        }
+    }
+
+    function populateFilters() {
+        var systems = new Set(), codes = new Set(), exps = new Set();
+        allRows.forEach(function(r) {
+            if (r.dataset.system) systems.add(r.dataset.system);
+            if (r.dataset.code) codes.add(r.dataset.code);
+            if (r.dataset.exp) exps.add(r.dataset.exp);
+        });
+        fillSelect(filterSystem, systems);
+        fillSelect(filterCode, codes);
+        fillSelect(filterExp, exps);
+    }
+
+    // Update Exp dropdown based on selected CODE
+    function updateExpOptions() {
+        var selectedCode = filterCode.value;
+        if (selectedCode && codeToExps[selectedCode]) {
+            fillSelect(filterExp, codeToExps[selectedCode]);
+        } else {
+            // No code filter: show all exps
+            var allExps = new Set();
+            allRows.forEach(function(r) {
+                if (r.dataset.exp) allExps.add(r.dataset.exp);
+            });
+            fillSelect(filterExp, allExps);
+        }
+    }
+
+    window.applyFilters = function() {
+        // When CODE changes, cascade to Exp dropdown
+        updateExpOptions();
+
+        var fs = filterSystem.value;
+        var fc = filterCode.value;
+        var fe = filterExp.value;
+        allRows.forEach(function(r) {
+            var show = (!fs || r.dataset.system === fs)
+                    && (!fc || r.dataset.code === fc)
+                    && (!fe || r.dataset.exp === fe);
+            r.style.display = show ? '' : 'none';
+        });
+        updateCompareButton();
+    };
+
+    window.selectAllVisible = function() {
+        allRows.forEach(function(r) {
+            if (r.style.display !== 'none') {
+                var cb = r.querySelector('.compare-checkbox');
+                if (cb) cb.checked = true;
+            }
+        });
+        updateCompareButton();
+    };
+
+    window.deselectAll = function() {
+        document.querySelectorAll('.compare-checkbox').forEach(function(cb) {
+            cb.checked = false;
+        });
+        updateCompareButton();
+    };
+
+    window.navigateToCompare = function() {
+        var checked = document.querySelectorAll('.compare-checkbox:checked');
+        if (checked.length < 2) return;
+        var files = [];
+        checked.forEach(function(cb) { files.push(cb.value); });
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/results/compare';
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'files';
+        input.value = files.join(',');
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    document.querySelectorAll('.compare-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updateCompareButton);
+    });
+
+    populateFilters();
+})();
+</script>
