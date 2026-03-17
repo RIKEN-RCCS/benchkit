@@ -34,7 +34,7 @@ def estimated_results():
 
     rows, columns = load_estimated_results_table(
         current_app.config["ESTIMATED_DIR"],
-        public_only=False,
+        public_only=(not authenticated),
         session_email=email,
         authenticated=authenticated,
         affiliations=affs
