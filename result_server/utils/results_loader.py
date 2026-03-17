@@ -3,7 +3,6 @@ import json
 import re
 from datetime import datetime
 from utils.result_file import get_file_confidential_tags
-from utils.otp_manager import get_affiliations
 from flask import url_for
 
 #--------------------------------------------------------------------------------------------------------------
@@ -105,8 +104,8 @@ def load_multiple_results(filenames, save_dir):
     results.sort(key=lambda r: r["timestamp"])
     return results
 
-def load_results_table(directory, public_only=True, session_email=None, authenticated=False):
-    affs = get_affiliations(session_email) if session_email else []
+def load_results_table(directory, public_only=True, session_email=None, authenticated=False, affiliations=None):
+    affs = affiliations if affiliations is not None else []
     files = os.listdir(directory)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
     tgz_files = [f for f in files if f.endswith(".tgz")]
@@ -187,8 +186,8 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
     return rows, columns
 
 
-def load_estimated_results_table(directory, public_only=True, session_email=None, authenticated=False):
-    affs = get_affiliations(session_email) if session_email else []
+def load_estimated_results_table(directory, public_only=True, session_email=None, authenticated=False, affiliations=None):
+    affs = affiliations if affiliations is not None else []
     files = os.listdir(directory)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
 

@@ -55,11 +55,16 @@ def render_confidential_table(template_name, public_only, loader_func=None):
         loader_func = load_results_table
 
     received_dir = current_app.config["RECEIVED_DIR"]
+
+    store = get_user_store()
+    affs = store.get_affiliations(email) if email else []
+
     rows, columns = loader_func(
         received_dir,
         public_only=public_only,
         session_email=email,
-        authenticated=authenticated
+        authenticated=authenticated,
+        affiliations=affs
     )
 
     systems_info = get_all_systems_info()

@@ -29,11 +29,15 @@ def estimated_results():
     authenticated = session.get("authenticated", False)
     email = session.get("user_email")
 
+    store = get_user_store()
+    affs = store.get_affiliations(email) if email else []
+
     rows, columns = load_estimated_results_table(
         current_app.config["ESTIMATED_DIR"],
         public_only=False,
         session_email=email,
-        authenticated=authenticated
+        authenticated=authenticated,
+        affiliations=affs
     )
     systems_info = get_all_systems_info()
     return render_template(
