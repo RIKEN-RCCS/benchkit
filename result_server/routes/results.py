@@ -4,7 +4,7 @@ from flask import (
     redirect, url_for, flash, abort, current_app
 )
 from utils.results_loader import load_results_table, load_single_result, load_multiple_results
-from utils.otp_redis_manager import send_otp, verify_otp, invalidate_otp, is_allowed, get_affiliations
+from utils.user_store import get_user_store
 from utils.result_file import load_result_file, get_file_confidential_tags
 from utils.system_info import get_all_systems_info
 
@@ -14,21 +14,22 @@ results_bp = Blueprint("results", __name__)
 # ==========================================
 # 共通関数: ファイルアクセス権限確認
 # ==========================================
-def check_file_permission(filename, session_key_authenticated, session_key_email, dir_path):
+def check_file_permission(filename, dir_path):
     tags = get_file_confidential_tags(filename, dir_path)
     if not tags:
         return  # 公開ファイル
 
-    authenticated = session.get(session_key_authenticated, False)
-    email = session.get(session_key_email)
-    affs = get_affiliations(email) if email else []
+    authenticated = session.get("authenticated", False)
+    email = session.get("user_email")
+    store = get_user_store()
+    affs = store.get_affiliations(email) if email else []
     if not authenticated or not (set(tags) & set(affs)):
         abort(403, "You do not have permission to access this file")
 
 
-def serve_confidential_file(filename, dir_path, session_key_authenticated, session_key_email):
+def serve_confidential_file(filename, dir_path):
     """ファイルアクセス権限確認して送信"""
-    check_file_permission(filename, session_key_authenticated, session_key_email, dir_path)
+    check_file_permission(filename, dir_path)
     return load_result_file(filename, dir_path)
 
 # ==========================================
@@ -44,47 +45,11 @@ def results():
 
 
 # ==========================================
-# 機密データ付きの結果ページ（OTP認証付き）
+# 機密データ付きの結果ページ（セッション認証）
 # ==========================================
-def handle_otp_post(session_key_authenticated, session_key_email, route_name):
-    email = request.form.get("email")
-    otp = request.form.get("otp")
-
-    if email and not otp:
-        success, msg = send_otp(email)
-        flash(msg)
-        if success and is_allowed(email):
-            session.clear()
-            session[session_key_email] = email
-            session["otp_stage"] = "otp"
-        else:
-            session.clear()
-            session["otp_stage"] = "email"
-        return redirect(url_for(route_name))
-
-    elif otp:
-        otp_email = session.get(session_key_email)
-        if otp_email and verify_otp(otp_email, otp):
-            session.clear()
-            session[session_key_authenticated] = True
-            flash("Authentication successful")
-        else:
-            session.clear()
-            flash("Authentication failed")
-        return redirect(url_for(route_name))
-
-
-
-def render_confidential_table(template_name, public_only, session_key_authenticated, session_key_email, loader_func=None):
-    authenticated = session.get(session_key_authenticated, False)
-    otp_email = session.get(session_key_email)
-
-    if authenticated:
-        otp_stage = None
-    elif otp_email:
-        otp_stage = "otp"
-    else:
-        otp_stage = "email"
+def render_confidential_table(template_name, public_only, loader_func=None):
+    authenticated = session.get("authenticated", False)
+    email = session.get("user_email")
 
     if loader_func is None:
         loader_func = load_results_table
@@ -93,7 +58,7 @@ def render_confidential_table(template_name, public_only, session_key_authentica
     rows, columns = loader_func(
         received_dir,
         public_only=public_only,
-        session_email=otp_email,
+        session_email=email,
         authenticated=authenticated
     )
 
@@ -103,24 +68,19 @@ def render_confidential_table(template_name, public_only, session_key_authentica
         rows=rows,
         columns=columns,
         authenticated=authenticated,
-        otp_stage=otp_stage,
         systems_info=systems_info
     )
 
 
-# GET/POST /results/confidential
-@results_bp.route("/confidential", methods=["GET", "POST"], strict_slashes=False)
+# GET /results/confidential
+@results_bp.route("/confidential", methods=["GET"], strict_slashes=False)
 def results_confidential():
-    if request.method == "POST":
-        return handle_otp_post("authenticated_confidential", "otp_email", "results.results_confidential")
-    return render_confidential_table("results_confidential.html", public_only=False,
-                                     session_key_authenticated="authenticated_confidential",
-                                     session_key_email="otp_email")
+    return render_confidential_table("results_confidential.html", public_only=False)
 
 
 # ==========================================
 # リグレッション比較ページ
-# GET/POST /results/compare
+# GET /results/compare
 # ==========================================
 @results_bp.route("/compare", methods=["GET"])
 def result_compare():
@@ -132,8 +92,7 @@ def result_compare():
         abort(400, "Select 2 or more results to compare")
 
     for filename in filenames:
-        check_file_permission(filename, "authenticated_confidential", "otp_email",
-                              current_app.config["RECEIVED_DIR"])
+        check_file_permission(filename, current_app.config["RECEIVED_DIR"])
 
     results = load_multiple_results(filenames, save_dir=current_app.config["RECEIVED_DIR"])
 
@@ -156,8 +115,7 @@ def result_compare():
 @results_bp.route("/detail/<filename>")
 def result_detail(filename):
     """個別結果の詳細ページ（グラフ、データテーブル、ビルド情報）"""
-    check_file_permission(filename, "authenticated_confidential", "otp_email",
-                          current_app.config["RECEIVED_DIR"])
+    check_file_permission(filename, current_app.config["RECEIVED_DIR"])
     result = load_single_result(filename, save_dir=current_app.config["RECEIVED_DIR"])
     if result is None:
         abort(404, "Result file not found")
@@ -166,9 +124,8 @@ def result_detail(filename):
 
 # ==========================================
 # 個別結果ファイルの表示/ダウンロード
-# GET /results/<filename>  (must be last to avoid catching /compare, /detail, etc.)
+# GET /results/<filename>
 # ==========================================
 @results_bp.route("/<filename>")
 def show_result(filename):
-    return serve_confidential_file(filename, current_app.config["RECEIVED_DIR"],
-                                    "authenticated_confidential", "otp_email")
+    return serve_confidential_file(filename, current_app.config["RECEIVED_DIR"])

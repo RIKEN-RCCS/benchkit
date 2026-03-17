@@ -32,6 +32,8 @@ import pytest
 from flask import Flask
 from routes.results import results_bp
 from routes.estimated import estimated_bp
+from routes.auth import auth_bp
+from routes.admin import admin_bp
 
 
 @pytest.fixture
@@ -40,9 +42,12 @@ def app():
         __name__,
         template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
+    app.config["TESTING"] = True
+    app.config["SECRET_KEY"] = "test-secret"
     app.register_blueprint(results_bp, url_prefix="/")
     app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.config["TESTING"] = True
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
 
     # ナビゲーションテンプレートが url_for('systemlist') を参照するためダミールートを登録
     @app.route("/systemlist")

@@ -69,9 +69,10 @@ def create_app(prefix="", base_dir=None):
         app.config["SESSION_COOKIE_NAME"] = "session_main"
         key_prefix = "main:"
 
-    # OTP Manager 初期化
-    import utils.otp_redis_manager as otp_redis_manager
-    otp_redis_manager.init_redis(r_conn, key_prefix)
+    # UserStore 初期化
+    from utils.user_store import UserStore
+    user_store = UserStore(r_conn, key_prefix)
+    app.config["USER_STORE"] = user_store
 
     # 他でもredisを使う場合、
     #app.redis = r_conn
@@ -90,9 +91,13 @@ def create_app(prefix="", base_dir=None):
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # Register route blueprints
+    from routes.auth import auth_bp
+    from routes.admin import admin_bp
     app.register_blueprint(api_bp, url_prefix=prefix)
     app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
     app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
+    app.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
+    app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
 
     @app.route(f"{prefix}/systemlist")
     def systemlist():

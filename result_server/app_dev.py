@@ -32,43 +32,78 @@ def setup_dev_environment(base_dir):
                  "dev1/received", "dev1/estimated_results", "dev1/flask_session"]:
         os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
 
-    # config/allowed_emails.json がなければ作成
-    config_dir = os.path.join(os.path.dirname(__file__), "config")
-    os.makedirs(config_dir, exist_ok=True)
-    emails_file = os.path.join(config_dir, "allowed_emails.json")
-    if not os.path.exists(emails_file):
-        with open(emails_file, "w") as f:
-            json.dump({"dev@localhost": ["dev"]}, f)
 
-
-def _create_stub_otp_module():
-    """Redis/SMTP不要のダミーOTPモジュールを作成"""
-    mod = types.ModuleType("utils.otp_redis_manager")
-
-    # config/allowed_emails.json を読み込み（なければダミー）
-    config_path = os.path.join(os.path.dirname(__file__), "config", "allowed_emails.json")
-    if os.path.exists(config_path):
-        with open(config_path, encoding="utf-8") as f:
-            _allowed = json.load(f)
-    else:
-        _allowed = {"dev@localhost": ["dev"]}
-
-    mod.init_redis = lambda *a, **kw: None
-    mod.is_allowed = lambda email: True
-    mod.get_affiliations = lambda email: ["dev"]
-    mod.send_otp = lambda email: (True, "Dev mode: OTP skipped")
-    mod.verify_otp = lambda email, code: True
-    mod.invalidate_otp = lambda email: None
-    mod.r = None
-    mod.prefix = ""
+def _create_stub_totp_manager():
+    """TOTP検証を常に成功させるスタブモジュール"""
+    mod = types.ModuleType("utils.totp_manager")
+    mod.ISSUER_NAME = "BenchKit"
+    mod.generate_secret = lambda: "DEVDEVDEVDEVDEVDEV"
+    mod.generate_totp_uri = lambda s, e, **kw: f"otpauth://totp/BenchKit:{e}?secret={s}"
+    mod.generate_qr_base64 = lambda s, e, **kw: ""
+    mod.verify_code = lambda s, c: True
     return mod
+
+
+class _StubUserStore:
+    """Redis不要のインメモリUserStoreスタブ"""
+
+    def __init__(self):
+        self._users = {}
+        self._invitations = {}
+
+    def create_user(self, email, totp_secret, affiliations):
+        self._users[email] = {"email": email, "totp_secret": totp_secret, "affiliations": list(affiliations)}
+
+    def get_user(self, email):
+        return self._users.get(email)
+
+    def delete_user(self, email):
+        return self._users.pop(email, None) is not None
+
+    def list_users(self):
+        return list(self._users.values())
+
+    def update_affiliations(self, email, affiliations):
+        if email in self._users:
+            self._users[email]["affiliations"] = list(affiliations)
+            return True
+        return False
+
+    def user_exists(self, email):
+        return email in self._users
+
+    def get_affiliations(self, email):
+        u = self._users.get(email)
+        return u["affiliations"] if u else ["dev", "admin"]
+
+    def clear_totp_secret(self, email):
+        if email in self._users:
+            self._users[email]["totp_secret"] = ""
+            return True
+        return False
+
+    def has_totp_secret(self, email):
+        u = self._users.get(email)
+        return bool(u and u.get("totp_secret"))
+
+    def create_invitation(self, email, affiliations):
+        import secrets as _sec
+        token = _sec.token_urlsafe(32)
+        self._invitations[token] = {"email": email, "affiliations": list(affiliations)}
+        return token
+
+    def get_invitation(self, token):
+        return self._invitations.get(token)
+
+    def delete_invitation(self, token):
+        self._invitations.pop(token, None)
 
 
 def create_dev_app(base_dir):
     """開発用Flaskアプリを作成 - Redis/OTP/SMTP不要"""
     # Redis依存モジュールをダミーに差し替え（import前に）
     sys.modules["redis"] = types.ModuleType("redis")
-    sys.modules["utils.otp_redis_manager"] = _create_stub_otp_module()
+    sys.modules["utils.totp_manager"] = _create_stub_totp_manager()
 
     from flask import Flask, render_template, redirect, url_for
     from flask_session import Session
@@ -84,6 +119,12 @@ def create_dev_app(base_dir):
         SESSION_PERMANENT=False,
     )
     Session(app)
+
+    # UserStoreスタブを設定
+    stub_store = _StubUserStore()
+    # デフォルトのadminユーザーを登録
+    stub_store.create_user("admin@localhost", "DEVDEVDEVDEVDEVDEV", ["dev", "admin"])
+    app.config["USER_STORE"] = stub_store
 
     received_dir = os.path.join(base_dir, "main", "received")
     estimated_dir = os.path.join(base_dir, "main", "estimated_results")
@@ -101,6 +142,12 @@ def create_dev_app(base_dir):
 
     from routes.estimated import estimated_bp
     app.register_blueprint(estimated_bp, url_prefix="/estimated")
+
+    from routes.auth import auth_bp
+    app.register_blueprint(auth_bp, url_prefix="/auth")
+
+    from routes.admin import admin_bp
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     @app.route("/")
     def index():

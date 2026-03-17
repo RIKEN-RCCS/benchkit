@@ -6,8 +6,12 @@
 result_server/received/
 
 # Python bytecode cache
-result_server/routes/__pycache__/
-result_server/utils/__pycache__/
+__pycache__/
+*.pyc
+
+# Pytest / Hypothesis caches
+.pytest_cache/
+.hypothesis/
 
 # BenchPark repository (external reference)
 benchpark/

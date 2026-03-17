@@ -9,7 +9,12 @@
 
 <h1>Confidential Results</h1>
 
-{% include "_otp_modal.html" %}
+{% if not authenticated %}
+<div style="padding: 16px; margin-bottom: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+    Authentication required to view confidential data.
+    <a href="{{ url_for('auth.login') }}">Log in</a>
+</div>
+{% endif %}
 
 <input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
 <br><br>
