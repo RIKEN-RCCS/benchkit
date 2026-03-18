@@ -91,48 +91,45 @@ echo "  nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$el
 echo cd $PWD > script.sh
 echo bash programs/$code/run.sh $system $nodes >> script.sh
 
-# --- FugakuLN は submit テスト対象外 ---
-if [[ "$system" == "FugakuLN" ]]; then
+# --- システム別ジョブ投入 ---
+case "$system" in
+  FugakuLN)
     echo "Notice: system=$system → submit test will NOT be performed."
     exit 1
-fi
+    ;;
+  Fugaku|FugakuCN)
+    echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+          --mpi max-proc-per-node=$numproc_node \
+          -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
+          script.sh
 
-
-
-# --- Fugaku or FugakuCN ---
-if [[ "$system" == "Fugaku" || "$system" == "FugakuCN" ]]; then
-echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
-      --mpi max-proc-per-node=$numproc_node \
-      -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
-      script.sh
-
-pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
-      --mpi max-proc-per-node=$numproc_node \
-      -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
-      script.sh
-fi
-
-# --- RC_GH200 ---
-if [[ "$system" == "RC_GH200" ]]; then
+    pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+          --mpi max-proc-per-node=$numproc_node \
+          -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
+          script.sh
+    ;;
+  RC_GH200)
     echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	 --wrap="bash programs/$code/run.sh $system $nodes"
     sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	   --wrap="bash programs/${code}/run.sh $system $nodes"
-fi
-
-# --- MiyabiC ---
-if [[ "$system" == "MiyabiC" ]]; then
+    ;;
+  MiyabiC)
     echo qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
     qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
-fi
-
-# --- MiyabiG ---
-if [[ "$system" == "MiyabiG" ]]; then
+    ;;
+  MiyabiG)
     echo qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
     qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
-fi
+    ;;
+  *)
+    echo "Error: Unknown system '$system'"
+    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, RC_GH200, MiyabiC, MiyabiG"
+    exit 1
+    ;;
+esac
 

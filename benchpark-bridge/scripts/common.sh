@@ -2,6 +2,7 @@
 
 # BenchPark統合用の共通関数
 
+# TODO: 現在未使用。将来のシステム拡張時に使用予定
 # システムに既存のBenchParkインストールパスを取得
 get_benchpark_installation_path() {
   local system="$1"
@@ -59,6 +60,7 @@ get_benchpark_login_tag() {
   echo "$tag"
 }
 
+# TODO: 現在未使用。将来のシステム拡張時に使用予定
 # BenchParkワークスペースのパスを取得
 get_benchpark_workspace() {
   local system="$1"
@@ -66,6 +68,7 @@ get_benchpark_workspace() {
   echo "benchpark-workspace/${system}/${app}"
 }
 
+# TODO: 現在未使用。将来のシステム拡張時に使用予定
 # BenchPark実験設定ファイルのパスを取得（システム既存インストール用）
 get_benchpark_experiment_path() {
   local system="$1"
@@ -74,6 +77,7 @@ get_benchpark_experiment_path() {
   echo "$benchpark_root/experiments/${app}/experiment.py"
 }
 
+# TODO: 現在未使用。将来のシステム拡張時に使用予定
 # BenchParkシステム設定ファイルのパスを取得（相対パス）
 get_benchpark_system_path() {
   local system="$1"
@@ -150,6 +154,7 @@ wait_for_ramble_jobs() {
   return 1
 }
 
+# TODO: 現在未使用。将来のシステム拡張時に使用予定
 # BenchPark結果ディレクトリを取得
 get_benchpark_results_dir() {
   local workspace="$1"

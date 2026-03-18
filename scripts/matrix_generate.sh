@@ -40,44 +40,20 @@ for listfile in programs/*/list.csv; do
   program_dir=$(dirname "$listfile")
   program=$(basename "$program_dir")
  
-  [[ -n "$CODE_FILTER" ]] && {
-    # Support comma-separated code list
-    IFS=',' read -ra CODE_LIST <<< "$CODE_FILTER"
-    code_match=false
-    for filter_code in "${CODE_LIST[@]}"; do
-      if [[ "$program" == "$filter_code" ]]; then
-        code_match=true
-        break
-      fi
-    done
-    [[ "$code_match" == false ]] && continue
-  }
+  match_filter "$CODE_FILTER" "$program" || continue
 
   while IFS=, read -r system mode queue_group nodes numproc_node nthreads elapse; do
-    # Trim whitespace from all variables
-    system=$(echo "$system" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    mode=$(echo "$mode" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    queue_group=$(echo "$queue_group" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    nodes=$(echo "$nodes" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    numproc_node=$(echo "$numproc_node" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    nthreads=$(echo "$nthreads" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    elapse=$(echo "$elapse" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    
-    [[ "$system" == "system" ]] && continue  # skip header
-    [[ "$system" == *"#"* ]] && continue  # skip #
+    parse_list_csv_line "$system" "$mode" "$queue_group" "$nodes" "$numproc_node" "$nthreads" "$elapse" || continue
 
-    [[ -n "$SYSTEM_FILTER" ]] && {
-      # Support comma-separated system list
-      IFS=',' read -ra SYSTEM_LIST <<< "$SYSTEM_FILTER"
-      system_match=false
-      for filter_system in "${SYSTEM_LIST[@]}"; do
-        if [[ "$system" == "$filter_system" ]]; then
-          system_match=true
-          break
-        fi
-      done
-      [[ "$system_match" == false ]] && continue
-    }
+    match_filter "$SYSTEM_FILTER" "$csv_system" || continue
+
+    system="$csv_system"
+    mode="$csv_mode"
+    queue_group="$csv_queue_group"
+    nodes="$csv_nodes"
+    numproc_node="$csv_numproc_node"
+    nthreads="$csv_nthreads"
+    elapse="$csv_elapse"
 
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"
@@ -146,16 +122,9 @@ ${job_prefix}_run:
       - results/
     expire_in: 1 week
 
-${job_prefix}_send_results:
-  stage: send_results
-  needs: [\"${job_prefix}_run\"]
-  tags: [fncx-curl-jq]
-  environment:
-    name: \$CI_COMMIT_BRANCH
-  script:
-    - bash scripts/send_results.sh
-
 " >> "$OUTPUT_FILE"
+
+    emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE"
 
     elif [[ "$mode" == "native" ]]; then
       build_run_tag=$(awk -F, -v s="$system" '$1==s && $3=="build_run" {print $2}' "$SYSTEM_FILE")
@@ -196,16 +165,9 @@ ${job_prefix}_build_run:
       - results/
     expire_in: 1 week
 
-${job_prefix}_send_results:
-  stage: send_results
-  needs: [\"${job_prefix}_build_run\"]
-  tags: [fncx-curl-jq]
-  environment:
-    name: \$CI_COMMIT_BRANCH
-  script:
-    - bash scripts/send_results.sh
-
 " >> "$OUTPUT_FILE"
+
+    emit_send_results_job "$job_prefix" "${job_prefix}_build_run" "$OUTPUT_FILE"
 
     else
       echo "Unknown mode: $mode"

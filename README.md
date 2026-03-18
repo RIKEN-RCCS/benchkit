@@ -69,10 +69,7 @@ benchkit/
 │   ├── result.sh             # 結果JSON変換
 │   ├── send_results.sh       # 結果転送
 │   ├── wait_for_nfs.sh       # NFS同期待機
-│   ├── test_submit.sh        # テスト実行用
-│   ├── run_benchmark.sh      # ベンチマーク実行
-│   ├── check_results.sh      # 結果確認
-│   └── debug_job.sh          # デバッグ用
+│   └── test_submit.sh        # テスト実行用
 ├── .gitlab-ci.yml            # メインCI定義
 ├── system.csv                # 実行システム定義
 ├── queue.csv                 # キューシステム定義
