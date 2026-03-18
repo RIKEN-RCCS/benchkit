@@ -253,6 +253,15 @@ MiyabiC,cross,debug-c,1,1,112,0:10:00
 ### 実行制御オプション
 
 **コミットメッセージによる制御：**
+
+| タグ | BenchKit | BenchPark | 用途 |
+|------|----------|-----------|------|
+| (タグなし) | ✅ 実行 | ❌ スキップ | 通常のベンチマーク実行 |
+| `[park-only]` | ❌ スキップ | ✅ フル実行 | BenchPark開発・テスト |
+| `[park-send]` | ❌ スキップ | ✅ 送信のみ | BenchPark結果再送信 |
+| `[benchpark]` | ✅ 実行 | ✅ 実行 | BenchPark設定変更時 |
+| `[skip-ci]` | ❌ スキップ | ❌ スキップ | ドキュメント更新等 |
+
 ```bash
 # 特定システムのみ実行
 git commit -m "Fix bug [system:MiyabiG,MiyabiC]"
@@ -263,10 +272,10 @@ git commit -m "Update qws [code:qws,genesis]"
 # 組み合わせ可能
 git commit -m "Test changes [system:MiyabiG] [code:qws]"
 
-# BenchParkのみ実行
+# BenchParkのみ実行（setup/run/convert/send）
 git commit -m "Fix BenchPark runner [park-only]"
 
-# BenchPark結果送信のみ
+# BenchPark結果送信のみ（convert/send）
 git commit -m "Fix result converter [park-send]"
 
 # CI完全スキップ（ドキュメント更新等）
@@ -274,12 +283,49 @@ git commit -m "Update docs [skip-ci]"
 ```
 
 **APIトリガー制御：**
+
+| 変数 | 説明 | 例 |
+|------|------|-----|
+| `system` | システムフィルタ（BenchKit/BenchPark共通） | `MiyabiG,MiyabiC` |
+| `code` | BenchKitプログラムフィルタ | `qws,genesis` |
+| `app` | BenchParkアプリフィルタ | `osu-micro-benchmarks` |
+| `benchpark` | BenchParkパイプライン有効化 | `true` |
+| `park_only` | BenchParkのみ実行（BenchKitスキップ） | `true` |
+| `park_send` | BenchPark送信のみ（BenchKitスキップ） | `true` |
+
+分岐パターン:
+
+| 変数指定 | BenchKit | BenchPark | 説明 |
+|----------|----------|-----------|------|
+| `code=scale-letkf` | ✅ scale-letkfのみ | ❌ スキップ | BenchKit特定コード実行 |
+| `park_only=true` | ❌ スキップ | ✅ 全アプリ | BenchParkフル実行 |
+| `park_only=true app=osu-micro-benchmarks` | ❌ スキップ | ✅ OSUのみ | BenchPark特定アプリ実行 |
+| `park_send=true` | ❌ スキップ | ✅ 全アプリ送信のみ | BenchPark結果再送信 |
+| `park_send=true app=osu-micro-benchmarks` | ❌ スキップ | ✅ OSU送信のみ | BenchPark特定アプリ送信 |
+| `benchpark=true` | ✅ 全実行 | ✅ 全アプリ | 両方実行 |
+| `benchpark=true code=qws app=osu-micro-benchmarks` | ✅ qwsのみ | ✅ OSUのみ | 両方フィルタ付き |
+| (変数なし) | ✅ 全実行 | ❌ スキップ | 通常のCI |
+
+> **Note**: `code` のみ指定時にBenchParkが動かないのは、`code` がBenchKit専用のフィルタであるため。BenchParkを動かすには `benchpark=true`、`park_only=true`、`park_send=true` のいずれかを明示的に指定する必要がある。この制御ロジックは将来的に整理予定。
+
 ```bash
+# BenchKit: 特定コードのみ
 curl -X POST --fail \
-  -F token=$TOKEN \
-  -F ref=main \
-  -F "variables[system]=MiyabiG,MiyabiC" \
+  -F token=$TOKEN -F ref=main \
   -F "variables[code]=qws" \
+  https://gitlab.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
+
+# BenchPark: OSUのsend-onlyのみ
+curl -X POST --fail \
+  -F token=$TOKEN -F ref=main \
+  -F "variables[park_send]=true" \
+  -F "variables[app]=osu-micro-benchmarks" \
+  https://gitlab.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
+
+# BenchPark: 全アプリフル実行
+curl -X POST --fail \
+  -F token=$TOKEN -F ref=main \
+  -F "variables[park_only]=true" \
   https://gitlab.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
 ```
 
