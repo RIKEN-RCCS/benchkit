@@ -24,8 +24,10 @@ stages:
 variables:
   code: ""
   system: ""
+  app: ""
   benchpark: "false"
   park_only: "false"
+  park_send: "false"
 
 # Extract system and code filters from API variables or commit message
 .filters: &filters
@@ -73,6 +75,8 @@ generate_matrix:
   rules:
     - if: '$park_only == "true"'
       when: never  # park_onlyモードでは無効
+    - if: '$park_send == "true"'
+      when: never  # park_sendモードでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: never  # [park-only]コミットメッセージでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
@@ -106,6 +110,8 @@ trigger_child_pipeline:
   rules:
     - if: '$park_only == "true"'
       when: never  # park_onlyモードでは無効
+    - if: '$park_send == "true"'
+      when: never  # park_sendモードでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: never  # [park-only]コミットメッセージでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
@@ -129,7 +135,7 @@ trigger_child_pipeline:
 generate_benchpark_matrix:
   stage: generate
   script:
-    - bash ./benchpark-bridge/scripts/ci_generator.sh system=$system
+    - bash ./benchpark-bridge/scripts/ci_generator.sh system=$system app=$app send_only=$park_send
   tags:
     - general
   artifacts:
@@ -137,10 +143,12 @@ generate_benchpark_matrix:
       - .gitlab-ci.benchpark.yml
     expire_in: 1 hour
   rules:
-    - if: '$code != "" && $benchpark != "true" && $park_only != "true"'
+    - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
       when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
+    - if: '$park_send == "true"'
+      when: always  # park_sendモードでは常に実行（結果送信のみ）
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: always  # [park-only]コミットメッセージでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
@@ -167,10 +175,12 @@ trigger_benchpark_pipeline:
     - job: generate_benchpark_matrix
       optional: true
   rules:
-    - if: '$code != "" && $benchpark != "true" && $park_only != "true"'
+    - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
       when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
+    - if: '$park_send == "true"'
+      when: always  # park_sendモードでは常に実行（結果送信のみ）
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
       when: always  # [park-only]コミットメッセージでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
