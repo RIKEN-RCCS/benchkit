@@ -50,15 +50,16 @@ benchkit/
 │   │   ├── auth_setup.html           # TOTP初期登録（QRコード表示）
 │   │   ├── admin_users.html          # ユーザー管理画面
 │   │   ├── _navigation.html          # 共通ナビゲーション（ドロップダウン）
+│   │   ├── _pagination.html          # ページネーションUI部品
 │   │   ├── _results_table.html       # 結果テーブル部品
 │   │   └── _table_base.html          # テーブル基盤テンプレート
 │   ├── utils/
-│   │   ├── results_loader.py     # 結果ファイル読み込み・集約
+│   │   ├── results_loader.py     # 結果ファイル読み込み・集約・ページネーション
 │   │   ├── result_file.py        # ファイルアクセス・権限管理
 │   │   ├── system_info.py        # システム情報管理
 │   │   ├── totp_manager.py       # TOTP認証（秘密鍵生成/QR/検証/レート制限）
 │   │   └── user_store.py         # Redisベースユーザーストア（CRUD/招待トークン）
-│   ├── tests/                    # テストスイート（54テスト）
+│   ├── tests/                    # テストスイート（90テスト）
 │   ├── app.py                    # 本番用アプリ（main + dev）
 │   ├── app_dev.py                # ローカル開発用（Redis/TOTP不要）
 │   └── create_admin.py           # 初期adminユーザー作成CLIツール
@@ -105,11 +106,18 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 
 | パス | 説明 |
 |---|---|
-| `/results/` | 結果一覧（公開） |
-| `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む） |
+| `/results/` | 結果一覧（公開、ページネーション・フィルタ対応） |
+| `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む、ページネーション・フィルタ対応） |
 | `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報） |
 | `/results/compare?files=a,b` | リグレッション比較（複数結果の差分表示） |
-| `/estimated/` | 推定結果一覧（認証時は機密データ含む） |
+| `/estimated/` | 推定結果一覧（ページネーション・フィルタ対応、認証時は機密データ含む） |
+
+結果一覧・推定結果ページのクエリパラメータ:
+- `page` - ページ番号（1始まり、範囲外は自動リダイレクト）
+- `per_page` - 表示件数（50/100/200、デフォルト100）
+- `system` - SYSTEMフィルタ
+- `code` - CODEフィルタ
+- `exp` - Expフィルタ
 | `/systemlist` | システム情報一覧 |
 | `/auth/login` | TOTP認証ログイン |
 | `/auth/setup/<token>` | TOTP初期登録（招待リンク経由） |
@@ -118,6 +126,8 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 
 ### 結果表示機能
 
+- サーバーサイドページネーション: 表示件数選択（50/100/200件）、First/Previous/Next/Last ナビゲーション
+- サーバーサイドフィルタ: SYSTEM/CODE/Exp ドロップダウンによる絞り込み（フィルタ条件はページ遷移時に保持）
 - スカラー型メトリクス: テーブル形式で表示
 - ベクトル型メトリクス: Chart.js によるインタラクティブグラフ（メッセージサイズ vs バンド幅/レイテンシ等）
 - リグレッション比較: 複数結果を選択して差分をグラフ・テーブルで比較
