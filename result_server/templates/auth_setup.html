@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <title>TOTP Setup - BenchKit</title>
     <style>
-        body { font-family: sans-serif; margin: 40px auto; max-width: 480px; padding: 0 20px; }
+        body { font-family: sans-serif; margin: 0; padding: 0; }
+        .setup-container { max-width: 480px; margin: 40px auto; padding: 0 20px; }
         h1 { color: #333; }
         label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; }
         input[type="text"] {
@@ -27,6 +28,9 @@
 </head>
 <body>
 
+{% include "_navigation.html" %}
+
+<div class="setup-container">
 <h1>TOTP Setup</h1>
 
 {% with messages = get_flashed_messages() %}
@@ -56,6 +60,7 @@
     <button type="submit">Complete Setup</button>
 </form>
 {% endif %}
+</div>
 
 </body>
 </html>

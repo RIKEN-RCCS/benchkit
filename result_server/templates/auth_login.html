@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <title>Login - BenchKit</title>
     <style>
-        body { font-family: sans-serif; margin: 40px auto; max-width: 420px; padding: 0 20px; }
+        body { font-family: sans-serif; margin: 0; padding: 0; }
+        .login-container { max-width: 420px; margin: 40px auto; padding: 0 20px; }
         h1 { color: #333; }
         form { margin-top: 20px; }
         label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; }
@@ -25,6 +26,9 @@
 </head>
 <body>
 
+{% include "_navigation.html" %}
+
+<div class="login-container">
 <h1>Login</h1>
 
 {% with messages = get_flashed_messages() %}
@@ -51,6 +55,7 @@
     <button type="submit">Log in</button>
 </form>
 {% endif %}
+</div>
 
 </body>
 </html>

@@ -84,7 +84,10 @@ def add_user():
 @admin_bp.route("/users/<path:email>/delete", methods=["POST"])
 @admin_required
 def delete_user(email):
-    """ユーザー削除。"""
+    """ユーザー削除。自分自身の削除は禁止。"""
+    if email == session.get("user_email"):
+        flash("You cannot delete your own account.")
+        return redirect(url_for("admin.users"))
     store = get_user_store()
     store.delete_user(email)
     flash(f"User {email} has been deleted.")

@@ -14,10 +14,23 @@ from flask import (
 )
 
 from flask import current_app
-from utils.totp_manager import generate_qr_base64, generate_secret, verify_code
+from utils.totp_manager import (
+    generate_qr_base64,
+    generate_secret,
+    verify_code,
+    check_code_reuse,
+    check_rate_limit,
+    record_failed_attempt,
+    clear_failed_attempts,
+)
 from utils.user_store import get_user_store
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+def _get_redis():
+    """Redis接続とプレフィックスを取得する。"""
+    return current_app.config.get("REDIS_CONN"), current_app.config.get("REDIS_PREFIX", "")
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -46,10 +59,26 @@ def login():
         if not email:
             return redirect(url_for("auth.login"))
 
+        # ブルートフォース対策: レートリミット確認
+        redis_conn, prefix = _get_redis()
+        if redis_conn:
+            is_locked, remaining = check_rate_limit(redis_conn, prefix, email)
+            if is_locked:
+                flash(f"Too many failed attempts. Please try again in {remaining} seconds.")
+                return render_template("auth_login.html", step="totp", email=email)
+
         store = get_user_store()
         user = store.get_user(email)
 
         if user and user["totp_secret"] and verify_code(user["totp_secret"], totp_code):
+            # リプレイ攻撃対策: 使用済みコードの再利用を防止
+            if redis_conn and check_code_reuse(redis_conn, prefix, email, totp_code):
+                flash("This code has already been used. Please wait for a new code.")
+                return render_template("auth_login.html", step="totp", email=email)
+
+            # 認証成功
+            if redis_conn:
+                clear_failed_attempts(redis_conn, prefix, email)
             session.clear()
             session["authenticated"] = True
             session["user_email"] = email
@@ -57,7 +86,18 @@ def login():
             flash("Authentication successful.")
             return redirect(url_for("results.results"))
         else:
-            flash("Authentication failed. Please check your code.")
+            # 認証失敗: 試行回数を記録
+            if redis_conn:
+                attempts = record_failed_attempt(redis_conn, prefix, email)
+                from utils.totp_manager import MAX_LOGIN_ATTEMPTS
+                remaining_attempts = MAX_LOGIN_ATTEMPTS - attempts
+                if remaining_attempts > 0:
+                    flash(f"Authentication failed. {remaining_attempts} attempts remaining.")
+                else:
+                    flash("Too many failed attempts. Your account is temporarily locked.")
+                    return render_template("auth_login.html", step="totp", email=email)
+            else:
+                flash("Authentication failed. Please check your code.")
             return render_template("auth_login.html", step="totp", email=email)
 
     return redirect(url_for("auth.login"))

@@ -69,6 +69,10 @@ def create_app(prefix="", base_dir=None):
         app.config["SESSION_COOKIE_NAME"] = "session_main"
         key_prefix = "main:"
 
+    # Redis接続とプレフィックスをconfigに保存
+    app.config["REDIS_CONN"] = r_conn
+    app.config["REDIS_PREFIX"] = key_prefix
+
     # UserStore 初期化
     from utils.user_store import UserStore
     user_store = UserStore(r_conn, key_prefix)
