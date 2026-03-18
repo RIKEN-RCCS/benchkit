@@ -1,23 +1,5 @@
 <!-- templates/_results_table.html -->
-<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-    <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.systems %}
-            <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
-    <label>CODE: <select id="filterCode" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.codes %}
-            <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
-    <label>Exp: <select id="filterExp" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.exps %}
-            <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
+{% include "_filter_dropdowns.html" %}
     <button id="selectAllVisibleBtn" onclick="selectAllVisible()">Select All Visible</button>
     <button id="deselectAllBtn" onclick="deselectAll()">Deselect All</button>
     <button id="compareBtn" disabled onclick="navigateToCompare()">Compare</button>

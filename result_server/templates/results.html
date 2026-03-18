@@ -1,19 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Results</title>
-    {% include "_table_base.html" %}
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}Results{% endblock %}
+{% block heading %}Results{% endblock %}
 
-<h1>Results</h1>
-<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
-<br><br>
-
+{% block content %}
 {% include "_results_table.html" %}
-
-</body>
-</html>
+{% endblock %}

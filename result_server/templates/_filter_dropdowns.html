@@ -1,0 +1,20 @@
+<!-- templates/_filter_dropdowns.html -->
+<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.systems %}
+            <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>CODE: <select id="filterCode" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.codes %}
+            <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>Exp: <select id="filterExp" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.exps %}
+            <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>

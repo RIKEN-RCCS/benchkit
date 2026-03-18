@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Flask
 from utils.results_loader import (
     paginate_list, load_results_table, load_estimated_results_table,
-    get_filter_options, get_estimated_filter_options,
+    get_filter_options, ESTIMATED_FIELD_MAP,
 )
 
 
@@ -370,7 +370,7 @@ class TestFilterOptions:
         _write_json(tmp_dir, f"result_20250101_000000_{uid}.json", {
             "benchmark_system": "SysA", "code": "app-x", "exp": "exp1",
         })
-        opts = get_estimated_filter_options(tmp_dir, public_only=True)
+        opts = get_filter_options(tmp_dir, public_only=True, field_map=ESTIMATED_FIELD_MAP)
         assert "SysA" in opts["systems"]
         assert "app-x" in opts["codes"]
         assert "exp1" in opts["exps"]

@@ -1,27 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Confidential Results</title>
-    {% include "_table_base.html" %}
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}Confidential Results{% endblock %}
+{% block heading %}Confidential Results{% endblock %}
 
-<h1>Confidential Results</h1>
-
+{% block auth_warning %}
 {% if not authenticated %}
 <div style="padding: 16px; margin-bottom: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
     Authentication required to view confidential data.
     <a href="{{ url_for('auth.login') }}">Log in</a>
 </div>
 {% endif %}
+{% endblock %}
 
-<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
-<br><br>
-
+{% block content %}
 {% include "_results_table.html" %}
-
-</body>
-</html>
+{% endblock %}

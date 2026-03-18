@@ -32,10 +32,6 @@ def create_app(prefix="", base_dir=None):
     # Create the Flask app and specify the templates folder
     app = Flask(__name__, template_folder="templates")
 
-    # Set a secret key for session management (required for flash and OTP sessions)
-    # In production, use a secure random key, e.g., os.urandom(24)
-    #app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_key")
-
     # --- Secret Key ---
     secret_key = os.environ.get("FLASK_SECRET_KEY")
     if not secret_key:
@@ -81,14 +77,7 @@ def create_app(prefix="", base_dir=None):
     # TOTP イシュアー名（認証アプリでの表示名）
     app.config["TOTP_ISSUER"] = "BenchKit-Dev" if prefix == "/dev" else "BenchKit"
 
-    # 他でもredisを使う場合、
-    #app.redis = r_conn
-    #app.redis_prefix = key_prefix
-
-
-
-
-    # make dir, !!!!!!!!                   received & estimated_results
+    # make dir: received & estimated_results
     received_dir = os.path.join(base_dir, "received")
     estimated_dir = os.path.join(base_dir, "estimated_results")
     os.makedirs(received_dir, exist_ok=True)

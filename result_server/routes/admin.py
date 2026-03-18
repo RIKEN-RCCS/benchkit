@@ -22,6 +22,15 @@ from utils.user_store import get_user_store
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
+def _get_users_with_totp_status():
+    """全ユーザーを取得し、各ユーザーに has_totp フラグを付与して返す。"""
+    store = get_user_store()
+    users = store.list_users()
+    for u in users:
+        u["has_totp"] = store.has_totp_secret(u["email"])
+    return store, users
+
+
 def admin_required(f):
     """admin所属を持つ認証済みユーザーのみアクセスを許可するデコレータ。
 
@@ -45,11 +54,7 @@ def admin_required(f):
 @admin_required
 def users():
     """ユーザー一覧ページ。"""
-    store = get_user_store()
-    all_users = store.list_users()
-    # 各ユーザーにTOTP登録状態を付与
-    for u in all_users:
-        u["has_totp"] = store.has_totp_secret(u["email"])
+    _, all_users = _get_users_with_totp_status()
     return render_template("admin_users.html", users=all_users, invitation_url=None)
 
 
@@ -73,9 +78,7 @@ def add_user():
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
-    all_users = store.list_users()
-    for u in all_users:
-        u["has_totp"] = store.has_totp_secret(u["email"])
+    _, all_users = _get_users_with_totp_status()
 
     flash(f"Invitation created for {email}.")
     return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
@@ -122,9 +125,7 @@ def reinvite_user(email):
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
-    all_users = store.list_users()
-    for u in all_users:
-        u["has_totp"] = store.has_totp_secret(u["email"])
+    _, all_users = _get_users_with_totp_status()
 
     flash(f"Reinvitation created for {email}.")
     return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)

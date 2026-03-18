@@ -6,6 +6,14 @@ from math import ceil
 from utils.result_file import get_file_confidential_tags
 from flask import url_for
 
+# ページサイズ定数
+ALLOWED_PER_PAGE = (50, 100, 200)
+DEFAULT_PER_PAGE = 100
+
+# フィールドマッピング定数
+RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
+ESTIMATED_FIELD_MAP = {"system": "benchmark_system", "code": "code", "exp": "exp"}
+
 #--------------------------------------------------------------------------------------------------------------
 def load_json_with_confidential_filter(json_file, directory, affs=None, public_only=True, authenticated=False):
     """
@@ -163,13 +171,15 @@ def _has_active_filters(filter_system, filter_code, filter_exp):
     return any(f is not None for f in (filter_system, filter_code, filter_exp))
 
 
-def _matches_filters(data, filter_system, filter_code, filter_exp):
-    """JSONデータがフィルタ条件に一致するか判定"""
-    if filter_system is not None and data.get("system") != filter_system:
+def _matches_filters(data, filter_system, filter_code, filter_exp, field_map=None):
+    """フィールドマッピングに基づいてフィルタ条件を判定する。"""
+    if field_map is None:
+        field_map = RESULT_FIELD_MAP
+    if filter_system is not None and data.get(field_map["system"]) != filter_system:
         return False
-    if filter_code is not None and data.get("code") != filter_code:
+    if filter_code is not None and data.get(field_map["code"]) != filter_code:
         return False
-    if filter_exp is not None and data.get("Exp") != filter_exp:
+    if filter_exp is not None and data.get(field_map["exp"]) != filter_exp:
         return False
     return True
 
@@ -177,8 +187,8 @@ def _matches_filters(data, filter_system, filter_code, filter_exp):
 def load_results_table(directory, public_only=True, session_email=None, authenticated=False, affiliations=None,
                        page=1, per_page=100, filter_system=None, filter_code=None, filter_exp=None):
     # per_page バリデーション
-    if per_page not in (50, 100, 200):
-        per_page = 100
+    if per_page not in ALLOWED_PER_PAGE:
+        per_page = DEFAULT_PER_PAGE
 
     affs = affiliations if affiliations is not None else []
     files = os.listdir(directory)
@@ -241,7 +251,7 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
             data = load_json_with_confidential_filter(json_file, directory, affs, public_only, authenticated)
             if data is None:
                 continue
-            if not _matches_filters(data, filter_system, filter_code, filter_exp):
+            if not _matches_filters(data, filter_system, filter_code, filter_exp, field_map=RESULT_FIELD_MAP):
                 continue
             rows.append(_build_row(json_file, data, tgz_files))
 
@@ -249,22 +259,11 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         return paginated_rows, columns, pagination_info
 
 
-def _matches_estimated_filters(data, filter_system, filter_code, filter_exp):
-    """推定結果のJSONデータがフィルタ条件に一致するか判定"""
-    if filter_system is not None and data.get("benchmark_system") != filter_system:
-        return False
-    if filter_code is not None and data.get("code") != filter_code:
-        return False
-    if filter_exp is not None and data.get("exp") != filter_exp:
-        return False
-    return True
-
-
 def load_estimated_results_table(directory, public_only=True, session_email=None, authenticated=False, affiliations=None,
                                  page=1, per_page=100, filter_system=None, filter_code=None, filter_exp=None):
     # per_page バリデーション
-    if per_page not in (50, 100, 200):
-        per_page = 100
+    if per_page not in ALLOWED_PER_PAGE:
+        per_page = DEFAULT_PER_PAGE
 
     affs = affiliations if affiliations is not None else []
     files = os.listdir(directory)
@@ -278,7 +277,7 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
         if data is None:
             continue
 
-        if has_filters and not _matches_estimated_filters(data, filter_system, filter_code, filter_exp):
+        if has_filters and not _matches_filters(data, filter_system, filter_code, filter_exp, field_map=ESTIMATED_FIELD_MAP):
             continue
 
         current = data.get("current_system", {})
@@ -338,19 +337,24 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
     return paginated_rows, columns, pagination_info
 
 
-def get_filter_options(directory, public_only=True, authenticated=False, affiliations=None):
+def get_filter_options(directory, public_only=True, authenticated=False, affiliations=None,
+                       field_map=None):
     """
     全JSONファイルからフィルタドロップダウンの選択肢を抽出して返す。
+    field_map に基づいて systems/codes/exps のフィールド名を動的に参照する。
 
     Args:
         directory (str): JSONファイルのあるディレクトリ
         public_only (bool): 公開のみかどうか
         authenticated (bool): 認証済みかどうか
         affiliations (list, optional): セッションユーザーの所属リスト
+        field_map (dict, optional): フィールド名マッピング。None の場合は RESULT_FIELD_MAP を使用。
 
     Returns:
         dict: {"systems": sorted_list, "codes": sorted_list, "exps": sorted_list}
     """
+    if field_map is None:
+        field_map = RESULT_FIELD_MAP
     affs = affiliations if affiliations is not None else []
     systems = set()
     codes = set()
@@ -368,64 +372,15 @@ def get_filter_options(directory, public_only=True, authenticated=False, affilia
         if data is None:
             continue
 
-        val = data.get("system", "")
+        val = data.get(field_map["system"], "")
         if val and val != "N/A":
             systems.add(val)
 
-        val = data.get("code", "")
+        val = data.get(field_map["code"], "")
         if val and val != "N/A":
             codes.add(val)
 
-        val = data.get("Exp", "")
-        if val and val != "N/A":
-            exps.add(val)
-
-    return {
-        "systems": sorted(systems),
-        "codes": sorted(codes),
-        "exps": sorted(exps),
-    }
-
-
-def get_estimated_filter_options(directory, public_only=True, authenticated=False, affiliations=None):
-    """
-    推定結果の全JSONファイルからフィルタドロップダウンの選択肢を抽出して返す。
-
-    Args:
-        directory (str): JSONファイルのあるディレクトリ
-        public_only (bool): 公開のみかどうか
-        authenticated (bool): 認証済みかどうか
-        affiliations (list, optional): セッションユーザーの所属リスト
-
-    Returns:
-        dict: {"systems": sorted_list, "codes": sorted_list, "exps": sorted_list}
-    """
-    affs = affiliations if affiliations is not None else []
-    systems = set()
-    codes = set()
-    exps = set()
-
-    try:
-        files = os.listdir(directory)
-    except OSError:
-        return {"systems": [], "codes": [], "exps": []}
-
-    json_files = [f for f in files if f.endswith(".json")]
-
-    for json_file in json_files:
-        data = load_json_with_confidential_filter(json_file, directory, affs, public_only, authenticated)
-        if data is None:
-            continue
-
-        val = data.get("benchmark_system", "")
-        if val and val != "N/A":
-            systems.add(val)
-
-        val = data.get("code", "")
-        if val and val != "N/A":
-            codes.add(val)
-
-        val = data.get("exp", "")
+        val = data.get(field_map["exp"], "")
         if val and val != "N/A":
             exps.add(val)
 

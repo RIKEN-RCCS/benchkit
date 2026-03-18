@@ -1,30 +1,45 @@
-import os
 from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app
 )
-from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options
+from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE
 from utils.user_store import get_user_store
-from utils.result_file import load_result_file, get_file_confidential_tags
+from utils.result_file import load_result_file, check_file_permission
 from utils.system_info import get_all_systems_info
 
 results_bp = Blueprint("results", __name__)
 
 
-# ==========================================
-# 共通関数: ファイルアクセス権限確認
-# ==========================================
-def check_file_permission(filename, dir_path):
-    tags = get_file_confidential_tags(filename, dir_path)
-    if not tags:
-        return  # 公開ファイル
+def extract_query_params():
+    """request.args から page, per_page, system, code, exp を一括抽出する。
 
-    authenticated = session.get("authenticated", False)
-    email = session.get("user_email")
-    store = get_user_store()
-    affs = store.get_affiliations(email) if email else []
-    if not authenticated or not (set(tags) & set(affs)):
-        abort(403, "You do not have permission to access this file")
+    per_page が ALLOWED_PER_PAGE に含まれない場合は DEFAULT_PER_PAGE を使用。
+
+    Returns:
+        {
+            "page": int,
+            "per_page": int,
+            "filter_system": str | None,
+            "filter_code": str | None,
+            "filter_exp": str | None,
+        }
+    """
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 100, type=int)
+    filter_system = request.args.get("system", None)
+    filter_code = request.args.get("code", None)
+    filter_exp = request.args.get("exp", None)
+
+    if per_page not in ALLOWED_PER_PAGE:
+        per_page = DEFAULT_PER_PAGE
+
+    return {
+        "page": page,
+        "per_page": per_page,
+        "filter_system": filter_system,
+        "filter_code": filter_code,
+        "filter_exp": filter_exp,
+    }
 
 
 def serve_confidential_file(filename, dir_path):
@@ -32,30 +47,40 @@ def serve_confidential_file(filename, dir_path):
     check_file_permission(filename, dir_path)
     return load_result_file(filename, dir_path)
 
-# ==========================================
-# 公開用の結果一覧ページ
-# GET /results/
-# ==========================================
-@results_bp.route("/", strict_slashes=False)
-def results():
+def _render_results_list(public_only, template_name, redirect_endpoint):
+    """results() と results_confidential() の共通ロジック。
+
+    クエリパラメータ抽出、セッション情報取得、データ読み込み、
+    ページ範囲外リダイレクト、テンプレートレンダリングを一括処理する。
+    """
+    params = extract_query_params()
+    page = params["page"]
+    per_page = params["per_page"]
+    filter_system = params["filter_system"]
+    filter_code = params["filter_code"]
+    filter_exp = params["filter_exp"]
+
     received_dir = current_app.config["RECEIVED_DIR"]
 
-    # クエリパラメータ取得
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 100, type=int)
-    filter_system = request.args.get("system", None)
-    filter_code = request.args.get("code", None)
-    filter_exp = request.args.get("exp", None)
-
-    # per_page バリデーション
-    if per_page not in (50, 100, 200):
-        per_page = 100
-
-    rows, columns, pagination_info = load_results_table(
-        received_dir, public_only=True,
+    # public_only=False の場合のみセッション認証情報を取得
+    load_kwargs = dict(
+        public_only=public_only,
         page=page, per_page=per_page,
         filter_system=filter_system, filter_code=filter_code, filter_exp=filter_exp,
     )
+    filter_kwargs = dict(public_only=public_only)
+    template_extra = {}
+
+    if not public_only:
+        authenticated = session.get("authenticated", False)
+        email = session.get("user_email")
+        store = get_user_store()
+        affs = store.get_affiliations(email) if email else []
+        load_kwargs.update(session_email=email, authenticated=authenticated, affiliations=affs)
+        filter_kwargs.update(authenticated=authenticated, affiliations=affs)
+        template_extra["authenticated"] = authenticated
+
+    rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
 
     # ページ範囲外の場合はリダイレクト
     if page != pagination_info["page"]:
@@ -66,16 +91,30 @@ def results():
             redirect_args["code"] = filter_code
         if filter_exp is not None:
             redirect_args["exp"] = filter_exp
-        return redirect(url_for("results.results", **redirect_args))
+        return redirect(url_for(redirect_endpoint, **redirect_args))
 
-    filter_options = get_filter_options(received_dir, public_only=True)
+    filter_options = get_filter_options(received_dir, **filter_kwargs)
     systems_info = get_all_systems_info()
     return render_template(
-        "results.html",
+        template_name,
         rows=rows, columns=columns, systems_info=systems_info,
         pagination=pagination_info, filter_options=filter_options,
         current_system=filter_system, current_code=filter_code,
         current_exp=filter_exp, current_per_page=per_page,
+        **template_extra,
+    )
+
+
+# ==========================================
+# 公開用の結果一覧ページ
+# GET /results/
+# ==========================================
+@results_bp.route("/", strict_slashes=False)
+def results():
+    return _render_results_list(
+        public_only=True,
+        template_name="results.html",
+        redirect_endpoint="results.results",
     )
 
 
@@ -86,58 +125,10 @@ def results():
 # GET /results/confidential
 @results_bp.route("/confidential", methods=["GET"], strict_slashes=False)
 def results_confidential():
-    authenticated = session.get("authenticated", False)
-    email = session.get("user_email")
-
-    received_dir = current_app.config["RECEIVED_DIR"]
-
-    store = get_user_store()
-    affs = store.get_affiliations(email) if email else []
-
-    # クエリパラメータ取得
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 100, type=int)
-    filter_system = request.args.get("system", None)
-    filter_code = request.args.get("code", None)
-    filter_exp = request.args.get("exp", None)
-
-    # per_page バリデーション
-    if per_page not in (50, 100, 200):
-        per_page = 100
-
-    rows, columns, pagination_info = load_results_table(
-        received_dir,
+    return _render_results_list(
         public_only=False,
-        session_email=email,
-        authenticated=authenticated,
-        affiliations=affs,
-        page=page, per_page=per_page,
-        filter_system=filter_system, filter_code=filter_code, filter_exp=filter_exp,
-    )
-
-    # ページ範囲外の場合はリダイレクト
-    if page != pagination_info["page"]:
-        redirect_args = {"page": pagination_info["page"], "per_page": per_page}
-        if filter_system is not None:
-            redirect_args["system"] = filter_system
-        if filter_code is not None:
-            redirect_args["code"] = filter_code
-        if filter_exp is not None:
-            redirect_args["exp"] = filter_exp
-        return redirect(url_for("results.results_confidential", **redirect_args))
-
-    filter_options = get_filter_options(
-        received_dir, public_only=False,
-        authenticated=authenticated, affiliations=affs,
-    )
-    systems_info = get_all_systems_info()
-    return render_template(
-        "results_confidential.html",
-        rows=rows, columns=columns,
-        authenticated=authenticated, systems_info=systems_info,
-        pagination=pagination_info, filter_options=filter_options,
-        current_system=filter_system, current_code=filter_code,
-        current_exp=filter_exp, current_per_page=per_page,
+        template_name="results_confidential.html",
+        redirect_endpoint="results.results_confidential",
     )
 
 

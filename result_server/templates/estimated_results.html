@@ -1,45 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Estimated Results</title>
-    {% include "_table_base.html" %}
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}Estimated Results{% endblock %}
+{% block heading %}Estimated Results{% endblock %}
 
-<h1>Estimated Results</h1>
-
+{% block auth_warning %}
 {% if not authenticated %}
 <div style="padding: 16px; margin-bottom: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
     Authentication required to view estimated data.
     <a href="{{ url_for('auth.login') }}">Log in</a>
 </div>
 {% endif %}
+{% endblock %}
 
-<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
-<br><br>
-
-<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-    <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.systems %}
-            <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
-    <label>CODE: <select id="filterCode" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.codes %}
-            <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
-    <label>Exp: <select id="filterExp" onchange="applyServerFilter()">
-        <option value="">All</option>
-        {% for val in filter_options.exps %}
-            <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
-        {% endfor %}
-    </select></label>
+{% block content %}
+{% include "_filter_dropdowns.html" %}
 </div>
 
 {% include "_pagination.html" %}
@@ -112,6 +86,4 @@ function applyServerFilter() {
     window.location.href = url;
 }
 </script>
-
-</body>
-</html>
+{% endblock %}
