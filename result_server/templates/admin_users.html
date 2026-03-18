@@ -27,19 +27,14 @@
         .status-ok { color: #28a745; }
         .status-pending { color: #dc3545; }
         a { color: #007bff; }
-        nav { margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; }
-        nav a { text-decoration: none; color: #007bff; margin-right: 15px; }
+
         .inline-form { display: inline; }
         .actions { white-space: nowrap; }
     </style>
 </head>
 <body>
 
-<nav>
-    <a href="{{ url_for('results.results') }}">📊 Results</a>
-    <a href="{{ url_for('admin.users') }}">⚙️ Admin</a>
-    <a href="{{ url_for('auth.logout') }}">Logout</a>
-</nav>
+{% include "_navigation.html" %}
 
 <h1>User Management</h1>
 
