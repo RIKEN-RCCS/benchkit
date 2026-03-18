@@ -137,6 +137,8 @@ generate_benchpark_matrix:
       - .gitlab-ci.benchpark.yml
     expire_in: 1 hour
   rules:
+    - if: '$code != "" && $benchpark != "true" && $park_only != "true"'
+      when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
@@ -164,8 +166,9 @@ trigger_benchpark_pipeline:
   needs:
     - job: generate_benchpark_matrix
       optional: true
-      optional: true
   rules:
+    - if: '$code != "" && $benchpark != "true" && $park_only != "true"'
+      when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-only\]/'
