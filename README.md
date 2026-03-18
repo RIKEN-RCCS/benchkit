@@ -36,27 +36,32 @@ benchkit/
 │   ├── routes/
 │   │   ├── api.py            # 統合データ受信API（結果/推定/PA Data）
 │   │   ├── results.py        # 結果一覧・詳細・比較ページ
-│   │   └── estimated.py      # 推定結果ページ
+│   │   ├── estimated.py      # 推定結果ページ
+│   │   ├── auth.py           # TOTP認証（ログイン/セットアップ/ログアウト）
+│   │   └── admin.py          # ユーザー管理（CRUD/招待リンク）
 │   ├── templates/
 │   │   ├── results.html              # 結果一覧（公開）
-│   │   ├── results_confidential.html # 結果一覧（OTP認証付き）
+│   │   ├── results_confidential.html # 結果一覧（認証付き、機密データ含む）
 │   │   ├── result_detail.html        # 個別結果詳細（Chart.jsグラフ）
 │   │   ├── result_compare.html       # リグレッション比較
 │   │   ├── estimated_results.html    # 推定結果一覧
 │   │   ├── systemlist.html           # システム情報一覧
-│   │   ├── _navigation.html          # 共通ナビゲーション
+│   │   ├── auth_login.html           # ログインページ（Email + TOTP）
+│   │   ├── auth_setup.html           # TOTP初期登録（QRコード表示）
+│   │   ├── admin_users.html          # ユーザー管理画面
+│   │   ├── _navigation.html          # 共通ナビゲーション（ドロップダウン）
 │   │   ├── _results_table.html       # 結果テーブル部品
-│   │   ├── _table_base.html          # テーブル基盤テンプレート
-│   │   └── _otp_modal.html           # OTP認証モーダル
+│   │   └── _table_base.html          # テーブル基盤テンプレート
 │   ├── utils/
 │   │   ├── results_loader.py     # 結果ファイル読み込み・集約
 │   │   ├── result_file.py        # ファイルアクセス・権限管理
 │   │   ├── system_info.py        # システム情報管理
-│   │   ├── otp_redis_manager.py  # OTP認証（Redis）
-│   │   └── otp_manager.py        # OTP認証（ファイルベース）
-│   ├── tests/                    # テストスイート
+│   │   ├── totp_manager.py       # TOTP認証（秘密鍵生成/QR/検証/レート制限）
+│   │   └── user_store.py         # Redisベースユーザーストア（CRUD/招待トークン）
+│   ├── tests/                    # テストスイート（54テスト）
 │   ├── app.py                    # 本番用アプリ（main + dev）
-│   └── app_dev.py                # ローカル開発用（Redis/OTP不要）
+│   ├── app_dev.py                # ローカル開発用（Redis/TOTP不要）
+│   └── create_admin.py           # 初期adminユーザー作成CLIツール
 ├── scripts/
 │   ├── matrix_generate.sh    # CI YAML生成スクリプト
 │   ├── job_functions.sh      # 共通関数定義
@@ -101,11 +106,15 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | パス | 説明 |
 |---|---|
 | `/results/` | 結果一覧（公開） |
-| `/results/confidential` | 結果一覧（OTP認証付き、機密データ含む） |
+| `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む） |
 | `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報） |
 | `/results/compare?files=a,b` | リグレッション比較（複数結果の差分表示） |
-| `/estimated/` | 推定結果一覧 |
+| `/estimated/` | 推定結果一覧（認証時は機密データ含む） |
 | `/systemlist` | システム情報一覧 |
+| `/auth/login` | TOTP認証ログイン |
+| `/auth/setup/<token>` | TOTP初期登録（招待リンク経由） |
+| `/auth/logout` | ログアウト |
+| `/admin/users` | ユーザー管理（admin専用） |
 
 ### 結果表示機能
 
@@ -114,13 +123,30 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - リグレッション比較: 複数結果を選択して差分をグラフ・テーブルで比較
 - Spackビルド情報: コンパイラ、MPI、パッケージリストの表示
 
+### 認証システム（TOTP）
+
+結果サーバはTOTP（Time-based One-Time Password）ベースの認証を採用しています。
+
+- 管理者が招待リンクを発行 → ユーザーがTOTPアプリ（Google Authenticator等）で登録
+- ログイン: メールアドレス + 6桁TOTPコード
+- セキュリティ: リプレイ攻撃防止（90秒窓）、ブルートフォース保護（5回失敗で5分ロック）
+- ユーザー情報・セッションはRedisに保存
+- 環境別issuer名: 本番 "BenchKit"、開発 "BenchKit-Dev"、ローカル "BenchKit-Local"
+
+初期adminユーザーの作成:
+```bash
+cd result_server
+python create_admin.py --email admin@example.com --name "Admin" --affiliations admin
+# → 招待リンクが表示される → ブラウザで開いてTOTP登録
+```
+
 ### ローカル開発
 
-Redis/OTP/APIキー不要で結果表示を確認できます:
+Redis/TOTP/APIキー不要で結果表示を確認できます:
 
 ```bash
 cd result_server
-pip install flask flask-session
+pip install flask flask-session pyotp "qrcode[pil]"
 python app_dev.py --generate-sample
 # → http://localhost:8800/results
 ```
@@ -129,7 +155,7 @@ python app_dev.py --generate-sample
 
 ```bash
 cd result_server
-pip install pytest
+pip install pytest hypothesis fakeredis
 python -m pytest tests/ -v
 ```
 
@@ -258,4 +284,5 @@ curl -X POST --fail \
 ## 動作要件
 - POSIX環境（`bash`, `awk`, `cut`等の標準コマンド）
 - `yq`, `jq`等のシステム依存ツールは使用しない設計
-- 結果サーバ: Python 3, Flask, Gunicorn, Redis（本番）
+- 結果サーバ: Python 3, Flask, Gunicorn, Redis（本番）, pyotp, qrcode[pil]
+- テスト: pytest, hypothesis, fakeredis
