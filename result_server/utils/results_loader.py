@@ -25,13 +25,12 @@ def load_json_with_confidential_filter(json_file, directory, affs=None, public_o
         affs = []
 
     tags = get_file_confidential_tags(json_file, directory)
-    #print(f"Processing {json_file}, tags={tags}, public_only={public_only}, authenticated={authenticated}, flush=True)
     if public_only and tags:
         return None
     if tags and not authenticated:
         return None
-    if tags and affs:
-        if not (set(tags) & set(affs)):
+    if tags and "admin" not in affs:
+        if not affs or not (set(tags) & set(affs)):
             return None
 
     try:
