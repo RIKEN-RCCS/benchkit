@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # BenchPark Generator - 将来の実装計画
 
 ## 概要

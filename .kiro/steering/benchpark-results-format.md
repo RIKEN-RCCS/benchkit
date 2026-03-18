@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: 'benchpark-bridge/scripts/result_converter.py|result_server/templates/result_detail.html'
+---
+
 # BenchPark結果ファイル形式と技術仕様
 
 BenchParkのRamble結果形式とBenchKit形式への変換に関する技術仕様を記録します。

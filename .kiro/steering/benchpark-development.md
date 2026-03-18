@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: 'benchpark-bridge/**/*|.gitlab-ci.yml'
+---
+
 # BenchPark開発時のコミットメッセージ制御
 
 ## 重要: コミットメッセージによるCI制御

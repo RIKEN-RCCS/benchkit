@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # BenchParkモニター機能 - 今後の作業事項
 
 ## 🎯 現在の状況
