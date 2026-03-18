@@ -13,6 +13,7 @@ from flask import (
     url_for,
 )
 
+from flask import current_app
 from utils.totp_manager import generate_qr_base64, generate_secret, verify_code
 from utils.user_store import get_user_store
 
@@ -82,7 +83,8 @@ def setup(token):
     if request.method == "GET":
         secret = generate_secret()
         session["_setup_secret"] = secret
-        qr_data = generate_qr_base64(secret, email)
+        issuer = current_app.config.get("TOTP_ISSUER", "BenchKit")
+        qr_data = generate_qr_base64(secret, email, issuer=issuer)
         return render_template(
             "auth_setup.html",
             error=False,
@@ -107,7 +109,8 @@ def setup(token):
         flash("TOTP registration complete. You can now log in.")
         return redirect(url_for("auth.login"))
     else:
-        qr_data = generate_qr_base64(secret, email)
+        issuer = current_app.config.get("TOTP_ISSUER", "BenchKit")
+        qr_data = generate_qr_base64(secret, email, issuer=issuer)
         flash("Invalid code. Please try again.")
         return render_template(
             "auth_setup.html",

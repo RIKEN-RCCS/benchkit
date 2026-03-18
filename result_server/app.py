@@ -74,6 +74,9 @@ def create_app(prefix="", base_dir=None):
     user_store = UserStore(r_conn, key_prefix)
     app.config["USER_STORE"] = user_store
 
+    # TOTP イシュアー名（認証アプリでの表示名）
+    app.config["TOTP_ISSUER"] = "BenchKit-Dev" if prefix == "/dev" else "BenchKit"
+
     # 他でもredisを使う場合、
     #app.redis = r_conn
     #app.redis_prefix = key_prefix
