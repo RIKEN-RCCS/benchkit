@@ -1,17 +1,97 @@
 <!-- 共通ナビゲーション -->
-<nav style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
-    <a href="{{ url_for('results.results') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">📊 Results</a>
-    <a href="{{ url_for('systemlist') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">🖥️ Systems</a>
-    <a href="{{ url_for('results.results_confidential') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">🔒 Confidential Results</a>
-    <a href="{{ url_for('estimated.estimated_results') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">🔐 Estimated Results</a>
+<style>
+.nav-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    position: relative;
+}
+.nav-left { display: flex; align-items: center; gap: 4px; }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.nav-link {
+    text-decoration: none;
+    color: #007bff;
+    padding: 6px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.nav-link:hover { background-color: #e9ecef; }
+.nav-dropdown { position: relative; display: inline-block; }
+.nav-dropdown-btn {
+    text-decoration: none;
+    color: #007bff;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.nav-dropdown-btn:hover { background-color: #e9ecef; }
+.nav-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    min-width: 220px;
+    z-index: 1000;
+    padding: 4px 0;
+}
+.nav-dropdown-menu.right { right: 0; left: auto; }
+.nav-dropdown-menu a {
+    display: block;
+    padding: 8px 16px;
+    text-decoration: none;
+    color: #333;
+    white-space: nowrap;
+}
+.nav-dropdown-menu a:hover { background-color: #f0f0f0; }
+.nav-dropdown-menu hr { margin: 4px 0; border: none; border-top: 1px solid #eee; }
+.nav-dropdown:hover .nav-dropdown-menu { display: block; }
+.nav-user-label { color: #555; padding: 6px 10px; white-space: nowrap; }
+</style>
 
-    {% if session.get('authenticated') %}
-        {% if 'admin' in session.get('user_affiliations', []) %}
-            <a href="{{ url_for('admin.users') }}" style="text-decoration: none; color: #007bff; margin-right: 15px;">⚙️ Admin</a>
+<nav class="nav-bar">
+    <div class="nav-left">
+        <a href="{{ url_for('systemlist') }}" class="nav-link">🖥️ Systems</a>
+
+        {% if session.get('authenticated') %}
+        <div class="nav-dropdown">
+            <button class="nav-dropdown-btn">📊 Results ▾</button>
+            <div class="nav-dropdown-menu">
+                <a href="{{ url_for('results.results') }}">📊 Public Results</a>
+                <a href="{{ url_for('results.results_confidential') }}">🔒 All Results</a>
+                <a href="{{ url_for('estimated.estimated_results') }}">🔐 Estimated Results</a>
+            </div>
+        </div>
+        {% else %}
+        <a href="{{ url_for('results.results') }}" class="nav-link">📊 Results</a>
         {% endif %}
-        <span style="color: #555; margin-right: 10px;">{{ session.get('user_email') }}</span>
-        <a href="{{ url_for('auth.logout') }}" style="text-decoration: none; color: #007bff;">Logout</a>
-    {% else %}
-        <a href="{{ url_for('auth.login') }}" style="text-decoration: none; color: #007bff;">Login</a>
-    {% endif %}
+    </div>
+
+    <div class="nav-right">
+        {% if session.get('authenticated') %}
+        <div class="nav-dropdown">
+            <button class="nav-dropdown-btn">👤 {{ session.get('user_email') }} ▾</button>
+            <div class="nav-dropdown-menu right">
+                {% if 'admin' in session.get('user_affiliations', []) %}
+                <a href="{{ url_for('admin.users') }}">⚙️ Admin</a>
+                <hr>
+                {% endif %}
+                <a href="{{ url_for('auth.logout') }}">Logout</a>
+            </div>
+        </div>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
+        {% endif %}
+    </div>
 </nav>
