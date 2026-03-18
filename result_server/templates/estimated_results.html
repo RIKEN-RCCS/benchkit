@@ -21,9 +21,30 @@
 <input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
 <br><br>
 
+<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.systems %}
+            <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>CODE: <select id="filterCode" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.codes %}
+            <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>Exp: <select id="filterExp" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.exps %}
+            <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+</div>
 
+{% include "_pagination.html" %}
 
-<table border="1">
+<table id="resultsTable" border="1">
   <thead>
     <tr>
       <th rowspan="2">Timestamp</th>
@@ -75,6 +96,22 @@
   </tbody>
 </table>
 
+{% include "_pagination.html" %}
+
+<div id="estimatedConfig" data-per-page="{{ current_per_page }}" style="display:none;"></div>
+<script>
+function applyServerFilter() {
+    var perPage = document.getElementById('estimatedConfig').getAttribute('data-per-page');
+    var system = document.getElementById('filterSystem').value;
+    var code = document.getElementById('filterCode').value;
+    var exp = document.getElementById('filterExp').value;
+    var url = '?page=1&per_page=' + perPage;
+    if (system) url += '&system=' + encodeURIComponent(system);
+    if (code) url += '&code=' + encodeURIComponent(code);
+    if (exp) url += '&exp=' + encodeURIComponent(exp);
+    window.location.href = url;
+}
+</script>
 
 </body>
 </html>

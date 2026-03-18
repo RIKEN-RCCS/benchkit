@@ -1,13 +1,30 @@
 <!-- templates/_results_table.html -->
 <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-    <label>SYSTEM: <select id="filterSystem" onchange="applyFilters()"><option value="">All</option></select></label>
-    <label>CODE: <select id="filterCode" onchange="applyFilters()"><option value="">All</option></select></label>
-    <label>Exp: <select id="filterExp" onchange="applyFilters()"><option value="">All</option></select></label>
+    <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.systems %}
+            <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>CODE: <select id="filterCode" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.codes %}
+            <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
+    <label>Exp: <select id="filterExp" onchange="applyServerFilter()">
+        <option value="">All</option>
+        {% for val in filter_options.exps %}
+            <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+    </select></label>
     <button id="selectAllVisibleBtn" onclick="selectAllVisible()">Select All Visible</button>
     <button id="deselectAllBtn" onclick="deselectAll()">Deselect All</button>
     <button id="compareBtn" disabled onclick="navigateToCompare()">Compare</button>
     <span id="compareHint" style="color: #888; font-size: 0.9em;">Select 2 or more to compare</span>
 </div>
+
+{% include "_pagination.html" %}
 
 <table id="resultsTable">
     <thead>
@@ -113,25 +130,19 @@
     </tbody>
 </table>
 
+{% include "_pagination.html" %}
+
+<div id="resultsConfig"
+     data-per-page="{{ current_per_page }}"
+     data-compare-url="{{ url_for('results.result_compare') }}"
+     style="display:none;"></div>
 <script>
 (function() {
+    var config = document.getElementById('resultsConfig');
+    var perPage = config.getAttribute('data-per-page');
+    var compareUrl = config.getAttribute('data-compare-url');
     var compareBtn = document.getElementById('compareBtn');
     var compareHint = document.getElementById('compareHint');
-    var filterSystem = document.getElementById('filterSystem');
-    var filterCode = document.getElementById('filterCode');
-    var filterExp = document.getElementById('filterExp');
-
-    // Build a map of code -> Set of exps from all rows
-    var codeToExps = {};
-    var allRows = document.querySelectorAll('#resultsTable tbody tr');
-    allRows.forEach(function(r) {
-        var code = r.dataset.code || '';
-        var exp = r.dataset.exp || '';
-        if (code) {
-            if (!codeToExps[code]) codeToExps[code] = new Set();
-            if (exp) codeToExps[code].add(exp);
-        }
-    });
 
     function updateCompareButton() {
         var checked = document.querySelectorAll('.compare-checkbox:checked');
@@ -144,67 +155,19 @@
         }
     }
 
-    function fillSelect(sel, values, keepValue) {
-        var prev = keepValue !== undefined ? keepValue : sel.value;
-        while (sel.options.length > 1) sel.remove(1);
-        var sorted = Array.from(values).sort();
-        sorted.forEach(function(v) {
-            var opt = document.createElement('option');
-            opt.value = v; opt.textContent = v;
-            sel.appendChild(opt);
-        });
-        // Restore previous selection if still available
-        if (prev && sorted.indexOf(prev) !== -1) {
-            sel.value = prev;
-        } else {
-            sel.value = '';
-        }
-    }
-
-    function populateFilters() {
-        var systems = new Set(), codes = new Set(), exps = new Set();
-        allRows.forEach(function(r) {
-            if (r.dataset.system) systems.add(r.dataset.system);
-            if (r.dataset.code) codes.add(r.dataset.code);
-            if (r.dataset.exp) exps.add(r.dataset.exp);
-        });
-        fillSelect(filterSystem, systems);
-        fillSelect(filterCode, codes);
-        fillSelect(filterExp, exps);
-    }
-
-    // Update Exp dropdown based on selected CODE
-    function updateExpOptions() {
-        var selectedCode = filterCode.value;
-        if (selectedCode && codeToExps[selectedCode]) {
-            fillSelect(filterExp, codeToExps[selectedCode]);
-        } else {
-            // No code filter: show all exps
-            var allExps = new Set();
-            allRows.forEach(function(r) {
-                if (r.dataset.exp) allExps.add(r.dataset.exp);
-            });
-            fillSelect(filterExp, allExps);
-        }
-    }
-
-    window.applyFilters = function() {
-        // When CODE changes, cascade to Exp dropdown
-        updateExpOptions();
-
-        var fs = filterSystem.value;
-        var fc = filterCode.value;
-        var fe = filterExp.value;
-        allRows.forEach(function(r) {
-            var show = (!fs || r.dataset.system === fs)
-                    && (!fc || r.dataset.code === fc)
-                    && (!fe || r.dataset.exp === fe);
-            r.style.display = show ? '' : 'none';
-        });
-        updateCompareButton();
+    window.applyServerFilter = function() {
+        var system = document.getElementById('filterSystem').value;
+        var code = document.getElementById('filterCode').value;
+        var exp = document.getElementById('filterExp').value;
+        var url = '?page=1&per_page=' + perPage;
+        if (system) url += '&system=' + encodeURIComponent(system);
+        if (code) url += '&code=' + encodeURIComponent(code);
+        if (exp) url += '&exp=' + encodeURIComponent(exp);
+        window.location.href = url;
     };
 
     window.selectAllVisible = function() {
+        var allRows = document.querySelectorAll('#resultsTable tbody tr');
         allRows.forEach(function(r) {
             if (r.style.display !== 'none') {
                 var cb = r.querySelector('.compare-checkbox');
@@ -226,13 +189,11 @@
         if (checked.length < 2) return;
         var files = [];
         checked.forEach(function(cb) { files.push(cb.value); });
-        window.location.href = '{{ url_for("results.result_compare") }}?files=' + encodeURIComponent(files.join(','));
+        window.location.href = compareUrl + '?files=' + encodeURIComponent(files.join(','));
     };
 
     document.querySelectorAll('.compare-checkbox').forEach(function(cb) {
         cb.addEventListener('change', updateCompareButton);
     });
-
-    populateFilters();
 })();
 </script>

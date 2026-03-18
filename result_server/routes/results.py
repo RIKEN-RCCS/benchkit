@@ -3,7 +3,7 @@ from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app
 )
-from utils.results_loader import load_results_table, load_single_result, load_multiple_results
+from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options
 from utils.user_store import get_user_store
 from utils.result_file import load_result_file, get_file_confidential_tags
 from utils.system_info import get_all_systems_info
@@ -39,48 +39,106 @@ def serve_confidential_file(filename, dir_path):
 @results_bp.route("/", strict_slashes=False)
 def results():
     received_dir = current_app.config["RECEIVED_DIR"]
-    rows, columns = load_results_table(received_dir, public_only=True)
+
+    # クエリパラメータ取得
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 100, type=int)
+    filter_system = request.args.get("system", None)
+    filter_code = request.args.get("code", None)
+    filter_exp = request.args.get("exp", None)
+
+    # per_page バリデーション
+    if per_page not in (50, 100, 200):
+        per_page = 100
+
+    rows, columns, pagination_info = load_results_table(
+        received_dir, public_only=True,
+        page=page, per_page=per_page,
+        filter_system=filter_system, filter_code=filter_code, filter_exp=filter_exp,
+    )
+
+    # ページ範囲外の場合はリダイレクト
+    if page != pagination_info["page"]:
+        redirect_args = {"page": pagination_info["page"], "per_page": per_page}
+        if filter_system is not None:
+            redirect_args["system"] = filter_system
+        if filter_code is not None:
+            redirect_args["code"] = filter_code
+        if filter_exp is not None:
+            redirect_args["exp"] = filter_exp
+        return redirect(url_for("results.results", **redirect_args))
+
+    filter_options = get_filter_options(received_dir, public_only=True)
     systems_info = get_all_systems_info()
-    return render_template("results.html", rows=rows, columns=columns, systems_info=systems_info)
+    return render_template(
+        "results.html",
+        rows=rows, columns=columns, systems_info=systems_info,
+        pagination=pagination_info, filter_options=filter_options,
+        current_system=filter_system, current_code=filter_code,
+        current_exp=filter_exp, current_per_page=per_page,
+    )
 
 
 # ==========================================
 # 機密データ付きの結果ページ（セッション認証）
 # ==========================================
-def render_confidential_table(template_name, public_only, loader_func=None):
+
+# GET /results/confidential
+@results_bp.route("/confidential", methods=["GET"], strict_slashes=False)
+def results_confidential():
     authenticated = session.get("authenticated", False)
     email = session.get("user_email")
-
-    if loader_func is None:
-        loader_func = load_results_table
 
     received_dir = current_app.config["RECEIVED_DIR"]
 
     store = get_user_store()
     affs = store.get_affiliations(email) if email else []
 
-    rows, columns = loader_func(
+    # クエリパラメータ取得
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 100, type=int)
+    filter_system = request.args.get("system", None)
+    filter_code = request.args.get("code", None)
+    filter_exp = request.args.get("exp", None)
+
+    # per_page バリデーション
+    if per_page not in (50, 100, 200):
+        per_page = 100
+
+    rows, columns, pagination_info = load_results_table(
         received_dir,
-        public_only=public_only,
+        public_only=False,
         session_email=email,
         authenticated=authenticated,
-        affiliations=affs
+        affiliations=affs,
+        page=page, per_page=per_page,
+        filter_system=filter_system, filter_code=filter_code, filter_exp=filter_exp,
     )
 
+    # ページ範囲外の場合はリダイレクト
+    if page != pagination_info["page"]:
+        redirect_args = {"page": pagination_info["page"], "per_page": per_page}
+        if filter_system is not None:
+            redirect_args["system"] = filter_system
+        if filter_code is not None:
+            redirect_args["code"] = filter_code
+        if filter_exp is not None:
+            redirect_args["exp"] = filter_exp
+        return redirect(url_for("results.results_confidential", **redirect_args))
+
+    filter_options = get_filter_options(
+        received_dir, public_only=False,
+        authenticated=authenticated, affiliations=affs,
+    )
     systems_info = get_all_systems_info()
     return render_template(
-        template_name,
-        rows=rows,
-        columns=columns,
-        authenticated=authenticated,
-        systems_info=systems_info
+        "results_confidential.html",
+        rows=rows, columns=columns,
+        authenticated=authenticated, systems_info=systems_info,
+        pagination=pagination_info, filter_options=filter_options,
+        current_system=filter_system, current_code=filter_code,
+        current_exp=filter_exp, current_per_page=per_page,
     )
-
-
-# GET /results/confidential
-@results_bp.route("/confidential", methods=["GET"], strict_slashes=False)
-def results_confidential():
-    return render_confidential_table("results_confidential.html", public_only=False)
 
 
 # ==========================================

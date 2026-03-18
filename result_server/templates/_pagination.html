@@ -1,0 +1,35 @@
+<!-- templates/_pagination.html -->
+{% set base_params = "" %}
+{% if current_system %}{% set base_params = base_params ~ "&system=" ~ current_system %}{% endif %}
+{% if current_code %}{% set base_params = base_params ~ "&code=" ~ current_code %}{% endif %}
+{% if current_exp %}{% set base_params = base_params ~ "&exp=" ~ current_exp %}{% endif %}
+
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; font-size: 14px;">
+    <span style="color: #555;">Showing {{ pagination.total }} results</span>
+
+    <span style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+        {% if pagination.page == 1 %}
+            <span class="disabled" style="color: #aaa; padding: 4px 8px;">First</span>
+            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Previous</span>
+        {% else %}
+            <a href="?page=1&per_page={{ current_per_page }}{{ base_params }}" style="padding: 4px 8px; color: #007bff; text-decoration: none;">First</a>
+            <a href="?page={{ pagination.page - 1 }}&per_page={{ current_per_page }}{{ base_params }}" style="padding: 4px 8px; color: #007bff; text-decoration: none;">Previous</a>
+        {% endif %}
+
+        <span style="padding: 4px 8px;">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+
+        {% if pagination.page == pagination.total_pages %}
+            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Next</span>
+            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Last</span>
+        {% else %}
+            <a href="?page={{ pagination.page + 1 }}&per_page={{ current_per_page }}{{ base_params }}" style="padding: 4px 8px; color: #007bff; text-decoration: none;">Next</a>
+            <a href="?page={{ pagination.total_pages }}&per_page={{ current_per_page }}{{ base_params }}" style="padding: 4px 8px; color: #007bff; text-decoration: none;">Last</a>
+        {% endif %}
+    </span>
+
+    <select onchange="window.location.href='?page=1&per_page='+this.value+'{{ base_params }}'" style="padding: 4px; font-size: 14px;">
+        {% for size in [50, 100, 200] %}
+            <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }} / page</option>
+        {% endfor %}
+    </select>
+</div>

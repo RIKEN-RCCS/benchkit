@@ -243,7 +243,7 @@ class TestLoadResultsTableExtension:
         _write_json(tmp_dir, filename, data)
 
         with flask_app.test_request_context():
-            rows, columns = load_results_table(tmp_dir, public_only=True)
+            rows, columns, pagination_info = load_results_table(tmp_dir, public_only=True)
 
         assert len(rows) == 1
         assert rows[0]["has_vector"] is True
@@ -258,7 +258,7 @@ class TestLoadResultsTableExtension:
         _write_json(tmp_dir, filename, data)
 
         with flask_app.test_request_context():
-            rows, columns = load_results_table(tmp_dir, public_only=True)
+            rows, columns, pagination_info = load_results_table(tmp_dir, public_only=True)
 
         assert len(rows) == 1
         assert rows[0]["has_vector"] is False
@@ -276,7 +276,7 @@ class TestLoadResultsTableExtension:
         _write_json(tmp_dir, filename, data)
 
         with flask_app.test_request_context():
-            rows, columns = load_results_table(tmp_dir, public_only=True)
+            rows, columns, pagination_info = load_results_table(tmp_dir, public_only=True)
 
         assert len(rows) == 1
         assert rows[0]["has_vector"] is False
@@ -289,7 +289,7 @@ class TestLoadResultsTableExtension:
                      {"code": "t", "system": "s"})
 
         with flask_app.test_request_context():
-            rows, columns = load_results_table(tmp_dir, public_only=True)
+            rows, columns, pagination_info = load_results_table(tmp_dir, public_only=True)
 
         expected_columns = [
             ("Timestamp", "timestamp"),
@@ -320,7 +320,7 @@ class TestLoadResultsTableExtension:
         })
 
         with flask_app.test_request_context():
-            rows, _ = load_results_table(tmp_dir, public_only=True)
+            rows, _, pagination_info = load_results_table(tmp_dir, public_only=True)
 
         assert len(rows) == 1
         row = rows[0]
