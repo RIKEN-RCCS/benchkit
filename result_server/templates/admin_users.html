@@ -88,6 +88,7 @@
                     <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
                     <button type="submit" class="btn btn-warning">Update</button>
                 </form>
+                {% if u.email != session.get('user_email') %}
                 <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
                       onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
                     <button type="submit" class="btn btn-primary">Reinvite</button>
@@ -96,6 +97,7 @@
                       onsubmit="return confirm('Delete {{ u.email }}?');">
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
+                {% endif %}
             </td>
         </tr>
     {% else %}
