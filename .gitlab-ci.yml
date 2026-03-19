@@ -86,8 +86,8 @@ generate_matrix:
         - ".github/workflows/*.yml"
         - "programs/**/*"
         - "scripts/**/*"
-        - "system.csv"
-        - "queue.csv"
+        - "config/system.csv"
+        - "config/queue.csv"
       when: always
     - changes:
         - "*.md"
@@ -121,8 +121,8 @@ trigger_child_pipeline:
         - ".github/workflows/*.yml"
         - "programs/**/*"
         - "scripts/**/*"
-        - "system.csv"
-        - "queue.csv"
+        - "config/system.csv"
+        - "config/queue.csv"
       when: always
     - changes:
         - "*.md"

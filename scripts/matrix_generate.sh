@@ -8,8 +8,8 @@ set -euo pipefail
 # 4. For debugging, add simple echo statements rather than complex logic
 # 5. If complex logic is needed, put it in separate shell scripts and call them
 
-SYSTEM_FILE="system.csv"
-QUEUE_FILE="queue.csv"
+SYSTEM_FILE="config/system.csv"
+QUEUE_FILE="config/queue.csv"
 OUTPUT_FILE=".gitlab-ci.generated.yml"
 
 source ./scripts/job_functions.sh

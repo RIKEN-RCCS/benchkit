@@ -1,0 +1,8 @@
+system,name,cpu_name,cpu_per_node,cpu_cores,gpu_name,gpu_per_node,memory,display_order
+Fugaku,Fugaku,A64FX,1,48,-,-,32GB,1
+FugakuCN,FugakuCN,A64FX,1,48,-,-,32GB,2
+FugakuLN,FugakuLN,Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz,2,16,-,-,96GB,3
+MiyabiG,MiyabiG,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,4
+MiyabiC,MiyabiC,Intel Xeon Max 9480,2,112,-,-,128GB,5
+RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,6
+qc-h100,qc-h100,AMD EPYC 9534,2,64,NVIDIA H100,4,256GB,7

@@ -69,7 +69,7 @@ FugakuLN,native,small,1,1,1,0:10:00
 ```
 
 **パラメータ説明：**
-- `system`: 実行システム名（system.csvと対応）
+- `system`: 実行システム名（config/system.csvと対応）
 - `mode`: `cross`（ビルド→実行分離）または `native`（同時実行）
 - `queue_group`: キューグループ名
 - `nodes`: ノード数

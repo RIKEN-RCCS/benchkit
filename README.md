@@ -71,8 +71,9 @@ benchkit/
 │   ├── wait_for_nfs.sh       # NFS同期待機
 │   └── test_submit.sh        # テスト実行用
 ├── .gitlab-ci.yml            # メインCI定義
-├── system.csv                # 実行システム定義
-├── queue.csv                 # キューシステム定義
+├── config/
+│   ├── system.csv            # 実行システム定義
+│   └── queue.csv             # キューシステム定義
 └── README.md
 ```
 
@@ -171,7 +172,7 @@ python -m pytest tests/ -v
 ## CI パイプラインの構成
 
 ### 1. メインパイプライン
-- `programs/<code>/list.csv`, `system.csv`, `queue.csv` を読み込み
+- `programs/<code>/list.csv`, `config/system.csv`, `config/queue.csv` を読み込み
 - `scripts/matrix_generate.sh` により `.gitlab-ci.generated.yml` を自動生成
 - クロスコンパイル・ネイティブコンパイルの2モードに対応
 
@@ -203,7 +204,7 @@ python -m pytest tests/ -v
 
 ## 設定ファイル
 
-### `system.csv` - システム・ランナー定義
+### `config/system.csv` - システム・ランナー定義
 ```csv
 system,tag,roles,queue
 Fugaku,fugaku_login1,build,none
@@ -214,7 +215,7 @@ MiyabiC,miyabi_c_login,build,none
 MiyabiC,miyabi_c_jacamar,run,PBS_Miyabi
 ```
 
-### `queue.csv` - キューシステム定義
+### `config/queue.csv` - キューシステム定義
 ```csv
 queue,submit_cmd,template
 FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0004"

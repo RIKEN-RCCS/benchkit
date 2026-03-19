@@ -412,7 +412,7 @@ command_delay = "30s"
 
 ランナーが動作したら、BenchKit リポジトリに拠点情報を追加します。
 
-### `system.csv` にシステムを追加
+### `config/system.csv` にシステムを追加
 
 ```csv
 system,tag,roles,queue
@@ -424,9 +424,9 @@ NewSystem,newsystem_jacamar,run,PBS_NewSystem
 - `system`: システム名（アプリの `list.csv` から参照される）
 - `tag`: GitLab Runner のタグ名（登録時の `--tag-list` と一致させる）
 - `roles`: `build`（ビルド用）、`run`（実行用）、`build_run`（両方）
-- `queue`: `queue.csv` のキュー名（ログインノードは `none`）
+- `queue`: `config/queue.csv` のキュー名（ログインノードは `none`）
 
-### `queue.csv` にキューシステムを追加（必要な場合）
+### `config/queue.csv` にキューシステムを追加（必要な場合）
 
 既存のキューシステム（`FJ`, `PBS_Miyabi`, `SLURM_RC_GH200`）に該当しない場合は追加：
 

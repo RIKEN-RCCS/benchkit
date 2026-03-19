@@ -1,76 +1,61 @@
-# システム表示順序の定義
-SYSTEM_ORDER = ['Fugaku', 'FugakuCN', 'FugakuLN', 'MiyabiG', 'MiyabiC', 'RC_GH200', 'qc-h100']
+import csv
+import os
 
-# システム情報の統一定義
-SYSTEM_INFO = {
-    'Fugaku': {
-        'name': 'Fugaku',
-        'cpu_name': 'A64FX',
-        'cpu_per_node': 1,
-        'cpu_cores': 48,
-        'gpu_name': '-',
-        'gpu_per_node': '-',
-        'memory': '32GB'
-    },
-    'FugakuCN': {
-        'name': 'FugakuCN',
-        'cpu_name': 'A64FX',
-        'cpu_per_node': 1,
-        'cpu_cores': 48,
-        'gpu_name': '-',
-        'gpu_per_node': '-',
-        'memory': '32GB'
-    },
-    'FugakuLN': {
-        'name': 'FugakuLN',
-        'cpu_name': 'Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz',
-        'cpu_per_node': 2,
-        'cpu_cores': 16,
-        'gpu_name': '-',
-        'gpu_per_node': '-',
-        'memory': '96GB'
-    },
-    'qc-h100': {
-        'name': 'qc-h100',
-        'cpu_name': 'AMD EPYC 9534',
-        'cpu_per_node': 2,
-        'cpu_cores': 64,
-        'gpu_name': 'NVIDIA H100',
-        'gpu_per_node': 4,
-        'memory': '256GB'
-    },
-    'MiyabiG': {
-        'name': 'MiyabiG',
-        'cpu_name': 'NVIDIA Grace CPU',
-        'cpu_per_node': 1,
-        'cpu_cores': 72,
-        'gpu_name': 'NVIDIA Hopper H100 GPU',
-        'gpu_per_node': 1,
-        'memory': '120GB'
-    },
-    'MiyabiC': {
-        'name': 'MiyabiC',
-        'cpu_name': 'Intel Xeon Max 9480',
-        'cpu_per_node': 2,
-        'cpu_cores': 112,
-        'gpu_name': '-',
-        'gpu_per_node': '-',
-        'memory': '128GB'
-    },
-    'RC_GH200': {
-        'name': 'RC_GH200',
-        'cpu_name': 'NVIDIA Grace CPU',
-        'cpu_per_node': 1,
-        'cpu_cores': 72,
-        'gpu_name': 'NVIDIA Hopper H100 GPU',
-        'gpu_per_node': 1,
-        'memory': '120GB'
-    }
-}
+# system_info.csv のパス（リポジトリルートの config/ を想定）
+# 環境変数 SYSTEM_INFO_CSV で上書き可能
+_DEFAULT_CSV = os.path.join(
+    os.path.dirname(__file__), '..', '..', 'config', 'system_info.csv'
+)
+SYSTEM_INFO_CSV = os.environ.get('SYSTEM_INFO_CSV', _DEFAULT_CSV)
+
+
+def _load_csv():
+    """CSVファイルからシステム情報を読み込む"""
+    info = {}
+    order = []
+    path = os.path.normpath(SYSTEM_INFO_CSV)
+
+    if not os.path.exists(path):
+        return info, order
+
+    with open(path, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = []
+        for row in reader:
+            system = row['system'].strip()
+            rows.append((system, row))
+
+        # display_order でソート（数値変換、なければ末尾）
+        def sort_key(item):
+            try:
+                return int(item[1].get('display_order', '999'))
+            except (ValueError, TypeError):
+                return 999
+
+        rows.sort(key=sort_key)
+
+        for system, row in rows:
+            order.append(system)
+            info[system] = {
+                'name': row.get('name', system).strip(),
+                'cpu_name': row.get('cpu_name', '-').strip(),
+                'cpu_per_node': row.get('cpu_per_node', '-').strip(),
+                'cpu_cores': row.get('cpu_cores', '-').strip(),
+                'gpu_name': row.get('gpu_name', '-').strip(),
+                'gpu_per_node': row.get('gpu_per_node', '-').strip(),
+                'memory': row.get('memory', '-').strip(),
+            }
+
+    return info, order
+
+
+# モジュール読み込み時にCSVをロード
+_SYSTEM_INFO, _SYSTEM_ORDER = _load_csv()
+
 
 def get_system_info(system_name):
     """指定されたシステム名の情報を取得"""
-    return SYSTEM_INFO.get(system_name, {
+    return _SYSTEM_INFO.get(system_name, {
         'name': system_name,
         'cpu_name': 'Unknown System',
         'cpu_per_node': '-',
@@ -80,17 +65,14 @@ def get_system_info(system_name):
         'memory': '-'
     })
 
+
 def get_all_systems_info():
     """全システム情報を順序付きで取得"""
-    ordered_systems = {}
-    # 定義された順序で追加
-    for system_name in SYSTEM_ORDER:
-        if system_name in SYSTEM_INFO:
-            ordered_systems[system_name] = SYSTEM_INFO[system_name]
-    
+    ordered = {}
+    for name in _SYSTEM_ORDER:
+        ordered[name] = _SYSTEM_INFO[name]
     # 順序に含まれていないシステムも追加
-    for system_name, info in SYSTEM_INFO.items():
-        if system_name not in ordered_systems:
-            ordered_systems[system_name] = info
-    
-    return ordered_systems
+    for name, info in _SYSTEM_INFO.items():
+        if name not in ordered:
+            ordered[name] = info
+    return ordered
