@@ -540,3 +540,56 @@ environment = ["PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:..."]
 
 ### ARM/x86 混在環境での注意
 同じ共有ボリュームを異なるアーキテクチャのマシンがマウントしている場合、必ずアーキテクチャ別のディレクトリ（`_amd` / `_arm`）を使い分けてください。バイナリの混在はランタイムエラーの原因になります。
+
+### PBSジョブが実行されない（Jacamar-CI ジョブ監視の問題）
+
+**症状:**
+- ベンチマークジョブが実行されない
+- GitLab CIログで「NFS同期問題」として現れる
+- `wait_for_nfs.sh` がタイムアウト
+- `results` ディレクトリやJSONファイルが作成されない
+
+**根本原因:**
+Jacamar-CI のPBSジョブ状態監視ロジックが、カスタムPBS環境に対応していない場合があります。
+ジョブがQUEUED状態でも「completed」と誤判定され、実際にはジョブが実行されずに次のステップに進んでしまいます。
+
+> **Note**: 当初「NFS同期遅延」と思われていた問題が、実際にはJacamar-CIのバグだったという事例があります（Miyabi環境）。NFS待機時間を延長しても解決しない場合は、Jacamar-CIのジョブ監視を疑ってください。
+
+**診断方法:**
+```bash
+# qstat の JSON 出力が使えるか確認
+qstat -F json <job_id>
+
+# 通常形式の出力確認
+qstat -f <job_id>
+
+# ジョブ履歴の確認
+qstat -H -f <job_id>
+```
+
+**解決方法:**
+JSON形式の `qstat` がサポートされていない場合は、セクション4「サイト固有パッチについて」に記載の `tools.go` パッチを適用してください。
+
+### NFS同期でファイルが見えない
+
+**症状:**
+- 計算ノードで作成された `results/*.json` がログインノードから見えない
+- アーティファクト収集で「No files to upload」エラー
+
+**対策:**
+1. `custom-config.toml` の `nfs_timeout` を調整：
+```toml
+[batch]
+command_delay = "30s"
+nfs_timeout = "2m"    # 必要に応じて 5m, 10m に延長
+```
+2. ただし、NFS遅延が疑われる場合でも、まずJacamar-CIのジョブ監視が正常か確認すること（上記参照）
+
+### 新システム追加時のチェックリスト
+
+- [ ] PBSのバージョンとカスタマイズ内容を確認
+- [ ] `qstat` コマンドの出力形式を確認（JSON対応の有無）
+- [ ] ジョブIDの形式を確認（ホスト名付きかどうか）
+- [ ] Jacamar-CI でテストジョブを実行して動作確認
+- [ ] `config.toml` の `environment` で PATH が通っているか確認
+- [ ] `loginctl enable-linger` が設定されているか確認

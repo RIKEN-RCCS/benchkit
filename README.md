@@ -3,6 +3,7 @@
 BenchKit は、複数のアプリケーションを多拠点環境で継続的にベンチマーク実行し、その結果を収集・公開するための CI パイプラインフレームワークです。
 
 **📋 新しいアプリケーションの追加方法**: [ADD_APP.md](ADD_APP.md) を参照してください。
+**🏢 新しい拠点の追加方法**: [ADD_SITE.md](ADD_SITE.md) を参照してください。
 
 ---
 
@@ -73,7 +74,10 @@ benchkit/
 ├── .gitlab-ci.yml            # メインCI定義
 ├── config/
 │   ├── system.csv            # 実行システム定義
-│   └── queue.csv             # キューシステム定義
+│   ├── queue.csv             # キューシステム定義
+│   └── system_info.csv       # システムハードウェア情報
+├── ADD_APP.md                # アプリ追加手順（開発者向け）
+├── ADD_SITE.md               # 拠点追加手順（拠点管理者向け）
 └── README.md
 ```
 
