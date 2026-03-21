@@ -129,7 +129,7 @@ ${job_prefix}_run:
     emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE"
 
     if has_estimate_script "$program_path" && is_estimate_target "$system"; then
-      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "$program" "$OUTPUT_FILE"
+      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "${job_prefix}_run" "$program" "$OUTPUT_FILE"
       emit_send_estimate_job "$job_prefix" "${job_prefix}_estimate" "$OUTPUT_FILE"
     fi
 
@@ -177,7 +177,7 @@ ${job_prefix}_build_run:
     emit_send_results_job "$job_prefix" "${job_prefix}_build_run" "$OUTPUT_FILE"
 
     if has_estimate_script "$program_path" && is_estimate_target "$system"; then
-      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "$program" "$OUTPUT_FILE"
+      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "${job_prefix}_build_run" "$program" "$OUTPUT_FILE"
       emit_send_estimate_job "$job_prefix" "${job_prefix}_estimate" "$OUTPUT_FILE"
     fi
 

@@ -191,19 +191,21 @@ has_estimate_script() {
 
 # Emit estimate job YAML block
 # $1: job_prefix (e.g. qws_MiyabiG_N1_P4_T12)
-# $2: depends_on (send_results job name)
-# $3: code (program code name)
-# $4: output_file
+# $2: depends_on (send_results job name, for ordering)
+# $3: run_job_name (run/build_run job name, for artifacts)
+# $4: code (program code name)
+# $5: output_file
 emit_estimate_job() {
     local job_prefix="$1"
     local depends_on="$2"
-    local code="$3"
-    local output="$4"
+    local run_job="$3"
+    local code="$4"
+    local output="$5"
 
     echo "
 ${job_prefix}_estimate:
   stage: estimate
-  needs: [\"${depends_on}\"]
+  needs: [\"${depends_on}\", \"${run_job}\"]
   tags: [\"general\"]
   script:
     - echo \"Running estimation for ${code}\"
