@@ -159,3 +159,81 @@ emit_id_tokens_block() {
     CI_JOB_JWT:
       aud: https://gitlab.swc.r-ccs.riken.jp"
 }
+
+# ============================================================
+# Estimate-related constants and functions
+# ============================================================
+
+# Estimate target systems (comma-separated)
+ESTIMATE_SYSTEMS="MiyabiG,RC_GH200"
+
+# Check if a system is an estimate target
+# Returns 0 if the system is in ESTIMATE_SYSTEMS, 1 otherwise
+# Usage: is_estimate_target "MiyabiG" && echo "target"
+is_estimate_target() {
+    local system="$1"
+    IFS=',' read -ra EST_LIST <<< "$ESTIMATE_SYSTEMS"
+    for item in "${EST_LIST[@]}"; do
+        if [[ "$system" == "$item" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Check if a program directory has an estimate script
+# Returns 0 if $1/estimate.sh exists, 1 otherwise
+# Usage: has_estimate_script "programs/qws" && echo "has estimate"
+has_estimate_script() {
+    local program_dir="$1"
+    [[ -f "${program_dir}/estimate.sh" ]]
+}
+
+# Emit estimate job YAML block
+# $1: job_prefix (e.g. qws_MiyabiG_N1_P4_T12)
+# $2: depends_on (send_results job name)
+# $3: code (program code name)
+# $4: output_file
+emit_estimate_job() {
+    local job_prefix="$1"
+    local depends_on="$2"
+    local code="$3"
+    local output="$4"
+
+    echo "
+${job_prefix}_estimate:
+  stage: estimate
+  needs: [\"${depends_on}\"]
+  tags: [\"general\"]
+  script:
+    - echo \"Running estimation for ${code}\"
+    - bash scripts/run_estimate.sh ${code}
+  artifacts:
+    paths:
+      - results/
+    expire_in: 1 week
+
+" >> "$output"
+}
+
+# Emit send_estimate job YAML block
+# $1: job_prefix (e.g. qws_MiyabiG_N1_P4_T12)
+# $2: depends_on (estimate job name)
+# $3: output_file
+emit_send_estimate_job() {
+    local job_prefix="$1"
+    local depends_on="$2"
+    local output="$3"
+
+    echo "
+${job_prefix}_send_estimate:
+  stage: send_estimate
+  needs: [\"${depends_on}\"]
+  tags: [fncx-curl-jq]
+  environment:
+    name: \$CI_COMMIT_BRANCH
+  script:
+    - bash scripts/send_estimate.sh
+
+" >> "$output"
+}

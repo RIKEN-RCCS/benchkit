@@ -33,6 +33,8 @@ stages:
   - build
   - run
   - send_results
+  - estimate
+  - send_estimate
 " >> "$OUTPUT_FILE"
 
 
@@ -126,6 +128,11 @@ ${job_prefix}_run:
 
     emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE"
 
+    if has_estimate_script "$program_path" && is_estimate_target "$system"; then
+      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "$program" "$OUTPUT_FILE"
+      emit_send_estimate_job "$job_prefix" "${job_prefix}_estimate" "$OUTPUT_FILE"
+    fi
+
     elif [[ "$mode" == "native" ]]; then
       build_run_tag=$(awk -F, -v s="$system" '$1==s && $3=="build_run" {print $2}' "$SYSTEM_FILE")
 
@@ -168,6 +175,11 @@ ${job_prefix}_build_run:
 " >> "$OUTPUT_FILE"
 
     emit_send_results_job "$job_prefix" "${job_prefix}_build_run" "$OUTPUT_FILE"
+
+    if has_estimate_script "$program_path" && is_estimate_target "$system"; then
+      emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "$program" "$OUTPUT_FILE"
+      emit_send_estimate_job "$job_prefix" "${job_prefix}_estimate" "$OUTPUT_FILE"
+    fi
 
     else
       echo "Unknown mode: $mode"
