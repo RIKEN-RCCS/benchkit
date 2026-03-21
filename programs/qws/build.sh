@@ -22,8 +22,9 @@ case "$system" in
 	#gcc -v
 	;;
     RC_GH200)
-	echo "touch main (THIS IS a dummy executable to check CI jobs)"
-	touch main ############################# THIS IS a dummy executable to check CI jobs
+	module load system/qc-gh200 nvhpc-hpcx/25.9
+	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
+ 	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
 	;;
     RC_GENOA)
 	module load system/genoa  mpi/openmpi-x86_64

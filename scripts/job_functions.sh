@@ -206,7 +206,9 @@ emit_estimate_job() {
 ${job_prefix}_estimate:
   stage: estimate
   needs: [\"${depends_on}\", \"${run_job}\"]
-  tags: [\"general\"]
+  tags: [fncx-curl-jq]
+  environment:
+    name: \$CI_COMMIT_BRANCH
   script:
     - echo \"Running estimation for ${code}\"
     - bash scripts/run_estimate.sh ${code}
