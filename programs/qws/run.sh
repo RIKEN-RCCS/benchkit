@@ -102,7 +102,7 @@ case "$system" in
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamE node_count:$nodes confidential:TeamE>> ../results/result
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamF node_count:$nodes confidential:TeamF>> ../results/result
 	;;
-     MiyabiG|MiyabiC)
+     MiyabiG|MiyabiC|RC_DGXS|RC_GENOA)
 	echo "Executing MiyabiG/MiyabiC benchmark..." >> "$DEBUG_LOG"
 	echo "Running: mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50" >> "$DEBUG_LOG"
 	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0

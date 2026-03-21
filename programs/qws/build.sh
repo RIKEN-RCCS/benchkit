@@ -25,7 +25,7 @@ case "$system" in
 	echo "touch main (THIS IS a dummy executable to check CI jobs)"
 	touch main ############################# THIS IS a dummy executable to check CI jobs
 	;;
-    MiyabiG)
+    MiyabiG|RC_DGXS|RC_GENOA)
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
  	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
         ;;
