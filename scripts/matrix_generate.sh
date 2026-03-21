@@ -31,12 +31,16 @@ echo "# Auto-generated GitLab CI configuration" > "$OUTPUT_FILE"
 echo "
 stages:
   - build
+  - build_run
   - run
   - send_results
   - estimate
   - send_estimate
 " >> "$OUTPUT_FILE"
 
+
+# Track emitted build jobs to avoid duplicates (cross mode)
+declare -A BUILT_MAP
 
 for listfile in programs/*/list.csv; do
   program_dir=$(dirname "$listfile")
@@ -82,8 +86,12 @@ for listfile in programs/*/list.csv; do
         continue
       fi
       
-      echo "
-${job_prefix}_build:
+      build_key="${program}_${system}"
+
+      # Emit build job only once per code+system pair
+      if [[ -z "${BUILT_MAP[$build_key]+_}" ]]; then
+        echo "
+${build_key}_build:
   stage: build
   tags: [\"$build_tag\"]
   script:
@@ -93,7 +101,11 @@ ${job_prefix}_build:
     paths:
       - artifacts/
     expire_in: 1 week
+" >> "$OUTPUT_FILE"
+        BUILT_MAP[$build_key]=1
+      fi
 
+      echo "
 ${job_prefix}_run:
   stage: run
   id_tokens:
@@ -102,7 +114,7 @@ ${job_prefix}_run:
   tags: [\"$run_tag\"]
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
-  needs: [${job_prefix}_build]
+  needs: [${build_key}_build]
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
@@ -144,7 +156,8 @@ ${job_prefix}_run:
       
       echo "
 ${job_prefix}_build_run:
-  stage: build
+  stage: build_run
+  needs: []
   id_tokens:
     CI_JOB_JWT:
       aud: https://gitlab.swc.r-ccs.riken.jp
