@@ -94,7 +94,7 @@ case "$system" in
 	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
-	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
+	mpirun -n 1  --bind-to core --map-by ppr:1:node:PE=72  ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	./check.sh CASE0 data/CASE0
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
 	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
