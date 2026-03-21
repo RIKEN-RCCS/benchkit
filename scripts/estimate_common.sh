@@ -107,9 +107,14 @@ fetch_current_fom() {
   fi
 
   local response
+  local curl_exit
+  set +e
   response=$(curl -sf -H "X-API-Key: ${RESULT_SERVER_KEY}" "$url")
-  if [[ $? -ne 0 || -z "$response" ]]; then
-    echo "ERROR: Failed to fetch Fugaku result for code=${code}, exp=${exp}" >&2
+  curl_exit=$?
+  set -e
+  if [[ $curl_exit -ne 0 || -z "$response" ]]; then
+    echo "ERROR: Failed to fetch Fugaku result for code=${code}, exp=${exp} (curl exit=$curl_exit)" >&2
+    echo "ERROR: URL was: ${url}" >&2
     exit 1
   fi
 
