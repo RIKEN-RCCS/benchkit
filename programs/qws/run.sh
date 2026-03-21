@@ -102,7 +102,21 @@ case "$system" in
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamE node_count:$nodes confidential:TeamE>> ../results/result
 	echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamF node_count:$nodes confidential:TeamF>> ../results/result
 	;;
-     MiyabiG|MiyabiC|RC_DGXS|RC_GENOA)
+    RC_GENOA)
+	echo "Executing RC_GENOA benchmark..." >> "$DEBUG_LOG"
+	echo "Running: mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50" >> "$DEBUG_LOG"
+	module load system/genoa  mpi/openmpi-x86_64
+	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
+	echo "mpirun completed with exit code: $?" >> "$DEBUG_LOG"
+	echo "Running check.sh..." >> "$DEBUG_LOG"
+	./check.sh CASE0 data/CASE0
+	echo "check.sh completed with exit code: $?" >> "$DEBUG_LOG"
+	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
+	echo "Extracted FOM: $FOM" >> "$DEBUG_LOG"
+	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo "Result written to ../results/result" >> "$DEBUG_LOG"
+	;;
+     MiyabiG|MiyabiC)
 	echo "Executing MiyabiG/MiyabiC benchmark..." >> "$DEBUG_LOG"
 	echo "Running: mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50" >> "$DEBUG_LOG"
 	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
