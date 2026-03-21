@@ -18,14 +18,14 @@ est_benchmark_system="$est_system"
 est_benchmark_fom="$est_fom"
 est_benchmark_nodes="$est_node_count"
 
-# --- Dummy estimation model (scale-mock) ---
-# Current system: Fugaku — FOM scaled by 10x
+# --- Current system: Fugaku — fetch real FOM from result_server ---
 est_current_system="Fugaku"
-est_current_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 10}')
+CURRENT_EXP=""  # Set specific Exp here if needed (e.g. "default")
+fetch_current_fom "$est_code" "$CURRENT_EXP"
 est_current_nodes="$est_node_count"
-est_current_method="scale-mock"
+est_current_method="measured"
 
-# Future system: FugakuNEXT — FOM scaled by 2x
+# Future system: FugakuNEXT — FOM scaled by 2x (dummy)
 est_future_system="FugakuNEXT"
 est_future_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 2}')
 est_future_nodes="$est_node_count"

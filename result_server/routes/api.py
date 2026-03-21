@@ -12,8 +12,9 @@
   POST /upload-tgz  → ingest_padata
 """
 
-from flask import Blueprint, request, abort, current_app
+from flask import Blueprint, request, abort, current_app, jsonify
 import os
+import json
 import uuid
 import shutil
 from datetime import datetime
@@ -145,6 +146,55 @@ def ingest_padata():
         "file": os.path.basename(save_path),
         "replaced": bool(matched_files),
     }, 200
+
+
+# ==========================================
+# Query API: /api/query/*
+# ==========================================
+
+@api_bp.route("/api/query/result", methods=["GET"])
+def query_result():
+    """Search results by system, code, exp and return the latest match.
+
+    Query parameters:
+      system (required): e.g. Fugaku
+      code   (required): e.g. qws
+      exp    (optional): e.g. default
+
+    Returns the full JSON of the most recent matching result file.
+    """
+    require_api_key()
+
+    system = request.args.get("system")
+    code = request.args.get("code")
+    exp = request.args.get("exp")
+
+    if not system or not code:
+        abort(400, description="system and code are required")
+
+    received_dir = current_app.config["RECEIVED_DIR"]
+    json_files = sorted(
+        [f for f in os.listdir(received_dir) if f.endswith(".json")],
+        reverse=True,
+    )
+
+    for json_file in json_files:
+        try:
+            with open(os.path.join(received_dir, json_file), "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+
+        if data.get("system") != system:
+            continue
+        if data.get("code") != code:
+            continue
+        if exp is not None and data.get("Exp") != exp:
+            continue
+
+        return jsonify(data), 200
+
+    abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
 
 
 # ==========================================

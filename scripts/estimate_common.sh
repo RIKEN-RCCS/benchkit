@@ -78,6 +78,51 @@ performance_ratio() {
 }
 
 # ---------------------------------------------------------------------------
+# fetch_current_fom — Fetch Fugaku FOM from result_server API
+#
+# Arguments:
+#   $1  code (e.g. qws)
+#   $2  exp  (optional, e.g. default)
+#
+# Requires: RESULT_SERVER, RESULT_SERVER_KEY environment variables
+# Sets: est_current_fom (FOM value from Fugaku result)
+# Exits with 1 on failure.
+# ---------------------------------------------------------------------------
+fetch_current_fom() {
+  local code="$1"
+  local exp="${2:-}"
+
+  if [[ -z "${RESULT_SERVER:-}" ]]; then
+    echo "ERROR: RESULT_SERVER is not set" >&2
+    exit 1
+  fi
+  if [[ -z "${RESULT_SERVER_KEY:-}" ]]; then
+    echo "ERROR: RESULT_SERVER_KEY is not set" >&2
+    exit 1
+  fi
+
+  local url="${RESULT_SERVER}/api/query/result?system=Fugaku&code=${code}"
+  if [[ -n "$exp" ]]; then
+    url="${url}&exp=${exp}"
+  fi
+
+  local response
+  response=$(curl -sf -H "X-API-Key: ${RESULT_SERVER_KEY}" "$url")
+  if [[ $? -ne 0 || -z "$response" ]]; then
+    echo "ERROR: Failed to fetch Fugaku result for code=${code}, exp=${exp}" >&2
+    exit 1
+  fi
+
+  est_current_fom=$(echo "$response" | jq -r '.FOM')
+  if [[ -z "$est_current_fom" || "$est_current_fom" == "null" ]]; then
+    echo "ERROR: FOM not found in Fugaku result for code=${code}, exp=${exp}" >&2
+    exit 1
+  fi
+
+  echo "Fetched Fugaku FOM for ${code}: ${est_current_fom}"
+}
+
+# ---------------------------------------------------------------------------
 # print_json — Output an Estimate_JSON to stdout
 #
 # Reads all est_* global variables and produces a JSON document compatible

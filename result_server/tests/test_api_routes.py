@@ -275,6 +275,63 @@ class TestEstimatedPrefix:
 
 
 # ============================================================
+# /api/query/result
+# ============================================================
+
+class TestQueryResult:
+    def _seed_result(self, received_dir, data, filename="result_20250101_000000_aaaa.json"):
+        path = os.path.join(received_dir, filename)
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+    def test_query_returns_latest_match(self, client, tmp_dirs):
+        received, _ = tmp_dirs
+        old = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 1.0}
+        new = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 9.9}
+        self._seed_result(received, old, "result_20250101_000000_aaaa.json")
+        self._seed_result(received, new, "result_20250102_000000_bbbb.json")
+
+        resp = client.get(
+            "/api/query/result?system=Fugaku&code=qws",
+            headers={"X-API-Key": API_KEY},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["FOM"] == 9.9
+
+    def test_query_with_exp_filter(self, client, tmp_dirs):
+        received, _ = tmp_dirs
+        d1 = {"system": "Fugaku", "code": "qws", "Exp": "A", "FOM": 1.0}
+        d2 = {"system": "Fugaku", "code": "qws", "Exp": "B", "FOM": 2.0}
+        self._seed_result(received, d1, "result_20250101_000000_aaaa.json")
+        self._seed_result(received, d2, "result_20250102_000000_bbbb.json")
+
+        resp = client.get(
+            "/api/query/result?system=Fugaku&code=qws&exp=A",
+            headers={"X-API-Key": API_KEY},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["FOM"] == 1.0
+
+    def test_query_no_match_returns_404(self, client, tmp_dirs):
+        resp = client.get(
+            "/api/query/result?system=Fugaku&code=nonexistent",
+            headers={"X-API-Key": API_KEY},
+        )
+        assert resp.status_code == 404
+
+    def test_query_missing_params_returns_400(self, client):
+        resp = client.get(
+            "/api/query/result?system=Fugaku",
+            headers={"X-API-Key": API_KEY},
+        )
+        assert resp.status_code == 400
+
+    def test_query_missing_api_key_returns_401(self, client):
+        resp = client.get("/api/query/result?system=Fugaku&code=qws")
+        assert resp.status_code == 401
+
+
+# ============================================================
 # ヘルパー
 # ============================================================
 
