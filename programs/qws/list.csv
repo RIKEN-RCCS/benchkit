@@ -6,5 +6,5 @@ Fugaku,cross,small,1,4,12,0:10:00
 RC_GH200,native,dummy,1,1,72,0:10:00
 #RC_DGXS,native,dummy,1,1,20,0:10:00
 #RC_GENOA,native,dummy,1,1,96,0:10:00
-#MiyabiG,cross,debug-g,1,1,72,0:10:00
+MiyabiG,cross,debug-g,1,1,72,0:10:00
 #MiyabiC,cross,debug-c,1,1,112,0:10:00
