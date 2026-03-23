@@ -125,9 +125,9 @@ ${job_prefix}_run:
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
+    - bash scripts/record_timestamp.sh results/queue_submit
   script:
     - echo \"Starting job\"
-    - bash scripts/record_timestamp.sh results/queue_submit
     - ls -la $program_path/
     - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
@@ -140,8 +140,8 @@ ${job_prefix}_run:
     - ls -la results/
     - echo \"Results directory contents count\"
     - ls results/ | wc -l
-  after_script:
-    - bash scripts/wait_for_nfs.sh results
+  # after_script:
+  #   - bash scripts/wait_for_nfs.sh results
   artifacts:
     paths:
       - results/
@@ -178,9 +178,9 @@ ${job_prefix}_build_run:
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
+    - bash scripts/record_timestamp.sh results/queue_submit
   script:
     - echo \"Starting build and run\"
-    - bash scripts/record_timestamp.sh results/queue_submit
     - bash scripts/record_timestamp.sh results/build_start
     - bash $program_path/build.sh $system
     - bash scripts/record_timestamp.sh results/build_end
@@ -195,8 +195,8 @@ ${job_prefix}_build_run:
     - ls -la results/
     - echo \"Results directory contents count\"
     - ls results/ | wc -l
-  after_script:
-    - bash scripts/wait_for_nfs.sh results
+  # after_script:
+  #   - bash scripts/wait_for_nfs.sh results
   artifacts:
     paths:
       - results/
