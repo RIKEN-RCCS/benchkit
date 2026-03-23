@@ -53,8 +53,8 @@ if [[ -n "$raw_breakdown" ]]; then
   }')
 
   # Compute FOM from breakdown: Σsections.time - Σoverlaps.time
-  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '[.sections[].time] | add - ([.overlaps[].time] | add // 0)' | awk '{printf "%.3f", $1}')
-  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '[.sections[].time] | add - ([.overlaps[].time] | add // 0)' | awk '{printf "%.3f", $1}')
+  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '([.sections[].time] | add) - ([.overlaps[]?.time] | add // 0)' | awk '{printf "%.3f", $1}')
+  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '([.sections[].time] | add) - ([.overlaps[]?.time] | add // 0)' | awk '{printf "%.3f", $1}')
 else
   est_future_fom_breakdown=""
   est_current_fom_breakdown=""
