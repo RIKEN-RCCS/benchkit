@@ -157,6 +157,13 @@ def _build_row(json_file, data, tgz_files):
 
     execution_mode = data.get("execution_mode", "-") or "-"
     ci_trigger = data.get("ci_trigger", "-") or "-"
+    build_job = data.get("build_job", "-") or "-"
+    run_job = data.get("run_job", "-") or "-"
+    pipeline_id = data.get("pipeline_id", "-")
+    if pipeline_id is None:
+        pipeline_id = "-"
+    else:
+        pipeline_id = str(pipeline_id)
 
     row = {
         "timestamp": timestamp,
@@ -181,6 +188,9 @@ def _build_row(json_file, data, tgz_files):
         "run_time": run_time,
         "execution_mode": execution_mode,
         "ci_trigger": ci_trigger,
+        "build_job": build_job,
+        "run_job": run_job,
+        "pipeline_id": pipeline_id,
     }
     return row
 
@@ -249,9 +259,7 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("PA Data", "data_link"),
         ("Mode", "execution_mode"),
         ("Trigger", "ci_trigger"),
-        ("Build Time", "build_time"),
-        ("Queue Time", "queue_time"),
-        ("Run Time", "run_time"),
+        ("Pipeline", "pipeline_id"),
     ]
 
     has_filters = _has_active_filters(filter_system, filter_code, filter_exp)

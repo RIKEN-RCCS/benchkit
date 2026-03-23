@@ -36,6 +36,9 @@ stages:
   - send_results
   - estimate
   - send_estimate
+
+variables:
+  PARENT_PIPELINE_SOURCE: \"$CI_PIPELINE_SOURCE\"
 " >> "$OUTPUT_FILE"
 
 
@@ -132,7 +135,7 @@ ${job_prefix}_run:
     - echo \"Job completed\"
     - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system cross
+    - bash scripts/result.sh $program $system cross ${build_key}_build ${job_prefix}_run $CI_PIPELINE_ID
     - echo \"After result.sh execution\"
     - ls -la results/
     - echo \"Results directory contents count\"
@@ -187,7 +190,7 @@ ${job_prefix}_build_run:
     - echo \"Job completed\"
     - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system native
+    - bash scripts/result.sh $program $system native ${job_prefix}_build_run ${job_prefix}_build_run $CI_PIPELINE_ID
     - echo \"After result.sh execution\"
     - ls -la results/
     - echo \"Results directory contents count\"

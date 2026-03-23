@@ -17,6 +17,9 @@ cat results/result
 code=$1
 system=$2
 execution_mode=$3
+build_job=$4
+run_job=$5
+pipeline_id=$6
 node_count='how_many'
 numproc_node=""
 
@@ -26,9 +29,9 @@ write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
 
-  # Build pipeline_timing block if timing.env exists
+  # Build pipeline_timing block if timing.env exists (only for first result to avoid duplication)
   local timing_block=""
-  if [ -f results/timing.env ]; then
+  if [ "$idx" = "0" ] && [ -f results/timing.env ]; then
     source results/timing.env
     timing_block=",
   \"pipeline_timing\": {
@@ -45,10 +48,29 @@ write_result_json() {
   \"execution_mode\": \"$execution_mode\""
   fi
 
-  # Build ci_trigger block
-  local trigger_val="${CI_PIPELINE_SOURCE:-unknown}"
+  # Build ci_trigger block (use PARENT_PIPELINE_SOURCE from parent pipeline)
+  local trigger_val="${PARENT_PIPELINE_SOURCE:-${CI_PIPELINE_SOURCE:-unknown}}"
   local trigger_block=",
   \"ci_trigger\": \"$trigger_val\""
+
+  # Build job identifier blocks
+  local build_job_block=""
+  if [ -n "$build_job" ]; then
+    build_job_block=",
+  \"build_job\": \"$build_job\""
+  fi
+
+  local run_job_block=""
+  if [ -n "$run_job" ]; then
+    run_job_block=",
+  \"run_job\": \"$run_job\""
+  fi
+
+  local pipeline_id_block=""
+  if [ -n "$pipeline_id" ]; then
+    pipeline_id_block=",
+  \"pipeline_id\": $pipeline_id"
+  fi
 
   # Build fom_breakdown if sections exist
   if [ -n "$sections_json" ]; then
@@ -88,7 +110,7 @@ write_result_json() {
   "node_count": "$node_count",
   "numproc_node": "$numproc_node",
   "description": "$description",
-  "confidential": "$confidential"${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}
+  "confidential": "$confidential"${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
 }
 EOF
 

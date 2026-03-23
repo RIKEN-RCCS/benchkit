@@ -17,7 +17,7 @@
             </span>
         </th>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data", "Mode", "Trigger", "Build Time", "Queue Time", "Run Time"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -55,17 +55,9 @@
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">CI pipeline trigger source (schedule, push, web, etc.)</span>
                   </span>
-                {% elif col_name == "Build Time" %}
+                {% elif col_name == "Pipeline" %}
                   <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Build duration in seconds</span>
-                  </span>
-                {% elif col_name == "Queue Time" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Queue wait time in seconds before job execution</span>
-                  </span>
-                {% elif col_name == "Run Time" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Benchmark run duration in seconds</span>
+                    <span class="tooltiptext">GitLab CI pipeline ID</span>
                   </span>
                 {% else %}
                   {{ col_name }}
@@ -116,7 +108,7 @@
                             </span>
                         </span>
                     </td>
-                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes", "build_time", "queue_time", "run_time", "execution_mode", "ci_trigger"] %}
+                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes", "execution_mode", "ci_trigger", "pipeline_id"] %}
                     <td>{{ row[key] }}</td>
                 {% endif %}
             {% endfor %}

@@ -308,9 +308,7 @@ class TestLoadResultsTableExtension:
             ("PA Data", "data_link"),
             ("Mode", "execution_mode"),
             ("Trigger", "ci_trigger"),
-            ("Build Time", "build_time"),
-            ("Queue Time", "queue_time"),
-            ("Run Time", "run_time"),
+            ("Pipeline", "pipeline_id"),
         ]
         assert columns == expected_columns
 
@@ -354,6 +352,9 @@ class TestPipelineTimingFields:
             },
             "execution_mode": "cross",
             "ci_trigger": "schedule",
+            "build_job": "qws_Fugaku_build",
+            "run_job": "qws_Fugaku_N1_P4_T12_run",
+            "pipeline_id": 17026,
         }
         _write_json(tmp_dir, filename, data)
 
@@ -367,6 +368,9 @@ class TestPipelineTimingFields:
         assert row["run_time"] == "300"
         assert row["execution_mode"] == "cross"
         assert row["ci_trigger"] == "schedule"
+        assert row["build_job"] == "qws_Fugaku_build"
+        assert row["run_job"] == "qws_Fugaku_N1_P4_T12_run"
+        assert row["pipeline_id"] == "17026"
 
     def test_row_without_pipeline_timing_fields(self, flask_app, tmp_dir):
         """新フィールドなしの既存JSONでもエラーなく行データが構築され、フォールバック値が返る"""
@@ -385,6 +389,9 @@ class TestPipelineTimingFields:
         assert row["run_time"] == "-"
         assert row["execution_mode"] == "-"
         assert row["ci_trigger"] == "-"
+        assert row["build_job"] == "-"
+        assert row["run_job"] == "-"
+        assert row["pipeline_id"] == "-"
 
     def test_row_with_partial_pipeline_timing(self, flask_app, tmp_dir):
         """pipeline_timingの一部フィールドが欠損している場合のフォールバック"""
