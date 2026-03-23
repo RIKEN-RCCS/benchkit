@@ -144,6 +144,20 @@ def _build_row(json_file, data, tgz_files):
     metrics = data.get("metrics", {})
     has_vector = isinstance(metrics, dict) and "vector" in metrics
 
+    # pipeline_timing fields
+    pipeline_timing = data.get("pipeline_timing", None)
+    if isinstance(pipeline_timing, dict):
+        build_time = str(pipeline_timing.get("build_time", "-")) if "build_time" in pipeline_timing else "-"
+        queue_time = str(pipeline_timing.get("queue_time", "-")) if "queue_time" in pipeline_timing else "-"
+        run_time = str(pipeline_timing.get("run_time", "-")) if "run_time" in pipeline_timing else "-"
+    else:
+        build_time = "-"
+        queue_time = "-"
+        run_time = "-"
+
+    execution_mode = data.get("execution_mode", "-") or "-"
+    ci_trigger = data.get("ci_trigger", "-") or "-"
+
     row = {
         "timestamp": timestamp,
         "code": code,
@@ -162,6 +176,11 @@ def _build_row(json_file, data, tgz_files):
         "has_vector": has_vector,
         "detail_link": url_for("results.result_detail", filename=json_file) if has_vector else None,
         "filename": json_file,
+        "build_time": build_time,
+        "queue_time": queue_time,
+        "run_time": run_time,
+        "execution_mode": execution_mode,
+        "ci_trigger": ci_trigger,
     }
     return row
 
@@ -228,6 +247,11 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("CPU Core Count", "cpu_cores"),
         ("JSON", "json_link"),
         ("PA Data", "data_link"),
+        ("Mode", "execution_mode"),
+        ("Trigger", "ci_trigger"),
+        ("Build Time", "build_time"),
+        ("Queue Time", "queue_time"),
+        ("Run Time", "run_time"),
     ]
 
     has_filters = _has_active_filters(filter_system, filter_code, filter_exp)

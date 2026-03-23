@@ -95,11 +95,15 @@ ${build_key}_build:
   stage: build
   tags: [\"$build_tag\"]
   script:
+    - mkdir -p results
+    - bash scripts/record_timestamp.sh results/build_start
     - echo \"[BUILD] $program for $system\"
     - bash $program_path/build.sh $system
+    - bash scripts/record_timestamp.sh results/build_end
   artifacts:
     paths:
       - artifacts/
+      - results/
     expire_in: 1 week
 " >> "$OUTPUT_FILE"
         BUILT_MAP[$build_key]=1
@@ -120,11 +124,15 @@ ${job_prefix}_run:
     - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting job\"
+    - bash scripts/record_timestamp.sh results/queue_submit
     - ls -la $program_path/
+    - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
+    - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
+    - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system
+    - bash scripts/result.sh $program $system cross
     - echo \"After result.sh execution\"
     - ls -la results/
     - echo \"Results directory contents count\"
@@ -169,11 +177,17 @@ ${job_prefix}_build_run:
     - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting build and run\"
+    - bash scripts/record_timestamp.sh results/queue_submit
+    - bash scripts/record_timestamp.sh results/build_start
     - bash $program_path/build.sh $system
+    - bash scripts/record_timestamp.sh results/build_end
+    - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
+    - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
+    - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system
+    - bash scripts/result.sh $program $system native
     - echo \"After result.sh execution\"
     - ls -la results/
     - echo \"Results directory contents count\"

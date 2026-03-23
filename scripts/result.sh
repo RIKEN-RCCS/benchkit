@@ -16,6 +16,7 @@ cat results/result
 
 code=$1
 system=$2
+execution_mode=$3
 node_count='how_many'
 numproc_node=""
 
@@ -24,6 +25,30 @@ numproc_node=""
 write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
+
+  # Build pipeline_timing block if timing.env exists
+  local timing_block=""
+  if [ -f results/timing.env ]; then
+    source results/timing.env
+    timing_block=",
+  \"pipeline_timing\": {
+    \"build_time\": ${BUILD_TIME:-0},
+    \"queue_time\": ${QUEUE_TIME:-0},
+    \"run_time\": ${RUN_TIME:-0}
+  }"
+  fi
+
+  # Build execution_mode block
+  local mode_block=""
+  if [ -n "$execution_mode" ]; then
+    mode_block=",
+  \"execution_mode\": \"$execution_mode\""
+  fi
+
+  # Build ci_trigger block
+  local trigger_val="${CI_PIPELINE_SOURCE:-unknown}"
+  local trigger_block=",
+  \"ci_trigger\": \"$trigger_val\""
 
   # Build fom_breakdown if sections exist
   if [ -n "$sections_json" ]; then
@@ -63,7 +88,7 @@ write_result_json() {
   "node_count": "$node_count",
   "numproc_node": "$numproc_node",
   "description": "$description",
-  "confidential": "$confidential"${fom_breakdown_block}
+  "confidential": "$confidential"${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}
 }
 EOF
 

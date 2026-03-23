@@ -306,6 +306,11 @@ class TestLoadResultsTableExtension:
             ("CPU Core Count", "cpu_cores"),
             ("JSON", "json_link"),
             ("PA Data", "data_link"),
+            ("Mode", "execution_mode"),
+            ("Trigger", "ci_trigger"),
+            ("Build Time", "build_time"),
+            ("Queue Time", "queue_time"),
+            ("Run Time", "run_time"),
         ]
         assert columns == expected_columns
 
@@ -329,3 +334,92 @@ class TestLoadResultsTableExtension:
         assert row["exp"] == "myexp"
         assert row["fom"] == 99.9
         assert row["timestamp"] == "2025-01-01 12:00:00"
+
+
+# ============================================================
+# Pipeline Timing フィールドのテスト
+# ============================================================
+
+class TestPipelineTimingFields:
+    def test_row_with_pipeline_timing_fields(self, flask_app, tmp_dir):
+        """pipeline_timing, execution_mode, ci_trigger を含むJSONから正しく行データが構築される"""
+        uid = str(uuid.uuid4())
+        filename = f"result_20250301_100000_{uid}.json"
+        data = {
+            "code": "qws", "system": "Fugaku", "Exp": "test", "FOM": 42.0,
+            "pipeline_timing": {
+                "build_time": 120,
+                "queue_time": 45,
+                "run_time": 300,
+            },
+            "execution_mode": "cross",
+            "ci_trigger": "schedule",
+        }
+        _write_json(tmp_dir, filename, data)
+
+        with flask_app.test_request_context():
+            rows, columns, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["build_time"] == "120"
+        assert row["queue_time"] == "45"
+        assert row["run_time"] == "300"
+        assert row["execution_mode"] == "cross"
+        assert row["ci_trigger"] == "schedule"
+
+    def test_row_without_pipeline_timing_fields(self, flask_app, tmp_dir):
+        """新フィールドなしの既存JSONでもエラーなく行データが構築され、フォールバック値が返る"""
+        uid = str(uuid.uuid4())
+        filename = f"result_20250301_100000_{uid}.json"
+        data = {"code": "qws", "system": "Fugaku", "Exp": "test", "FOM": 42.0}
+        _write_json(tmp_dir, filename, data)
+
+        with flask_app.test_request_context():
+            rows, columns, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["build_time"] == "-"
+        assert row["queue_time"] == "-"
+        assert row["run_time"] == "-"
+        assert row["execution_mode"] == "-"
+        assert row["ci_trigger"] == "-"
+
+    def test_row_with_partial_pipeline_timing(self, flask_app, tmp_dir):
+        """pipeline_timingの一部フィールドが欠損している場合のフォールバック"""
+        uid = str(uuid.uuid4())
+        filename = f"result_20250301_100000_{uid}.json"
+        data = {
+            "code": "qws", "system": "Fugaku", "FOM": 1.0,
+            "pipeline_timing": {"build_time": 60},
+        }
+        _write_json(tmp_dir, filename, data)
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["build_time"] == "60"
+        assert row["queue_time"] == "-"
+        assert row["run_time"] == "-"
+
+    def test_row_with_invalid_pipeline_timing_type(self, flask_app, tmp_dir):
+        """pipeline_timingが不正な型（文字列等）の場合はフォールバック"""
+        uid = str(uuid.uuid4())
+        filename = f"result_20250301_100000_{uid}.json"
+        data = {
+            "code": "qws", "system": "Fugaku", "FOM": 1.0,
+            "pipeline_timing": "invalid",
+        }
+        _write_json(tmp_dir, filename, data)
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["build_time"] == "-"
+        assert row["queue_time"] == "-"
+        assert row["run_time"] == "-"
