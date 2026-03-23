@@ -77,20 +77,27 @@ read_values() {
   est_node_count=$(jq -r '.node_count' "$json_file")
   est_numproc_node=$(jq -r '.numproc_node // empty' "$json_file")
 
-  # Extract timestamp and uuid from filename (Result_JSON doesn't store these)
-  local basename
-  basename=$(basename "$json_file")
-  local ts_match
-  ts_match=$(echo "$basename" | grep -Eo '[0-9]{8}_[0-9]{6}' | head -n1 || true)
-  if [[ -n "$ts_match" ]]; then
-    # Convert YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS
-    est_timestamp="${ts_match:0:4}-${ts_match:4:2}-${ts_match:6:2} ${ts_match:9:2}:${ts_match:11:2}:${ts_match:13:2}"
-  else
-    est_timestamp=""
+  # Read server-assigned uuid and timestamp (written back by send_results.sh)
+  est_uuid=$(jq -r '._server_uuid // empty' "$json_file")
+  est_timestamp=$(jq -r '._server_timestamp // empty' "$json_file")
+
+  # Fallback: extract from filename if not in JSON
+  if [[ -z "$est_uuid" || -z "$est_timestamp" ]]; then
+    local basename
+    basename=$(basename "$json_file")
+    if [[ -z "$est_timestamp" ]]; then
+      local ts_match
+      ts_match=$(echo "$basename" | grep -Eo '[0-9]{8}_[0-9]{6}' | head -n1 || true)
+      if [[ -n "$ts_match" ]]; then
+        est_timestamp="${ts_match:0:4}-${ts_match:4:2}-${ts_match:6:2} ${ts_match:9:2}:${ts_match:11:2}:${ts_match:13:2}"
+      fi
+    fi
+    if [[ -z "$est_uuid" ]]; then
+      local uuid_match
+      uuid_match=$(echo "$basename" | grep -Eoi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n1 || true)
+      est_uuid="${uuid_match:-}"
+    fi
   fi
-  local uuid_match
-  uuid_match=$(echo "$basename" | grep -Eoi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n1 || true)
-  est_uuid="${uuid_match:-}"
 
   # FOM field is required
   local fom_raw

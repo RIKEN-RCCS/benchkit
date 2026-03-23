@@ -23,7 +23,7 @@ est_future_bench_uuid="$est_uuid"
 
 # --- Current system: Fugaku — fetch real FOM from result_server ---
 est_current_system="Fugaku"
-CURRENT_EXP=""  # Set specific Exp here if needed (e.g. "default")
+CURRENT_EXP="CASE0"  # Use CASE0 for Fugaku baseline
 fetch_current_fom "$est_code" "$CURRENT_EXP"
 # fetch_current_fom sets est_current_bench_* variables automatically
 est_current_target_nodes="$est_node_count"
@@ -51,6 +51,10 @@ if [[ -n "$raw_breakdown" ]]; then
     sections: [.sections[] | {name, bench_time: .time, scaling_method: "measured", time: .time}],
     overlaps: [.overlaps[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
   }')
+
+  # Compute FOM from breakdown: Σsections.time - Σoverlaps.time
+  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '[.sections[].time] | add - ([.overlaps[].time] | add // 0)' | awk '{printf "%.3f", $1}')
+  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '[.sections[].time] | add - ([.overlaps[].time] | add // 0)' | awk '{printf "%.3f", $1}')
 else
   est_future_fom_breakdown=""
   est_current_fom_breakdown=""
