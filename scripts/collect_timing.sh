@@ -20,12 +20,10 @@ if [ -f results/run_start ] && [ -f results/run_end ]; then
   RUN_TIME=$((re - rs))
 fi
 
-# Queue time = run_start - queue_submit
-if [ -f results/queue_submit ] && [ -f results/run_start ]; then
-  qs=$(cat results/queue_submit)
-  rs=$(cat results/run_start)
-  QUEUE_TIME=$((rs - qs))
-fi
+# Queue time: not measurable with current Jacamar/pjsub architecture
+# (before_script/script all run inside the batch job, so queue_submit
+#  is recorded after the job has already started)
+QUEUE_TIME=0
 
 echo "BUILD_TIME=$BUILD_TIME" > results/timing.env
 echo "QUEUE_TIME=$QUEUE_TIME" >> results/timing.env

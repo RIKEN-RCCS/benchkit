@@ -125,7 +125,6 @@ ${job_prefix}_run:
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
-    - bash scripts/record_timestamp.sh results/queue_submit
   script:
     - echo \"Starting job\"
     - ls -la $program_path/
@@ -178,7 +177,6 @@ ${job_prefix}_build_run:
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
-    - bash scripts/record_timestamp.sh results/queue_submit
   script:
     - echo \"Starting build and run\"
     - bash scripts/record_timestamp.sh results/build_start
