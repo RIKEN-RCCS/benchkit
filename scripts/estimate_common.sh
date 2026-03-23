@@ -76,8 +76,21 @@ read_values() {
   est_system=$(jq -r '.system' "$json_file")
   est_node_count=$(jq -r '.node_count' "$json_file")
   est_numproc_node=$(jq -r '.numproc_node // empty' "$json_file")
-  est_timestamp=$(jq -r '.timestamp // empty' "$json_file")
-  est_uuid=$(jq -r '.uuid // empty' "$json_file")
+
+  # Extract timestamp and uuid from filename (Result_JSON doesn't store these)
+  local basename
+  basename=$(basename "$json_file")
+  local ts_match
+  ts_match=$(echo "$basename" | grep -Eo '[0-9]{8}_[0-9]{6}' | head -n1 || true)
+  if [[ -n "$ts_match" ]]; then
+    # Convert YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS
+    est_timestamp="${ts_match:0:4}-${ts_match:4:2}-${ts_match:6:2} ${ts_match:9:2}:${ts_match:11:2}:${ts_match:13:2}"
+  else
+    est_timestamp=""
+  fi
+  local uuid_match
+  uuid_match=$(echo "$basename" | grep -Eoi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n1 || true)
+  est_uuid="${uuid_match:-}"
 
   # FOM field is required
   local fom_raw

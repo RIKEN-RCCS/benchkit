@@ -35,9 +35,26 @@ est_future_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 2}')
 est_future_target_nodes="$est_node_count"
 est_future_scaling_method="scale-mock"
 
-# --- fom_breakdown (pass through from benchmark result if available) ---
-est_current_fom_breakdown=""  # Fugaku benchmark may not have fom_breakdown
-est_future_fom_breakdown=$(jq -c '.fom_breakdown // empty' "$1")
+# --- fom_breakdown (extend with bench_time, scaling_method, time per section) ---
+# Read raw fom_breakdown from benchmark result
+raw_breakdown=$(jq -c '.fom_breakdown // empty' "$1")
+
+if [[ -n "$raw_breakdown" ]]; then
+  # Future system: scale each section/overlap time by 2x (dummy)
+  est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
+    sections: [.sections[] | {name, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}],
+    overlaps: [.overlaps[] | {sections, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}]
+  }')
+
+  # Current system: measured, so time == bench_time (no scaling)
+  est_current_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
+    sections: [.sections[] | {name, bench_time: .time, scaling_method: "measured", time: .time}],
+    overlaps: [.overlaps[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
+  }')
+else
+  est_future_fom_breakdown=""
+  est_current_fom_breakdown=""
+fi
 
 # --- Output ---
 mkdir -p results
