@@ -75,7 +75,9 @@ def create_app(prefix="", base_dir=None):
     app.config["USER_STORE"] = user_store
 
     # TOTP イシュアー名（認証アプリでの表示名）
-    app.config["TOTP_ISSUER"] = "BenchKit-Dev" if prefix == "/dev" else "BenchKit"
+    # 環境変数 TOTP_ISSUER で基本名を設定（未設定時は "BenchKit"）
+    base_issuer = os.environ.get("TOTP_ISSUER", "BenchKit")
+    app.config["TOTP_ISSUER"] = f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
 
     # make dir: received & estimated_results
     received_dir = os.path.join(base_dir, "received")

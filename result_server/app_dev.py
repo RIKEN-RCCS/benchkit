@@ -125,7 +125,7 @@ def create_dev_app(base_dir):
     # デフォルトのadminユーザーを登録
     stub_store.create_user("admin@localhost", "DEVDEVDEVDEVDEVDEV", ["dev", "admin"])
     app.config["USER_STORE"] = stub_store
-    app.config["TOTP_ISSUER"] = "BenchKit-Local"
+    app.config["TOTP_ISSUER"] = f"{os.environ.get('TOTP_ISSUER', 'BenchKit')}-Local"
 
     received_dir = os.path.join(base_dir, "main", "received")
     estimated_dir = os.path.join(base_dir, "main", "estimated_results")
