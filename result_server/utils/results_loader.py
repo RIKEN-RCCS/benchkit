@@ -12,7 +12,7 @@ DEFAULT_PER_PAGE = 100
 
 # フィールドマッピング定数
 RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
-ESTIMATED_FIELD_MAP = {"system": "benchmark_system", "code": "code", "exp": "exp"}
+ESTIMATED_FIELD_MAP = {"system": "current_system.system", "code": "code", "exp": "exp"}
 
 #--------------------------------------------------------------------------------------------------------------
 def load_json_with_confidential_filter(json_file, directory, affs=None, public_only=True, authenticated=False):
@@ -171,16 +171,34 @@ def _has_active_filters(filter_system, filter_code, filter_exp):
     return any(f is not None for f in (filter_system, filter_code, filter_exp))
 
 
+def _get_nested(data, field_path):
+    """ドット記法のフィールドパスでネストされた値を取得する。"""
+    keys = field_path.split(".")
+    val = data
+    for k in keys:
+        if isinstance(val, dict):
+            val = val.get(k)
+        else:
+            return None
+    return val
+
+
 def _matches_filters(data, filter_system, filter_code, filter_exp, field_map=None):
     """フィールドマッピングに基づいてフィルタ条件を判定する。"""
     if field_map is None:
         field_map = RESULT_FIELD_MAP
-    if filter_system is not None and data.get(field_map["system"]) != filter_system:
-        return False
-    if filter_code is not None and data.get(field_map["code"]) != filter_code:
-        return False
-    if filter_exp is not None and data.get(field_map["exp"]) != filter_exp:
-        return False
+    if filter_system is not None:
+        val = _get_nested(data, field_map["system"])
+        if val != filter_system:
+            return False
+    if filter_code is not None:
+        val = _get_nested(data, field_map["code"])
+        if val != filter_code:
+            return False
+    if filter_exp is not None:
+        val = _get_nested(data, field_map["exp"])
+        if val != filter_exp:
+            return False
     return True
 
 
@@ -300,17 +318,23 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
             "timestamp": timestamp,
             "code": data.get("code", ""),
             "exp": data.get("exp", ""),
-            "benchmark_system": data.get("benchmark_system", ""),
-            "benchmark_fom": data.get("benchmark_fom", ""),
-            "benchmark_nodes": data.get("benchmark_nodes", ""),
-            "systemA_fom": current.get("fom", ""),
+            # System A (current_system)
             "systemA_system": current.get("system", ""),
-            "systemA_nodes": current.get("nodes", ""),
-            "systemA_method": current.get("method", ""),
-            "systemB_fom": future.get("fom", ""),
+            "systemA_fom": current.get("fom", ""),
+            "systemA_target_nodes": current.get("target_nodes", ""),
+            "systemA_scaling_method": current.get("scaling_method", ""),
+            "systemA_bench_system": current.get("benchmark", {}).get("system", ""),
+            "systemA_bench_fom": current.get("benchmark", {}).get("fom", ""),
+            "systemA_bench_nodes": current.get("benchmark", {}).get("nodes", ""),
+            # System B (future_system)
             "systemB_system": future.get("system", ""),
-            "systemB_nodes": future.get("nodes", ""),
-            "systemB_method": future.get("method", ""),
+            "systemB_fom": future.get("fom", ""),
+            "systemB_target_nodes": future.get("target_nodes", ""),
+            "systemB_scaling_method": future.get("scaling_method", ""),
+            "systemB_bench_system": future.get("benchmark", {}).get("system", ""),
+            "systemB_bench_fom": future.get("benchmark", {}).get("fom", ""),
+            "systemB_bench_nodes": future.get("benchmark", {}).get("nodes", ""),
+            # Common
             "performance_ratio": data.get("performance_ratio", ""),
             "json_link": json_file,
         }
@@ -320,15 +344,23 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
         ("Timestamp", "timestamp"),
         ("CODE", "code"),
         ("Exp", "exp"),
-        ("Benchmark System", "benchmark_system"),
-        ("Benchmark FOM", "benchmark_fom"),
-        ("Benchmark Nodes", "benchmark_nodes"),
-        ("System A FOM", "systemA_fom"),
-        ("System A Nodes", "systemA_nodes"),
-        ("System A Method", "systemA_method"),
-        ("System B FOM", "systemB_fom"),
-        ("System B Nodes", "systemB_nodes"),
-        ("System B Method", "systemB_method"),
+        # System A (current_system)
+        ("A System", "systemA_system"),
+        ("A FOM", "systemA_fom"),
+        ("A Target Nodes", "systemA_target_nodes"),
+        ("A Scaling Method", "systemA_scaling_method"),
+        ("A Bench System", "systemA_bench_system"),
+        ("A Bench FOM", "systemA_bench_fom"),
+        ("A Bench Nodes", "systemA_bench_nodes"),
+        # System B (future_system)
+        ("B System", "systemB_system"),
+        ("B FOM", "systemB_fom"),
+        ("B Target Nodes", "systemB_target_nodes"),
+        ("B Scaling Method", "systemB_scaling_method"),
+        ("B Bench System", "systemB_bench_system"),
+        ("B Bench FOM", "systemB_bench_fom"),
+        ("B Bench Nodes", "systemB_bench_nodes"),
+        # Common
         ("Performance Ratio", "performance_ratio"),
         ("JSON", "json_link"),
     ]
@@ -372,15 +404,15 @@ def get_filter_options(directory, public_only=True, authenticated=False, affilia
         if data is None:
             continue
 
-        val = data.get(field_map["system"], "")
+        val = _get_nested(data, field_map["system"])
         if val and val != "N/A":
             systems.add(val)
 
-        val = data.get(field_map["code"], "")
+        val = _get_nested(data, field_map["code"])
         if val and val != "N/A":
             codes.add(val)
 
-        val = data.get(field_map["exp"], "")
+        val = _get_nested(data, field_map["exp"])
         if val and val != "N/A":
             exps.add(val)
 

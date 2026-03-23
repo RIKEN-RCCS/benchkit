@@ -17,22 +17,42 @@ est_exp=""
 est_fom=""
 est_system=""
 est_node_count=""
+est_numproc_node=""
+est_timestamp=""
+est_uuid=""
 
 # ---------------------------------------------------------------------------
 # Global variables — set by application-specific estimate scripts,
 # consumed by print_json
 # ---------------------------------------------------------------------------
-est_benchmark_system=""
-est_benchmark_fom=""
-est_benchmark_nodes=""
 est_current_system=""
 est_current_fom=""
-est_current_nodes=""
-est_current_method=""
+est_current_target_nodes=""
+est_current_scaling_method=""
 est_future_system=""
 est_future_fom=""
-est_future_nodes=""
-est_future_method=""
+est_future_target_nodes=""
+est_future_scaling_method=""
+
+# Benchmark sub-object variables for current_system
+est_current_bench_system=""
+est_current_bench_fom=""
+est_current_bench_nodes=""
+est_current_bench_numproc_node=""
+est_current_bench_timestamp=""
+est_current_bench_uuid=""
+
+# Benchmark sub-object variables for future_system
+est_future_bench_system=""
+est_future_bench_fom=""
+est_future_bench_nodes=""
+est_future_bench_numproc_node=""
+est_future_bench_timestamp=""
+est_future_bench_uuid=""
+
+# fom_breakdown JSON strings (optional, set by estimate scripts)
+est_current_fom_breakdown=""
+est_future_fom_breakdown=""
 
 # ---------------------------------------------------------------------------
 # read_values — Read benchmark Result_JSON into global variables
@@ -55,6 +75,9 @@ read_values() {
   est_exp=$(jq -r '.Exp' "$json_file")
   est_system=$(jq -r '.system' "$json_file")
   est_node_count=$(jq -r '.node_count' "$json_file")
+  est_numproc_node=$(jq -r '.numproc_node // empty' "$json_file")
+  est_timestamp=$(jq -r '.timestamp // empty' "$json_file")
+  est_uuid=$(jq -r '.uuid // empty' "$json_file")
 
   # FOM field is required
   local fom_raw
@@ -124,6 +147,14 @@ fetch_current_fom() {
     exit 1
   fi
 
+  # Populate benchmark sub-object variables for current_system
+  est_current_bench_system="Fugaku"
+  est_current_bench_fom="$est_current_fom"
+  est_current_bench_nodes=$(echo "$response" | jq -r '.node_count // empty')
+  est_current_bench_numproc_node=$(echo "$response" | jq -r '.numproc_node // empty')
+  est_current_bench_timestamp=$(echo "$response" | jq -r '._meta.timestamp // empty')
+  est_current_bench_uuid=$(echo "$response" | jq -r '._meta.uuid // empty')
+
   echo "Fetched Fugaku FOM for ${code}: ${est_current_fom}"
 }
 
@@ -137,24 +168,49 @@ print_json() {
   local ratio
   ratio=$(performance_ratio)
 
+  # Build fom_breakdown blocks conditionally
+  local current_breakdown_block=""
+  if [[ -n "$est_current_fom_breakdown" && "$est_current_fom_breakdown" != "null" ]]; then
+    current_breakdown_block=",
+      \"fom_breakdown\": $est_current_fom_breakdown"
+  fi
+  local future_breakdown_block=""
+  if [[ -n "$est_future_fom_breakdown" && "$est_future_fom_breakdown" != "null" ]]; then
+    future_breakdown_block=",
+      \"fom_breakdown\": $est_future_fom_breakdown"
+  fi
+
   cat <<EOF
 {
   "code": "$est_code",
   "exp": "$est_exp",
-  "benchmark_system": "$est_benchmark_system",
-  "benchmark_fom": $est_benchmark_fom,
-  "benchmark_nodes": "$est_benchmark_nodes",
   "current_system": {
     "system": "$est_current_system",
     "fom": $est_current_fom,
-    "nodes": "$est_current_nodes",
-    "method": "$est_current_method"
+    "target_nodes": "$est_current_target_nodes",
+    "scaling_method": "$est_current_scaling_method",
+    "benchmark": {
+      "system": "$est_current_bench_system",
+      "fom": $est_current_bench_fom,
+      "nodes": "$est_current_bench_nodes",
+      "numproc_node": "$est_current_bench_numproc_node",
+      "timestamp": "$est_current_bench_timestamp",
+      "uuid": "$est_current_bench_uuid"
+    }${current_breakdown_block}
   },
   "future_system": {
     "system": "$est_future_system",
     "fom": $est_future_fom,
-    "nodes": "$est_future_nodes",
-    "method": "$est_future_method"
+    "target_nodes": "$est_future_target_nodes",
+    "scaling_method": "$est_future_scaling_method",
+    "benchmark": {
+      "system": "$est_future_bench_system",
+      "fom": $est_future_bench_fom,
+      "nodes": "$est_future_bench_nodes",
+      "numproc_node": "$est_future_bench_numproc_node",
+      "timestamp": "$est_future_bench_timestamp",
+      "uuid": "$est_future_bench_uuid"
+    }${future_breakdown_block}
   },
   "performance_ratio": $ratio
 }

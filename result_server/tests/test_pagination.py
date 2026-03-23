@@ -368,7 +368,9 @@ class TestFilterOptions:
         """推定結果のフィルタオプション"""
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid}.json", {
-            "benchmark_system": "SysA", "code": "app-x", "exp": "exp1",
+            "code": "app-x", "exp": "exp1",
+            "current_system": {"system": "SysA", "fom": 1.0},
+            "future_system": {"system": "SysB", "fom": 2.0},
         })
         opts = get_filter_options(tmp_dir, public_only=True, field_map=ESTIMATED_FIELD_MAP)
         assert "SysA" in opts["systems"]
@@ -386,10 +388,16 @@ class TestEstimatedPagination:
             uid = str(uuid.uuid4())
             _write_json(tmp_dir, f"result_20250101_{i:06d}_{uid}.json", {
                 "code": "est-app", "exp": "exp1",
-                "benchmark_system": system, "benchmark_fom": float(i),
-                "benchmark_nodes": 1,
-                "current_system": {"fom": 1.0, "system": "A", "nodes": 1, "method": "m"},
-                "future_system": {"fom": 2.0, "system": "B", "nodes": 2, "method": "m"},
+                "current_system": {
+                    "system": system, "fom": 1.0,
+                    "target_nodes": "1", "scaling_method": "m",
+                    "benchmark": {"system": system, "fom": float(i), "nodes": "1"},
+                },
+                "future_system": {
+                    "system": "B", "fom": 2.0,
+                    "target_nodes": "2", "scaling_method": "m",
+                    "benchmark": {"system": "B", "fom": 2.0, "nodes": "2"},
+                },
                 "performance_ratio": 2.0,
             })
 

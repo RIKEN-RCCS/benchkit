@@ -13,23 +13,31 @@ source scripts/estimate_common.sh
 # --- Read benchmark result ---
 read_values "$1"
 
-# --- Benchmark values (pass through from the benchmark run) ---
-est_benchmark_system="$est_system"
-est_benchmark_fom="$est_fom"
-est_benchmark_nodes="$est_node_count"
+# --- Future system benchmark: pass through from the benchmark run ---
+est_future_bench_system="$est_system"
+est_future_bench_fom="$est_fom"
+est_future_bench_nodes="$est_node_count"
+est_future_bench_numproc_node="$est_numproc_node"
+est_future_bench_timestamp="$est_timestamp"
+est_future_bench_uuid="$est_uuid"
 
 # --- Current system: Fugaku — fetch real FOM from result_server ---
 est_current_system="Fugaku"
 CURRENT_EXP=""  # Set specific Exp here if needed (e.g. "default")
 fetch_current_fom "$est_code" "$CURRENT_EXP"
-est_current_nodes="$est_node_count"
-est_current_method="measured"
+# fetch_current_fom sets est_current_bench_* variables automatically
+est_current_target_nodes="$est_node_count"
+est_current_scaling_method="measured"
 
-# Future system: FugakuNEXT — FOM scaled by 2x (dummy)
+# --- Future system: FugakuNEXT — FOM scaled by 2x (dummy) ---
 est_future_system="FugakuNEXT"
 est_future_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 2}')
-est_future_nodes="$est_node_count"
-est_future_method="scale-mock"
+est_future_target_nodes="$est_node_count"
+est_future_scaling_method="scale-mock"
+
+# --- fom_breakdown (pass through from benchmark result if available) ---
+est_current_fom_breakdown=""  # Fugaku benchmark may not have fom_breakdown
+est_future_fom_breakdown=$(jq -c '.fom_breakdown // empty' "$1")
 
 # --- Output ---
 mkdir -p results

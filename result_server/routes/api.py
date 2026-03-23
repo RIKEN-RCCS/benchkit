@@ -15,6 +15,7 @@
 from flask import Blueprint, request, abort, current_app, jsonify
 import os
 import json
+import re
 import uuid
 import shutil
 from datetime import datetime
@@ -192,6 +193,23 @@ def query_result():
         if exp is not None and data.get("Exp") != exp:
             continue
 
+        # Add _meta with timestamp and uuid extracted from filename
+        ts_match = re.search(r"\d{8}_\d{6}", json_file)
+        meta_timestamp = None
+        if ts_match:
+            try:
+                ts = datetime.strptime(ts_match.group(), "%Y%m%d_%H%M%S")
+                meta_timestamp = ts.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+        uuid_match = re.search(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            json_file, re.IGNORECASE,
+        )
+        meta_uuid = uuid_match.group(0) if uuid_match else None
+
+        data["_meta"] = {"timestamp": meta_timestamp, "uuid": meta_uuid}
         return jsonify(data), 200
 
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")

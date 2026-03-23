@@ -56,19 +56,28 @@ case "$system" in
 		mpiexec -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 		./check.sh output.${PJM_JOBID}/0/1/stdout.1.0 data/CASE0
 		FOM=$(grep etime output.${PJM_JOBID}/0/1/stdout.1.0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 >> ../results/result
+		echo "SECTION:compute_kernel time:0.30" >> ../results/result
+		echo "SECTION:communication time:0.20" >> ../results/result
+		echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 		# CASE1
 		mpiexec -n 2 ./main 32 6 4 3   1 1 1 2    -1   -1  6 50 > CASE1
 		./check.sh output.${PJM_JOBID}/0/2/stdout.2.0 data/CASE1
 		FOM=$(grep etime output.${PJM_JOBID}/0/2/stdout.2.0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE1 node_count:$nodes >> ../results/result
+		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE1 node_count:$nodes numproc_node:2 >> ../results/result
+		echo "SECTION:compute_kernel time:0.30" >> ../results/result
+		echo "SECTION:communication time:0.20" >> ../results/result
+		echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 		;;
 	    2)
 		# CASE7
 		mpiexec -n 8 ./main 32 6 4 3   1 2 2 2    -1   -1  6 50 > CASE7
 		./check.sh output.${PJM_JOBID}/0/1/stdout.1.0 data/CASE7
 		FOM=$(grep etime output.${PJM_JOBID}/0/1/stdout.1.0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE7 node_count:$nodes >> ../results/result
+		echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE7 node_count:$nodes numproc_node:4 >> ../results/result
+		echo "SECTION:compute_kernel time:0.30" >> ../results/result
+		echo "SECTION:communication time:0.20" >> ../results/result
+		echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 		;;
 	    *)
 		echo "Unknown Running system: $system"
@@ -81,7 +90,10 @@ case "$system" in
 	./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	./check.sh CASE0 data/CASE0
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 >> ../results/result
+	echo "SECTION:compute_kernel time:0.30" >> ../results/result
+	echo "SECTION:communication time:0.20" >> ../results/result
+	echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 	
 	# (以下のpadata0.tgzはdummyです。)
 	mkdir -p pa
@@ -97,7 +109,10 @@ case "$system" in
 	mpirun -n 1  --bind-to core --map-by ppr:1:node:PE=72  ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	./check.sh CASE0 data/CASE0
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 >> ../results/result
+	echo "SECTION:compute_kernel time:0.30" >> ../results/result
+	echo "SECTION:communication time:0.20" >> ../results/result
+	echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 	#echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_null node_count:$nodes >> ../results/result
 	# with confidential key
 	#echo FOM:11.22 FOM_version:dummy_qc-gh200 Exp:confidential_TeamA node_count:$nodes confidential:TeamA>> ../results/result
@@ -112,7 +127,10 @@ case "$system" in
 	mpirun -n 1  --bind-to core --map-by ppr:1:node:PE=96 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	./check.sh CASE0 data/CASE0
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 >> ../results/result
+	echo "SECTION:compute_kernel time:0.30" >> ../results/result
+	echo "SECTION:communication time:0.20" >> ../results/result
+	echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 	;;
      MiyabiG|MiyabiC)
 	echo "Executing MiyabiG/MiyabiC benchmark..." >> "$DEBUG_LOG"
@@ -124,7 +142,10 @@ case "$system" in
 	echo "check.sh completed with exit code: $?" >> "$DEBUG_LOG"
 	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
 	echo "Extracted FOM: $FOM" >> "$DEBUG_LOG"
-	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes >> ../results/result
+	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 >> ../results/result
+	echo "SECTION:compute_kernel time:0.30" >> ../results/result
+	echo "SECTION:communication time:0.20" >> ../results/result
+	echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result
 	echo "Result written to ../results/result" >> "$DEBUG_LOG"
 	;;
     *)

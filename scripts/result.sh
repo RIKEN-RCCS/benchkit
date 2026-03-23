@@ -17,145 +17,173 @@ cat results/result
 code=$1
 system=$2
 node_count='how_many'
+numproc_node=""
 
+# Function to write a Result_JSON file for one FOM block
+# Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
+write_result_json() {
+  local idx="$1"
+  local fom_breakdown_block=""
 
+  # Build fom_breakdown if sections exist
+  if [ -n "$sections_json" ]; then
+    # Validate overlap section names
+    if [ -n "$overlaps_json" ]; then
+      local overlap_count
+      overlap_count=$(echo "$overlaps_json" | jq 'length')
+      for (( oi=0; oi<overlap_count; oi++ )); do
+        local overlap_sections
+        overlap_sections=$(echo "$overlaps_json" | jq -r ".[$oi].sections[]")
+        while IFS= read -r osec; do
+          if ! echo "$sections_json" | jq -e ".[] | select(.name == \"$osec\")" > /dev/null 2>&1; then
+            echo "ERROR: OVERLAP references undefined section: $osec" >&2
+          fi
+        done <<< "$overlap_sections"
+      done
+    fi
 
-# --- system information ---
-case "$system" in
-  Fugaku|FugakuCN)
-    cpu_name="A64FX"
-    gpu_name="-"
-    cpu_cores=48
-    cpus_per_node=1
-    gpus_per_node=0
-    ;;
-  *)
-    echo "Unknown $system"
-    gcc_version=$(gcc --version | head -n1 | sed 's/"/\\"/g')
-    cpu_name=$(grep -m1 "model name" /proc/cpuinfo | cut -d':' -f2 | sed 's/^ *//;s/"/\\"/g')
-    gpu_name=""
-    cpu_cores=$(nproc)
-    cpus_per_node=""
-    gpus_per_node=""
-    ;;
-esac
-
-uname_info=$(uname -a | sed 's/"/\\"/g')
-
-#echo $uname_info
-
-
-
-
-i=0
-
-while IFS= read -r line; do
-  # --- From results/result ---
-  if [[ "$line" != *FOM* ]]; then
-    continue
+    local overlaps_part="[]"
+    if [ -n "$overlaps_json" ]; then
+      overlaps_part="$overlaps_json"
+    fi
+    fom_breakdown_block=",
+  \"fom_breakdown\": {
+    \"sections\": ${sections_json},
+    \"overlaps\": ${overlaps_part}
+  }"
   fi
 
-
-  # FOM
-  fom=$(echo $line | grep -Eo 'FOM:[ ]*[0-9.]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-  if [ -z "$fom" ]; then
-    fom=null
-  fi
-
-  # node_count
-  node_count_line=$(echo $line | grep -Eo 'node_count:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-
-  if [ -n "$node_count_line" ]; then
-    node_count=${node_count_line}
-  fi
-
-  # cpus_per_node_line
-  cpus_per_node_line=$(echo $line | grep -Eo 'cpus_per_node:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-
-  if [ -n "$cpus_per_node_line" ]; then
-    cpus_per_node=${cpus_per_node_line}
-  fi
-
-  # total cores
-  cpus_cores_line=$(echo $line | grep -Eo 'cpus_cores:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-
-  if [ -n "$cpus_cores_line" ]; then
-    cpus_cores=${cpus_cores_line}
-  fi
-
-  # Exp
-  if echo "$line" | grep -q 'Exp:'; then
-      exp=$(echo "$line" | grep -Eo 'Exp:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-  else
-      exp=null
-  fi
-
-  # FOM version
-  if echo "$line" | grep -q 'FOM_version:'; then
-      echo $line
-      fom_version=$(echo "$line" | grep -Eo 'FOM_version:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-  else
-      fom_version=null
-  fi
-
-  # Description
-  if echo "$line" | grep -q 'description:'; then
-      description=$(echo "$line" | grep -Eo 'description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-  else
-      description=null
-  fi
-
-  
-  # Confidential
-  if echo "$line" | grep -q 'confidential:'; then
-      confidential=$(echo "$line" | grep -Eo 'confidential:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
-  else
-      confidential=null
-  fi
-
-  
-  # --- JSON ---
-  cat <<EOF > results/result${i}.json
+  cat <<EOF > results/result${idx}.json
 {
   "code": "$code",
   "system": "$system",
   "FOM": "$fom",
   "FOM_version": "$fom_version",
   "Exp": "$exp",
-  "cpu_name": "$cpu_name",
-  "gpu_name": "$gpu_name",
   "node_count": "$node_count",
-  "cpus_per_node": "$cpus_per_node",
-  "gpus_per_node": "$gpus_per_node",
-  "uname": "$uname_info",
-  "cpu_cores": "$cpu_cores",
+  "numproc_node": "$numproc_node",
   "description": "$description",
-  "confidential": "$confidential"
+  "confidential": "$confidential"${fom_breakdown_block}
 }
 EOF
 
   # Ensure file is completely written and synced
   sync
   sleep 2
-  
+
   # Verify file integrity locally
-  if [[ -s "results/result${i}.json" ]] && jq . "results/result${i}.json" >/dev/null 2>&1; then
-    echo "results/result${i}.json created and verified locally."
+  if [[ -s "results/result${idx}.json" ]] && jq . "results/result${idx}.json" >/dev/null 2>&1; then
+    echo "results/result${idx}.json created and verified locally."
   else
-    echo "WARNING: results/result${i}.json may be incomplete, retrying..."
+    echo "WARNING: results/result${idx}.json may be incomplete, retrying..."
     sleep 5
     sync
-    if [[ ! -s "results/result${i}.json" ]]; then
-      echo "ERROR: Failed to create valid results/result${i}.json"
+    if [[ ! -s "results/result${idx}.json" ]]; then
+      echo "ERROR: Failed to create valid results/result${idx}.json"
+    fi
+  fi
+}
+
+i=0
+in_fom_block=false
+fom=""
+fom_version="null"
+exp="null"
+description="null"
+confidential="null"
+sections_json=""
+overlaps_json=""
+
+while IFS= read -r line; do
+  if [[ "$line" == *FOM:* ]]; then
+    # If we were already in a FOM block, write the previous one
+    if [ "$in_fom_block" = true ]; then
+      write_result_json "$i"
+      i=$(expr $i + 1)
+    fi
+
+    in_fom_block=true
+    sections_json=""
+    overlaps_json=""
+
+    # Parse FOM line (existing logic)
+    fom=$(echo $line | grep -Eo 'FOM:[ ]*[0-9.]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    if [ -z "$fom" ]; then
+      fom=null
+    fi
+
+    node_count_line=$(echo $line | grep -Eo 'node_count:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    if [ -n "$node_count_line" ]; then
+      node_count=${node_count_line}
+    fi
+
+    numproc_node_line=$(echo $line | grep -Eo 'numproc_node:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    if [ -n "$numproc_node_line" ]; then
+      numproc_node=${numproc_node_line}
+    else
+      numproc_node=""
+    fi
+
+    if echo "$line" | grep -q 'Exp:'; then
+      exp=$(echo "$line" | grep -Eo 'Exp:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    else
+      exp=null
+    fi
+
+    if echo "$line" | grep -q 'FOM_version:'; then
+      echo $line
+      fom_version=$(echo "$line" | grep -Eo 'FOM_version:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    else
+      fom_version=null
+    fi
+
+    if echo "$line" | grep -q 'description:'; then
+      description=$(echo "$line" | grep -Eo 'description:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    else
+      description=null
+    fi
+
+    if echo "$line" | grep -q 'confidential:'; then
+      confidential=$(echo "$line" | grep -Eo 'confidential:[ ]*[a-zA-Z0-9_.-]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    else
+      confidential=null
+    fi
+
+  elif [[ "$line" == SECTION:* ]]; then
+    # Parse SECTION line: SECTION:name time:seconds
+    sec_name=$(echo "$line" | sed 's/^SECTION://' | awk '{print $1}')
+    sec_time=$(echo "$line" | grep -Eo 'time:[ ]*[0-9.]*' | awk -F':' '{print $2}' | sed 's/^ *//')
+
+    if [ -z "$sections_json" ]; then
+      sections_json="[{\"name\": \"${sec_name}\", \"time\": ${sec_time}}]"
+    else
+      sections_json=$(echo "$sections_json" | jq ". + [{\"name\": \"${sec_name}\", \"time\": ${sec_time}}]")
+    fi
+
+  elif [[ "$line" == OVERLAP:* ]]; then
+    # Parse OVERLAP line: OVERLAP:sectionA,sectionB time:seconds
+    ovl_sections_str=$(echo "$line" | sed 's/^OVERLAP://' | awk '{print $1}')
+    ovl_time=$(echo "$line" | grep -Eo 'time:[ ]*[0-9.]*' | awk -F':' '{print $2}' | sed 's/^ *//')
+
+    # Convert comma-separated section names to JSON array
+    ovl_sections_array=$(echo "$ovl_sections_str" | tr ',' '\n' | jq -R . | jq -s .)
+
+    ovl_entry="{\"sections\": ${ovl_sections_array}, \"time\": ${ovl_time}}"
+
+    if [ -z "$overlaps_json" ]; then
+      overlaps_json="[${ovl_entry}]"
+    else
+      overlaps_json=$(echo "$overlaps_json" | jq ". + [${ovl_entry}]")
     fi
   fi
 
-  # error at a64fx
-  #  "gcc_version": "$gcc_version",
-
-  i=$(expr $i + 1)
-
 done < results/result
+
+# Write the last FOM block
+if [ "$in_fom_block" = true ]; then
+  write_result_json "$i"
+  i=$(expr $i + 1)
+fi
 
 # Create completion marker after all JSON files are created
 echo "All result JSON files created at $(date)" > results/.complete
