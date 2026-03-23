@@ -11,13 +11,8 @@
 <table id="resultsTable">
     <thead>
     <tr>
-        <th style="width: 30px; text-align: center;">
-            <span class="tooltip">Compare
-                <span class="tooltiptext">Select results to compare using checkboxes</span>
-            </span>
-        </th>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -34,6 +29,14 @@
                 {% elif col_name == "Exp" %}
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Experimental conditions and parameter settings</span>
+                  </span>
+                {% elif col_name == "Proc/node" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Number of processes per node</span>
+                  </span>
+                {% elif col_name == "Thread/proc" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Number of threads per process</span>
                   </span>
                 {% elif col_name == "JSON" %}
                   <span class="tooltip tooltip-right">{{ col_name }}
@@ -64,6 +67,13 @@
                 {% endif %}
               </th>
            {% endif %}
+           {% if col_name == "FOM" %}
+           <th style="width: 30px; text-align: center;">
+               <span class="tooltip">Compare
+                   <span class="tooltiptext">Select results to compare using checkboxes</span>
+               </span>
+           </th>
+           {% endif %}
         {% endfor %}
         <th>
             <span class="tooltip tooltip-right">Detail
@@ -75,9 +85,6 @@
     <tbody>
     {% for row in rows %}
         <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
-            <td style="text-align: center;">
-                <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
-            </td>
             {% for _, key in columns %}
                 {% if key in ["json_link", "data_link"] %}
                     <td>
@@ -108,8 +115,13 @@
                             </span>
                         </span>
                     </td>
-                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes", "execution_mode", "ci_trigger", "pipeline_id"] %}
+                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes", "numproc_node", "nthreads", "execution_mode", "ci_trigger", "pipeline_id"] %}
                     <td>{{ row[key] }}</td>
+                {% endif %}
+                {% if key == "fom" %}
+                <td style="text-align: center;">
+                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
+                </td>
                 {% endif %}
             {% endfor %}
             <td>

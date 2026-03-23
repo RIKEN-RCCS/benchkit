@@ -22,6 +22,7 @@ run_job=$5
 pipeline_id=$6
 node_count='how_many'
 numproc_node=""
+nthreads=""
 
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
@@ -109,6 +110,7 @@ write_result_json() {
   "Exp": "$exp",
   "node_count": "$node_count",
   "numproc_node": "$numproc_node",
+  "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential"${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
 }
@@ -169,6 +171,13 @@ while IFS= read -r line; do
       numproc_node=${numproc_node_line}
     else
       numproc_node=""
+    fi
+
+    nthreads_line=$(echo $line | grep -Eo 'nthreads:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    if [ -n "$nthreads_line" ]; then
+      nthreads=${nthreads_line}
+    else
+      nthreads=""
     fi
 
     if echo "$line" | grep -q 'Exp:'; then

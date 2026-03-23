@@ -93,7 +93,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
             redirect_args["exp"] = filter_exp
         return redirect(url_for(redirect_endpoint, **redirect_args))
 
-    filter_options = get_filter_options(received_dir, **filter_kwargs)
+    filter_options = get_filter_options(received_dir, filter_code=filter_code, **filter_kwargs)
     systems_info = get_all_systems_info()
     return render_template(
         template_name,

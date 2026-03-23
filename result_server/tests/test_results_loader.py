@@ -47,7 +47,7 @@ _setup_stubs()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import Flask
-from utils.results_loader import load_single_result, load_multiple_results, load_results_table
+from utils.results_loader import load_single_result, load_multiple_results, load_results_table, get_filter_options
 
 
 # --- フィクスチャ ---
@@ -298,12 +298,9 @@ class TestLoadResultsTableExtension:
             ("FOM", "fom"),
             ("FOM version", "fom_version"),
             ("SYSTEM", "system"),
-            ("CPU Name", "cpu"),
-            ("GPU Name", "gpu"),
             ("Nodes", "nodes"),
-            ("CPU/node", "cpus"),
-            ("GPU/node", "gpus"),
-            ("CPU Core Count", "cpu_cores"),
+            ("Proc/node", "numproc_node"),
+            ("Thread/proc", "nthreads"),
             ("JSON", "json_link"),
             ("PA Data", "data_link"),
             ("Mode", "execution_mode"),
@@ -317,9 +314,8 @@ class TestLoadResultsTableExtension:
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
             "code": "mycode", "system": "mysys", "Exp": "myexp",
-            "FOM": 99.9, "FOM_version": "v1", "cpu_name": "ARM",
-            "gpu_name": "H100", "node_count": 4, "cpus_per_node": 48,
-            "gpus_per_node": 8, "cpu_cores": 48,
+            "FOM": 99.9, "FOM_version": "v1", "node_count": 4,
+            "numproc_node": "48", "nthreads": "12",
         })
 
         with flask_app.test_request_context():
@@ -332,6 +328,8 @@ class TestLoadResultsTableExtension:
         assert row["exp"] == "myexp"
         assert row["fom"] == 99.9
         assert row["timestamp"] == "2025-01-01 12:00:00"
+        assert row["numproc_node"] == "48"
+        assert row["nthreads"] == "12"
 
 
 # ============================================================
@@ -430,3 +428,47 @@ class TestPipelineTimingFields:
         assert row["build_time"] == "-"
         assert row["queue_time"] == "-"
         assert row["run_time"] == "-"
+
+
+# ============================================================
+# カスケードフィルタのテスト
+# ============================================================
+
+class TestCascadeFilter:
+    def test_filter_code_filters_exps(self, tmp_dir):
+        """filter_code指定時にそのCodeのExpのみ返される"""
+        uid1 = str(uuid.uuid4())
+        uid2 = str(uuid.uuid4())
+        _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
+                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+        _write_json(tmp_dir, f"result_20250101_000001_{uid2}.json",
+                     {"code": "genesis", "system": "Fugaku", "Exp": "CASE1"})
+
+        opts = get_filter_options(tmp_dir, filter_code="qws")
+        assert "CASE0" in opts["exps"]
+        assert "CASE1" not in opts["exps"]
+
+    def test_filter_code_none_returns_all_exps(self, tmp_dir):
+        """filter_code=Noneの場合は全Expが返される"""
+        uid1 = str(uuid.uuid4())
+        uid2 = str(uuid.uuid4())
+        _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
+                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+        _write_json(tmp_dir, f"result_20250101_000001_{uid2}.json",
+                     {"code": "genesis", "system": "Fugaku", "Exp": "CASE1"})
+
+        opts = get_filter_options(tmp_dir, filter_code=None)
+        assert "CASE0" in opts["exps"]
+        assert "CASE1" in opts["exps"]
+
+    def test_filter_code_nonexistent_returns_empty_exps(self, tmp_dir):
+        """存在しないCodeを指定した場合はExpsが空"""
+        uid1 = str(uuid.uuid4())
+        _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
+                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+
+        opts = get_filter_options(tmp_dir, filter_code="nonexistent")
+        assert opts["exps"] == []
+        # codes and systems should still be populated
+        assert "qws" in opts["codes"]
+        assert "Fugaku" in opts["systems"]

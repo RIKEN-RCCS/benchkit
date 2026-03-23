@@ -119,12 +119,15 @@ def _build_row(json_file, data, tgz_files):
     fom = data.get("FOM", "N/A")
     fom_version = data.get("FOM_version", "N/A")
     exp = data.get("Exp", "N/A")
-    cpu = data.get("cpu_name", "N/A")
-    gpu = data.get("gpu_name", "N/A")
     nodes = data.get("node_count", "N/A")
-    cpus = data.get("cpus_per_node", "N/A")
-    gpus = data.get("gpus_per_node", "N/A")
-    cpu_cores = data.get("cpu_cores", "N/A")
+
+    numproc_node = data.get("numproc_node", "N/A")
+    if numproc_node is None or numproc_node == "":
+        numproc_node = "N/A"
+
+    nthreads = data.get("nthreads", "N/A")
+    if nthreads is None or nthreads == "":
+        nthreads = "N/A"
 
     # get timestamp and uuid
     match = re.search(r"\d{8}_\d{6}", json_file)
@@ -172,12 +175,9 @@ def _build_row(json_file, data, tgz_files):
         "fom": fom,
         "fom_version": fom_version,
         "system": sys_name,
-        "cpu": cpu,
-        "gpu": gpu,
         "nodes": nodes,
-        "cpus": cpus,
-        "gpus": gpus,
-        "cpu_cores": cpu_cores,
+        "numproc_node": numproc_node,
+        "nthreads": nthreads,
         "json_link": url_for("results.show_result", filename=json_file),
         "data_link": url_for("results.show_result", filename=tgz_file) if tgz_file else None,
         "has_vector": has_vector,
@@ -249,12 +249,9 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("FOM", "fom"),
         ("FOM version", "fom_version"),
         ("SYSTEM", "system"),
-        ("CPU Name", "cpu"),
-        ("GPU Name", "gpu"),
         ("Nodes", "nodes"),
-        ("CPU/node", "cpus"),
-        ("GPU/node", "gpus"),
-        ("CPU Core Count", "cpu_cores"),
+        ("Proc/node", "numproc_node"),
+        ("Thread/proc", "nthreads"),
         ("JSON", "json_link"),
         ("PA Data", "data_link"),
         ("Mode", "execution_mode"),
@@ -402,7 +399,7 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
 
 
 def get_filter_options(directory, public_only=True, authenticated=False, affiliations=None,
-                       field_map=None):
+                       field_map=None, filter_code=None):
     """
     全JSONファイルからフィルタドロップダウンの選択肢を抽出して返す。
     field_map に基づいて systems/codes/exps のフィールド名を動的に参照する。
@@ -446,7 +443,8 @@ def get_filter_options(directory, public_only=True, authenticated=False, affilia
 
         val = _get_nested(data, field_map["exp"])
         if val and val != "N/A":
-            exps.add(val)
+            if not filter_code or _get_nested(data, field_map["code"]) == filter_code:
+                exps.add(val)
 
     return {
         "systems": sorted(systems),
