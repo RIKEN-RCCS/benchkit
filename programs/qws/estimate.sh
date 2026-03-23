@@ -43,18 +43,18 @@ if [[ -n "$raw_breakdown" ]]; then
   # Future system: scale each section/overlap time by 2x (dummy)
   est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
     sections: [.sections[] | {name, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}],
-    overlaps: [.overlaps[] | {sections, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}]
+    overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}]
   }')
 
   # Current system: measured, so time == bench_time (no scaling)
   est_current_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
     sections: [.sections[] | {name, bench_time: .time, scaling_method: "measured", time: .time}],
-    overlaps: [.overlaps[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
+    overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
   }')
 
   # Compute FOM from breakdown: Σsections.time - Σoverlaps.time
-  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '([.sections[].time] | add) - ([.overlaps[]?.time] | add // 0)' | awk '{printf "%.3f", $1}')
-  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '([.sections[].time] | add) - ([.overlaps[]?.time] | add // 0)' | awk '{printf "%.3f", $1}')
+  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
+  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
 else
   est_future_fom_breakdown=""
   est_current_fom_breakdown=""

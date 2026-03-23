@@ -223,7 +223,10 @@ sync
 ### 結果フォーマット
 `results/result` の各行は以下の形式：
 ```
-FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1
+FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1 numproc_node:4
+SECTION:compute_kernel time:0.30
+SECTION:communication time:0.20
+OVERLAP:compute_kernel,communication time:0.05
 ```
 
 **必須フィールド：**
@@ -231,6 +234,14 @@ FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1
 - `FOM_version:文字列` - バージョン情報
 - `Exp:文字列` - 実験名
 - `node_count:数値` - ノード数
+
+**推奨フィールド：**
+- `numproc_node:数値` - ノードあたりプロセス数
+
+**FOM内訳（オプション）：**
+FOM行の後に SECTION/OVERLAP 行を追加すると、FOMの内訳（`fom_breakdown`）として Result_JSON に格納されます。性能推定で区間ごとのスケーリングに使用されます。
+- `SECTION:区間名 time:秒` - 計算/通信区間の時間
+- `OVERLAP:区間A,区間B time:秒` - オーバーラップ時間（FOM = Σsections - Σoverlaps）
 
 **オプション：**
 - `confidential:TeamA` - 機密データ（チーム限定表示）
