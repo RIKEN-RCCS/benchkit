@@ -5,9 +5,20 @@
   cd result_server
   python create_admin.py <email> [--affiliations admin,groupA] [--redis-url redis://localhost:6379/0] [--prefix main:]
 
-例:
-  python create_admin.py admin@example.com
-  python create_admin.py admin@example.com --affiliations admin,riken
+例（本番 — prefix はデフォルト "main:" なので省略可、affiliations はデフォルト "admin" なので省略可）:
+  python create_admin.py admin@example.com --base-url https://server
+  python create_admin.py admin@example.com --affiliations admin,riken --base-url https://server
+
+例（dev — prefix を "dev:" に、base-url に /dev を付ける）:
+  python create_admin.py admin@example.com --prefix dev: --base-url https://server/dev
+
+Redis確認コマンド:
+  redis-cli KEYS "*"                                          # 全キー一覧
+  redis-cli SMEMBERS "main:users"                             # 本番ユーザー一覧
+  redis-cli SMEMBERS "dev:users"                              # devユーザー一覧
+  redis-cli GET "main:user:<email>:totp_secret"               # TOTP秘密鍵
+  redis-cli LRANGE "main:user:<email>:affiliations" 0 -1      # 所属（adminか確認）
+  redis-cli INFO keyspace                                     # DB統計
 """
 
 import argparse
