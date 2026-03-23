@@ -115,7 +115,9 @@
                             </span>
                         </span>
                     </td>
-                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "nodes", "numproc_node", "nthreads", "execution_mode", "ci_trigger", "pipeline_id"] %}
+                {% elif key in ["nodes", "numproc_node", "nthreads"] %}
+                    <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
+                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
                     <td>{{ row[key] }}</td>
                 {% endif %}
                 {% if key == "fom" %}
