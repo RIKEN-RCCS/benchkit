@@ -1,11 +1,10 @@
 <!-- templates/_results_table.html -->
-{% include "_filter_dropdowns.html" %}
-</div>
 
 {% include "_pagination.html" %}
 
 <table id="resultsTable">
     <thead>
+    <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
            {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
@@ -24,7 +23,7 @@
                   </span>
                 {% elif col_name == "Exp" %}
                   <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Experimental conditions and parameter settings</span>
+                    <span class="tooltiptext">Experimental conditions (filtered by CODE)</span>
                   </span>
                 {% elif col_name == "Proc/node" %}
                   <span class="tooltip">{{ col_name }}
@@ -64,18 +63,10 @@
               </th>
            {% endif %}
            {% if col_name == "FOM" %}
-           <th style="min-width: 120px; text-align: center; vertical-align: top;">
+           <th style="text-align: center;">
                <span class="tooltip">Compare
                    <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
                </span>
-               <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px; align-items: center;">
-                   <div style="display: flex; gap: 2px;">
-                       <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
-                       <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
-                   </div>
-                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
-                   <span id="compareHint" style="color: #888; font-size: 0.65em;">2+ to compare</span>
-               </div>
            </th>
            {% endif %}
         {% endfor %}
@@ -84,6 +75,54 @@
                 <span class="tooltiptext">Link to detail page for vector metrics</span>
             </span>
         </th>
+    </tr>
+    <!-- Row 2: Filters and compare controls -->
+    <tr style="background-color: #f9f9f9;">
+        {% for col_name, _ in columns %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
+              {% if col_name == "SYSTEM" %}
+              <th style="padding: 4px;">
+                  <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
+                      <option value="">All</option>
+                      {% for val in filter_options.systems %}
+                          <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif col_name == "CODE" %}
+              <th style="padding: 4px;">
+                  <select id="filterCode" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
+                      <option value="">All</option>
+                      {% for val in filter_options.codes %}
+                          <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif col_name == "Exp" %}
+              <th style="padding: 4px;">
+                  <select id="filterExp" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
+                      <option value="">All</option>
+                      {% for val in filter_options.exps %}
+                          <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% else %}
+              <th></th>
+              {% endif %}
+           {% endif %}
+           {% if col_name == "FOM" %}
+           <th style="text-align: center; padding: 4px;">
+               <div style="display: flex; gap: 2px; justify-content: center; align-items: center; flex-wrap: wrap;">
+                   <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
+                   <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
+                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
+               </div>
+               <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
+           </th>
+           {% endif %}
+        {% endfor %}
+        <th></th>
     </tr>
     </thead>
     <tbody>
@@ -163,7 +202,7 @@
             compareHint.textContent = checked.length + ' selected';
         } else {
             compareBtn.disabled = true;
-            compareHint.textContent = 'Select 2 or more to compare';
+            compareHint.textContent = '';
         }
     }
 

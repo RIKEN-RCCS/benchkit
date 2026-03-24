@@ -2,45 +2,65 @@
 <style>
 .nav-bar {
     display: flex;
-    align-items: center;
-    padding: 8px 16px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    margin-bottom: 20px;
+    align-items: stretch;
+    padding: 0 16px;
+    background-color: #e9ecef;
+    margin-bottom: 16px;
     font-size: 14px;
     position: relative;
+    border-bottom: 2px solid #dee2e6;
 }
-.nav-left { display: flex; align-items: center; gap: 4px; }
+.nav-left { display: flex; align-items: stretch; gap: 0; }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .nav-link {
     text-decoration: none;
     color: #007bff;
-    padding: 6px 10px;
-    border-radius: 3px;
+    padding: 10px 14px;
     white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
 }
-.nav-link:hover { background-color: #e9ecef; }
-.nav-dropdown { position: relative; display: inline-block; }
+.nav-link:hover { background-color: #dee2e6; }
+.nav-link.active {
+    background-color: #fff;
+    color: #333;
+    font-weight: bold;
+    border-bottom: 2px solid #fff;
+    border-left: 1px solid #dee2e6;
+    border-right: 1px solid #dee2e6;
+    border-top: 2px solid #007bff;
+}
+.nav-dropdown { position: relative; display: inline-flex; align-items: stretch; }
 .nav-dropdown-btn {
     text-decoration: none;
     color: #007bff;
-    padding: 6px 10px;
-    border-radius: 3px;
+    padding: 10px 14px;
     cursor: pointer;
     background: none;
     border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
     font-size: 14px;
     font-family: inherit;
     white-space: nowrap;
 }
-.nav-dropdown-btn:hover { background-color: #e9ecef; }
+.nav-dropdown-btn:hover { background-color: #dee2e6; }
+.nav-dropdown-btn.active {
+    background-color: #fff;
+    color: #333;
+    font-weight: bold;
+    border-bottom: 2px solid #fff;
+    border-left: 1px solid #dee2e6;
+    border-right: 1px solid #dee2e6;
+    border-top: 2px solid #007bff;
+}
 .nav-dropdown-menu {
     display: none;
     position: absolute;
     top: 100%;
     background: #fff;
     border: 1px solid #ddd;
-    border-radius: 4px;
+    border-radius: 0 0 4px 4px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     min-width: 220px;
     z-index: 1000;
@@ -57,16 +77,16 @@
 .nav-dropdown-menu a:hover { background-color: #f0f0f0; }
 .nav-dropdown-menu hr { margin: 4px 0; border: none; border-top: 1px solid #eee; }
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
-.nav-user-label { color: #555; padding: 6px 10px; white-space: nowrap; }
+.nav-user-label { color: #555; padding: 10px 14px; white-space: nowrap; }
 </style>
 
 <nav class="nav-bar">
     <div class="nav-left">
-        <a href="{{ url_for('systemlist') }}" class="nav-link">🖥️ Systems</a>
+        <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">🖥️ Systems</a>
 
         {% if session.get('authenticated') %}
         <div class="nav-dropdown">
-            <button class="nav-dropdown-btn">📊 Results ▾</button>
+            <button class="nav-dropdown-btn {% if request.endpoint in ['results.results', 'results.results_confidential', 'estimated.estimated_results'] %}active{% endif %}">📊 Results ▾</button>
             <div class="nav-dropdown-menu">
                 <a href="{{ url_for('results.results') }}">📊 Public Results</a>
                 <a href="{{ url_for('results.results_confidential') }}">🔒 All Results</a>
@@ -74,7 +94,7 @@
             </div>
         </div>
         {% else %}
-        <a href="{{ url_for('results.results') }}" class="nav-link">📊 Results</a>
+        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Results</a>
         {% endif %}
     </div>
 

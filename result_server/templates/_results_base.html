@@ -9,12 +9,12 @@
 
 {% include "_navigation.html" %}
 
-<h1>{% block heading %}Results{% endblock %}</h1>
-
 {% block auth_warning %}{% endblock %}
 
+<!-- keyword search disabled: filters cover all use cases
 <input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
 <br><br>
+-->
 
 {% block content %}{% endblock %}
 
