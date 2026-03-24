@@ -1,11 +1,16 @@
 <style>
+    /* ページ全体 */
+    body { margin: 0; padding: 0; box-sizing: border-box; overflow-x: hidden; }
+    *, *::before, *::after { box-sizing: inherit; }
+
     /* 共通テーブルスタイル */
-    table { border-collapse: collapse; width: 100%; table-layout: auto; }
-    th, td { border: 1px solid #ddd; padding: 4px 6px; font-size: 13px; }
-    th { background-color: #f2f2f2; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 3px 5px; font-size: 12px; }
+    th { background-color: #f2f2f2; overflow: visible; position: relative; }
+    td { white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
     tr:hover { background-color: #f5f5f5; }
-    .table-wrapper { width: 100%; overflow-x: auto; }
     .underline-link { text-decoration: underline; color: darkblue; cursor: pointer; }
+    .ts-cell { white-space: nowrap; font-size: 11px; }
 
     /* ツールチップスタイル */
     .tooltip {

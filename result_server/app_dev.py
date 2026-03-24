@@ -41,6 +41,11 @@ def _create_stub_totp_manager():
     mod.generate_totp_uri = lambda s, e, **kw: f"otpauth://totp/BenchKit:{e}?secret={s}"
     mod.generate_qr_base64 = lambda s, e, **kw: ""
     mod.verify_code = lambda s, c: True
+    mod.check_code_reuse = lambda *a, **kw: False
+    mod.check_rate_limit = lambda *a, **kw: False
+    mod.record_failed_attempt = lambda *a, **kw: 0
+    mod.clear_failed_attempts = lambda *a, **kw: None
+    mod.MAX_LOGIN_ATTEMPTS = 5
     return mod
 
 

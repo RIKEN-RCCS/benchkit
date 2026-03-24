@@ -2,7 +2,6 @@
 
 {% include "_pagination.html" %}
 
-<div class="table-wrapper">
 <table id="resultsTable">
     <thead>
     <!-- Row 1: Column names -->
@@ -141,7 +140,7 @@
                         {% endif %}
                     </td>
                 {% elif key == "system" %}
-                    <td>
+                    <td style="overflow: visible; position: relative;">
                         <span class="tooltip">{{ row[key] }}
                             <span class="tooltiptext">
                                 {% set sys_info = systems_info.get(row[key]) %}
@@ -161,8 +160,11 @@
                     </td>
                 {% elif key in ["nodes", "numproc_node", "nthreads"] %}
                     <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
-                {% elif key in ["timestamp", "code", "fom", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
-                    <td>{{ row[key] }}</td>
+                {% elif key == "timestamp" %}
+                    {% set ts_parts = row[key].split(' ') %}
+                    <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
+                {% elif key in ["code", "fom", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
+                    <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% endif %}
                 {% if key == "fom" %}
                 <td style="text-align: center;">
@@ -181,7 +183,6 @@
     {% endfor %}
     </tbody>
 </table>
-</div>
 
 {% include "_pagination.html" %}
 
