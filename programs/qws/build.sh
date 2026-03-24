@@ -18,6 +18,14 @@ case "$system" in
 	#fcc --version
 	;;
     FugakuLN)
+	# Private repository access check (CI connectivity test)
+	git clone --depth 1 --filter=blob:none --sparse https://${GHYN}@github.com/RIKEN-RCCS/FS_Benchmarks.git
+	ls FS_Benchmarks
+	cd FS_Benchmarks
+	git sparse-checkout set QWS
+	ls QWS
+	cd ..
+	# QWS build (dummy for LN)
 	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
 	#gcc -v
 	;;

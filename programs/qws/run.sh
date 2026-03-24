@@ -96,13 +96,15 @@ case "$system" in
 	esac
 	;;
     FugakuLN)
-	./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
-	./check.sh CASE0 data/CASE0
-	FOM=$(grep etime CASE0 | awk 'NR==2{printf("%5.3f\n",$5)}')
-	echo FOM:$FOM FOM_version:DDSolverJacobi Exp:CASE0 node_count:$nodes numproc_node:1 nthreads:$nthreads>> ../results/result
-	echo "SECTION:compute_kernel time:0.30" >> ../results/result
-	echo "SECTION:communication time:0.20" >> ../results/result
-	echo "OVERLAP:compute_kernel,communication time:0.05" >> ../results/result	
+	# Dummy FOM for CI private repo access check
+	echo 'dummy call for CI test: QWS program: ./main 32 6 4 3   1 1 1 1    -1   -1  6 50'
+	echo FOM:123.56 FOM_version:dummy Exp:CheckingPrivateRepo node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads>> ../results/result
+	mkdir -p pa
+	echo dummy > ./pa/padat.0
+	echo dummy > ./pa/padat.1
+	echo dummy > ./pa/padat.2
+	echo dummy > ./pa/padat.3
+	tar -czf ../results/padata0.tgz ./pa
 	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
