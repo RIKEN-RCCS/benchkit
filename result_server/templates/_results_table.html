@@ -1,9 +1,5 @@
 <!-- templates/_results_table.html -->
 {% include "_filter_dropdowns.html" %}
-    <button id="selectAllVisibleBtn" onclick="selectAllVisible()">Select All Visible</button>
-    <button id="deselectAllBtn" onclick="deselectAll()">Deselect All</button>
-    <button id="compareBtn" disabled onclick="navigateToCompare()">Compare</button>
-    <span id="compareHint" style="color: #888; font-size: 0.9em;">Select 2 or more to compare</span>
 </div>
 
 {% include "_pagination.html" %}
@@ -68,10 +64,18 @@
               </th>
            {% endif %}
            {% if col_name == "FOM" %}
-           <th style="width: 30px; text-align: center;">
+           <th style="min-width: 120px; text-align: center; vertical-align: top;">
                <span class="tooltip">Compare
-                   <span class="tooltiptext">Select results to compare using checkboxes</span>
+                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
                </span>
+               <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px; align-items: center;">
+                   <div style="display: flex; gap: 2px;">
+                       <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
+                       <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
+                   </div>
+                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
+                   <span id="compareHint" style="color: #888; font-size: 0.65em;">2+ to compare</span>
+               </div>
            </th>
            {% endif %}
         {% endfor %}
