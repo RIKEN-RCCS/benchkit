@@ -85,14 +85,9 @@
         <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">🖥️ Systems</a>
 
         {% if session.get('authenticated') %}
-        <div class="nav-dropdown">
-            <button class="nav-dropdown-btn {% if request.endpoint in ['results.results', 'results.results_confidential', 'estimated.estimated_results'] %}active{% endif %}">📊 Results ▾</button>
-            <div class="nav-dropdown-menu">
-                <a href="{{ url_for('results.results') }}">📊 Public Results</a>
-                <a href="{{ url_for('results.results_confidential') }}">🔒 All Results</a>
-                <a href="{{ url_for('estimated.estimated_results') }}">🔐 Estimated Results</a>
-            </div>
-        </div>
+        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Public</a>
+        <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">🔒 All Results</a>
+        <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">🔐 Estimated</a>
         {% else %}
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Results</a>
         {% endif %}
