@@ -51,31 +51,34 @@ benchkit/
 │   │   ├── auth_login.html           # ログインページ（Email + TOTP）
 │   │   ├── auth_setup.html           # TOTP初期登録（QRコード表示）
 │   │   ├── admin_users.html          # ユーザー管理画面
-│   │   ├── _navigation.html          # 共通ナビゲーション（ドロップダウン）
+│   │   ├── _navigation.html          # 共通ナビゲーション（タブ型、認証時タブ拡張）
 │   │   ├── _pagination.html          # ページネーションUI部品
-│   │   ├── _results_table.html       # 結果テーブル部品
-│   │   └── _table_base.html          # テーブル基盤テンプレート
+│   │   ├── _results_table.html       # 結果テーブル部品（フィルタ・比較UI内蔵）
+│   │   ├── _filter_dropdowns.html    # フィルタドロップダウン部品（推定結果用）
+│   │   └── _table_base.html          # テーブル基盤テンプレート（ツールチップ定義）
 │   ├── utils/
 │   │   ├── results_loader.py     # 結果ファイル読み込み・集約・ページネーション
 │   │   ├── result_file.py        # ファイルアクセス・権限管理
 │   │   ├── system_info.py        # システム情報管理
 │   │   ├── totp_manager.py       # TOTP認証（秘密鍵生成/QR/検証/レート制限）
 │   │   └── user_store.py         # Redisベースユーザーストア（CRUD/招待トークン）
-│   ├── tests/                    # テストスイート（95テスト）
+│   ├── tests/                    # テストスイート（102テスト）
 │   ├── app.py                    # 本番用アプリ（main + dev）
-│   ├── app_dev.py                # ローカル開発用（Redis/TOTP不要）
+│   ├── app_dev.py                # ローカル開発用（Redis/TOTP不要、スタブモジュール内蔵）
 │   └── create_admin.py           # 初期adminユーザー作成CLIツール
 ├── scripts/
 │   ├── matrix_generate.sh    # CI YAML生成スクリプト
 │   ├── job_functions.sh      # 共通関数定義
-│   ├── result.sh             # 結果JSON変換（SECTION/OVERLAP対応）
+│   ├── result.sh             # 結果JSON変換（SECTION/OVERLAP対応、pipeline_timing付加）
 │   ├── send_results.sh       # 結果転送（uuid/timestamp書き戻し）
+│   ├── record_timestamp.sh   # Unixエポックタイムスタンプ記録
+│   ├── collect_timing.sh     # パイプラインタイミング収集（build/queue/run時間）
 │   ├── estimate_common.sh    # 性能推定共通ライブラリ
 │   ├── run_estimate.sh       # 推定実行ラッパー
 │   ├── send_estimate.sh      # 推定結果転送
 │   ├── fetch_result_by_uuid.sh # UUID指定結果取得
 │   ├── generate_estimate_from_uuid.sh # UUID指定推定パイプライン生成
-│   ├── wait_for_nfs.sh       # NFS同期待機
+│   ├── wait_for_nfs.sh       # NFS同期待機（現在コメントアウト中）
 │   └── test_submit.sh        # テスト実行用
 ├── .gitlab-ci.yml            # メインCI定義
 ├── config/
@@ -136,7 +139,9 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 ### 結果表示機能
 
 - サーバーサイドページネーション: 表示件数選択（50/100/200件）、First/Previous/Next/Last ナビゲーション
-- サーバーサイドフィルタ: SYSTEM/CODE/Exp ドロップダウンによる絞り込み（フィルタ条件はページ遷移時に保持）
+- サーバーサイドフィルタ: SYSTEM/CODE/Exp ドロップダウンによる絞り込み（フィルタはテーブルヘッダ行に内蔵、Exp は CODE に連動、フィルタ条件はページ遷移時に保持）
+- 結果テーブル列: Timestamp, SYSTEM, CODE, FOM, Compare, FOM version, Exp, Nodes, Proc/node, Thread/proc, JSON, PA Data, Mode, Trigger, Pipeline, Detail
+- ナビゲーション: ブラウザタブ風のアクティブ表示、認証時はタブが拡張（Public/All Results/Estimated）
 - スカラー型メトリクス: テーブル形式で表示
 - ベクトル型メトリクス: Chart.js によるインタラクティブグラフ（メッセージサイズ vs バンド幅/レイテンシ等）
 - リグレッション比較: 複数結果を選択して差分をグラフ・テーブルで比較
@@ -150,7 +155,9 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - ログイン: メールアドレス + 6桁TOTPコード
 - セキュリティ: リプレイ攻撃防止（90秒窓）、ブルートフォース保護（5回失敗で5分ロック）
 - ユーザー情報・セッションはRedisに保存
-- 環境別issuer名: 本番 "BenchKit"、開発 "BenchKit-Dev"、ローカル "BenchKit-Local"
+- issuer名は環境変数 `TOTP_ISSUER` で設定（デフォルト: "BenchKit"）
+  - 本番: `TOTP_ISSUER=BenchKit`、開発: `TOTP_ISSUER=BenchKit-Dev`
+  - ローカル開発（app_dev.py）では自動的に `-Local` サフィックスが付加
 
 初期adminユーザーの作成:
 ```bash
@@ -195,7 +202,9 @@ python -m pytest tests/ -v
 | `native` | 1ジョブでビルド＋実行を同時実行 |
 
 - `build.sh`、`run.sh` にはシステム名を渡し、システム別の環境設定が可能
-- `scripts/result.sh` で結果をJSON形式に変換
+- `run.sh` は `$1`=system, `$2`=nodes, `$3`=numproc_node, `$4`=nthreads の4引数を受け取る
+- `record_timestamp.sh` でビルド・実行の開始/終了時刻を記録し、`collect_timing.sh` で `pipeline_timing`（build/queue/run時間）を集計
+- `scripts/result.sh` で結果をJSON形式に変換（`pipeline_timing` 情報を自動付加）
 - `scripts/send_results.sh` で結果サーバに転送・性能推定トリガー
 
 ### 3. 結果転送・保存

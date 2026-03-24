@@ -177,6 +177,9 @@ cp qws/qws_main_executable artifacts/
 set -e
 system="$1"
 nodes="$2"
+numproc_node="$3"
+nthreads="$4"
+export OMP_NUM_THREADS=$nthreads
 
 mkdir -p results && > results/result
 
@@ -194,20 +197,20 @@ case "$system" in
         mpiexec -n $((nodes * numproc_node)) ./main [args] > output
         # 結果解析
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes" >> ../results/result
+        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
         ;;
     FugakuLN)
         # ログインノードでのテスト実行
         export OMP_NUM_THREADS=12
         ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes" >> ../results/result
+        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
         ;;
     MiyabiG|MiyabiC)
         # MPI実行（Miyabi）
         mpirun -n $((nodes * numproc_node)) ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes" >> ../results/result
+        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
         ;;
     *)
         echo "Unknown system: $system"
@@ -223,7 +226,7 @@ sync
 ### 結果フォーマット
 `results/result` の各行は以下の形式：
 ```
-FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1 numproc_node:4
+FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1 numproc_node:4 nthreads:12
 SECTION:compute_kernel time:0.30
 SECTION:communication time:0.20
 OVERLAP:compute_kernel,communication time:0.05
@@ -237,11 +240,39 @@ OVERLAP:compute_kernel,communication time:0.05
 
 **推奨フィールド：**
 - `numproc_node:数値` - ノードあたりプロセス数
+- `nthreads:数値` - プロセスあたりスレッド数
 
 **FOM内訳（オプション）：**
 FOM行の後に SECTION/OVERLAP 行を追加すると、FOMの内訳（`fom_breakdown`）として Result_JSON に格納されます。性能推定で区間ごとのスケーリングに使用されます。
 - `SECTION:区間名 time:秒` - 計算/通信区間の時間
 - `OVERLAP:区間A,区間B time:秒` - オーバーラップ時間（FOM = Σsections - Σoverlaps）
+
+**推奨パターン: `print_results()` 関数の抽出**
+
+結果出力ロジックを関数に抽出すると、複数の実験条件で再利用しやすくなります（qwsの実装例）：
+
+```bash
+# print_results: check.sh実行後、FOMを抽出し結果行をstdoutに出力する共通関数
+# 引数: $1=出力ファイル, $2=Exp名, $3=numproc_node値
+# 使用例: print_results output_file CASE0 1 >> ../results/result
+print_results() {
+    local outfile=$1
+    local exp=$2
+    local np=$3
+    # 結果の検証
+    ./check.sh "$outfile" "data/$exp"
+    local fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
+    echo "FOM:$fom FOM_version:DDSolverJacobi Exp:$exp node_count:$nodes numproc_node:$np nthreads:$nthreads"
+    echo "SECTION:compute_kernel time:0.30"
+    echo "SECTION:communication time:0.20"
+    echo "OVERLAP:compute_kernel,communication time:0.05"
+}
+```
+
+関数はstdoutに出力し、呼び出し側でリダイレクトします：
+```bash
+print_results output_file CASE0 1 >> ../results/result
+```
 
 **オプション：**
 - `confidential:TeamA` - 機密データ（チーム限定表示）
