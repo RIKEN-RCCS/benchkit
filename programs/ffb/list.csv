@@ -1,0 +1,3 @@
+system,enable,nodes,numproc_node,nthreads,elapse
+FugakuCN,yes,4,4,12,0:30:00
+RC_GH200,yes,4,1,1,0:30:00
