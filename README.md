@@ -68,7 +68,8 @@ benchkit/
 │   └── create_admin.py           # 初期adminユーザー作成CLIツール
 ├── scripts/
 │   ├── matrix_generate.sh    # CI YAML生成スクリプト
-│   ├── job_functions.sh      # 共通関数定義
+│   ├── job_functions.sh      # 共通関数定義（CSVパース、System_CSV検索）
+│   ├── bk_functions.sh       # FOM/SECTION/OVERLAP出力標準化関数
 │   ├── result.sh             # 結果JSON変換（SECTION/OVERLAP対応、pipeline_timing付加）
 │   ├── send_results.sh       # 結果転送（uuid/timestamp書き戻し）
 │   ├── record_timestamp.sh   # Unixエポックタイムスタンプ記録
@@ -193,6 +194,8 @@ python -m pytest tests/ -v
 - `programs/<code>/list.csv`, `config/system.csv`, `config/queue.csv` を読み込み
 - `scripts/matrix_generate.sh` により `.gitlab-ci.generated.yml` を自動生成
 - クロスコンパイル・ネイティブコンパイルの2モードに対応
+- `list.csv` の `enable` カラムでジョブの有効/無効を制御
+- `mode`/`queue_group` は `config/system.csv` で一元管理
 
 ### 2. ベンチマーク実行パイプライン
 
@@ -203,6 +206,7 @@ python -m pytest tests/ -v
 
 - `build.sh`、`run.sh` にはシステム名を渡し、システム別の環境設定が可能
 - `run.sh` は `$1`=system, `$2`=nodes, `$3`=numproc_node, `$4`=nthreads の4引数を受け取る
+- `run.sh` は `scripts/bk_functions.sh` を `source` し、`bk_emit_result` / `bk_emit_section` / `bk_emit_overlap` で標準化された結果出力を行う
 - `record_timestamp.sh` でビルド・実行の開始/終了時刻を記録し、`collect_timing.sh` で `pipeline_timing`（build/queue/run時間）を集計
 - `scripts/result.sh` で結果をJSON形式に変換（`pipeline_timing` 情報を自動付加）
 - `scripts/send_results.sh` で結果サーバに転送・性能推定トリガー
@@ -234,13 +238,11 @@ python -m pytest tests/ -v
 
 ### `config/system.csv` - システム・ランナー定義
 ```csv
-system,tag,roles,queue
-Fugaku,fugaku_login1,build,none
-Fugaku,fugaku_jacamar,run,FJ
-MiyabiG,miyabi_g_login,build,none
-MiyabiG,miyabi_g_jacamar,run,PBS_Miyabi
-MiyabiC,miyabi_c_login,build,none
-MiyabiC,miyabi_c_jacamar,run,PBS_Miyabi
+system,mode,tag_build,tag_run,queue,queue_group
+Fugaku,cross,fugaku_login1,fugaku_jacamar,FJ,small
+FugakuLN,native,,fugaku_login1,none,small
+MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
+MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
 ```
 
 ### `config/queue.csv` - キューシステム定義
@@ -256,14 +258,16 @@ none,none,none
 同一システムで異なるノード数・プロセス数の組み合わせを複数定義可能：
 
 ```csv
-system,mode,queue_group,nodes,numproc_node,nthreads,elapse
+system,enable,nodes,numproc_node,nthreads,elapse
 # 同一システム（Fugaku）で異なる実行条件
-Fugaku,cross,small,1,4,12,0:10:00
-Fugaku,cross,small,2,4,12,0:20:00
-Fugaku,cross,small,4,4,12,0:30:00
+Fugaku,yes,1,4,12,0:10:00
+Fugaku,yes,2,4,12,0:20:00
+Fugaku,yes,4,4,12,0:30:00
+# 無効化された設定（enable=noでスキップ）
+FugakuCN,no,1,4,12,0:10:00
 # MiyabiG/MiyabiCでの実行例
-MiyabiG,cross,debug-g,1,1,72,0:10:00
-MiyabiC,cross,debug-c,1,1,112,0:10:00
+MiyabiG,yes,1,1,72,0:10:00
+MiyabiC,no,1,1,112,0:10:00
 ```
 
 

@@ -6,6 +6,8 @@ numproc_node="$3"
 nthreads="$4"
 export OMP_NUM_THREADS=$nthreads
 
+source "${PWD}/scripts/bk_functions.sh"
+
 # Debug output to log file
 DEBUG_LOG="../debug_run.log"
 echo "=== QWS Run Debug Log ===" > "$DEBUG_LOG"
@@ -27,11 +29,11 @@ print_results() {
 	# 結果の確認をする。
     ./check.sh "$outfile" "data/$exp"
     local fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
-    echo "FOM:$fom FOM_version:DDSolverJacobi Exp:$exp node_count:$nodes numproc_node:$np nthreads:$nthreads"
+    bk_emit_result --fom "$fom" --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
     # 以下は現状ダミーの値です。
-    echo "SECTION:compute_kernel time:0.30"
-    echo "SECTION:communication time:0.20"
-    echo "OVERLAP:compute_kernel,communication time:0.05"
+    bk_emit_section compute_kernel 0.30
+    bk_emit_section communication 0.20
+    bk_emit_overlap compute_kernel,communication 0.05
 }
 
 # results/result の各行は 1 つのベンチマークに対応しています。
@@ -99,7 +101,7 @@ case "$system" in
     FugakuLN)
 	# Dummy FOM for CI private repo access check
 	echo 'dummy call for CI test: QWS program: ./main 32 6 4 3   1 1 1 1    -1   -1  6 50'
-	echo FOM:123.56 FOM_version:dummy Exp:CheckingPrivateRepo node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads>> ../results/result
+	bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
 	mkdir -p pa
 	echo dummy > ./pa/padat.0
 	echo dummy > ./pa/padat.1

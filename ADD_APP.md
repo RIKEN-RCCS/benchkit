@@ -57,25 +57,26 @@ cd programs/<code>
 同一システムで異なるノード数・プロセス数の組み合わせを定義可能：
 
 ```csv
-system,mode,queue_group,nodes,numproc_node,nthreads,elapse
+system,enable,nodes,numproc_node,nthreads,elapse
 # Fugaku での複数設定例
-Fugaku,cross,small,1,4,12,0:10:00
-Fugaku,cross,small,2,4,12,0:20:00
+Fugaku,yes,1,4,12,0:10:00
+Fugaku,yes,2,4,12,0:20:00
 # MiyabiG/MiyabiC での設定例
-MiyabiG,cross,debug-g,1,1,72,0:10:00
-MiyabiC,cross,debug-c,1,1,112,0:10:00
+MiyabiG,yes,1,1,72,0:10:00
+MiyabiC,no,1,1,112,0:10:00
 # ログインノードでのテスト用
-FugakuLN,native,small,1,1,1,0:10:00
+FugakuLN,yes,1,1,1,0:10:00
 ```
 
 **パラメータ説明：**
 - `system`: 実行システム名（config/system.csvと対応）
-- `mode`: `cross`（ビルド→実行分離）または `native`（同時実行）
-- `queue_group`: キューグループ名
+- `enable`: ジョブの有効/無効（`yes` または `no`）
 - `nodes`: ノード数
 - `numproc_node`: ノードあたりプロセス数
 - `nthreads`: スレッド数
 - `elapse`: 実行時間制限
+
+> **Note**: `mode` と `queue_group` は `config/system.csv` で一元管理されるため、list.csv には含めません。ジョブを無効化するには `enable=no` を設定します（`#` コメントアウトは使用しません）。
 
 ---
 
@@ -181,6 +182,8 @@ numproc_node="$3"
 nthreads="$4"
 export OMP_NUM_THREADS=$nthreads
 
+source "${PWD}/scripts/bk_functions.sh"
+
 mkdir -p results && > results/result
 
 # ソースコード取得（既存ならスキップ）
@@ -197,20 +200,23 @@ case "$system" in
         mpiexec -n $((nodes * numproc_node)) ./main [args] > output
         # 結果解析
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
+            --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
     FugakuLN)
         # ログインノードでのテスト実行
         export OMP_NUM_THREADS=12
         ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
+            --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
     MiyabiG|MiyabiC)
         # MPI実行（Miyabi）
         mpirun -n $((nodes * numproc_node)) ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
-        echo "FOM:$FOM FOM_version:v1.0 Exp:test node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
+            --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
     *)
         echo "Unknown system: $system"
@@ -232,50 +238,33 @@ SECTION:communication time:0.20
 OVERLAP:compute_kernel,communication time:0.05
 ```
 
-**必須フィールド：**
-- `FOM:数値` - 性能指標（必須）
-- `FOM_version:文字列` - バージョン情報
-- `Exp:文字列` - 実験名
-- `node_count:数値` - ノード数
+**`bk_functions.sh` の利用（推奨）：**
 
-**推奨フィールド：**
-- `numproc_node:数値` - ノードあたりプロセス数
-- `nthreads:数値` - プロセスあたりスレッド数
-
-**FOM内訳（オプション）：**
-FOM行の後に SECTION/OVERLAP 行を追加すると、FOMの内訳（`fom_breakdown`）として Result_JSON に格納されます。性能推定で区間ごとのスケーリングに使用されます。
-- `SECTION:区間名 time:秒` - 計算/通信区間の時間
-- `OVERLAP:区間A,区間B time:秒` - オーバーラップ時間（FOM = Σsections - Σoverlaps）
-
-**推奨パターン: `print_results()` 関数の抽出**
-
-結果出力ロジックを関数に抽出すると、複数の実験条件で再利用しやすくなります（qwsの実装例）：
+`scripts/bk_functions.sh` を `source` して、標準化された出力関数を使用してください：
 
 ```bash
-# print_results: check.sh実行後、FOMを抽出し結果行をstdoutに出力する共通関数
-# 引数: $1=出力ファイル, $2=Exp名, $3=numproc_node値
-# 使用例: print_results output_file CASE0 1 >> ../results/result
-print_results() {
-    local outfile=$1
-    local exp=$2
-    local np=$3
-    # 結果の検証
-    ./check.sh "$outfile" "data/$exp"
-    local fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
-    echo "FOM:$fom FOM_version:DDSolverJacobi Exp:$exp node_count:$nodes numproc_node:$np nthreads:$nthreads"
-    echo "SECTION:compute_kernel time:0.30"
-    echo "SECTION:communication time:0.20"
-    echo "OVERLAP:compute_kernel,communication time:0.05"
-}
+source "${PWD}/scripts/bk_functions.sh"
+
+# FOM出力
+bk_emit_result --fom 5.752 --fom-version DDSolverJacobi --exp CASE0 \
+    --nodes 1 --numproc-node 4 --nthreads 12 >> results/result
+
+# FOM内訳（オプション）
+bk_emit_section compute_kernel 0.30 >> results/result
+bk_emit_section communication 0.20 >> results/result
+bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 ```
 
-関数はstdoutに出力し、呼び出し側でリダイレクトします：
-```bash
-print_results output_file CASE0 1 >> ../results/result
-```
+**bk_emit_result の引数：**
+- `--fom 数値` - 性能指標（必須）
+- `--fom-version 文字列` - バージョン情報
+- `--exp 文字列` - 実験名
+- `--nodes 数値` - ノード数
+- `--numproc-node 数値` - ノードあたりプロセス数
+- `--nthreads 数値` - プロセスあたりスレッド数
+- `--confidential 文字列` - 機密データ（チーム限定表示）
 
-**オプション：**
-- `confidential:TeamA` - 機密データ（チーム限定表示）
+省略された引数は出力に含まれません。`--fom` のみが必須です。
 
 ### Performance Analysis データ
 詳細データは `results/padata[0-9].tgz` として保存：
@@ -329,14 +318,13 @@ bash scripts/test_submit.sh <code> 1
 ```bash
 $ bash scripts/test_submit.sh qws 1
 Selected configuration from programs/qws/list.csv (line 1):
-  MiyabiG,cross,debug-g,1,1,72,0:10:00
+  Fugaku,yes,1,4,12,0:10:00
 
 Parsed values:
-  system=MiyabiG, mode=cross, queue_group=debug-g
-  nodes=1, numproc_node=1, nthreads=72, elapse=0:10:00
+  system=Fugaku, enable=yes, mode=cross (from system.csv), queue_group=small (from system.csv)
+  nodes=1, numproc_node=4, nthreads=12, elapse=0:10:00
 
-qsub -q debug-g -l select=1:ompthreads=72 -l walltime=0:10:00 -W group_list=gq49 script.sh
-1258470.opbs
+pjsub -L rscunit=rscunit_ft01,rscgrp=small,node=1,elapse=0:10:00 ...
 ```
 
 ### エラー対処
@@ -349,9 +337,9 @@ Available lines: 1 to 2
 Contents of programs/qws/list.csv:
 Line# | Configuration
 ------|-------------
-  H   | system,mode,queue_group,nodes,numproc_node,nthreads,elapse
-    1 | MiyabiG,cross,debug-g,1,1,72,0:10:00
-    2 | MiyabiC,cross,debug-c,1,1,112,0:10:00
+  H   | system,enable,nodes,numproc_node,nthreads,elapse
+    1 | Fugaku,yes,1,4,12,0:10:00
+    2 | FugakuLN,yes,1,1,1,0:10:00
 ```
 
 ### 対応システム

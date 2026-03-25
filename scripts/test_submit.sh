@@ -26,6 +26,9 @@ if [ "$list_csv_line_num" -le 0 ]; then
   exit 1
 fi
 
+source ./scripts/job_functions.sh
+SYSTEM_FILE="config/system.csv"
+
 # --- checking dir and list ---
 if [ ! -d "programs/$code" ]; then
   echo "Error: programs/$code does not exist"
@@ -64,32 +67,35 @@ fi
 # --- カンマ区切りで配列に格納 ---
 IFS=, read -r -a cols <<< "$line"
 
-# --- 先頭に # があれば通知 ---
-if [[ "${cols[0]}" == \#* ]]; then
-    echo "Notice: Line $line_number starts with '#' : $line"
+# --- 変数に格納（6カラム形式） ---
+system="${cols[0]}"
+enable="${cols[1]}"
+nodes="${cols[2]}"
+numproc_node="${cols[3]}"
+nthreads="${cols[4]}"
+elapse="${cols[5]}"
+
+# --- enable チェック ---
+if [[ "$enable" != "yes" ]]; then
+    echo "Notice: Line $list_csv_line_num has enable=$enable, skipping"
     exit 1
 fi
 
-# --- 変数に格納 ---
-system="${cols[0]}"
-mode="${cols[1]}"
-queue_group="${cols[2]}"
-nodes="${cols[3]}"
-numproc_node="${cols[4]}"
-nthreads="${cols[5]}"
-elapse="${cols[6]}"
+# --- System_CSV から mode/queue_group を取得 ---
+mode=$(get_system_mode "$system")
+queue_group=$(get_system_queue_group "$system")
 
 # --- 選択された設定を表示 ---
 echo "Selected configuration from $list_file (line $list_csv_line_num):"
 echo "  $line"
 echo ""
 echo "Parsed values:"
-echo "  system=$system, mode=$mode, queue_group=$queue_group"
+echo "  system=$system, enable=$enable, mode=$mode (from system.csv), queue_group=$queue_group (from system.csv)"
 echo "  nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 
 # --- 投入用スクリプト作成 ---
 echo cd $PWD > script.sh
-echo bash programs/$code/run.sh $system $nodes >> script.sh
+echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script.sh
 
 # --- システム別ジョブ投入 ---
 case "$system" in
@@ -110,9 +116,9 @@ case "$system" in
     ;;
   RC_GH200)
     echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
-	 --wrap="bash programs/$code/run.sh $system $nodes"
+	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
     sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
-	   --wrap="bash programs/${code}/run.sh $system $nodes"
+	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   MiyabiC)
     echo qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \

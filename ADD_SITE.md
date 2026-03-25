@@ -415,16 +415,20 @@ command_delay = "30s"
 ### `config/system.csv` にシステムを追加
 
 ```csv
-system,tag,roles,queue
+system,mode,tag_build,tag_run,queue,queue_group
 # 既存エントリ...
-NewSystem,newsystem_login,build,none
-NewSystem,newsystem_jacamar,run,PBS_NewSystem
+# cross モード（ビルドと実行が別ノード）
+NewSystem,cross,newsystem_login,newsystem_jacamar,PBS_NewSystem,default
+# native モード（同一ノードでビルドと実行）
+NewSystemLN,native,,newsystem_login,none,default
 ```
 
 - `system`: システム名（アプリの `list.csv` から参照される）
-- `tag`: GitLab Runner のタグ名（登録時の `--tag-list` と一致させる）
-- `roles`: `build`（ビルド用）、`run`（実行用）、`build_run`（両方）
+- `mode`: `cross`（ビルドと実行が別ノード）または `native`（同一ノードで実行）
+- `tag_build`: ビルド用GitLab Runnerタグ（`native`の場合は空）
+- `tag_run`: 実行用GitLab Runnerタグ（`native`の場合はbuild_runジョブ用）
 - `queue`: `config/queue.csv` のキュー名（ログインノードは `none`）
+- `queue_group`: キューグループ名
 
 ### `config/queue.csv` にキューシステムを追加（必要な場合）
 

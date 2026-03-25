@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 system="$1"
+nodes="$2"
+numproc_node="$3"
+nthreads="$4"
+numproc=$(( numproc_node * nodes ))
+
+source "${PWD}/scripts/bk_functions.sh"
 
 SCRIPT_DIR="${PWD}"
 REPO_DIR="genesis_benchmark_input"
@@ -31,20 +37,6 @@ if [[ -d "${REPO_DIR}" ]]; then
         rm -rf "${REPO_DIR}"
     fi
 fi
-# read programs/genesis/list.csv
-
-while IFS=, read -r sys mode queue_group nodes numproc_node nthreads elapse; do
-  [[ "$sys" == "system" ]] && continue  # skip header
-  [[ "$sys" == *"#"* ]] && continue  # skip #
-  if [[ "$sys" == "$system" ]]; then
-    echo "$sys $system $nodes $numproc_node"
-	export elapse nodes queue_group numproc_node nthreads 
-    numproc=$(( numproc_node * nodes ))
-	export numproc
-	break
-  fi
-done < ${SCRIPT_DIR}/programs/genesis/list.csv 
-
 echo "System=$system"
 echo "Nodes=$nodes"
 echo "numproc=$numproc"
@@ -155,11 +147,7 @@ if [[ -z "$fom_val" ]]; then
     fom_val="nan"   # or 0.0
 fi
 
-printf "FOM: %.3f " "$fom_val"  >> ${resultsdir}/result
-printf "node_count: %d " "$nodes"  >> ${resultsdir}/result
-printf "cpus_per_node: %d " "$nodes"  >> ${resultsdir}/result
-printf "cpu_cores: %d " "$totalcores"  >> ${resultsdir}/result
-printf "\n"  >> ${resultsdir}/result
+bk_emit_result --fom "$fom_val" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
 # if information is requierd
 #printf "%-10s nodes=%2d numproc=%3d  FOM: %.3f\n" \
 #    "$system" "$nodes" "$numproc" "$fom_val" >> ../results/result

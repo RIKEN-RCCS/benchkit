@@ -7,6 +7,8 @@ nthreads="$4"
 export OMP_NUM_THREADS=$nthreads
 mkdir -p results && > results/result
 
+source "${PWD}/scripts/bk_functions.sh"
+
 TARDIR=./
 case "$system" in
   Fugaku*)
@@ -52,18 +54,16 @@ get_fom () {
   FOM2=`get_etime_total $LOG`
   FOM_O=`echo $FOM2 $FOM1 | awk '{print $1-$2}'`
   if [ $# -eq 1 ]; then
-      #echo "FOM:${FOM1} FOM_version:LQCD_dw_solver Exp:solver node_count:$nodes"
-      echo "FOM:${FOM2} FOM_version:LQCD_dw_solver Exp:total node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads"
-      echo "SECTION:solver time:${FOM1}"
-      echo "SECTION:other time:${FOM_O}"
+      bk_emit_result --fom "$FOM2" --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_section solver "$FOM1"
+      bk_emit_section other "$FOM_O"
   else
       # 第2引数をExp名として使用
       # 注意: 暫定的にtarget情報をExpに付け加えます。
       TARGET=$(echo "$2" | sed 's/target: //' | sed 's/ $//')
-      #echo "FOM:${FOM1} FOM_version:LQCD_dw_solver Exp:solver_${TARGET} node_count:$nodes"
-      echo "FOM:${FOM2} FOM_version:LQCD_dw_solver Exp:total_${TARGET} node_count:$nodes numproc_node:$numproc_node nthreads:$nthreads"
-      echo "SECTION:solver time:${FOM1}"
-      echo "SECTION:other time:${FOM_O}"
+      bk_emit_result --fom "$FOM2" --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_section solver "$FOM1"
+      bk_emit_section other "$FOM_O"
   fi
 }
 

@@ -4,6 +4,8 @@ system="$1"
 nodes="$2"
 mkdir -p results && > results/result
 
+source "${PWD}/scripts/bk_functions.sh"
+
 case "$system" in
   Fugaku|FugakuCN)
 
@@ -58,7 +60,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        echo FOM:$FOM FOM_version:SCALE-LETKF Exp:SC23_128x128 node_count:$nodes >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" >> ../results/result
       ;;
       75)
         echo "copy essential files ... `date`"
@@ -100,7 +102,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        echo FOM:$FOM FOM_version:SCALE-LETKF Exp:SC23_1280x1280 node_count:$nodes >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" >> ../results/result
       ;;
     esac
   ;;
@@ -158,7 +160,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        echo FOM:$FOM FOM_version:SCALE-LETKF Exp:SC23_128x128 node_count:$nodes >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" >> ../results/result
       ;;
     esac
   ;;

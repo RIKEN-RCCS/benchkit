@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 system="$1"
+nodes="$2"
+numproc_node="$3"
+nthreads="$4"
+numproc=$(( numproc_node * nodes ))
+
+source "${PWD}/scripts/bk_functions.sh"
 
 SCRIPT_DIR="${PWD}"
 REPO_DIR="genesis-nonbonded-kernels"
@@ -23,20 +29,6 @@ if [[ -d "${REPO_DIR}" ]]; then
         rm -rf "${REPO_DIR}"
     fi
 fi
-
-# read programs/genesis-nonbonded-kernels/list.csv
-
-while IFS=, read -r sys mode queue_group nodes numproc_node nthreads elapse; do
-  [[ "$sys" == "system" ]] && continue  # skip header
-  [[ "$sys" == *"#"* ]] && continue  # skip #
-  if [[ "$sys" == "$system" ]]; then
-    echo "$sys $system $nodes $numproc_node"
-	export elapse nodes queue_group numproc_node nthreads 
-    numproc=$(( numproc_node * nodes ))
-	export numproc
-	break
-  fi
-done < ${SCRIPT_DIR}/programs/genesis-nonbonded-kernels/list.csv 
 
 if [[ ! -d ${REPO_DIR} ]]; then
     git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
@@ -88,12 +80,7 @@ case "$system" in
 	    #printf "result%d: %.3f\n" "$index" "$fom_val"  >> ${resultsdir}/result
      	#total_fom=$(awk -v a="$total_fom" -v b="$fom_val" 'BEGIN{printf("%.6f", a + b)}')
 
-    printf "Exp: %s " "$name"  >> ${resultsdir}/result
-    printf "FOM: %.3f " "$fom_val"  >> ${resultsdir}/result
-    printf "node_count: %d " "$nodes"  >> ${resultsdir}/result
-    printf "cpus_per_node: %d " "$nodes"  >> ${resultsdir}/result
-    printf "cpu_cores: %d " "$totalcores"  >> ${resultsdir}/result
-    printf "\n"  >> ${resultsdir}/result
+    bk_emit_result --fom "$fom_val" --exp "$name" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
 	done
 
     ;;

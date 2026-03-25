@@ -7,7 +7,7 @@ get_queue_template() {
     local template_raw=""
     local template=""
 
-    queue_from_system=$(awk -F, -v s="$system" '$1==s && ($3=="run" || $3=="build_run") {print $4}' "$SYSTEM_FILE")
+    queue_from_system=$(awk -F, -v s="$system" '$1==s {print $5}' "$SYSTEM_FILE")
 	echo "[DEBUG] system=$system -> queue_from_system=$queue_from_system" >&2
 
     if [[ -z "$queue_from_system" ]]; then
@@ -46,30 +46,73 @@ expand_template() {
     fi
 }
 
+# System_CSVからmodeを取得する
+# $1: システム名
+# 存在しないシステム名の場合は空文字を返す（exit code 0）
+get_system_mode() {
+    local system="$1"
+    awk -F, -v s="$system" '$1==s {print $2}' "$SYSTEM_FILE"
+    return 0
+}
+
+# System_CSVからqueue_groupを取得する
+# $1: システム名
+# 存在しないシステム名の場合は空文字を返す（exit code 0）
+get_system_queue_group() {
+    local system="$1"
+    awk -F, -v s="$system" '$1==s {print $6}' "$SYSTEM_FILE"
+    return 0
+}
+
+# System_CSVからtag_buildを取得する
+# $1: システム名
+# mode=nativeの場合は空文字を返す（tag_buildカラム自体が空）
+# 存在しないシステム名の場合は空文字を返す（exit code 0）
+get_system_tag_build() {
+    local system="$1"
+    awk -F, -v s="$system" '$1==s {print $3}' "$SYSTEM_FILE"
+    return 0
+}
+
+# System_CSVからtag_runを取得する
+# $1: システム名
+# 存在しないシステム名の場合は空文字を返す（exit code 0）
+get_system_tag_run() {
+    local system="$1"
+    awk -F, -v s="$system" '$1==s {print $4}' "$SYSTEM_FILE"
+    return 0
+}
 
 # CSV行をパースし、各フィールドを変数にエクスポートする（list.csv用）
-# ヘッダー行（先頭が "system"）とコメント行（# を含む）はスキップ（return 1）
+# 6カラム形式: system,enable,nodes,numproc_node,nthreads,elapse
+# ヘッダー行（先頭が "system"）はスキップ（return 1）
+# enable=no → スキップ（return 1）
+# enable が yes/no 以外 → stderr に警告出力しスキップ（return 1）
 # 各フィールドの前後空白をトリムする
 #
 # 使用方法:
-#   while IFS=, read -r f1 f2 f3 f4 f5 f6 f7; do
-#     parse_list_csv_line "$f1" "$f2" "$f3" "$f4" "$f5" "$f6" "$f7" || continue
-#     # $csv_system, $csv_mode, ... が使用可能
+#   while IFS=, read -r f1 f2 f3 f4 f5 f6; do
+#     parse_list_csv_line "$f1" "$f2" "$f3" "$f4" "$f5" "$f6" || continue
+#     # $csv_system, $csv_enable, $csv_nodes, ... が使用可能
 #   done < file.csv
 parse_list_csv_line() {
-    local system="$1" mode="$2" queue_group="$3" nodes="$4" numproc_node="$5" nthreads="$6" elapse="$7"
+    local system="$1" enable="$2" nodes="$3" numproc_node="$4" nthreads="$5" elapse="$6"
     system=$(echo "$system" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    mode=$(echo "$mode" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    queue_group=$(echo "$queue_group" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    enable=$(echo "$enable" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     nodes=$(echo "$nodes" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     numproc_node=$(echo "$numproc_node" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     nthreads=$(echo "$nthreads" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     elapse=$(echo "$elapse" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     [[ "$system" == "system" ]] && return 1
-    [[ "$system" == *"#"* ]] && return 1
 
-    export csv_system="$system" csv_mode="$mode" csv_queue_group="$queue_group"
+    if [[ "$enable" != "yes" && "$enable" != "no" ]]; then
+        echo "Warning: invalid enable value '$enable' for system '$system', skipping" >&2
+        return 1
+    fi
+    [[ "$enable" == "no" ]] && return 1
+
+    export csv_system="$system" csv_enable="$enable"
     export csv_nodes="$nodes" csv_numproc_node="$numproc_node"
     export csv_nthreads="$nthreads" csv_elapse="$elapse"
     return 0

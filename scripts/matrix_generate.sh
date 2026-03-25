@@ -51,18 +51,25 @@ for listfile in programs/*/list.csv; do
  
   match_filter "$CODE_FILTER" "$program" || continue
 
-  while IFS=, read -r system mode queue_group nodes numproc_node nthreads elapse; do
-    parse_list_csv_line "$system" "$mode" "$queue_group" "$nodes" "$numproc_node" "$nthreads" "$elapse" || continue
+  while IFS=, read -r system enable nodes numproc_node nthreads elapse; do
+    parse_list_csv_line "$system" "$enable" "$nodes" "$numproc_node" "$nthreads" "$elapse" || continue
 
     match_filter "$SYSTEM_FILTER" "$csv_system" || continue
 
     system="$csv_system"
-    mode="$csv_mode"
-    queue_group="$csv_queue_group"
     nodes="$csv_nodes"
     numproc_node="$csv_numproc_node"
     nthreads="$csv_nthreads"
     elapse="$csv_elapse"
+
+    mode=$(get_system_mode "$system")
+    queue_group=$(get_system_queue_group "$system")
+
+    # Skip if mode or queue_group is empty (system not found in System_CSV)
+    if [[ -z "$mode" || -z "$queue_group" ]]; then
+      echo "Warning: mode or queue_group not found for system $system, skipping"
+      continue
+    fi
 
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"
@@ -80,8 +87,8 @@ for listfile in programs/*/list.csv; do
 	schedule_parameter=$(echo "$schedule_parameter" | sed 's/"/\\"/g')
 
     if [[ "$mode" == "cross" ]]; then
-      build_tag=$(awk -F, -v s="$system" '$1==s && $3=="build" {print $2}' "$SYSTEM_FILE")
-      run_tag=$(awk -F, -v s="$system" '$1==s && $3=="run" {print $2}' "$SYSTEM_FILE")
+      build_tag=$(get_system_tag_build "$system")
+      run_tag=$(get_system_tag_run "$system")
 
       # skip cases with empty tag
       if [[ -z "$build_tag" || -z "$run_tag" ]]; then
@@ -156,7 +163,7 @@ ${job_prefix}_run:
     fi
 
     elif [[ "$mode" == "native" ]]; then
-      build_run_tag=$(awk -F, -v s="$system" '$1==s && $3=="build_run" {print $2}' "$SYSTEM_FILE")
+      build_run_tag=$(get_system_tag_run "$system")
 
       # skip cases with empty tag
       if [[ -z "$build_run_tag" ]]; then
