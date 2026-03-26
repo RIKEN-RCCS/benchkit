@@ -60,7 +60,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes"  --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
       75)
         echo "copy essential files ... `date`"
@@ -102,7 +102,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
     esac
   ;;
@@ -160,7 +160,7 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
-        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" >> ../results/result
+        bk_emit_result --fom "$FOM" --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" --numproc-node 12 --nthreads 1 >> ../results/result
       ;;
     esac
   ;;

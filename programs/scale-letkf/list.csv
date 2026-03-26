@@ -1,7 +1,7 @@
 system,enable,nodes,numproc_node,nthreads,elapse
 Fugaku,yes,3,4,12,1:00:00
 Fugaku,yes,75,4,12,1:00:00
-RC_GH200,yes,1,4,1,1:00:00
+RC_GH200,no,1,4,1,1:00:00
 FugakuLN,no,1,1,1,0:10:00
 FugakuCN,no,1,4,12,0:10:00
 FugakuCN,no,2,4,12,0:10:00

@@ -1,4 +1,4 @@
 system,enable,nodes,numproc_node,nthreads,elapse
 Fugaku,yes,1,1,6,0:10:00
 FugakuLN,no,1,1,6,0:10:00
-FugakuCN,yes,1,1,6,0:10:00
+FugakuCN,no,1,1,6,0:10:00
