@@ -44,7 +44,7 @@ if [[ ! -f "$input_archive" ]]; then
   exit 1
 fi
 
-tar -xzf "$input_archive" -C "${WORK_DIR}"
+tar -xzf "$input_archive" --strip-components=1 -C "${WORK_DIR}"
 cd "${WORK_DIR}"
 
 if [[ ! -x ./les3x.mpi ]]; then
@@ -56,8 +56,8 @@ case "$system" in
     export OMP_NUM_THREADS="${nthreads}"
     mpiexec -n "${n_ranks}" ./les3x.mpi
 
-    if [[ -f fjmpioutdir/bmexe.1.0 ]]; then
-      cp fjmpioutdir/bmexe.1.0 les3x.log.P0001
+    if [[ -f output.${PJM_JOBID}/0/1/stdout.1.0 ]]; then
+      cp output.${PJM_JOBID}/0/1/stdout.1.0 les3x.log.P0001
       sed -i -e "s/D+/E+/g" -e "s/D-/E-/g" les3x.log.P*
     fi
     ;;
