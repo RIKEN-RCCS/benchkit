@@ -147,7 +147,6 @@ if [[ -z "$fom_val" ]]; then
     fom_val="nan"   # or 0.0
 fi
 
-fom_val=$(printf "%.3f" "$fom_val")
 bk_emit_result --fom "$fom_val" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
 # if information is requierd
 #printf "%-10s nodes=%2d numproc=%3d  FOM: %.3f\n" \

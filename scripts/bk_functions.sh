@@ -125,6 +125,13 @@ bk_emit_result() {
       ;;
   esac
 
+  # Normalize scientific notation (e.g. 3.64E+01 -> 36.400) to plain decimal
+  case "$_bk_fom" in
+    *[eE]*)
+      _bk_fom=$(awk "BEGIN {printf \"%.6g\", $_bk_fom}")
+      ;;
+  esac
+
   # Build output line
   _bk_output="FOM:${_bk_fom}"
 
