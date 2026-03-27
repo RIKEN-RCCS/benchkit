@@ -35,7 +35,7 @@
         <tr><th>Code</th><td>{{ result.get('code', 'N/A') }}</td></tr>
         <tr><th>System</th><td>{{ result.get('system', 'N/A') }}</td></tr>
         <tr><th>Exp</th><td>{{ result.get('Exp', 'N/A') }}</td></tr>
-        <tr><th>FOM</th><td>{{ result.get('FOM', 'N/A') }}</td></tr>
+        <tr><th>FOM</th><td>{{ "%.3f"|format(result.get('FOM', 'N/A')|float) if result.get('FOM', 'N/A') not in [None, '', 'N/A', 'null', 'nan'] else result.get('FOM', 'N/A') }}</td></tr>
         <tr><th>FOM Unit</th><td>{{ result.get('FOM_unit', 'N/A') }}</td></tr>
         <tr><th>Node Count</th><td>{{ result.get('node_count', 'N/A') }}</td></tr>
         <tr><th>CPUs per Node</th><td>{{ result.get('cpus_per_node', 'N/A') }}</td></tr>

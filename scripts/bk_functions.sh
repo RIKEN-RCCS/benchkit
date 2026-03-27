@@ -125,8 +125,13 @@ bk_emit_result() {
       ;;
   esac
 
-  # Normalize FOM to 3 decimal places (also handles scientific notation)
-  _bk_fom=$(awk "BEGIN {printf \"%.3f\", $_bk_fom}")
+  # Normalize scientific notation (e.g. 3.64E+01 -> 36.415) to plain decimal
+  # result.sh parses with grep -Eo 'FOM:[ ]*[0-9.]*' which doesn't match E notation
+  case "$_bk_fom" in
+    *[eE]*)
+      _bk_fom=$(awk "BEGIN {printf \"%.17g\", $_bk_fom}")
+      ;;
+  esac
 
   # Build output line
   _bk_output="FOM:${_bk_fom}"

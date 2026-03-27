@@ -163,8 +163,10 @@
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
-                {% elif key in ["code", "fom", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
+                {% elif key in ["code", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
+                {% elif key == "fom" %}
+                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
                 {% endif %}
                 {% if key == "fom" %}
                 <td style="text-align: center;">
