@@ -63,10 +63,9 @@
               </th>
            {% endif %}
            {% if col_name == "FOM" %}
-           <th style="text-align: center;">
-               <span class="tooltip">Compare
-                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
-               </span>
+           <th style="text-align: center; vertical-align: middle;">
+               <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
+               <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
            </th>
            {% endif %}
         {% endfor %}
@@ -113,12 +112,8 @@
            {% endif %}
            {% if col_name == "FOM" %}
            <th style="text-align: center; padding: 4px;">
-               <div style="display: flex; gap: 2px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                   <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
-                   <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
-                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
-               </div>
-               <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
+               <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
+               <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
            </th>
            {% endif %}
         {% endfor %}
