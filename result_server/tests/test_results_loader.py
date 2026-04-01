@@ -294,6 +294,7 @@ class TestLoadResultsTableExtension:
         expected_columns = [
             ("Timestamp", "timestamp"),
             ("CODE", "code"),
+            ("Branch/Hash", "source_hash"),
             ("Exp", "exp"),
             ("FOM", "fom"),
             ("FOM version", "fom_version"),

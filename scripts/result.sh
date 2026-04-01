@@ -24,6 +24,32 @@ node_count='how_many'
 numproc_node=""
 nthreads=""
 
+# Read source_info.env if it exists (written by bk_fetch_source in build stage)
+source_info_block="null"
+if [ -f results/source_info.env ]; then
+  . results/source_info.env
+  if [ "$BK_SOURCE_TYPE" = "git" ]; then
+    source_info_block=$(cat <<EOFSI
+{
+    "source_type": "git",
+    "repo_url": "$BK_REPO_URL",
+    "branch": "$BK_BRANCH",
+    "commit_hash": "$BK_COMMIT_HASH"
+  }
+EOFSI
+)
+  elif [ "$BK_SOURCE_TYPE" = "file" ]; then
+    source_info_block=$(cat <<EOFSI
+{
+    "source_type": "file",
+    "file_path": "$BK_FILE_PATH",
+    "md5sum": "$BK_MD5SUM"
+  }
+EOFSI
+)
+  fi
+fi
+
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
@@ -112,7 +138,8 @@ write_result_json() {
   "numproc_node": "$numproc_node",
   "nthreads": "$nthreads",
   "description": "$description",
-  "confidential": "$confidential"${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
+  "confidential": "$confidential",
+  "source_info": $source_info_block${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
 }
 EOF
 

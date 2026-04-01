@@ -168,6 +168,25 @@ def _build_row(json_file, data, tgz_files):
     else:
         pipeline_id = str(pipeline_id)
 
+    # source_info の読み込み
+    source_info = data.get("source_info", None)
+
+    # source_hash の生成（Branch/Hash列用）
+    if source_info and isinstance(source_info, dict):
+        st = source_info.get("source_type")
+        if st == "git":
+            _branch = source_info.get("branch", "")
+            commit = source_info.get("commit_hash", "")
+            short_hash = commit[:7] if commit else ""
+            source_hash = f"{_branch}@{short_hash}" if _branch and short_hash else short_hash or _branch or "-"
+        elif st == "file":
+            md5 = source_info.get("md5sum", "")
+            source_hash = md5[:8] if md5 else "-"
+        else:
+            source_hash = "-"
+    else:
+        source_hash = "-"
+
     row = {
         "timestamp": timestamp,
         "code": code,
@@ -191,6 +210,8 @@ def _build_row(json_file, data, tgz_files):
         "build_job": build_job,
         "run_job": run_job,
         "pipeline_id": pipeline_id,
+        "source_info": source_info,
+        "source_hash": source_hash,
     }
     return row
 
@@ -245,6 +266,7 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
     columns = [
         ("Timestamp", "timestamp"),
         ("CODE", "code"),
+        ("Branch/Hash", "source_hash"),
         ("Exp", "exp"),
         ("FOM", "fom"),
         ("FOM version", "fom_version"),

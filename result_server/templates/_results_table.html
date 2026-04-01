@@ -7,7 +7,7 @@
     <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline", "Branch/Hash"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -57,6 +57,10 @@
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">GitLab CI pipeline ID</span>
                   </span>
+                {% elif col_name == "Branch/Hash" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Source code branch name and short commit hash (git) or short md5sum (file archive)</span>
+                  </span>
                 {% else %}
                   {{ col_name }}
                 {% endif %}
@@ -81,7 +85,7 @@
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline", "Branch/Hash"] %}
               {% if col_name == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
@@ -161,7 +165,15 @@
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
-                {% elif key in ["code", "fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id"] %}
+                {% elif key == "code" %}
+                    {% if row.source_info and row.source_info.source_type == "git" %}
+                        <td><a href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a></td>
+                    {% elif row.source_info and row.source_info.source_type == "file" %}
+                        <td title="{{ row.source_info.file_path }}">{{ row.code }}</td>
+                    {% else %}
+                        <td title="{{ row.code }}">{{ row.code }}</td>
+                    {% endif %}
+                {% elif key in ["fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% elif key == "fom" %}
                     <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>

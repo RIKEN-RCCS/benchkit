@@ -265,3 +265,145 @@ bk_emit_overlap() {
   echo "OVERLAP:${_bk_ovl_sections} time:${_bk_ovl_time}"
   return 0
 }
+
+# bk_fetch_source - Fetch source code and collect metadata.
+#
+# Usage:
+#   bk_fetch_source <source> <dest_dir> [branch]
+#
+# Arguments:
+#   $1 - source: Repository URL or archive file path
+#   $2 - dest_dir: Destination directory name
+#   $3 - branch: (optional) Git branch to clone
+#
+# Auto-detection:
+#   http:// / https:// prefix or .git suffix → git clone
+#   Otherwise → tar archive extraction
+#
+# Environment variables set:
+#   BK_SOURCE_TYPE  - "git" or "file"
+#   BK_REPO_URL     - (git) Repository URL
+#   BK_BRANCH       - (git) Branch name
+#   BK_COMMIT_HASH  - (git) Full 40-char commit hash
+#   BK_FILE_PATH    - (file) Absolute path to archive
+#   BK_MD5SUM       - (file) Full 32-char md5sum
+#
+# Side effects:
+#   Writes results/source_info.env in export format
+#
+# Returns:
+#   0 - success
+#   1 - failure (error message on stderr)
+bk_fetch_source() {
+  if [ $# -lt 2 ]; then
+    echo "bk_fetch_source: requires <source> and <dest_dir> arguments" >&2
+    return 1
+  fi
+
+  _bk_src="$1"
+  _bk_dest="$2"
+  _bk_branch="${3:-}"
+
+  # Auto-detect source type
+  _bk_is_git=0
+  case "$_bk_src" in
+    http://*|https://*)
+      _bk_is_git=1
+      ;;
+    *.git)
+      _bk_is_git=1
+      ;;
+  esac
+
+  mkdir -p results
+
+  if [ "$_bk_is_git" -eq 1 ]; then
+    # --- Git clone path ---
+    BK_SOURCE_TYPE="git"
+    BK_REPO_URL="$_bk_src"
+    export BK_SOURCE_TYPE BK_REPO_URL
+
+    if [ -d "$_bk_dest" ]; then
+      # Directory exists: skip clone, collect metadata from existing dir
+      BK_BRANCH=$(git -C "$_bk_dest" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+      BK_COMMIT_HASH=$(git -C "$_bk_dest" rev-parse HEAD 2>/dev/null || echo "")
+    else
+      # Perform git clone
+      if [ -n "$_bk_branch" ]; then
+        if ! git clone --branch "$_bk_branch" "$_bk_src" "$_bk_dest" 2>&1; then
+          echo "bk_fetch_source: git clone failed for '$_bk_src' (branch: $_bk_branch)" >&2
+          return 1
+        fi
+        BK_BRANCH="$_bk_branch"
+      else
+        if ! git clone "$_bk_src" "$_bk_dest" 2>&1; then
+          echo "bk_fetch_source: git clone failed for '$_bk_src'" >&2
+          return 1
+        fi
+        BK_BRANCH=$(git -C "$_bk_dest" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+      fi
+      BK_COMMIT_HASH=$(git -C "$_bk_dest" rev-parse HEAD 2>/dev/null || echo "")
+    fi
+
+    export BK_BRANCH BK_COMMIT_HASH
+
+    # Write results/source_info.env
+    cat > results/source_info.env <<EOF
+export BK_SOURCE_TYPE="git"
+export BK_REPO_URL="$BK_REPO_URL"
+export BK_BRANCH="$BK_BRANCH"
+export BK_COMMIT_HASH="$BK_COMMIT_HASH"
+EOF
+
+  else
+    # --- File archive path ---
+    BK_SOURCE_TYPE="file"
+    export BK_SOURCE_TYPE
+
+    # Check archive exists
+    if [ ! -f "$_bk_src" ]; then
+      echo "bk_fetch_source: archive file not found: '$_bk_src'" >&2
+      return 1
+    fi
+
+    # Compute absolute path
+    case "$_bk_src" in
+      /*)
+        BK_FILE_PATH="$_bk_src"
+        ;;
+      *)
+        BK_FILE_PATH="$(pwd)/$_bk_src"
+        ;;
+    esac
+    export BK_FILE_PATH
+
+    # Cross-platform md5sum
+    if command -v md5sum >/dev/null 2>&1; then
+      BK_MD5SUM=$(md5sum "$_bk_src" | awk '{print $1}')
+    elif command -v md5 >/dev/null 2>&1; then
+      BK_MD5SUM=$(md5 -r "$_bk_src" | awk '{print $1}')
+    else
+      echo "bk_fetch_source: warning: neither md5sum nor md5 found" >&2
+      BK_MD5SUM=""
+    fi
+    export BK_MD5SUM
+
+    # Extract archive if dest_dir doesn't exist
+    if [ ! -d "$_bk_dest" ]; then
+      if ! tar -xzf "$_bk_src" -C "$(dirname "$_bk_dest")" 2>&1; then
+        echo "bk_fetch_source: tar extraction failed for '$_bk_src'" >&2
+        return 1
+      fi
+    fi
+
+    # Write results/source_info.env
+    cat > results/source_info.env <<EOF
+export BK_SOURCE_TYPE="file"
+export BK_FILE_PATH="$BK_FILE_PATH"
+export BK_MD5SUM="$BK_MD5SUM"
+EOF
+
+  fi
+
+  return 0
+}
