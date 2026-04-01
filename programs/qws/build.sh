@@ -4,7 +4,8 @@ system="$1"
 mkdir -p artifacts
 
 # コードを取得して、必要であればtar -xcvf などして、コードのルートにcdする
-git clone https://github.com/RIKEN-LQCD/qws.git
+source scripts/bk_functions.sh
+bk_fetch_source https://github.com/RIKEN-LQCD/qws.git qws
 cd qws
 
 # システムに合わせてbuild方法を書く。systemの選択肢はlist.csvに合わせる。
