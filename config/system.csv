@@ -7,3 +7,4 @@ RC_DGXS,native,,cloud_jacamar,SLURM_RC_DGXS,dummy
 RC_GENOA,native,,cloud_jacamar,SLURM_RC_GENOA,dummy
 MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
 MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
+FNCX,native,,fncx-curl-jq,none,dummy

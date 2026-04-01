@@ -46,6 +46,15 @@ case "$system" in
     MiyabiC)
  	make -j 8 fugaku_benchmark= omp=1  compiler=intel arch=skylake rdma= mpi=1 powerapi=
         ;;
+    FNCX)
+	echo "=== FNCX: bk_fetch_source smoke test ==="
+	echo "gcc: $(which gcc 2>&1 || echo 'not found')"
+	echo "make: $(which make 2>&1 || echo 'not found')"
+	echo "git: $(which git 2>&1 || echo 'not found')"
+	echo "md5sum: $(which md5sum 2>&1 || echo 'not found')"
+	echo "Skipping actual build (no compiler expected)"
+	echo "dummy" > ../artifacts/main
+	;;
     *)
 	echo "Unknown system: $system"
 	exit 1
