@@ -64,7 +64,10 @@
            {% endif %}
            {% if col_name == "FOM" %}
            <th style="text-align: center; vertical-align: middle;">
-               <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
+               <span class="tooltip">
+                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
+                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
+               </span>
                <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
            </th>
            {% endif %}
