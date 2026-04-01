@@ -272,11 +272,10 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("FOM version", "fom_version"),
         ("SYSTEM", "system"),
         ("Nodes", "nodes"),
-        ("Proc/node", "numproc_node"),
-        ("Thread/proc", "nthreads"),
+        ("P/N", "numproc_node"),
+        ("T/P", "nthreads"),
         ("JSON", "json_link"),
         ("PA Data", "data_link"),
-        ("Mode", "execution_mode"),
         ("Trigger", "ci_trigger"),
         ("Pipeline", "pipeline_id"),
     ]

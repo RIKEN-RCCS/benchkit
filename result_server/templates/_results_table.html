@@ -7,7 +7,7 @@
     <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -25,11 +25,11 @@
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Experimental conditions (filtered by CODE)</span>
                   </span>
-                {% elif col_name == "Proc/node" %}
+                {% elif col_name == "P/N" %}
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Number of processes per node</span>
                   </span>
-                {% elif col_name == "Thread/proc" %}
+                {% elif col_name == "T/P" %}
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Number of threads per process</span>
                   </span>
@@ -44,10 +44,6 @@
                 {% elif col_name == "PA Data" %}
                   <span class="tooltip tooltip-right">{{ col_name }}
                     <span class="tooltiptext">Performance Analysis data archive (detailed profiling data)</span>
-                  </span>
-                {% elif col_name == "Mode" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Execution mode: cross (separate build/run) or native (combined)</span>
                   </span>
                 {% elif col_name == "Trigger" %}
                   <span class="tooltip">{{ col_name }}
@@ -85,7 +81,7 @@
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "Proc/node", "Thread/proc", "JSON", "PA Data", "Mode", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
               {% if col_name == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
@@ -173,7 +169,7 @@
                     {% else %}
                         <td title="{{ row.code }}">{{ row.code }}</td>
                     {% endif %}
-                {% elif key in ["fom_version", "exp", "execution_mode", "ci_trigger", "pipeline_id", "source_hash"] %}
+                {% elif key in ["fom_version", "exp", "ci_trigger", "pipeline_id", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% elif key == "fom" %}
                     <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
