@@ -31,6 +31,11 @@ case "$system" in
 	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
 	#gcc -v
 	;;
+    FNCX)
+	# Dummy build for Docker runner testing (no compiler needed)
+	echo "Dummy build for FNCX Docker runner test"
+	echo aaaa > main
+	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している

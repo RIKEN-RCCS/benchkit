@@ -109,6 +109,11 @@ case "$system" in
 	echo dummy > ./pa/padat.3
 	tar -czf ../results/padata0.tgz ./pa
 	;;
+    FNCX)
+	# Dummy FOM for Docker runner pipeline testing
+	echo 'dummy call for FNCX Docker runner test'
+	bk_emit_result --fom 99.99 --fom-version dummy --exp FNCXTest --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
+	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
 	mpirun -n 1  --bind-to core --map-by ppr:1:node:PE=72  ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
