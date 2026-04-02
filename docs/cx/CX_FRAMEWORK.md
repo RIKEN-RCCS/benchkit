@@ -53,16 +53,16 @@ It is a higher-level framework that organizes the roles of platforms, tools, ser
 
 下位には、少なくとも以下の仕様がぶら下がる。
 
-- [`CX_PLATFORM.md`](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md): CX フレームワークを実装する全体システムの仕様
-- [`BENCHKIT_SPEC.md`](C:/Users/yoshi/benchkit/docs/cx/BENCHKIT_SPEC.md): BenchKit の責務・構成・接続点の仕様
+- [`CX_PLATFORM.md`](./CX_PLATFORM.md): CX フレームワークを実装する全体システムの仕様
+- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): BenchKit の責務・構成・接続点の仕様
 
 This document is the top-level conceptual specification for CX as a whole.
 It defines what should run continuously, and does not specify implementation details of individual software components or services.
 
 At least the following lower-level specifications are expected beneath it:
 
-- [`CX_PLATFORM.md`](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md): the specification of the overall system implementing the CX Framework
-- [`BENCHKIT_SPEC.md`](C:/Users/yoshi/benchkit/docs/cx/BENCHKIT_SPEC.md): the specification of BenchKit responsibilities, structure, and integration points
+- [`CX_PLATFORM.md`](./CX_PLATFORM.md): the specification of the overall system implementing the CX Framework
+- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): the specification of BenchKit responsibilities, structure, and integration points
 
 ## 2. 適用範囲 / Scope
 

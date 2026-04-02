@@ -11,7 +11,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 
 ## 読み方のルール / Reading Conventions
 
-本書では、[`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) の読み方のルールに従う。
+本書では、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の読み方のルールに従う。
 特に、本書では以下を区別して読むことが重要である。
 
 - 必須要件:
@@ -21,7 +21,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 - 将来拡張:
   申請、承認、自動 PR、AI 連携など、将来の拡張方向。
 
-This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md).
+This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 In particular, it is important here to distinguish:
 
 - mandatory requirements:
@@ -44,17 +44,17 @@ It integrates software components, external tools, external services, compute sy
 
 ## 1.1 文書の位置づけ / Position of This Document
 
-本書は、[`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) を実装する全体システムとしての CX 基盤を定義する。
+本書は、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) を実装する全体システムとしての CX 基盤を定義する。
 本書は、構成要素、責務境界、接続要件を定義し、個別ソフトウェアの詳細仕様は下位仕様へ委ねる。
 
-特に、BenchKit に関する詳細は [`BENCHKIT_SPEC.md`](C:/Users/yoshi/benchkit/docs/cx/BENCHKIT_SPEC.md) に委ねる。
-主要用語は [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) の用語集に従う。
+特に、BenchKit に関する詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
+主要用語は [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の用語集に従う。
 
-This document defines the CX Platform as the overall system that implements [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md).
+This document defines the CX Platform as the overall system that implements [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 It defines components, responsibility boundaries, and connection requirements, while delegating software-specific details to lower-level specifications.
 
-In particular, BenchKit-specific details are delegated to [`BENCHKIT_SPEC.md`](C:/Users/yoshi/benchkit/docs/cx/BENCHKIT_SPEC.md).
-Core terminology follows the glossary in [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md).
+In particular, BenchKit-specific details are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+Core terminology follows the glossary in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 
 ## 2. 適用範囲 / Scope
 
@@ -81,24 +81,12 @@ The CX Platform includes:
 ## 3. BenchKit の位置づけ / Position of BenchKit
 
 BenchKit は CX基盤を構成する中核ソフトウェアの1つである。
-
-BenchKit は主に以下を担う。
-
-- ベンチマーク定義と実行オーケストレーション
-- CI/CD を用いたジョブ生成
-- 結果の標準化
-- 結果および推定結果の表示
-- 推定・最適化・申請ワークフローへの接続点
+BenchKit は主として、CX 基盤におけるベンチマーク実行、結果正規化、結果表示、および関連ワークフローへの接続点を担う。
+BenchKit の詳細な責務、構成、データモデル、接続条件は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
 
 BenchKit is one of the core software components of the CX Platform.
-
-BenchKit is primarily responsible for:
-
-- benchmark definition and execution orchestration
-- CI/CD-driven job generation
-- result normalization
-- presentation of benchmark and estimation results
-- integration points for estimation, optimization, and request workflows
+BenchKit is primarily responsible for benchmark execution, result normalization, result presentation, and integration points for related workflows within the CX Platform.
+Detailed responsibilities, structure, data models, and integration conditions are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
 
 ## 4. CX基盤の構成要素 / Platform Components
 
@@ -106,21 +94,11 @@ BenchKit is primarily responsible for:
 
 #### BenchKit
 
-BenchKit はベンチマーク実行と結果管理の中核基盤である。
+BenchKit は CX 基盤における中核ソフトウェアであり、詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
+本書では、BenchKit を CX 基盤の主要構成要素として位置づけるにとどめる。
 
-主な構成:
-- `programs/*`
-- `scripts/*`
-- `config/*`
-- `result_server/*`
-
-BenchKit is the core platform for benchmark execution and result management.
-
-Main parts:
-- `programs/*`
-- `scripts/*`
-- `config/*`
-- `result_server/*`
+BenchKit is a core software component within the CX Platform, and its details are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+This document only positions BenchKit as one of the major components of the CX Platform.
 
 #### 結果ポータル / Result Portal
 

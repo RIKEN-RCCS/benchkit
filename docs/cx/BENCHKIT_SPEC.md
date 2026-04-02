@@ -11,7 +11,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 
 ## 読み方のルール / Reading Conventions
 
-本書では、[`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) の読み方のルールに従う。
+本書では、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の読み方のルールに従う。
 特に、本書では以下を区別して読むことが重要である。
 
 - 必須要件:
@@ -21,7 +21,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 - 将来拡張:
   申請フォーム、自動 PR、AI 駆動最適化、MCP 連携などの拡張方向。
 
-This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md).
+This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 In particular, it is important here to distinguish:
 
 - mandatory requirements:
@@ -56,16 +56,16 @@ BenchKit is responsible in particular for:
 
 ## 1.1 文書の位置づけ / Position of This Document
 
-本書は、[`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) および [`CX_PLATFORM.md`](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md) を受けて、BenchKit 自体の責務・構成・接続点を定義する下位仕様である。
+本書は、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) および [`CX_PLATFORM.md`](./CX_PLATFORM.md) を受けて、BenchKit 自体の責務・構成・接続点を定義する下位仕様である。
 
 本書は、BenchKit の外にある外部サービス、外部ツール、実システムを前提とするが、
 それらの内部仕様そのものではなく、BenchKit から見た責務境界と接続要件を記述する。
-主要用語は [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) の用語集に従う。
+主要用語は [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の用語集に従う。
 
-This document is a lower-level specification derived from [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md) and [`CX_PLATFORM.md`](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md), defining BenchKit’s own responsibilities, structure, and integration points.
+This document is a lower-level specification derived from [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) and [`CX_PLATFORM.md`](./CX_PLATFORM.md), defining BenchKit’s own responsibilities, structure, and integration points.
 
 It assumes the existence of external services, external tools, and real systems outside BenchKit, but describes not their internal semantics themselves, rather the responsibility boundaries and integration requirements as seen from BenchKit.
-Core terminology follows the glossary in [`CX_FRAMEWORK.md`](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md).
+Core terminology follows the glossary in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 
 ## 2. CX基盤における位置づけ / Position Within the CX Platform
 
@@ -168,7 +168,7 @@ BenchKit must explicitly handle their integration conditions, assumptions, and i
 
 BenchKit は概ね以下の論理構成を持つ。
 
-### 6.1 `programs/*`
+### 6.1 アプリ実装層 / Application Implementation Layer
 
 アプリごとの実装層である。
 各アプリは原則として以下を持つ。
@@ -190,7 +190,7 @@ Each application normally contains:
 
 This layer defines application-specific behavior such as source acquisition, build, execution, and FOM extraction.
 
-### 6.2 `scripts/*`
+### 6.2 共通実行基盤層 / Shared Execution Foundation
 
 BenchKit の共通実行基盤である。
 ここでは主に以下を担う。
@@ -214,7 +214,7 @@ It mainly provides:
 
 Common shell functions such as those in `bk_functions.sh` are central to absorbing repeated patterns while preserving the shell-first approach.
 
-### 6.3 `config/*`
+### 6.3 system・queue 定義層 / System and Queue Definition Layer
 
 BenchKit の system / queue 定義層である。
 
@@ -236,7 +236,7 @@ Main roles:
 
 `system.csv` is the source of truth for items such as system name, mode, runner tag, queue, and queue_group.
 
-### 6.4 `result_server/*`
+### 6.4 ポータル層 / Portal Layer
 
 BenchKit のポータル層である。
 
@@ -487,10 +487,10 @@ Users should ideally be able to use BenchKit to:
 
 本仕様は以下と整合する。
 
-- [CX_FRAMEWORK.md](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md)
-- [CX_PLATFORM.md](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md)
+- [CX_FRAMEWORK.md](./CX_FRAMEWORK.md)
+- [CX_PLATFORM.md](./CX_PLATFORM.md)
 
 This specification is aligned with:
 
-- [CX_FRAMEWORK.md](C:/Users/yoshi/benchkit/docs/cx/CX_FRAMEWORK.md)
-- [CX_PLATFORM.md](C:/Users/yoshi/benchkit/docs/cx/CX_PLATFORM.md)
+- [CX_FRAMEWORK.md](./CX_FRAMEWORK.md)
+- [CX_PLATFORM.md](./CX_PLATFORM.md)
