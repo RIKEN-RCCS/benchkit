@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import json
 import os
 import re
 from datetime import datetime
+from typing import Optional
 
 
 def compute_node_hours(data: dict) -> float:
