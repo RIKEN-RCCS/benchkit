@@ -45,15 +45,17 @@ It integrates software components, external tools, external services, compute sy
 ## 1.1 文書の位置づけ / Position of This Document
 
 本書は、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) を実装する全体システムとしての CX 基盤を定義する。
-本書は、構成要素、責務境界、接続要件を定義し、個別ソフトウェアの詳細仕様は下位仕様へ委ねる。
+本書は、構成要素、責務境界、接続要件を定義する。
+個別ソフトウェアの詳細仕様は必要に応じて下位仕様で定義する。
 
-特に、BenchKit に関する詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
+BenchKit に関する詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) を参照する。
 主要用語は [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の用語集に従う。
 
 This document defines the CX Platform as the overall system that implements [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
-It defines components, responsibility boundaries, and connection requirements, while delegating software-specific details to lower-level specifications.
+It defines components, responsibility boundaries, and connection requirements.
+Software-specific details may be defined in lower-level specifications where needed.
 
-In particular, BenchKit-specific details are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+For BenchKit-specific details, see [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
 Core terminology follows the glossary in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 
 ## 2. 適用範囲 / Scope
@@ -82,11 +84,11 @@ The CX Platform includes:
 
 BenchKit は CX基盤を構成する中核ソフトウェアの1つである。
 BenchKit は主として、CX 基盤におけるベンチマーク実行、結果正規化、結果表示、および関連ワークフローへの接続点を担う。
-BenchKit の詳細な責務、構成、データモデル、接続条件は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
+詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) を参照する。
 
 BenchKit is one of the core software components of the CX Platform.
 BenchKit is primarily responsible for benchmark execution, result normalization, result presentation, and integration points for related workflows within the CX Platform.
-Detailed responsibilities, structure, data models, and integration conditions are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+For details, see [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
 
 ## 4. CX基盤の構成要素 / Platform Components
 
@@ -94,10 +96,10 @@ Detailed responsibilities, structure, data models, and integration conditions ar
 
 #### BenchKit
 
-BenchKit は CX 基盤における中核ソフトウェアであり、詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) に委ねる。
+BenchKit は CX 基盤における中核ソフトウェアである。
 本書では、BenchKit を CX 基盤の主要構成要素として位置づけるにとどめる。
 
-BenchKit is a core software component within the CX Platform, and its details are delegated to [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+BenchKit is a core software component within the CX Platform.
 This document only positions BenchKit as one of the major components of the CX Platform.
 
 #### 結果ポータル / Result Portal
@@ -109,7 +111,7 @@ This document only positions BenchKit as one of the major components of the CX P
 - 使用量レポートの参照
 - 将来の申請・承認・AI指示ワークフローへの接続点
 
-現状では主に `result_server` がその役割を担う。
+現状では CX 基盤の内部ソフトウェアにより提供される。
 
 The Result Portal provides user-facing access to:
 
@@ -118,18 +120,18 @@ The Result Portal provides user-facing access to:
 - usage reports
 - future integration points for requests, approvals, and AI instructions
 
-It is currently implemented mainly by `result_server`.
+It is currently provided by internal software components of the CX Platform.
 
 #### 推定レイヤ / Estimation Layer
 
 実測データから本番規模性能や将来機性能を推定するレイヤである。
 
-現状では BenchKit 内に一部実装されているが、
+現状では CX 基盤の内部ソフトウェアに一部実装されているが、
 将来的には外部モデルや外部サービスとも連携しうる。
 
 The Estimation Layer transforms measured data into production-scale and future-system estimates.
 
-It is currently partially implemented inside BenchKit, but may later integrate with external models and services.
+It is currently partially implemented within internal platform software, but may later integrate with external models and services.
 
 #### 最適化レイヤ / Optimization Layer
 
