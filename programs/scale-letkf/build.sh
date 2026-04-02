@@ -4,7 +4,8 @@ system="$1"
 TOPDIR=`pwd`
 mkdir -p artifacts
 
-git clone https://github.com/SCALE-LETKF-RIKEN/scale-letkf-FugakuNEXT
+source scripts/bk_functions.sh
+bk_fetch_source https://github.com/SCALE-LETKF-RIKEN/scale-letkf-FugakuNEXT scale-letkf-FugakuNEXT
 cd scale-letkf-FugakuNEXT
 
 case "$system" in

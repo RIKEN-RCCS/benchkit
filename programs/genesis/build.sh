@@ -10,23 +10,8 @@ BRANCH="main"
 echo "[${REPO_DIR}] Building on system: $system"
 mkdir -p artifacts
 
-if [[ -d "${REPO_DIR}" ]]; then
-    if [[ ! -d ${REPO_DIR}/.git ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
-    fi
-    if [[ ! -f "${REPO_DIR}/.git/config" ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
-    fi
-fi
-
-if [[ ! -d ${REPO_DIR} ]]; then
-	echo "Cloning repository from ${REPO_URL} to ${REPO_DIR}"
-    git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-else
-    echo "Reposiotry already exists and looks valid. Skipping clone."
-fi
+source scripts/bk_functions.sh
+bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}"
 
 cd ${REPO_DIR} || {
     echo "Failed to enter ${REPO_DIR}"
