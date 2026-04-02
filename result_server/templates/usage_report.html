@@ -1,0 +1,98 @@
+{% extends "_results_base.html" %}
+
+{% block title %}Usage Report{% endblock %}
+
+{% block content %}
+<div style="padding: 0 16px;">
+
+  <style>
+    .usage-btn { display: inline-block; padding: 5px 14px; font-size: 13px; text-decoration: none; border: 1px solid #007bff; border-radius: 3px; cursor: pointer; background-color: #fff; color: #007bff; }
+    .usage-btn.active { background-color: #007bff; color: #fff; font-weight: bold; }
+  </style>
+
+  <!-- 期間タイプ切り替えボタン -->
+  <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 13px; color: #555;">期間:</span>
+    {% set buttons = [("monthly", "月次"), ("semi_annual", "半期"), ("fiscal_year", "年度")] %}
+    {% for val, label in buttons %}
+    <a href="?period_type={{ val }}&fiscal_year={{ fiscal_year }}"
+       class="usage-btn {% if period_type == val %}active{% endif %}">
+      {{ label }}
+    </a>
+    {% endfor %}
+
+    <!-- 会計年度ドロップダウン -->
+    <span style="font-size: 13px; color: #555; margin-left: 16px;">年度:</span>
+    <select id="fiscalYearSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year=' + this.value"
+            style="padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px;">
+      {% for fy in result.available_fiscal_years %}
+      <option value="{{ fy }}" {% if fy == fiscal_year %}selected{% endif %}>FY{{ fy }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if result.apps %}
+  <!-- クロス集計テーブル -->
+  <div style="overflow-x: auto;">
+    <table style="border-collapse: collapse; width: auto; font-size: 12px;">
+      <thead>
+        <!-- 1行目: システム名ヘッダー -->
+        <tr>
+          <th rowspan="2" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2;"></th>
+          {% for system in result.systems %}
+          <th colspan="{{ result.periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center;">{{ system }}</th>
+          {% endfor %}
+          <th colspan="{{ result.periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center;">合計</th>
+        </tr>
+        <!-- 2行目: 期間ラベルヘッダー -->
+        <tr>
+          {% for system in result.systems %}
+          {% for period in result.periods %}
+          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center; white-space: nowrap;">{{ period }}</th>
+          {% endfor %}
+          {% endfor %}
+          {% for period in result.periods %}
+          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center; white-space: nowrap;">{{ period }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for app in result.apps %}
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 3px 5px; font-weight: bold; white-space: nowrap;">{{ app }}</td>
+          {% for system in result.systems %}
+          {% for period in result.periods %}
+          {% set val = result.table[app][system][period] %}
+          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+          {% endfor %}
+          {% for period in result.periods %}
+          {% set val = result.row_totals[app][period] %}
+          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #fafafa; font-weight: bold;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight: bold;">
+          <td style="border: 1px solid #ddd; padding: 3px 5px;">合計</td>
+          {% for system in result.systems %}
+          {% for period in result.periods %}
+          {% set val = result.col_totals[system][period] %}
+          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #f2f2f2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+          {% endfor %}
+          {% for period in result.periods %}
+          {% set val = result.grand_totals[period] %}
+          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #e2e2e2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p style="color: #666; font-size: 14px;">該当期間のデータがありません</p>
+  {% endif %}
+
+</div>
+{% endblock %}

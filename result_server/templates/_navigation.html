@@ -88,6 +88,9 @@
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Public</a>
         <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">🔒 All Results</a>
         <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">🔐 Estimated</a>
+        {% if 'admin' in session.get('user_affiliations', []) %}
+        <a href="{{ url_for('results.usage_report') }}" class="nav-link {% if request.endpoint == 'results.usage_report' %}active{% endif %}">📈 Usage</a>
+        {% endif %}
         {% else %}
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Results</a>
         {% endif %}

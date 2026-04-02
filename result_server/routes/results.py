@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app
@@ -6,6 +8,8 @@ from utils.results_loader import load_results_table, load_single_result, load_mu
 from utils.user_store import get_user_store
 from utils.result_file import load_result_file, check_file_permission
 from utils.system_info import get_all_systems_info
+from routes.admin import admin_required
+from utils.node_hours import aggregate_node_hours, get_fiscal_year
 
 results_bp = Blueprint("results", __name__)
 
@@ -174,6 +178,37 @@ def result_detail(filename):
     if result is None:
         abort(404, "Result file not found")
     return render_template("result_detail.html", result=result, filename=filename)
+
+
+# ==========================================
+# ノード時間使用量レポートページ
+# GET /results/usage
+# ==========================================
+@results_bp.route("/usage", methods=["GET"])
+@admin_required
+def usage_report():
+    """ノード時間使用量レポートページ"""
+    valid_period_types = ("monthly", "semi_annual", "fiscal_year")
+    period_type = request.args.get("period_type", "fiscal_year")
+    if period_type not in valid_period_types:
+        period_type = "fiscal_year"
+
+    current_fy = get_fiscal_year(datetime.now())
+    try:
+        fiscal_year = int(request.args.get("fiscal_year", current_fy))
+    except (TypeError, ValueError):
+        fiscal_year = current_fy
+
+    result = aggregate_node_hours(
+        current_app.config["RECEIVED_DIR"], fiscal_year, period_type
+    )
+
+    return render_template(
+        "usage_report.html",
+        result=result,
+        period_type=period_type,
+        fiscal_year=fiscal_year,
+    )
 
 
 # ==========================================
