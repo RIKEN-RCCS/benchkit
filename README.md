@@ -199,16 +199,16 @@ python -m pytest tests/ -v
 
 ### 2. ベンチマーク実行パイプライン
 
-| モード | 実行内容 |
+| モード | パイプラインフロー |
 |--------|----------|
-| `cross` | ビルド→実行の2段階（ビルドはアーティファクト化） |
-| `native` | 1ジョブでビルド＋実行を同時実行 |
+| `cross` | build → run → send_results [`collect_timing.sh`, `result.sh`, `send_results.sh`] |
+| `native` | build_run → send_results [`collect_timing.sh`, `result.sh`, `send_results.sh`] |
 
 - `build.sh`、`run.sh` にはシステム名を渡し、システム別の環境設定が可能
 - `run.sh` は `$1`=system, `$2`=nodes, `$3`=numproc_node, `$4`=nthreads の4引数を受け取る
 - `run.sh` は `scripts/bk_functions.sh` を `source` し、`bk_emit_result` / `bk_emit_section` / `bk_emit_overlap` で標準化された結果出力を行う
-- `record_timestamp.sh` でビルド・実行の開始/終了時刻を記録し、`collect_timing.sh` で `pipeline_timing`（build/queue/run時間）を集計
-- `scripts/result.sh` で結果をJSON形式に変換（`pipeline_timing` 情報を自動付加）
+- `record_timestamp.sh` は run/build_run ジョブ（計算ノード上）でビルド・実行の開始/終了時刻を記録する
+- `collect_timing.sh` と `result.sh` は send_results ジョブ（Docker ランナー `fncx-curl-jq` 上）で実行される。`collect_timing.sh` で `pipeline_timing`（build/queue/run時間）を集計し、`result.sh` で結果をJSON形式に変換（`pipeline_timing` 情報を自動付加）する
 - `scripts/send_results.sh` で結果サーバに転送・性能推定トリガー
 
 ### 3. 結果転送・保存
