@@ -131,12 +131,6 @@ case "$system" in
 	mpirun -n 1 ./main 32 6 4 3   1 1 1 1    -1   -1  6 50 > CASE0
 	print_results CASE0 CASE0 1 >> ../results/result
 	;;
-    FNCX)
-	echo "=== FNCX: dummy run for bk_fetch_source verification ==="
-	echo "source_info.env contents:"
-	cat ../results/source_info.env || echo "source_info.env not found"
-	bk_emit_result --fom 99.999 --fom-version dummy_fncx --exp FNCX_TEST --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-	;;
     *)
 	echo "Unknown Running system: $system"
 	exit 1

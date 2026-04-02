@@ -7,20 +7,6 @@ mkdir -p artifacts
 source scripts/bk_functions.sh
 bk_fetch_source https://github.com/RIKEN-LQCD/qws.git qws
 
-# FNCX: docker runner smoke test (no compiler, no build)
-if [ "$system" = "FNCX" ]; then
-  echo "=== FNCX: bk_fetch_source smoke test ==="
-  echo "gcc: $(which gcc 2>&1 || echo 'not found')"
-  echo "make: $(which make 2>&1 || echo 'not found')"
-  echo "git: $(which git 2>&1 || echo 'not found')"
-  echo "md5sum: $(which md5sum 2>&1 || echo 'not found')"
-  echo "source_info.env:"
-  cat results/source_info.env || echo "not found"
-  echo "Skipping actual build (no compiler expected)"
-  echo "dummy" > artifacts/main
-  exit 0
-fi
-
 cd qws
 
 # システムに合わせてbuild方法を書く。systemの選択肢はlist.csvに合わせる。
