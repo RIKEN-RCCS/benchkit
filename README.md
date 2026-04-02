@@ -248,6 +248,15 @@ MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
 MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
 ```
 
+`system.csv` は **システム固有・拠点固有の実行ポリシーの正本** です。各システムについて以下を一元管理します。
+
+- `mode` - `cross` / `native` の実行モード
+- `tag_build` / `tag_run` - GitLab Runner / Jacamar のタグ
+- `queue` - `config/queue.csv` のテンプレート選択に使うキュー種別
+- `queue_group` - 実際の投入先キューグループ
+
+> **設計方針**: 同じシステムで共通な情報は `system.csv` に寄せ、各アプリの `list.csv` に重複定義しません。
+
 ### `config/queue.csv` - キューシステム定義
 ```csv
 queue,submit_cmd,template
@@ -272,6 +281,14 @@ FugakuCN,no,1,4,12,0:10:00
 MiyabiG,yes,1,1,72,0:10:00
 MiyabiC,no,1,1,112,0:10:00
 ```
+
+`list.csv` は **アプリごとの実験条件マトリクスの正本** です。ここにはジョブ投入の有無と、投入時に変わる実行条件だけを書きます。
+
+- `system` - 実行先システム名（`system.csv` と対応）
+- `enable` - その条件を実行するかどうか（`yes` / `no`）
+- `nodes`, `numproc_node`, `nthreads`, `elapse` - 実験条件
+
+> **設計方針**: `list.csv` には `mode` や `queue_group` を持たせません。これらは `system.csv` で一元管理します。
 
 
 ## CI実行制御

@@ -1,2 +1,12 @@
-# Shell scripts must use LF line endings (executed on Linux CI)
+# Default: let Git normalize line endings
+* text=auto
+
+# Shell scripts must use LF (executed on Linux CI)
 *.sh text eol=lf
+
+# Python must use LF
+*.py text eol=lf
+
+# Config files used by CI
+*.csv text eol=lf
+*.yml text eol=lf

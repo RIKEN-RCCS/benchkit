@@ -76,7 +76,20 @@ FugakuLN,yes,1,1,1,0:10:00
 - `nthreads`: スレッド数
 - `elapse`: 実行時間制限
 
-> **Note**: `mode` と `queue_group` は `config/system.csv` で一元管理されるため、list.csv には含めません。ジョブを無効化するには `enable=no` を設定します（`#` コメントアウトは使用しません）。
+> **Note**: `list.csv` は「アプリごとの実験条件」だけを書くファイルです。`mode` と `queue_group` は `config/system.csv` で一元管理されるため、list.csv には含めません。ジョブを無効化するには `enable=no` を設定します（`#` コメントアウトは使用しません）。
+
+### `config/system.csv` との責務分担
+
+BenchKit では、実行条件とシステム運用設定を明確に分けます。
+
+- `programs/<code>/list.csv`
+  - そのアプリをどのシステム・どのノード数・どのMPI/OpenMP条件で流すか
+  - アプリごとに変わる条件を書く
+- `config/system.csv`
+  - `mode`、Runner tag、`queue`、`queue_group` など、そのシステムで共通な運用設定を書く
+  - 全アプリで共有される条件を書く
+
+この分担により、同じシステムに対して各アプリが `mode` や `queue_group` を重複定義する必要がなくなります。
 
 ---
 
@@ -228,6 +241,7 @@ esac
 cd ..
 sync
 ```
+
 
 ### 結果フォーマット
 `results/result` の各行は以下の形式：
