@@ -203,11 +203,21 @@ def usage_report():
         current_app.config["RECEIVED_DIR"], fiscal_year, period_type
     )
 
+    # 期間フィルタ: 月次→特定月、半期→上期/下期で絞り込み
+    period_filter = request.args.get("period_filter", "")
+    if period_filter and period_filter in result["periods"]:
+        filtered_periods = [period_filter]
+    else:
+        period_filter = ""
+        filtered_periods = result["periods"]
+
     return render_template(
         "usage_report.html",
         result=result,
         period_type=period_type,
         fiscal_year=fiscal_year,
+        period_filter=period_filter,
+        filtered_periods=filtered_periods,
     )
 
 

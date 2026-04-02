@@ -29,6 +29,18 @@
       <option value="{{ fy }}" {% if fy == fiscal_year %}selected{% endif %}>FY{{ fy }}</option>
       {% endfor %}
     </select>
+
+    {% if period_type != 'fiscal_year' %}
+    <!-- 期間フィルタ -->
+    <span style="font-size: 13px; color: #555; margin-left: 16px;">絞り込み:</span>
+    <select id="periodFilterSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year={{ fiscal_year }}&period_filter=' + encodeURIComponent(this.value)"
+            style="padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px;">
+      <option value="" {% if not period_filter %}selected{% endif %}>全期間</option>
+      {% for p in result.periods %}
+      <option value="{{ p }}" {% if period_filter == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
   </div>
 
   {% if result.apps %}
@@ -40,18 +52,18 @@
         <tr>
           <th rowspan="2" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2;"></th>
           {% for system in result.systems %}
-          <th colspan="{{ result.periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center;">{{ system }}</th>
+          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center;">{{ system }}</th>
           {% endfor %}
-          <th colspan="{{ result.periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center;">合計</th>
+          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center;">合計</th>
         </tr>
         <!-- 2行目: 期間ラベルヘッダー -->
         <tr>
           {% for system in result.systems %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center; white-space: nowrap;">{{ period }}</th>
           {% endfor %}
           {% endfor %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center; white-space: nowrap;">{{ period }}</th>
           {% endfor %}
         </tr>
@@ -61,12 +73,12 @@
         <tr>
           <td style="border: 1px solid #ddd; padding: 3px 5px; font-weight: bold; white-space: nowrap;">{{ app }}</td>
           {% for system in result.systems %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           {% set val = result.table[app][system][period] %}
           <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
           {% endfor %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           {% set val = result.row_totals[app][period] %}
           <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #fafafa; font-weight: bold;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
@@ -77,12 +89,12 @@
         <tr style="font-weight: bold;">
           <td style="border: 1px solid #ddd; padding: 3px 5px;">合計</td>
           {% for system in result.systems %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           {% set val = result.col_totals[system][period] %}
           <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #f2f2f2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
           {% endfor %}
-          {% for period in result.periods %}
+          {% for period in filtered_periods %}
           {% set val = result.grand_totals[period] %}
           <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #e2e2e2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
