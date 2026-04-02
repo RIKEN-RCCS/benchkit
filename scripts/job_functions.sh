@@ -166,10 +166,20 @@ match_filter() {
 # $1: ジョブ名プレフィックス（例: qws_Fugaku_N1_P4_T12）
 # $2: 依存ジョブ名（needs に指定するジョブ名）
 # $3: 出力ファイル
+# $4: program — プログラム名（例: qws）
+# $5: system — システム名（例: Fugaku）
+# $6: mode — 実行モード（cross または native）
+# $7: build_job — ビルドジョブ名（例: qws_Fugaku_build）
+# $8: run_job — ランジョブ名（例: qws_Fugaku_N1_P4_T12_run）
 emit_send_results_job() {
     local job_prefix="$1"
     local depends_on="$2"
     local output="$3"
+    local program="$4"
+    local system="$5"
+    local mode="$6"
+    local build_job="$7"
+    local run_job="$8"
 
     echo "
 ${job_prefix}_send_results:
@@ -179,7 +189,13 @@ ${job_prefix}_send_results:
   environment:
     name: \$CI_COMMIT_BRANCH
   script:
+    - bash scripts/collect_timing.sh
+    - bash scripts/result.sh ${program} ${system} ${mode} ${build_job} ${run_job} \$CI_PIPELINE_ID
     - bash scripts/send_results.sh
+  artifacts:
+    paths:
+      - results/
+    expire_in: 1 week
 
 " >> "$output"
 }

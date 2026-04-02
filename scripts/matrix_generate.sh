@@ -139,13 +139,7 @@ ${job_prefix}_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
-    - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system cross ${build_key}_build ${job_prefix}_run $CI_PIPELINE_ID
-    - echo \"After result.sh execution\"
-    - ls -la results/
-    - echo \"Results directory contents count\"
-    - ls results/ | wc -l
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
   artifacts:
@@ -155,7 +149,7 @@ ${job_prefix}_run:
 
 " >> "$OUTPUT_FILE"
 
-    emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE"
+    emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE" "$program" "$system" "cross" "${build_key}_build" "${job_prefix}_run"
 
     if has_estimate_script "$program_path" && is_estimate_target "$system"; then
       emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "${job_prefix}_run" "$program" "$OUTPUT_FILE"
@@ -193,13 +187,7 @@ ${job_prefix}_build_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
-    - bash scripts/collect_timing.sh
     - ls -la .
-    - bash scripts/result.sh $program $system native ${job_prefix}_build_run ${job_prefix}_build_run $CI_PIPELINE_ID
-    - echo \"After result.sh execution\"
-    - ls -la results/
-    - echo \"Results directory contents count\"
-    - ls results/ | wc -l
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
   artifacts:
@@ -209,7 +197,7 @@ ${job_prefix}_build_run:
 
 " >> "$OUTPUT_FILE"
 
-    emit_send_results_job "$job_prefix" "${job_prefix}_build_run" "$OUTPUT_FILE"
+    emit_send_results_job "$job_prefix" "${job_prefix}_build_run" "$OUTPUT_FILE" "$program" "$system" "native" "${job_prefix}_build_run" "${job_prefix}_build_run"
 
     if has_estimate_script "$program_path" && is_estimate_target "$system"; then
       emit_estimate_job "$job_prefix" "${job_prefix}_send_results" "${job_prefix}_build_run" "$program" "$OUTPUT_FILE"
