@@ -37,7 +37,7 @@ benchkit/
 ├── result_server/
 │   ├── routes/
 │   │   ├── api.py            # 統合データ受信API（結果/推定/PA Data）
-│   │   ├── results.py        # 結果一覧・詳細・比較ページ
+│   │   ├── results.py        # 結果一覧・詳細・比較・使用量レポートページ
 │   │   ├── estimated.py      # 推定結果ページ
 │   │   ├── auth.py           # TOTP認証（ログイン/セットアップ/ログアウト）
 │   │   └── admin.py          # ユーザー管理（CRUD/招待リンク）
@@ -51,6 +51,7 @@ benchkit/
 │   │   ├── auth_login.html           # ログインページ（Email + TOTP）
 │   │   ├── auth_setup.html           # TOTP初期登録（QRコード表示）
 │   │   ├── admin_users.html          # ユーザー管理画面
+│   │   ├── usage_report.html         # ノード時間使用量レポート（admin専用）
 │   │   ├── _navigation.html          # 共通ナビゲーション（タブ型、認証時タブ拡張）
 │   │   ├── _pagination.html          # ページネーションUI部品
 │   │   ├── _results_table.html       # 結果テーブル部品（フィルタ・比較UI内蔵）
@@ -58,6 +59,7 @@ benchkit/
 │   │   └── _table_base.html          # テーブル基盤テンプレート（ツールチップ定義）
 │   ├── utils/
 │   │   ├── results_loader.py     # 結果ファイル読み込み・集約・ページネーション
+│   │   ├── node_hours.py        # ノード時間計算・会計年度判定・クロス集計
 │   │   ├── result_file.py        # ファイルアクセス・権限管理
 │   │   ├── system_info.py        # システム情報管理
 │   │   ├── totp_manager.py       # TOTP認証（秘密鍵生成/QR/検証/レート制限）
@@ -123,6 +125,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む、ページネーション・フィルタ対応） |
 | `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報） |
 | `/results/compare?files=a,b` | リグレッション比較（複数結果の差分表示） |
+| `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ） |
 | `/estimated/` | 推定結果一覧（ページネーション・フィルタ対応、認証時は機密データ含む） |
 
 結果一覧・推定結果ページのクエリパラメータ:
