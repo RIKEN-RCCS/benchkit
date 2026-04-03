@@ -148,6 +148,7 @@ Each of `current_system` and `future_system` must contain at least:
 - `assumptions`
 - `input_artifacts`
 - `model`
+- `applicability`
 - `confidence`
 - `notes`
 
@@ -158,6 +159,7 @@ Estimate JSON may include the following extension fields:
 - `assumptions`
 - `input_artifacts`
 - `model`
+- `applicability`
 - `confidence`
 - `notes`
 
@@ -171,6 +173,9 @@ Estimate JSON may include the following extension fields:
 - `timestamp`
 - `method_class`
 - `detail_level`
+- `source_result_uuid`
+- `estimation_package`
+- `estimation_package_version`
 
 例:
 
@@ -180,7 +185,10 @@ Estimate JSON may include the following extension fields:
     "estimation_id": "est-20260403-0001",
     "timestamp": "2026-04-03 13:00:00",
     "method_class": "lightweight",
-    "detail_level": "basic"
+    "detail_level": "basic",
+    "source_result_uuid": "00000000-0000-0000-0000-000000000000",
+    "estimation_package": "lightweight_fom_scaling",
+    "estimation_package_version": "0.1"
   }
 }
 ```
@@ -258,7 +266,38 @@ This field identifies the estimation model.
 
 This field stores assumptions made during estimation.
 
-### 6.5 confidence
+### 6.5 applicability
+
+推定方式に必要な入力が十分だったか、不足があったか、フォールバックが行われたかを保持する。
+
+想定項目:
+
+- `status`
+- `fallback_used`
+- `missing_inputs`
+- `required_actions`
+
+例:
+
+```json
+{
+  "applicability": {
+    "status": "fallback",
+    "fallback_used": "lightweight-fom-only",
+    "missing_inputs": [
+      "detailed_counters",
+      "annotated_interval_timings"
+    ],
+    "required_actions": [
+      "re-measure-with-detailed-counter-tool"
+    ]
+  }
+}
+```
+
+This field records whether the requested estimation method had sufficient inputs, whether fallback was used, and what was missing.
+
+### 6.6 confidence
 
 推定結果の信頼度や品質指標を保持する。
 
@@ -333,6 +372,7 @@ incrementally over time.
 
 - `measurement` の具体キー集合
 - `model` の詳細 taxonomy
+- `applicability.status` の標準値集合
 - `confidence` の尺度
 - `assumptions` の標準辞書
 
@@ -342,6 +382,7 @@ This document does not yet fix:
 
 - the complete key set of `measurement`
 - the detailed taxonomy of `model`
+- the standard value set of `applicability.status`
 - the scale for `confidence`
 - a standard dictionary for `assumptions`
 
