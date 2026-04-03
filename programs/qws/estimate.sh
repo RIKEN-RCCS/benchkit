@@ -35,6 +35,48 @@ est_future_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 2}')
 est_future_target_nodes="$est_node_count"
 est_future_scaling_method="scale-mock"
 
+# --- Optional metadata blocks ---
+est_estimation_id="estimate-${est_code}-${est_uuid:-unknown}"
+est_estimation_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+est_method_class="lightweight"
+est_detail_level="basic"
+est_measurement_json=$(jq -cn \
+  --arg tool "benchmark-result-only" \
+  --arg method "fom-plus-breakdown" \
+  --arg annotation_method "none" \
+  --arg counter_set "" \
+  --arg interval_timing_method "measured-or-inherited" \
+  '{
+    tool: $tool,
+    method: $method,
+    annotation_method: $annotation_method,
+    counter_set: ($counter_set | if . == "" then null else . end),
+    interval_timing_method: $interval_timing_method
+  }')
+est_assumptions_json=$(jq -cn \
+  --arg future_system "FugakuNEXT" \
+  --arg baseline_system "Fugaku" \
+  '{
+    future_system_assumption: $future_system,
+    baseline_system: $baseline_system,
+    future_fom_rule: "2x benchmark FOM when no detailed model is available"
+  }')
+est_model_json=$(jq -cn \
+  --arg type "scaling" \
+  --arg name "scale-mock" \
+  --arg version "0.1" \
+  --arg implementation "programs/qws/estimate.sh" \
+  '{
+    type: $type,
+    name: $name,
+    version: $version,
+    implementation: $implementation
+  }')
+est_confidence_json='{"level":"experimental","score":0.30}'
+est_notes_json=$(jq -cn \
+  --arg note "Reference implementation for lightweight estimation in BenchKit." \
+  '{summary: $note}')
+
 # --- fom_breakdown (extend with bench_time, scaling_method, time per section) ---
 # Read raw fom_breakdown from benchmark result
 raw_breakdown=$(jq -c '.fom_breakdown // empty' "$1")

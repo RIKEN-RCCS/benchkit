@@ -54,6 +54,18 @@ est_future_bench_uuid=""
 est_current_fom_breakdown=""
 est_future_fom_breakdown=""
 
+# Optional top-level metadata blocks for extended Estimate JSON
+est_estimation_id=""
+est_estimation_timestamp=""
+est_method_class=""
+est_detail_level=""
+est_measurement_json=""
+est_assumptions_json=""
+est_input_artifacts_json=""
+est_model_json=""
+est_confidence_json=""
+est_notes_json=""
+
 # ---------------------------------------------------------------------------
 # read_values — Read benchmark Result_JSON into global variables
 #
@@ -200,6 +212,53 @@ print_json() {
       \"fom_breakdown\": $est_future_fom_breakdown"
   fi
 
+  local estimate_metadata_block=""
+  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" ]]; then
+    estimate_metadata_block=",
+  \"estimate_metadata\": {
+    \"estimation_id\": \"${est_estimation_id}\",
+    \"timestamp\": \"${est_estimation_timestamp}\",
+    \"method_class\": \"${est_method_class}\",
+    \"detail_level\": \"${est_detail_level}\"
+  }"
+  fi
+
+  local measurement_block=""
+  if [[ -n "$est_measurement_json" && "$est_measurement_json" != "null" ]]; then
+    measurement_block=",
+  \"measurement\": $est_measurement_json"
+  fi
+
+  local assumptions_block=""
+  if [[ -n "$est_assumptions_json" && "$est_assumptions_json" != "null" ]]; then
+    assumptions_block=",
+  \"assumptions\": $est_assumptions_json"
+  fi
+
+  local input_artifacts_block=""
+  if [[ -n "$est_input_artifacts_json" && "$est_input_artifacts_json" != "null" ]]; then
+    input_artifacts_block=",
+  \"input_artifacts\": $est_input_artifacts_json"
+  fi
+
+  local model_block=""
+  if [[ -n "$est_model_json" && "$est_model_json" != "null" ]]; then
+    model_block=",
+  \"model\": $est_model_json"
+  fi
+
+  local confidence_block=""
+  if [[ -n "$est_confidence_json" && "$est_confidence_json" != "null" ]]; then
+    confidence_block=",
+  \"confidence\": $est_confidence_json"
+  fi
+
+  local notes_block=""
+  if [[ -n "$est_notes_json" && "$est_notes_json" != "null" ]]; then
+    notes_block=",
+  \"notes\": $est_notes_json"
+  fi
+
   cat <<EOF
 {
   "code": "$est_code",
@@ -232,7 +291,7 @@ print_json() {
       "uuid": "$est_future_bench_uuid"
     }${future_breakdown_block}
   },
-  "performance_ratio": $ratio
+  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${confidence_block}${notes_block}
 }
 EOF
 }
