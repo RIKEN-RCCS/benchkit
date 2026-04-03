@@ -374,7 +374,31 @@ Outputs:
 - improved portal capabilities
 - improved AI integration and automation
 
-## 4. 機能間の関係 / Functional Relationships
+## 4. 設計原則 / Design Principles
+
+### 4.1 ロックイン回避と差し替え可能性 / Avoiding Lock-In and Preserving Replaceability
+
+CX フレームワークは、単一の計測ツール、単一の推定モデル、単一の最適化系、単一の外部サービスに過度に依存しないことを基本とする。
+計測方法、アノテーション方式、性能カウンター採取方式、推定方式、AI 連携方式は、状況に応じて差し替え可能であることが望ましい。
+
+この原則の目的は以下である。
+- 特定ツールへのロックインを避ける
+- 国際協力や外部ツール連携をしやすくする
+- アプリ準備状況や拠点制約に応じて軽量な方法と詳細な方法を使い分ける
+- PoC 段階の手法を本番設計に持ち込みやすくする
+- ある手法が陳腐化したときに別手法へ移行しやすくする
+
+The CX Framework should avoid excessive dependence on any single measurement tool, estimation model, optimization stack, or external service.
+Measurement methods, annotation styles, counter collection methods, estimation methods, and AI integration methods should be replaceable according to the situation.
+
+The purposes of this principle are:
+- to avoid lock-in to specific tools
+- to make international collaboration and external-tool integration easier
+- to allow lightweight and detailed methods to coexist according to application readiness and site constraints
+- to allow PoC-stage methods to be introduced incrementally into production design
+- to make migration easier when a given method becomes obsolete
+
+## 5. 機能間の関係 / Functional Relationships
 
 CXのサイクルは線形ではなく反復的である。
 
@@ -396,29 +420,29 @@ Typical loop:
 5. CA enhances the CX Platform, models, and operating methods themselves.
 6. New CB runs validate the changes.
 
-## 5. 利用者と役割 / Actors and Roles
+## 6. 利用者と役割 / Actors and Roles
 
-### 5.1 アプリケーション開発者 / Application Developer
+### 6.1 アプリケーション開発者 / Application Developer
 - ベンチマークを実行・比較したい
 - 推定結果を確認したい
 - 最適化や条件変更を指示したい
 
-### 5.2 拠点運用者 / Platform Operator
+### 6.2 拠点運用者 / Platform Operator
 - runner、権限、予算、拠点設定を管理する
 - 実行状態と運用状態を監視する
 
-### 5.3 性能評価担当者 / Performance Engineer
+### 6.3 性能評価担当者 / Performance Engineer
 - FOM や推定ロジックを定義する
 - 傾向やボトルネックを分析する
 
-### 5.4 AIエージェント / AI Agent
+### 6.4 AIエージェント / AI Agent
 - 最適化提案、コード修正、異常診断、ワークフロー生成を支援する
 - 承認ポリシーの下で動作する
 
-### 5.5 調達・将来機評価担当者 / Procurement and Future-Architecture Stakeholder
+### 6.5 調達・将来機評価担当者 / Procurement and Future-Architecture Stakeholder
 - 将来機評価や適合性判断に CE/CA の結果を利用する
 
-## 6. 必須能力 / Required Capabilities
+## 7. 必須能力 / Required Capabilities
 
 CXフレームワークを実装する基盤は、少なくとも以下を支援する必要がある。
 
@@ -432,6 +456,8 @@ CXフレームワークを実装する基盤は、少なくとも以下を支援
 - 最適化ワークフロー
 - 承認付き自動化
 - 将来システム評価支援
+- 差し替え可能な計測方式および推定方式
+- 軽量な推定経路と詳細な推定経路の共存
 
 A platform implementing the CX Framework should support at least:
 
@@ -445,8 +471,10 @@ A platform implementing the CX Framework should support at least:
 - optimization workflows
 - approval-based automation
 - future-system evaluation support
+- replaceable measurement and estimation methods
+- coexistence of lightweight and detailed estimation paths
 
-## 7. 非目標 / Non-Goals
+## 8. 非目標 / Non-Goals
 
 CXフレームワークは以下を要求しない。
 
@@ -455,6 +483,7 @@ CXフレームワークは以下を要求しない。
 - 単一のベンチマークフレームワーク
 - 単一のAIツール
 - 人間の承認なしの完全自律運転
+- 単一の必須計測ツールチェインまたは推定ツールチェイン
 
 The CX Framework does not require:
 
@@ -463,8 +492,9 @@ The CX Framework does not require:
 - a single benchmarking framework
 - a single AI tool
 - fully autonomous execution without human approval
+- a single mandatory measurement or estimation toolchain
 
-## 8. CX基盤およびBenchKitとの関係 / Relationship to CX Platform and BenchKit
+## 9. CX基盤およびBenchKitとの関係 / Relationship to CX Platform and BenchKit
 
 - CXフレームワークは上位の概念・機能モデルを定義する
 - CX基盤はそのモデルを実装する全体システムである

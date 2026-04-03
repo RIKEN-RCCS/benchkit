@@ -69,6 +69,8 @@ CX基盤は以下を含む。
 - AI支援実行基盤
 - 多拠点実行管理
 - 利用者向けポータル
+- 差し替え可能な計測・推定手法を支える接続基盤
+- 軽量な推定経路と詳細な推定経路を共存させる運用基盤
 
 The CX Platform includes:
 
@@ -79,6 +81,8 @@ The CX Platform includes:
 - AI-assisted execution infrastructure
 - multi-site execution management
 - user-facing portal capabilities
+- integration infrastructure for replaceable measurement and estimation methods
+- operational infrastructure that allows lightweight and detailed estimation paths to coexist
 
 ## 3. BenchKit の位置づけ / Position of BenchKit
 
@@ -420,6 +424,8 @@ CX基盤は以下を支援すべきである。
 - 再現性と provenance の確保
 - 承認付きワークフロー変更
 - 将来システムや外部サービスの段階的統合
+- 計測手法・推定手法のロックイン回避
+- 軽量運用と詳細運用の切り替え可能性
 
 The platform should support:
 
@@ -428,6 +434,8 @@ The platform should support:
 - reproducibility and provenance tracking
 - approval-based workflow changes
 - gradual integration of future systems and external services
+- avoiding lock-in to specific measurement or estimation methods
+- the ability to switch between lightweight and detailed operational modes
 
 ## 9. アーキテクチャ方針 / Architectural Direction
 
@@ -436,6 +444,7 @@ The platform should support:
 - 下層は shell-first の実行基盤
 - 上層は portal-first の利用体験
 - 外部ツール・外部サービスとの境界を明示する
+- 計測方式、推定方式、AI 連携方式は差し替え可能であることを基本とする
 - 申請・承認・自動PR・AI連携を段階的に追加する
 - BenchKit を CX基盤の中核ポータルへ発展させる
 
@@ -444,6 +453,7 @@ The long-term direction is:
 - shell-first execution at the lower layer
 - portal-first interaction at the upper layer
 - explicit boundaries with external tools and services
+- replaceability of measurement methods, estimation methods, and AI integration methods
 - gradual addition of request, approval, auto-PR, and AI integrations
 - evolution of BenchKit toward the core portal of the CX Platform
 
