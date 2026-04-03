@@ -264,7 +264,7 @@ emit_estimate_job() {
     echo "
 ${job_prefix}_estimate:
   stage: estimate
-  needs: [\"${depends_on}\", \"${run_job}\"]
+  needs: [\"${depends_on}\"]
   tags: [fncx-curl-jq]
   environment:
     name: \$CI_COMMIT_BRANCH
