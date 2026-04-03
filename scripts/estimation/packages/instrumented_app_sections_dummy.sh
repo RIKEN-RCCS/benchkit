@@ -193,19 +193,19 @@ _bk_transform_breakdown_for_qws_demo() {
         if .name == $logp_section_name then
           .
           + {time: ((.time // .bench_time // 0) * $logp_factor)}
-          + {bench_time: ((.bench_time // .time // 0) * $logp_factor)}
+          + {bench_time: (.bench_time // .time // 0)}
           + {scaling_method: "logP"}
         else
           .
           + {time: ((.time // .bench_time // 0) * $default_factor)}
-          + {bench_time: ((.bench_time // .time // 0) * $default_factor)}
+          + {bench_time: (.bench_time // .time // 0)}
           + {scaling_method: "fixed-factor"}
         end
       )
       | .overlaps |= map(
         .
         + {time: ((.time // .bench_time // 0) * $default_factor)}
-        + {bench_time: ((.bench_time // .time // 0) * $default_factor)}
+        + {bench_time: (.bench_time // .time // 0)}
         + {scaling_method: "fixed-factor"}
       )
     '
