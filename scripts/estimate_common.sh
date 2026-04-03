@@ -102,6 +102,23 @@ read_values() {
   est_uuid=$(jq -r '._server_uuid // empty' "$json_file")
   est_timestamp=$(jq -r '._server_timestamp // empty' "$json_file")
 
+  # Fallback: read send_results manifest if the result JSON itself does not
+  # carry the server-assigned metadata.
+  if [[ -z "$est_uuid" || -z "$est_timestamp" ]]; then
+    local meta_file
+    local basename
+    meta_file="$(dirname "$json_file")/result_server_meta.json"
+    basename=$(basename "$json_file")
+    if [[ -f "$meta_file" ]]; then
+      if [[ -z "$est_uuid" ]]; then
+        est_uuid=$(jq -r --arg file "$basename" '.[$file].uuid // empty' "$meta_file")
+      fi
+      if [[ -z "$est_timestamp" ]]; then
+        est_timestamp=$(jq -r --arg file "$basename" '.[$file].timestamp // empty' "$meta_file")
+      fi
+    fi
+  fi
+
   # Fallback: extract from filename if not in JSON
   if [[ -z "$est_uuid" || -z "$est_timestamp" ]]; then
     local basename

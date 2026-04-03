@@ -5,6 +5,9 @@ echo "Sending results to server"
 
 ls results/
 
+meta_file="results/result_server_meta.json"
+echo "{}" > "$meta_file"
+
 # Loop over all result*.json files
 for json_file in results/result*.json; do
   [[ ! -f "$json_file" ]] && continue
@@ -50,6 +53,20 @@ with open('${tmp_file}', 'w') as f:
     json.dump(d, f, indent=2)
 " && mv "$tmp_file" "$json_file"
   echo "Wrote _server_uuid and _server_timestamp back to $json_file"
+
+  tmp_meta_file="${meta_file}.tmp"
+  python3 -c "
+import json
+with open('${meta_file}', 'r') as f:
+    d = json.load(f)
+d['$(basename "$json_file")'] = {
+    'uuid': '${uuid}',
+    'timestamp': '${timestamp}'
+}
+with open('${tmp_meta_file}', 'w') as f:
+    json.dump(d, f, indent=2)
+" && mv "$tmp_meta_file" "$meta_file"
+  echo "Updated result metadata manifest: $meta_file"
 
   # Determine corresponding TGZ name
   tgz_base="padata"

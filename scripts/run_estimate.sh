@@ -23,6 +23,12 @@ found=0
 for json_file in results/result*.json; do
   [[ ! -f "$json_file" ]] && continue
   found=1
+  echo "Input result metadata for $json_file:"
+  jq '{code, system, Exp, _server_uuid, _server_timestamp}' "$json_file" || true
+  if [[ -f results/result_server_meta.json ]]; then
+    echo "Available result metadata manifest:"
+    jq . results/result_server_meta.json || true
+  fi
   echo "Running estimation: $estimate_script $json_file"
   bash "$estimate_script" "$json_file"
 done
