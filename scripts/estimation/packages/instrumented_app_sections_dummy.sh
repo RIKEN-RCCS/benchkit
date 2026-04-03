@@ -24,12 +24,31 @@ EOF
 
 bk_estimation_package_check_applicability() {
   local missing_inputs=()
+  local incompatibilities=()
+  local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
+  local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
 
   if [[ -z "${est_fom:-}" ]]; then
     missing_inputs+=('"fom"')
   fi
   if [[ -z "${est_input_fom_breakdown:-}" || "${est_input_fom_breakdown:-}" == "null" ]]; then
     missing_inputs+=('"fom_breakdown"')
+  fi
+
+  if ! bk_estimation_validate_system_relation \
+    "cross_system_projection_model" \
+    "${est_system:-}" \
+    "$future_system" \
+    "cross_system_allowed"; then
+    incompatibilities+=('"future_system_cross_projection"')
+  fi
+
+  if ! bk_estimation_validate_system_relation \
+    "intra_system_scaling_model" \
+    "$baseline_system" \
+    "$baseline_system" \
+    "exact_match"; then
+    incompatibilities+=('"current_system_intra_scaling"')
   fi
 
   if (( ${#missing_inputs[@]} > 0 )); then
@@ -40,6 +59,17 @@ bk_estimation_package_check_applicability() {
       "lightweight_fom_scaling" \
       "$missing_inputs_json" \
       '["use-lightweight-fom-only-estimation-or-provide-section-breakdown"]'
+    return 1
+  fi
+
+  if (( ${#incompatibilities[@]} > 0 )); then
+    local incompatibilities_json
+    incompatibilities_json="[$(IFS=,; echo "${incompatibilities[*]}")]"
+    bk_estimation_set_applicability \
+      "not_applicable" \
+      "" \
+      '[]' \
+      "$incompatibilities_json"
     return 1
   fi
 
@@ -273,6 +303,36 @@ bk_estimation_package_run() {
       name: $name,
       version: $version,
       implementation: $implementation
+    }')
+  est_current_model_json=$(jq -cn \
+    --arg type "intra_system_scaling_model" \
+    --arg name "qws-intra-system-section-scaling" \
+    --arg version "$model_version" \
+    --arg source_system "$baseline_system" \
+    --arg target_system "$baseline_system" \
+    --arg system_compatibility_rule "exact_match" \
+    '{
+      type: $type,
+      name: $name,
+      version: $version,
+      source_system: $source_system,
+      target_system: $target_system,
+      system_compatibility_rule: $system_compatibility_rule
+    }')
+  est_future_model_json=$(jq -cn \
+    --arg type "cross_system_projection_model" \
+    --arg name "qws-cross-system-section-projection" \
+    --arg version "$model_version" \
+    --arg source_system "$est_system" \
+    --arg target_system "$future_system" \
+    --arg system_compatibility_rule "cross_system_allowed" \
+    '{
+      type: $type,
+      name: $name,
+      version: $version,
+      source_system: $source_system,
+      target_system: $target_system,
+      system_compatibility_rule: $system_compatibility_rule
     }')
 
   est_confidence_json='{"level":"experimental","score":0.20}'

@@ -33,6 +33,8 @@ est_future_system=""
 est_future_fom=""
 est_future_target_nodes=""
 est_future_scaling_method=""
+est_current_model_json=""
+est_future_model_json=""
 
 # Benchmark sub-object variables for current_system
 est_current_bench_system=""
@@ -189,6 +191,62 @@ bk_estimation_set_applicability() {
     + (if ($required_actions | length) > 0 then {required_actions: $required_actions} else {} end)')
 }
 
+_bk_system_line() {
+  local system_name="${1:-}"
+
+  case "$system_name" in
+    Fugaku|FugakuCN|FugakuLN)
+      echo "Fugaku"
+      ;;
+    MiyabiG|MiyabiC)
+      echo "Miyabi"
+      ;;
+    *)
+      echo "$system_name"
+      ;;
+  esac
+}
+
+bk_estimation_validate_system_relation() {
+  local model_kind="${1:-}"
+  local source_system="${2:-}"
+  local target_system="${3:-}"
+  local compatibility_rule="${4:-exact_match}"
+
+  if [[ -z "$model_kind" || -z "$source_system" || -z "$target_system" ]]; then
+    return 1
+  fi
+
+  case "$model_kind" in
+    intra_system_scaling_model)
+      case "$compatibility_rule" in
+        exact_match)
+          [[ "$source_system" == "$target_system" ]]
+          ;;
+        same_system_line)
+          [[ "$(_bk_system_line "$source_system")" == "$(_bk_system_line "$target_system")" ]]
+          ;;
+        *)
+          return 1
+          ;;
+      esac
+      ;;
+    cross_system_projection_model)
+      case "$compatibility_rule" in
+        cross_system_allowed|same_system_line|exact_match)
+          return 0
+          ;;
+        *)
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # fetch_current_fom — Fetch baseline-system FOM from result_server API
 #
@@ -270,6 +328,16 @@ print_json() {
   if [[ -n "$est_future_fom_breakdown" && "$est_future_fom_breakdown" != "null" ]]; then
     future_breakdown_block=",
       \"fom_breakdown\": $est_future_fom_breakdown"
+  fi
+  local current_model_block=""
+  if [[ -n "$est_current_model_json" && "$est_current_model_json" != "null" ]]; then
+    current_model_block=",
+      \"model\": $est_current_model_json"
+  fi
+  local future_model_block=""
+  if [[ -n "$est_future_model_json" && "$est_future_model_json" != "null" ]]; then
+    future_model_block=",
+      \"model\": $est_future_model_json"
   fi
 
   local estimate_metadata_block=""
@@ -353,7 +421,7 @@ print_json() {
       "numproc_node": "$est_current_bench_numproc_node",
       "timestamp": "$est_current_bench_timestamp",
       "uuid": "$est_current_bench_uuid"
-    }${current_breakdown_block}
+    }${current_breakdown_block}${current_model_block}
   },
   "future_system": {
     "system": "$est_future_system",
@@ -367,7 +435,7 @@ print_json() {
       "numproc_node": "$est_future_bench_numproc_node",
       "timestamp": "$est_future_bench_timestamp",
       "uuid": "$est_future_bench_uuid"
-    }${future_breakdown_block}
+    }${future_breakdown_block}${future_model_block}
   },
   "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}
 }
