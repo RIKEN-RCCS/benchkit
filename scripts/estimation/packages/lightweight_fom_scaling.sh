@@ -9,7 +9,7 @@ bk_estimation_package_metadata() {
   "method_class": "lightweight",
   "detail_level": "basic",
   "required_inputs": {
-    "mandatory": ["result_json", "fom", "node_count"],
+    "mandatory": ["result_json", "fom", "target_nodes_current", "target_nodes_future"],
     "optional": ["fom_breakdown"],
     "external": []
   },
@@ -46,7 +46,9 @@ bk_estimation_package_run() {
   local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
   local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-CASE0}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
-  local scale_factor="${BK_ESTIMATION_SCALE_FACTOR:-2}"
+  local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
+  local future_target_nodes="${BK_ESTIMATION_FUTURE_TARGET_NODES:-$est_node_count}"
+  local future_fom_factor="${BK_ESTIMATION_FUTURE_FOM_FACTOR:-${BK_ESTIMATION_SCALE_FACTOR:-1}}"
   local model_name="${BK_ESTIMATION_MODEL_NAME:-scale-mock}"
   local model_version="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
 
@@ -60,14 +62,14 @@ bk_estimation_package_run() {
 
   # Current/baseline side.
   est_current_system="$baseline_system"
-  fetch_current_fom "$est_code" "$baseline_exp"
-  est_current_target_nodes="$est_node_count"
+  fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
+  est_current_target_nodes="$current_target_nodes"
   est_current_scaling_method="measured"
 
   # Future/predicted side.
   est_future_system="$future_system"
-  est_future_fom=$(awk -v fom="$est_fom" -v factor="$scale_factor" 'BEGIN {printf "%.3f", fom * factor}')
-  est_future_target_nodes="$est_node_count"
+  est_future_fom=$(awk -v fom="$est_fom" -v factor="$future_fom_factor" 'BEGIN {printf "%.3f", fom * factor}')
+  est_future_target_nodes="$future_target_nodes"
   est_future_scaling_method="$model_name"
 
   est_measurement_json=$(jq -cn \
@@ -87,11 +89,22 @@ bk_estimation_package_run() {
   est_assumptions_json=$(jq -cn \
     --arg future_system "$future_system" \
     --arg baseline_system "$baseline_system" \
-    --arg scale_factor "$scale_factor" \
+    --arg current_target_nodes "$current_target_nodes" \
+    --arg future_target_nodes "$future_target_nodes" \
+    --arg future_fom_factor "$future_fom_factor" \
     '{
+      scaling_assumption: "weak-scaling",
       future_system_assumption: $future_system,
       baseline_system: $baseline_system,
-      future_fom_rule: ($scale_factor + "x benchmark FOM when no detailed model is available")
+      current_target_nodes: $current_target_nodes,
+      future_target_nodes: $future_target_nodes,
+      future_fom_rule: (
+        if $future_fom_factor == "1" then
+          "keep FOM constant unless additional correction terms are explicitly introduced"
+        else
+          ($future_fom_factor + "x benchmark FOM with explicit lightweight correction")
+        end
+      )
     }')
 
   est_model_json=$(jq -cn \
@@ -117,9 +130,9 @@ bk_estimation_package_run() {
   fi
 
   if [[ -n "$raw_breakdown" ]]; then
-    est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c --arg scale_factor "$scale_factor" --arg model_name "$model_name" '{
-      sections: [.sections[] | {name, bench_time: .time, scaling_method: $model_name, time: (.time * ($scale_factor | tonumber))}],
-      overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: $model_name, time: (.time * ($scale_factor | tonumber))}]
+    est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c --arg future_fom_factor "$future_fom_factor" --arg model_name "$model_name" '{
+      sections: [.sections[] | {name, bench_time: .time, scaling_method: $model_name, time: (.time * ($future_fom_factor | tonumber))}],
+      overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: $model_name, time: (.time * ($future_fom_factor | tonumber))}]
     }')
 
     est_current_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
@@ -138,7 +151,7 @@ bk_estimation_package_run() {
 bk_estimation_package_apply_metadata() {
   bk_estimation_set_package_metadata \
     "lightweight_fom_scaling" \
-    "${BK_ESTIMATION_MODEL_VERSION:-0.1}" \
+    "0.1" \
     "lightweight" \
     "basic"
 
