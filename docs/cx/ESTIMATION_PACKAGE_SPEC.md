@@ -100,6 +100,48 @@ The target design is that the application side only needs to specify:
 Estimation methods are strongly coupled with how the required measurement data is obtained.
 Therefore BenchKit should preferably be able to represent not only the estimation model, but also the measurement assumptions of the method as part of the package.
 
+### 3.3.1 取得方式ごとの詳細パッケージ / Detailed Packages by Acquisition Path
+
+詳細推定パッケージは、単に「詳細推定」でひとまとめにせず、少なくとも取得方式ごとに区別できることが望ましい。
+たとえば以下のような区別を許容すべきである。
+
+- `instrumented_app_sections`
+  - アプリ自前の区間時間や区間別結果を入力とする package
+- `instrumented_tool_sections`
+  - Caliper などの外部ツール由来の区間時間や区間別結果を入力とする package
+- `counter_based`
+  - 特定区間に対して採取された詳細性能カウンターを入力とする package
+
+Detailed estimation packages should not be grouped together as a single undifferentiated category.
+They should preferably be distinguishable at least by acquisition path, for example:
+
+- `instrumented_app_sections`
+  - packages that use application-defined interval timings or section-wise results
+- `instrumented_tool_sections`
+  - packages that use interval timings or section-wise results from external tools such as Caliper
+- `counter_based`
+  - packages that use detailed counters collected for specific sections
+
+### 3.3.2 区間ごとの複合推定 / Section-Wise Composite Estimation
+
+推定パッケージは、単一手法だけでなく、区間ごとに異なる推定方式を束ねる複合パッケージであってもよい。
+特に以下を許容すべきである。
+
+- 計算区間はカウンターベース
+- 通信区間は別個の通信モデル
+- その他の区間は区間時間ベース
+
+この場合、BenchKit は最終 FOM が複数区間の推定結果の合成であることを受け入れられるべきである。
+
+An estimation package may be a composite package that combines different estimation methods for different sections, rather than a single method.
+In particular, the framework should allow cases such as:
+
+- compute sections estimated with counter-based methods
+- communication sections estimated with a separate communication model
+- other sections estimated from interval timings
+
+In such cases, BenchKit should be able to accept that the final FOM is composed from multiple section-wise estimation results.
+
 ### 3.4 Git 公開を前提にしない / Do Not Assume Git Publication
 
 推定パッケージは、常に Git 管理下に置けるとは限らない。
@@ -200,6 +242,7 @@ Examples:
 - 任意入力
 - 補助入力
 - 外部入力
+- 区間ごとの必要入力
 
 The package must define the inputs required for estimation.
 
@@ -209,6 +252,7 @@ It should preferably be able to express at least:
 - optional inputs
 - auxiliary inputs
 - external inputs
+- section-wise required inputs
 
 ### 4.4 適用可能性判定 / Applicability Evaluation
 
@@ -316,17 +360,21 @@ These are suitable for high-frequency runs and PoC work.
 
 例:
 
-- `section_breakdown_scaling`
-- `annotated_interval_model`
-- `external_counter_model`
+- `instrumented_app_sections`
+- `instrumented_tool_sections`
+- `counter_based_section_model`
+- `communication_section_model`
+- `composite_section_model`
 
 これらは、深い分析や将来機評価に向く。
 
 Examples:
 
-- `section_breakdown_scaling`
-- `annotated_interval_model`
-- `external_counter_model`
+- `instrumented_app_sections`
+- `instrumented_tool_sections`
+- `counter_based_section_model`
+- `communication_section_model`
+- `composite_section_model`
 
 These are suitable for deeper analysis and future-system evaluation.
 
