@@ -5,7 +5,7 @@ echo "Sending results to server"
 
 ls results/
 
-meta_file="results/result_server_meta.json"
+meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
 
 # Loop over all result*.json files
@@ -95,5 +95,8 @@ with open('${tmp_meta_file}', 'w') as f:
   fi
 
 done
+
+echo "Final result metadata manifest:"
+cat "$meta_file"
 
 echo "All done."

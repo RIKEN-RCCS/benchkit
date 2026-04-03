@@ -107,7 +107,7 @@ read_values() {
   if [[ -z "$est_uuid" || -z "$est_timestamp" ]]; then
     local meta_file
     local basename
-    meta_file="$(dirname "$json_file")/result_server_meta.json"
+    meta_file="$(dirname "$json_file")/server_result_meta.json"
     basename=$(basename "$json_file")
     if [[ -f "$meta_file" ]]; then
       if [[ -z "$est_uuid" ]]; then
