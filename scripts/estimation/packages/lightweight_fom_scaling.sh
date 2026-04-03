@@ -10,7 +10,7 @@ bk_estimation_package_metadata() {
   "detail_level": "basic",
   "required_inputs": {
     "mandatory": ["result_json", "fom", "target_nodes_current", "target_nodes_future"],
-    "optional": ["fom_breakdown"],
+    "optional": [],
     "external": []
   },
   "fallback_policy": {
@@ -74,10 +74,10 @@ bk_estimation_package_run() {
 
   est_measurement_json=$(jq -cn \
     --arg tool "benchmark-result-only" \
-    --arg method "fom-plus-breakdown" \
+    --arg method "fom-only" \
     --arg annotation_method "none" \
     --arg counter_set "" \
-    --arg interval_timing_method "measured-or-inherited" \
+    --arg interval_timing_method "none" \
     '{
       tool: $tool,
       method: $method,
@@ -121,31 +121,14 @@ bk_estimation_package_run() {
 
   est_confidence_json='{"level":"experimental","score":0.30}'
   est_notes_json=$(jq -cn \
-    --arg note "Reference implementation for lightweight estimation in BenchKit." \
+    --arg note "Reference implementation for FOM-only lightweight estimation in BenchKit." \
     '{summary: $note}')
 
-  local raw_breakdown=""
-  if [[ -n "${BK_ESTIMATION_INPUT_JSON:-}" && -f "${BK_ESTIMATION_INPUT_JSON}" ]]; then
-    raw_breakdown=$(jq -c '.fom_breakdown // empty' "${BK_ESTIMATION_INPUT_JSON}")
-  fi
-
-  if [[ -n "$raw_breakdown" ]]; then
-    est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c --arg future_fom_factor "$future_fom_factor" --arg model_name "$model_name" '{
-      sections: [.sections[] | {name, bench_time: .time, scaling_method: $model_name, time: (.time * ($future_fom_factor | tonumber))}],
-      overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: $model_name, time: (.time * ($future_fom_factor | tonumber))}]
-    }')
-
-    est_current_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
-      sections: [.sections[] | {name, bench_time: .time, scaling_method: "measured", time: .time}],
-      overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
-    }')
-
-    est_future_fom=$(echo "$est_future_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
-    est_current_fom=$(echo "$est_current_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
-  else
-    est_future_fom_breakdown=""
-    est_current_fom_breakdown=""
-  fi
+  # Lightweight estimation is FOM-only by default. It must not implicitly
+  # switch into section-based estimation by inheriting or recomputing
+  # breakdown values unless a different package explicitly handles that path.
+  est_future_fom_breakdown=""
+  est_current_fom_breakdown=""
 }
 
 bk_estimation_package_apply_metadata() {
