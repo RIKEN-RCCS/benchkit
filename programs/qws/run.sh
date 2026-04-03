@@ -35,18 +35,21 @@ print_results() {
     local section_compute_hopping
     local section_compute_solver
     local section_halo_exchange
+    local section_allreduce
     local section_write_result
     local overlap_compute_halo
-    section_prepare_rhs=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.18}')
-    section_compute_hopping=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.34}')
-    section_compute_solver=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.20}')
-    section_halo_exchange=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.26}')
-    section_write_result=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.10}')
-    overlap_compute_halo=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.08}')
+    section_prepare_rhs=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.16}')
+    section_compute_hopping=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.28}')
+    section_compute_solver=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.18}')
+    section_halo_exchange=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.18}')
+    section_allreduce=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.16}')
+    section_write_result=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.08}')
+    overlap_compute_halo=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.04}')
     bk_emit_section prepare_rhs "$section_prepare_rhs"
     bk_emit_section compute_hopping "$section_compute_hopping"
     bk_emit_section compute_solver "$section_compute_solver"
     bk_emit_section halo_exchange "$section_halo_exchange"
+    bk_emit_section allreduce "$section_allreduce"
     bk_emit_section write_result "$section_write_result"
     bk_emit_overlap compute_hopping,halo_exchange "$overlap_compute_halo"
 }
