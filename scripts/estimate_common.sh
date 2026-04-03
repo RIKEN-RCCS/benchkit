@@ -75,6 +75,22 @@ est_applicability_json=""
 est_confidence_json=""
 est_notes_json=""
 
+_bk_normalize_estimation_timestamp() {
+  local raw="${1:-}"
+
+  if [[ -z "$raw" ]]; then
+    echo ""
+    return 0
+  fi
+
+  if [[ "$raw" =~ ^[0-9]{8}_[0-9]{6}$ ]]; then
+    echo "${raw:0:4}-${raw:4:2}-${raw:6:2} ${raw:9:2}:${raw:11:2}:${raw:13:2}"
+    return 0
+  fi
+
+  echo "$raw"
+}
+
 # ---------------------------------------------------------------------------
 # read_values — Read benchmark Result_JSON into global variables
 #
@@ -101,6 +117,7 @@ read_values() {
   # Read server-assigned uuid and timestamp (written back by send_results.sh)
   est_uuid=$(jq -r '._server_uuid // empty' "$json_file")
   est_timestamp=$(jq -r '._server_timestamp // empty' "$json_file")
+  est_timestamp=$(_bk_normalize_estimation_timestamp "$est_timestamp")
 
   # Fallback: read send_results manifest if the result JSON itself does not
   # carry the server-assigned metadata.
@@ -115,6 +132,7 @@ read_values() {
       fi
       if [[ -z "$est_timestamp" ]]; then
         est_timestamp=$(jq -r --arg file "$basename" '.[$file].timestamp // empty' "$meta_file")
+        est_timestamp=$(_bk_normalize_estimation_timestamp "$est_timestamp")
       fi
     fi
   fi
