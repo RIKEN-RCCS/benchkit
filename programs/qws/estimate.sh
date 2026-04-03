@@ -2,16 +2,29 @@
 # estimate.sh — Reference package-based estimation entrypoint for qws
 
 source scripts/estimate_common.sh
-source scripts/estimation/packages/lightweight_fom_scaling.sh
 
-BK_ESTIMATION_PACKAGE="lightweight_fom_scaling"
+BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-lightweight_fom_scaling}"
 BK_ESTIMATION_BASELINE_SYSTEM="Fugaku"
 BK_ESTIMATION_BASELINE_EXP="CASE0"
 BK_ESTIMATION_FUTURE_SYSTEM="FugakuNEXT"
 BK_ESTIMATION_FUTURE_FOM_FACTOR="${BK_ESTIMATION_FUTURE_FOM_FACTOR:-1}"
-BK_ESTIMATION_MODEL_NAME="scale-mock"
-BK_ESTIMATION_MODEL_VERSION="0.1"
+case "$BK_ESTIMATION_PACKAGE" in
+  lightweight_fom_scaling)
+    BK_ESTIMATION_MODEL_NAME="${BK_ESTIMATION_MODEL_NAME:-scale-mock}"
+    BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+    ;;
+  instrumented_app_sections_dummy)
+    BK_ESTIMATION_MODEL_NAME="${BK_ESTIMATION_MODEL_NAME:-instrumented-app-sections-dummy}"
+    BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+    ;;
+  *)
+    echo "ERROR: Unsupported estimation package for qws: ${BK_ESTIMATION_PACKAGE}" >&2
+    exit 1
+    ;;
+esac
 BK_ESTIMATION_INPUT_JSON="$1"
+
+source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
 read_values "$BK_ESTIMATION_INPUT_JSON"
 

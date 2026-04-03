@@ -50,6 +50,9 @@ est_future_bench_numproc_node=""
 est_future_bench_timestamp=""
 est_future_bench_uuid=""
 
+# Raw input / fetched Result JSON fragments (optional)
+est_input_fom_breakdown=""
+
 # fom_breakdown JSON strings (optional, set by estimate scripts)
 est_current_fom_breakdown=""
 est_future_fom_breakdown=""
@@ -123,6 +126,7 @@ read_values() {
     exit 1
   fi
   est_fom="$fom_raw"
+  est_input_fom_breakdown=$(jq -c '.fom_breakdown // empty' "$json_file")
 
   # By default, keep the input benchmark result UUID as the source UUID
   # for the estimation result. Package-aware estimation scripts may override
@@ -241,6 +245,7 @@ fetch_current_fom() {
   est_current_bench_numproc_node=$(echo "$response" | jq -r '.numproc_node // empty')
   est_current_bench_timestamp=$(echo "$response" | jq -r '._meta.timestamp // empty')
   est_current_bench_uuid=$(echo "$response" | jq -r '._meta.uuid // empty')
+  est_current_fom_breakdown=$(echo "$response" | jq -c '.fom_breakdown // empty')
 
   echo "Fetched baseline FOM for ${system}/${code}: ${est_current_fom}"
 }
