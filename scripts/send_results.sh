@@ -43,29 +43,22 @@ for json_file in results/result*.json; do
 
   # Write uuid and timestamp back into the Result_JSON for downstream use (estimate.sh)
   tmp_file="${json_file}.tmp"
-  python3 -c "
-import json, sys
-with open('${json_file}', 'r') as f:
-    d = json.load(f)
-d['_server_uuid'] = '${uuid}'
-d['_server_timestamp'] = '${timestamp}'
-with open('${tmp_file}', 'w') as f:
-    json.dump(d, f, indent=2)
-" && mv "$tmp_file" "$json_file"
+  jq \
+    --arg uuid "$uuid" \
+    --arg timestamp "$timestamp" \
+    '. + { _server_uuid: $uuid, _server_timestamp: $timestamp }' \
+    "$json_file" > "$tmp_file"
+  mv "$tmp_file" "$json_file"
   echo "Wrote _server_uuid and _server_timestamp back to $json_file"
 
   tmp_meta_file="${meta_file}.tmp"
-  python3 -c "
-import json
-with open('${meta_file}', 'r') as f:
-    d = json.load(f)
-d['$(basename "$json_file")'] = {
-    'uuid': '${uuid}',
-    'timestamp': '${timestamp}'
-}
-with open('${tmp_meta_file}', 'w') as f:
-    json.dump(d, f, indent=2)
-" && mv "$tmp_meta_file" "$meta_file"
+  jq \
+    --arg file "$(basename "$json_file")" \
+    --arg uuid "$uuid" \
+    --arg timestamp "$timestamp" \
+    '. + { ($file): { uuid: $uuid, timestamp: $timestamp } }' \
+    "$meta_file" > "$tmp_meta_file"
+  mv "$tmp_meta_file" "$meta_file"
   echo "Updated result metadata manifest: $meta_file"
 
   # Determine corresponding TGZ name
