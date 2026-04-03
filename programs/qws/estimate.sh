@@ -1,108 +1,28 @@
 #!/bin/bash
-# estimate.sh — Dummy estimation script for qws application
-#
-# Usage: bash programs/qws/estimate.sh <result_json_path>
-# Output: results/estimate_<code>_0.json
-#
-# This script uses a simple scale-mock model for integration testing.
-# Replace the estimation logic section below with a real estimation tool
-# when available.
+# estimate.sh — Reference package-based estimation entrypoint for qws
 
 source scripts/estimate_common.sh
+source scripts/estimation/packages/lightweight_fom_scaling.sh
 
-# --- Read benchmark result ---
-read_values "$1"
+BK_ESTIMATION_PACKAGE="lightweight_fom_scaling"
+BK_ESTIMATION_BASELINE_SYSTEM="Fugaku"
+BK_ESTIMATION_BASELINE_EXP="CASE0"
+BK_ESTIMATION_FUTURE_SYSTEM="FugakuNEXT"
+BK_ESTIMATION_SCALE_FACTOR="2"
+BK_ESTIMATION_MODEL_NAME="scale-mock"
+BK_ESTIMATION_MODEL_VERSION="0.1"
+BK_ESTIMATION_INPUT_JSON="$1"
 
-# --- Future system benchmark: pass through from the benchmark run ---
-est_future_bench_system="$est_system"
-est_future_bench_fom="$est_fom"
-est_future_bench_nodes="$est_node_count"
-est_future_bench_numproc_node="$est_numproc_node"
-est_future_bench_timestamp="$est_timestamp"
-est_future_bench_uuid="$est_uuid"
+read_values "$BK_ESTIMATION_INPUT_JSON"
 
-# --- Current system: Fugaku — fetch real FOM from result_server ---
-est_current_system="Fugaku"
-CURRENT_EXP="CASE0"  # Use CASE0 for Fugaku baseline
-fetch_current_fom "$est_code" "$CURRENT_EXP"
-# fetch_current_fom sets est_current_bench_* variables automatically
-est_current_target_nodes="$est_node_count"
-est_current_scaling_method="measured"
-
-# --- Future system: FugakuNEXT — FOM scaled by 2x (dummy) ---
-est_future_system="FugakuNEXT"
-est_future_fom=$(awk -v fom="$est_fom" 'BEGIN {printf "%.3f", fom * 2}')
-est_future_target_nodes="$est_node_count"
-est_future_scaling_method="scale-mock"
-
-# --- Optional metadata blocks ---
-est_estimation_id="estimate-${est_code}-${est_uuid:-unknown}"
-est_estimation_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-est_method_class="lightweight"
-est_detail_level="basic"
-est_measurement_json=$(jq -cn \
-  --arg tool "benchmark-result-only" \
-  --arg method "fom-plus-breakdown" \
-  --arg annotation_method "none" \
-  --arg counter_set "" \
-  --arg interval_timing_method "measured-or-inherited" \
-  '{
-    tool: $tool,
-    method: $method,
-    annotation_method: $annotation_method,
-    counter_set: ($counter_set | if . == "" then null else . end),
-    interval_timing_method: $interval_timing_method
-  }')
-est_assumptions_json=$(jq -cn \
-  --arg future_system "FugakuNEXT" \
-  --arg baseline_system "Fugaku" \
-  '{
-    future_system_assumption: $future_system,
-    baseline_system: $baseline_system,
-    future_fom_rule: "2x benchmark FOM when no detailed model is available"
-  }')
-est_model_json=$(jq -cn \
-  --arg type "scaling" \
-  --arg name "scale-mock" \
-  --arg version "0.1" \
-  --arg implementation "programs/qws/estimate.sh" \
-  '{
-    type: $type,
-    name: $name,
-    version: $version,
-    implementation: $implementation
-  }')
-est_confidence_json='{"level":"experimental","score":0.30}'
-est_notes_json=$(jq -cn \
-  --arg note "Reference implementation for lightweight estimation in BenchKit." \
-  '{summary: $note}')
-
-# --- fom_breakdown (extend with bench_time, scaling_method, time per section) ---
-# Read raw fom_breakdown from benchmark result
-raw_breakdown=$(jq -c '.fom_breakdown // empty' "$1")
-
-if [[ -n "$raw_breakdown" ]]; then
-  # Future system: scale each section/overlap time by 2x (dummy)
-  est_future_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
-    sections: [.sections[] | {name, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}],
-    overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: "scale-mock", time: (.time * 2)}]
-  }')
-
-  # Current system: measured, so time == bench_time (no scaling)
-  est_current_fom_breakdown=$(echo "$raw_breakdown" | jq -c '{
-    sections: [.sections[] | {name, bench_time: .time, scaling_method: "measured", time: .time}],
-    overlaps: [(.overlaps // [])[] | {sections, bench_time: .time, scaling_method: "measured", time: .time}]
-  }')
-
-  # Compute FOM from breakdown: Σsections.time - Σoverlaps.time
-  est_future_fom=$(echo "$est_future_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
-  est_current_fom=$(echo "$est_current_fom_breakdown" | jq '([.sections[].time] | add) - ([(.overlaps // [])[].time] | add // 0)' | awk '{printf "%.3f", $1}')
-else
-  est_future_fom_breakdown=""
-  est_current_fom_breakdown=""
+if ! bk_estimation_package_check_applicability; then
+  echo "ERROR: estimation package ${BK_ESTIMATION_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
+  exit 1
 fi
 
-# --- Output ---
+bk_estimation_package_run
+bk_estimation_package_apply_metadata
+
 mkdir -p results
 output_file="results/estimate_${est_code}_0.json"
 print_json > "$output_file"

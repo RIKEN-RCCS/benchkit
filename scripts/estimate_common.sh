@@ -59,10 +59,14 @@ est_estimation_id=""
 est_estimation_timestamp=""
 est_method_class=""
 est_detail_level=""
+est_source_result_uuid=""
+est_estimation_package=""
+est_estimation_package_version=""
 est_measurement_json=""
 est_assumptions_json=""
 est_input_artifacts_json=""
 est_model_json=""
+est_applicability_json=""
 est_confidence_json=""
 est_notes_json=""
 
@@ -119,6 +123,11 @@ read_values() {
     exit 1
   fi
   est_fom="$fom_raw"
+
+  # By default, keep the input benchmark result UUID as the source UUID
+  # for the estimation result. Package-aware estimation scripts may override
+  # this explicitly when needed.
+  est_source_result_uuid="$est_uuid"
 }
 
 # ---------------------------------------------------------------------------
@@ -130,6 +139,50 @@ read_values() {
 performance_ratio() {
   awk -v cur="$est_current_fom" -v fut="$est_future_fom" \
     'BEGIN { if (fut == 0) printf "0"; else printf "%.3f", cur / fut }'
+}
+
+# ---------------------------------------------------------------------------
+# bk_estimation_set_package_metadata — Set package-oriented metadata fields
+#
+# Arguments:
+#   $1  estimation package name
+#   $2  estimation package version
+#   $3  method_class
+#   $4  detail_level
+# ---------------------------------------------------------------------------
+bk_estimation_set_package_metadata() {
+  est_estimation_package="${1:-}"
+  est_estimation_package_version="${2:-}"
+  est_method_class="${3:-}"
+  est_detail_level="${4:-}"
+}
+
+# ---------------------------------------------------------------------------
+# bk_estimation_set_applicability — Build applicability JSON for Estimate JSON
+#
+# Arguments:
+#   $1  status
+#   $2  fallback_used         (optional)
+#   $3  missing_inputs_json   (optional, JSON array)
+#   $4  required_actions_json (optional, JSON array)
+# ---------------------------------------------------------------------------
+bk_estimation_set_applicability() {
+  local status="${1:-}"
+  local fallback_used="${2:-}"
+  local missing_inputs_json="${3:-[]}"
+  local required_actions_json="${4:-[]}"
+
+  est_applicability_json=$(jq -cn \
+    --arg status "$status" \
+    --arg fallback_used "$fallback_used" \
+    --argjson missing_inputs "$missing_inputs_json" \
+    --argjson required_actions "$required_actions_json" \
+    '{
+      status: $status
+    }
+    + (if $fallback_used != "" then {fallback_used: $fallback_used} else {} end)
+    + (if ($missing_inputs | length) > 0 then {missing_inputs: $missing_inputs} else {} end)
+    + (if ($required_actions | length) > 0 then {required_actions: $required_actions} else {} end)')
 }
 
 # ---------------------------------------------------------------------------
@@ -213,14 +266,26 @@ print_json() {
   fi
 
   local estimate_metadata_block=""
-  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" ]]; then
+  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" ]]; then
+    local estimate_metadata_json=""
+    estimate_metadata_json=$(jq -cn \
+      --arg estimation_id "$est_estimation_id" \
+      --arg timestamp "$est_estimation_timestamp" \
+      --arg method_class "$est_method_class" \
+      --arg detail_level "$est_detail_level" \
+      --arg source_result_uuid "$est_source_result_uuid" \
+      --arg estimation_package "$est_estimation_package" \
+      --arg estimation_package_version "$est_estimation_package_version" \
+      '{} 
+      + (if $estimation_id != "" then {estimation_id: $estimation_id} else {} end)
+      + (if $timestamp != "" then {timestamp: $timestamp} else {} end)
+      + (if $method_class != "" then {method_class: $method_class} else {} end)
+      + (if $detail_level != "" then {detail_level: $detail_level} else {} end)
+      + (if $source_result_uuid != "" then {source_result_uuid: $source_result_uuid} else {} end)
+      + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
+      + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)')
     estimate_metadata_block=",
-  \"estimate_metadata\": {
-    \"estimation_id\": \"${est_estimation_id}\",
-    \"timestamp\": \"${est_estimation_timestamp}\",
-    \"method_class\": \"${est_method_class}\",
-    \"detail_level\": \"${est_detail_level}\"
-  }"
+  \"estimate_metadata\": $estimate_metadata_json"
   fi
 
   local measurement_block=""
@@ -245,6 +310,12 @@ print_json() {
   if [[ -n "$est_model_json" && "$est_model_json" != "null" ]]; then
     model_block=",
   \"model\": $est_model_json"
+  fi
+
+  local applicability_block=""
+  if [[ -n "$est_applicability_json" && "$est_applicability_json" != "null" ]]; then
+    applicability_block=",
+  \"applicability\": $est_applicability_json"
   fi
 
   local confidence_block=""
@@ -291,7 +362,7 @@ print_json() {
       "uuid": "$est_future_bench_uuid"
     }${future_breakdown_block}
   },
-  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${confidence_block}${notes_block}
+  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}
 }
 EOF
 }
