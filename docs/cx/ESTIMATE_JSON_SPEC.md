@@ -109,9 +109,27 @@ Each of `current_system` and `future_system` must contain at least:
 - `timestamp`
 - `uuid`
 
+`current_system.benchmark` および `future_system.benchmark` は、それぞれの推定側における基準ベンチマーク結果を表す。意味としては、各推定側の参照ベンチマーク（reference benchmark）を指す。
+`current_system.benchmark` は current 側推定の基準に用いた参照ベンチマークであり、`future_system.benchmark` は future 側推定の基準に用いた参照ベンチマークである。
+これらは必ずしも各側の対象システム自身で直接測定されたベンチマークを意味しない。
+現行実装との互換性のため、当面フィールド名は `benchmark` を維持する。ただし意味としては参照ベンチマークであり、将来的にはより明確な名称へ移行してよい。
+
 `current_system.benchmark` and `future_system.benchmark` represent the baseline benchmark result for each estimation side.
+Semantically, these fields should be interpreted as side-specific `reference_benchmark`.
 These are expected, in principle, to be measured results obtained at small node counts.
 `future_system.benchmark` does not have to be a direct measurement on the future system itself, but should preferably be at least a measured result obtained on a current architecture close to the future system, or an equivalent comparison baseline.
+
+That is:
+
+- `current_system.benchmark`
+  - the reference benchmark used as the baseline for current-side estimation
+- `future_system.benchmark`
+  - the reference benchmark used as the baseline for future-side estimation
+
+They do not necessarily mean a benchmark directly measured on the target system of that side.
+
+For compatibility with the current implementation, the field name remains `benchmark` for now.
+However, its meaning is effectively `reference_benchmark`, and it may later migrate to a clearer name.
 
 In addition, `target_nodes` represents the estimated node count on each system side and is interpreted, in principle, under a weak-scaling assumption.
 
@@ -185,6 +203,8 @@ Estimate JSON may include the following extension fields:
 
 - `estimation_id`
 - `timestamp`
+- `estimation_result_uuid`
+- `estimation_result_timestamp`
 - `method_class`
 - `detail_level`
 - `source_result_uuid`
@@ -198,6 +218,8 @@ Estimate JSON may include the following extension fields:
   "estimate_metadata": {
     "estimation_id": "est-20260403-0001",
     "timestamp": "2026-04-03 13:00:00",
+    "estimation_result_uuid": "22222222-2222-2222-2222-222222222222",
+    "estimation_result_timestamp": "2026-04-03 13:00:00",
     "method_class": "lightweight",
     "detail_level": "basic",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
@@ -207,7 +229,13 @@ Estimate JSON may include the following extension fields:
 }
 ```
 
+この項目は、推定処理そのものに関する識別情報を保持する。
+`source_result_uuid` は推定入力として用いたベンチマーク結果を識別する。
+`estimation_result_uuid` および `estimation_result_timestamp` は、保存対象としての推定結果そのものの出自情報を識別する。
+
 This field stores identifiers for the estimation process itself.
+`source_result_uuid` identifies the benchmark result used as estimation input.
+`estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 
 ### 6.2 measurement
 
@@ -390,6 +418,24 @@ Each section may contain at least:
 - `estimation_package`
 - `artifacts`
 
+ここで、
+
+- `bench_time`
+  - その section に対する入力基準時間を表す
+  - 写像前、補正前、または推定前の時間として解釈する
+- `time`
+  - その section に対する推定後の時間を表す
+  - target system、target nodes、または推定後条件に対応する時間として解釈する
+
+This means:
+
+- `bench_time`
+  - represents the input baseline time for that section
+  - is interpreted as the pre-mapping, pre-adjustment, or pre-estimation time
+- `time`
+  - represents the estimated time for that section
+  - is interpreted as the time corresponding to the target system, target nodes, or post-estimation condition
+
 ### 7.0.1 section ごとの推定部品と補助データ / Section-Wise Estimation Components and Auxiliary Data
 
 各 section は、必要に応じてその区間に適用する推定パッケージ名を `estimation_package` として保持してよい。
@@ -450,8 +496,38 @@ Each overlap may contain at least:
 - `scaling_method`
 - `time`
 
+overlap についても、`bench_time` は入力基準 overlap 時間、`time` は推定後 overlap 時間として同様に解釈する。
+
+The same interpretation applies to overlap:
+`bench_time` is the baseline overlap time, and `time` is the estimated overlap time.
+
 Here, `sections` is an array of section names involved in the overlap.
 At the initial stage, overlap may be treated as the double-counted portion to subtract from the simple sum of sections, but in the future overlap itself may be treated as an independent estimable region.
+
+## 7.3 `bench_time` / `time` の名称について / On the Naming of `bench_time` / `time`
+
+現時点では既存実装との互換性を優先して `bench_time` と `time` を用いる。
+ただし、これらの意味は単なる benchmark time と time ではなく、実際には「入力基準時間」と「推定後時間」である。
+
+したがって将来的には、必要に応じて次のようなより分かりやすい名称へ移行してよい。
+
+- `baseline_time`
+- `estimated_time`
+
+この移行は後方互換性を考慮しながら段階的に行うべきである。
+
+現行実装との互換性のため、当面は `bench_time` と `time` を維持する。
+ただし実際の意味は単なるベンチマーク時間と時間ではなく、入力基準時間と推定後時間である。
+
+For compatibility with the current implementation, `bench_time` and `time` are retained for now.
+However, their actual meanings are not merely benchmark time and time, but rather baseline input time and estimated time.
+
+Therefore, in the future they may be migrated, when appropriate, to clearer names such as:
+
+- `baseline_time`
+- `estimated_time`
+
+Such migration should be performed gradually with backward compatibility in mind.
 
 ### 7.2 overlap の参照手法 / Reference Method for Overlap
 

@@ -222,9 +222,23 @@ Conceptually, the estimation function consists of:
 Result JSON is the minimum required input.
 In the future, additional counters, annotated interval timings, external files, or external service outputs may be used as auxiliary inputs.
 
+さらに、`current_system` と `future_system` の両側には、それぞれの推定の基準となるベンチマーク結果を持てることが望ましい。
+意味としては、これらは各推定側の参照ベンチマーク（reference benchmark）である。
+また、各推定側の参照ベンチマークの出自情報と、推定結果そのものの出自情報は区別して保持できることが望ましい。
+すなわち Estimate JSON は、少なくとも次を区別して保持できることが望ましい。
+- 各推定側の参照ベンチマークの UUID / timestamp
+- 推定結果そのものの UUID / timestamp
+
 In addition, both `current_system` and `future_system` should in principle have benchmark results that serve as their estimation baselines.
+Semantically, these are side-specific reference benchmarks.
 These benchmark results are preferably measured results obtained at small node counts.
 In particular, the benchmark result on the `future_system` side does not have to be a direct measurement on the future system itself, but should preferably be at least a measured result obtained on a current architecture close to the future system, or an equivalent comparison baseline.
+
+The provenance of these side-specific reference benchmarks should be distinguishable from the provenance of the estimate result itself.
+In other words, Estimate JSON should be able to retain:
+
+- the reference benchmark UUID/timestamp for each estimation side
+- the UUID/timestamp of the estimate result itself as a stored object
 
 ### 4.2 計測メタデータ / Measurement Metadata
 
