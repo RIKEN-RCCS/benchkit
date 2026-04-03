@@ -22,9 +22,9 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) の下位仕様であり、推定パッケージが宣言すべき metadata の最小契約を定義する。
+本書は [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) の下位仕様であり、推定パッケージが宣言すべき metadata の最小要件を定義する。
 
-This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md). It defines the minimum metadata contract that an estimation package should declare.
+This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md). It defines the minimum metadata requirements that an estimation package should declare.
 
 ## 2. 目的 / Purpose
 
@@ -310,7 +310,7 @@ At least the following mappings are desirable:
 本書は以下をまだ固定しない。
 
 - metadata を JSON で持つか shell 変数で持つか
-- `required_inputs` の完全 taxonomy
+- `required_inputs` の完全体系
 - `fallback_policy` の詳細辞書
 - package discovery の仕組み
 - `package_location` の記法を URI 風にするか単純文字列にするか

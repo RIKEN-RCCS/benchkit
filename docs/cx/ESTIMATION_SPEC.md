@@ -23,10 +23,10 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 ## 1. 文書の位置づけ / Position of This Document
 
 本書は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) のうち性能推定機能を詳細化する下位仕様である。
-本書は、推定手法の内部アルゴリズムそのものを固定する文書ではなく、BenchKit が推定機能を受け入れ、実行し、保存し、表示するための共通契約を定義する。
+本書は、推定手法の内部アルゴリズムそのものを固定する文書ではなく、BenchKit が推定機能を受け入れ、実行し、保存し、表示するための共通ルールを定義する。
 
 This document is a lower-level specification that details the estimation function described in [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
-It does not fix a single estimation algorithm. Instead, it defines the common contract by which BenchKit accepts, runs, stores, and presents estimation functions.
+It does not fix a single estimation algorithm. Instead, it defines the common rules by which BenchKit accepts, runs, stores, and presents estimation functions.
 
 ## 2. 目的 / Purpose
 
@@ -162,6 +162,32 @@ When required inputs are missing, BenchKit or the estimation method must explici
 
 It must not return a successful estimate while silently ignoring missing required inputs.
 
+### 3.5 BenchKit と推定パッケージ開発者の責務境界 / Boundary Between BenchKit and Package Developers
+
+BenchKit は、推定機構について共通ルール、識別情報、入出力、適用可能性判定結果、保存形式、比較可能性を扱う。
+一方で、各推定パッケージの開発者は、少なくとも以下を定義できるものとして扱う。
+
+- 具体的な推定アルゴリズム
+- 具体的な必要入力と不足時条件
+- section 名や overlap の解釈規約
+- 区間ごとの推定部品の合成方法
+- 補助アーティファクトの内部フォーマット
+- ツール固有・ベンダー固有の呼び出し方法
+
+したがって、本書で未定義のまま残す項目は、原則として package 開発者または外部ツール側へ委ねられる。
+
+BenchKit handles the common rules, identifiers, inputs/outputs, applicability results, storage format, and comparability of estimation.
+By contrast, each estimation-package developer is expected to define at least:
+
+- the concrete estimation algorithm
+- the concrete required inputs and missing-input conditions
+- the interpretation rules for section names and overlaps
+- how section-wise estimation components are composed
+- the internal format of auxiliary artifacts
+- tool-specific or vendor-specific invocation methods
+
+Accordingly, items intentionally left undefined in this document are, in principle, delegated to package developers or external tools.
+
 ## 4. 推定機能の構成 / Components of the Estimation Function
 
 性能推定機能は、概念上、以下の構成要素からなる。
@@ -209,6 +235,8 @@ In particular, the benchmark result on the `future_system` side does not have to
 - 軽量採取か詳細採取か
 - アノテーションの有無
 - 区間時間が実測か推定か
+- 区間ごとにどの推定部品を適用するか
+- 区間ごとにどの補助データを参照するか
 
 For measurement inputs used by estimation, it should be possible to identify at least:
 
@@ -217,6 +245,8 @@ For measurement inputs used by estimation, it should be possible to identify at 
 - whether the collection was lightweight or detailed
 - whether annotations were used
 - whether interval times were measured or inferred
+- which estimation component is applied to each section
+- which auxiliary data is referenced by each section
 
 ### 4.3 推定モデル / Estimation Model
 
@@ -248,11 +278,33 @@ However, from the perspective of BenchKit, the following should be identifiable:
 
 また、推定モデルは常に単一モデルである必要はない。
 区間ごとに異なる推定方式を組み合わせる複合推定を許容すべきである。
-特に、計算区間、通信区間、入出力区間などに対して、別々の推定方式を適用できることが望ましい。
+特に、計算区間、通信区間、入出力区間などに対して、異なる入力種別や推定方式を適用できることが望ましい。
 
 The estimation model need not always be a single monolithic model.
 Composite estimation that combines different estimation methods for different sections should be allowed.
-In particular, it is desirable to apply separate estimation methods to compute, communication, and I/O sections.
+In particular, it is desirable to apply different input types or estimation methods to compute, communication, and I/O sections.
+
+### 4.3.1 区間メタデータ / Section Metadata
+
+section は単なる時間値ではなく、必要に応じて当該区間に適用する推定部品と、その推定に必要な補助データ参照を保持できることが望ましい。
+少なくとも以下を保持してよい。
+
+- section 名
+- 区間時間
+- 区間に適用する推定パッケージ名
+- 補助データ参照
+
+これにより、アプリ開発者は区間ごとに推定方式を差し替えやすくなり、推定パッケージ開発者は区間ごとの必要入力に集中しやすくなる。
+
+A section should be able to hold not only a time value, but also the estimation component applied to that section and references to auxiliary data required by that estimation.
+At minimum, the following may be retained:
+
+- section name
+- section time
+- estimation package name applied to the section
+- auxiliary data references
+
+This makes it easier for application developers to switch estimation methods section by section, and for package developers to focus on section-wise required inputs.
 
 ### 4.4 比較基準 / Comparison Baseline
 
@@ -298,11 +350,27 @@ Lightweight estimation without section breakdown, overlap, communication interva
 
 When this kind of adjustment is applied, it must be made explicit in `assumptions` or `model` in Estimate JSON.
 
-また、通信区間の推定方式は、計算区間とは独立に切り替え可能であることが望ましい。
-たとえば、計算区間はカウンターベース、通信区間は別個の通信モデル、その他の区間は区間時間ベースという組合せを許容すべきである。
+また、特定区間の推定方式は、他の区間とは独立に切り替え可能であることが望ましい。
+たとえば、ある区間はカウンターベース、別の区間はトレースベース、さらに別の区間は区間時間ベースという組合せを許容すべきである。
 
-In addition, the estimation method for communication sections should preferably be switchable independently from that of compute sections.
-For example, the framework should allow combinations such as counter-based estimation for compute sections, a separate communication model for communication sections, and interval-timing-based estimation for other sections.
+In addition, the estimation method for a particular section should preferably be switchable independently from that of other sections.
+For example, the framework should allow combinations such as counter-based estimation for one section, trace-based estimation for another, and interval-timing-based estimation for others.
+
+### 4.4.3 overlap 区間 / Overlap Sections
+
+overlap は、少なくとも二つ以上の section が同時進行しうる区間を表すものとして扱う。
+overlap 自体も、section と同様に推定対象となる区間の一種であり、必要に応じて独立した区間推定部品で扱ってよい。
+
+初期段階では、overlap の実際の推定方法は手法依存としてよい。
+もっとも単純な参照手法としては、関連する section の時間から `max(section_A, section_B, ...)` を用いる近似を許容してよい。
+より詳細な方式では、overlap 区間自体に対する独立したモデル、トレース、カウンター、区間時間を用いてよい。
+
+Overlap should be treated as representing a region in which at least two or more sections may progress simultaneously.
+Overlap itself is also a kind of estimable region, just like a section, and may be handled by an independent section-estimation component when needed.
+
+At the initial stage, the actual estimation method for overlap may be method-dependent.
+As the simplest reference method, an approximation based on `max(section_A, section_B, ...)` may be allowed.
+More detailed methods may instead use an explicit model, trace, counters, or interval timings for the overlap region itself.
 
 ### 4.5 適用可能性判定 / Applicability Evaluation
 
@@ -447,6 +515,8 @@ BenchKit should satisfy at least the following:
 - 推定モデルのアルゴリズム
 - 推定を shell で行うか外部ツールで行うか
 - どの不足入力に対してどのフォールバック方式を採るか
+- section / overlap category の標準語彙
+- 区間ごとの補助アーティファクトの内部構造
 
 これらは、手法差し替え可能性とロックイン回避の原則に従って、将来も複数方式を受け入れられる形で扱う。
 
@@ -458,6 +528,8 @@ The following are intentionally left open at this stage:
 - the estimation algorithm itself
 - whether the estimation logic runs in shell or in an external tool
 - which fallback method should be used for which missing input
+- a standard vocabulary for section / overlap categories
+- the internal schema of section-wise auxiliary artifacts
 
 These are kept open so that multiple approaches remain possible under the principles of replaceability and avoiding lock-in.
 

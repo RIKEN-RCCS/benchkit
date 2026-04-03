@@ -11,9 +11,9 @@ If any discrepancy exists, the Japanese version takes precedence.
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、BenchKit が保存・表示・比較する Estimate JSON の最小契約を定義する。
+本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、BenchKit が保存・表示・比較する Estimate JSON の最小要件を定義する。
 
-This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum contract for Estimate JSON as stored, presented, and compared by BenchKit.
+This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum requirements for Estimate JSON as stored, presented, and compared by BenchKit.
 
 ## 2. 目的 / Purpose
 
@@ -355,6 +355,8 @@ This field stores confidence or quality indicators for the estimate.
 - `bench_time`
 - `scaling_method`
 - `time`
+- `estimation_package`
+- `artifacts`
 
 Each of `current_system` and `future_system` may optionally contain `fom_breakdown`.
 
@@ -369,6 +371,79 @@ Each section may contain at least:
 - `bench_time`
 - `scaling_method`
 - `time`
+- `estimation_package`
+- `artifacts`
+
+### 7.0.1 section ごとの推定部品と補助データ / Section-Wise Estimation Components and Auxiliary Data
+
+各 section は、必要に応じてその区間に適用する推定パッケージ名を `estimation_package` として保持してよい。
+また、ハードウェアカウンターの生データ、トレース、区間別ログ、tgz アーカイブなどの補助データ参照を `artifacts` として保持してよい。
+
+`artifacts` は少なくとも以下のような項目を持ってよい。
+
+- `type`
+- `path`
+- `description`
+
+例:
+
+```json
+{
+  "name": "compute_cpu_measure_atom_mass",
+  "bench_time": 0.30,
+  "scaling_method": "measured",
+  "time": 0.30,
+  "estimation_package": "counter_papi_detailed",
+  "artifacts": [
+    {
+      "type": "hardware_counter_archive",
+      "path": "results/papi_compute_cpu_measure_atom_mass.tgz",
+      "description": "Raw PAPI counters for this section"
+    }
+  ]
+}
+```
+
+Each section may optionally retain the estimation package applied to that section as `estimation_package`.
+It may also retain auxiliary data references such as raw hardware-counter data, traces, section-wise logs, or tgz archives as `artifacts`.
+
+`artifacts` may contain at least:
+
+- `type`
+- `path`
+- `description`
+
+### 7.1 overlaps の意味 / Meaning of overlaps
+
+`overlaps` は、少なくとも二つ以上の `sections` が同時進行しうる区間を表してよい。
+各 overlap は少なくとも以下を持ってよい。
+
+- `sections`
+- `bench_time`
+- `scaling_method`
+- `time`
+
+ここで `sections` は、当該 overlap に関与する section 名の配列である。
+初期段階では、overlap の意味は「section の単純和から差し引くべき二重計上分」として扱ってよいが、将来的には overlap 自体を独立した区間推定対象として扱ってよい。
+
+`overlaps` may represent regions in which at least two or more `sections` may progress simultaneously.
+Each overlap may contain at least:
+
+- `sections`
+- `bench_time`
+- `scaling_method`
+- `time`
+
+Here, `sections` is an array of section names involved in the overlap.
+At the initial stage, overlap may be treated as the double-counted portion to subtract from the simple sum of sections, but in the future overlap itself may be treated as an independent estimable region.
+
+### 7.2 overlap の参照手法 / Reference Method for Overlap
+
+初期段階のもっとも単純な参照手法としては、関連する section 時間から `max(section_A, section_B, ...)` を用いる近似を許容してよい。
+ただし、より詳細な推定方式では、トレース、カウンター、あるいは overlap 区間自体の実測時間を用いてよい。
+
+As the simplest reference method at the initial stage, an approximation based on `max(section_A, section_B, ...)` may be allowed.
+However, more detailed estimation methods may instead use traces, counters, or measured timings of the overlap region itself.
 
 ## 8. 将来拡張時の互換性 / Compatibility for Future Extensions
 
@@ -397,10 +472,12 @@ incrementally over time.
 本書は以下をまだ固定しない。
 
 - `measurement` の具体キー集合
-- `model` の詳細 taxonomy
+- `model` の詳細体系
 - `applicability.status` の標準値集合
 - `confidence` の尺度
 - `assumptions` の標準辞書
+- section / overlap category の標準語彙
+- section ごとの `artifacts` の内部構造
 
 これらは推定機能の設計・実装が進んだ段階で、実データを見ながら固定する。
 
@@ -411,5 +488,7 @@ This document does not yet fix:
 - the standard value set of `applicability.status`
 - the scale for `confidence`
 - a standard dictionary for `assumptions`
+- a standard vocabulary for section / overlap categories
+- the internal schema of per-section `artifacts`
 
 These should be fixed later based on actual implementation and observed data.

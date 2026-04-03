@@ -160,10 +160,10 @@ In the current implementation, the following already exist:
 
 ## 7. 現行実装と仕様のギャップ / Gaps Between Current Implementation and the Intended Specification
 
-### 7.1 UUID 取得 API の契約 / Contract for UUID-Based Result Retrieval
+### 7.1 UUID 取得 API の仕様 / UUID-Based Result Retrieval API
 
 現行の `fetch_result_by_uuid.sh` は `${RESULT_SERVER}/api/result/${estimate_uuid}` を取得する前提になっている。
-しかし、現時点のコードベース上では、この API 契約が明示的な仕様文書としては定義されておらず、結果サーバ側の公開口も明文化が弱い。
+しかし、現時点のコードベース上では、この API 仕様が明示的な仕様文書としては定義されておらず、結果サーバ側の公開口も明文化が弱い。
 
 したがって、以下を明確化する必要がある。
 
@@ -173,7 +173,7 @@ In the current implementation, the following already exist:
 - 取得失敗時の振る舞い
 
 The current `fetch_result_by_uuid.sh` assumes a `${RESULT_SERVER}/api/result/${estimate_uuid}` endpoint.
-However, this contract is not yet clearly documented as a formal specification, and the result-server-side exposure is not clearly described.
+However, this API is not yet clearly documented as a formal specification, and the result-server-side exposure is not clearly described.
 
 The following therefore need to be clarified:
 

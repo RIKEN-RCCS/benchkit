@@ -22,9 +22,9 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) の下位仕様であり、BenchKit と推定パッケージの間でやり取りする shell API の最小契約を定義する。
+本書は [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) の下位仕様であり、BenchKit と推定パッケージの間でやり取りする shell API の最小規約を定義する。
 
-This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md). It defines the minimum shell API contract between BenchKit and estimation packages.
+This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md). It defines the minimum shell API conventions between BenchKit and estimation packages.
 
 ## 2. 目的 / Purpose
 
@@ -51,10 +51,10 @@ At the initial stage, it is sufficient to make the following four phases explici
 4. propagation into Estimate JSON
 
 また、この shell API は推定パッケージの実装本体が常にリポジトリ内 shell ファイルであることを前提にしない。
-package の実体は、リポジトリ内 shell、ローカルファイル、ベンダー指定ラッパー、外部サービス呼び出しのいずれであってもよく、shell API はそれらを BenchKit から統一的に扱うための境界として定義する。
+package の実体は、リポジトリ内 shell、ローカルファイル、ベンダー指定ラッパー、外部サービス呼び出しのいずれであってもよく、shell API はそれらを BenchKit から統一的に扱うための境界面として定義する。
 
 This shell API also does not assume that the implementation body of a package is always a shell file inside the repository.
-The package body may instead be a repository shell file, a local file, a vendor-specified wrapper, or an external service call, and the shell API is defined as the boundary through which BenchKit handles them uniformly.
+The package body may instead be a repository shell file, a local file, a vendor-specified wrapper, or an external service call, and the shell API is defined as the interface boundary through which BenchKit handles them uniformly.
 
 ## 4. 推奨 API / Recommended API
 
@@ -194,10 +194,10 @@ print_json > "$output_file"
 ```
 
 上記はリポジトリ内 shell package の例である。
-ローカル配置やベンダー提供 package の場合も、最終的に同等の shell API 契約を満たすアダプタを介して呼び出せればよい。
+ローカル配置やベンダー提供 package の場合も、最終的に同等の shell API 規約を満たすアダプタを介して呼び出せればよい。
 
 The example above shows a repository-local shell package.
-For local or vendor-provided packages, it is sufficient to invoke them through an adapter that satisfies the same shell API contract.
+For local or vendor-provided packages, it is sufficient to invoke them through an adapter that satisfies the same shell API conventions.
 
 ## 8. 現時点で固定しないもの / Items Not Fixed Yet
 
