@@ -403,6 +403,10 @@ Estimation results are Estimate JSON records generated from measured results and
 BenchKit should preferably be able to handle both lightweight and detailed estimation outputs.
 It should also preserve room for method-identification metadata so that different measurement and estimation approaches can be compared in the future.
 
+さらに BenchKit は、`intra_system_scaling_model` と `cross_system_projection_model` の両方を扱え、各 system 側で必要に応じてそれらを使い分けられることが望ましい。
+
+In addition, BenchKit should preferably be able to handle both `intra_system_scaling_model` and `cross_system_projection_model`, and use them as needed on each system side.
+
 ## 8. 実行モデル / Execution Model
 
 BenchKit の典型的な実行フローは以下である。

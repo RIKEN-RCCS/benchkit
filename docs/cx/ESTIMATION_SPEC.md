@@ -284,6 +284,46 @@ The estimation model need not always be a single monolithic model.
 Composite estimation that combines different estimation methods for different sections should be allowed.
 In particular, it is desirable to apply different input types or estimation methods to compute, communication, and I/O sections.
 
+さらに、BenchKit は少なくとも次の二種類の推定モデルを区別して扱えることが望ましい。
+
+- `intra_system_scaling_model`
+  - 少ノード benchmark result から、同種または同一系統のシステム上の target nodes へ伸長する推定モデル
+- `cross_system_projection_model`
+  - 別系統または別アーキテクチャの benchmark result から、対象システム上の target へ投影する推定モデル
+
+ここで重要なのは、`current_system` 側の推定が必ずしも `intra_system_scaling_model` に限られないことである。
+たとえば、別の現行システムからの写像が有効であれば、`current_system` 側の多ノード推定にも `cross_system_projection_model` を使ってよい。
+
+これらは同一の推定モデルであってもよいが、別個のモデル、別個の推定パッケージ、あるいは複合推定パッケージ内の別部品として扱ってよい。
+
+In addition, BenchKit should preferably be able to distinguish at least the following two kinds of estimation models:
+
+- `intra_system_scaling_model`
+  - a model that scales a small-node benchmark result to target nodes on the same or closely related system line
+- `cross_system_projection_model`
+  - a model that projects from a benchmark result on a different system line or architecture to the target system
+
+The important point is that estimation on the `current_system` side is not necessarily limited to `intra_system_scaling_model`.
+For example, if projection from another current system is valid, `cross_system_projection_model` may also be used for multi-node estimation on the `current_system` side.
+
+These may be the same model, separate models, separate estimation packages, or separate components within a composite estimation package.
+
+さらに、これらのモデル種別は単なる分類名ではなく、入力 benchmark result の `system` と、推定出力側の対象 `system` との整合条件を持たなければならない。
+
+- `intra_system_scaling_model`
+  - 入力 benchmark result の `system` と推定出力側の対象 `system` が一致するか、少なくとも同一系統であることを前提とする
+- `cross_system_projection_model`
+  - 入力 benchmark result の `system` は推定元システムを表し、推定出力側の対象 `system` は推定先システムを表す
+  - 両者は一致しなくてよいが、推定元と推定先の向きが明示されていなければならない
+
+In addition, these model kinds must not be treated as mere labels; they must carry consistency conditions between the input benchmark-result `system` and the output-side target `system`.
+
+- `intra_system_scaling_model`
+  - assumes that the input benchmark-result `system` and the output-side target `system` are the same, or at least belong to the same system line
+- `cross_system_projection_model`
+  - treats the input benchmark-result `system` as the source system and the output-side target `system` as the destination system
+  - they need not match, but the source-to-target direction must be explicit
+
 ### 4.3.1 区間メタデータ / Section Metadata
 
 section は単なる時間値ではなく、必要に応じて当該区間に適用する推定部品と、その推定に必要な補助データ参照を保持できることが望ましい。
@@ -337,6 +377,24 @@ At least at the initial stage, this target node count is expected to be chosen b
 The default scaling assumption is, in principle, weak scaling.
 That is, even when the baseline benchmark result is measured at a small node count, the estimate is fundamentally expected to extrapolate performance toward the target node count on each system while increasing problem size.
 Unless additional correction terms are introduced, the basic interpretation is that FOM remains constant regardless of the target node count.
+
+ただし、`current_system` 側と `future_system` 側で同一のスケーリング規則を強制する必要はない。
+また、`current_system` 側が必ずしも system 内スケーリングである必要もない。
+`intra_system_scaling_model` を使う場合には「基本は FOM 一定で、一部区間のみ補正する」という扱いが自然である一方、`cross_system_projection_model` を使う場合には CPU/GPU 演算性能、通信性能、メモリ性能などに応じて区間時間そのものを変える投影モデルが自然である。
+
+However, the same scaling rule need not be forced on both the `current_system` side and the `future_system` side.
+Also, the `current_system` side need not always be an intra-system scaling case.
+When using `intra_system_scaling_model`, a rule such as "FOM is constant by default, with selective corrections only for some sections" is natural, whereas when using `cross_system_projection_model`, a projection model that changes section timings themselves according to CPU/GPU performance, communication performance, or memory performance is natural.
+
+したがって、BenchKit は少なくとも次を検証できることが望ましい。
+
+- `intra_system_scaling_model` が指定されたとき、入力 benchmark result の `system` と推定出力側の対象 `system` が一致または同一系統であること
+- `cross_system_projection_model` が指定されたとき、入力 benchmark result の `system` が推定元、推定出力側の対象 `system` が推定先として解釈できること
+
+Accordingly, BenchKit should preferably be able to validate at least the following:
+
+- when `intra_system_scaling_model` is specified, the input benchmark-result `system` and the output-side target `system` are the same or from the same system line
+- when `cross_system_projection_model` is specified, the input benchmark-result `system` can be interpreted as the source system and the output-side target `system` as the destination system
 
 ### 4.4.2 通信成分補正の前提 / Preconditions for Communication-Cost Adjustment
 

@@ -67,6 +67,8 @@ Estimate JSON は少なくとも以下を持たなければならない。
 - `scaling_method`
 - `benchmark`
 
+必要に応じて、`current_system` と `future_system` はそれぞれ側ごとの推定モデル情報を `model` として持ってよい。
+
 `benchmark` は少なくとも以下を持たなければならない。
 
 - `system`
@@ -260,6 +262,20 @@ This field stores how the measurement inputs used for estimation were obtained.
 ```
 
 This field identifies the estimation model.
+
+単一の top-level `model` は、Estimate JSON 全体を代表する主要モデル、複合モデル、または代表的モデルを表してよい。
+これに加えて、`current_system.model` と `future_system.model` を用いて、各システム側に個別の推定モデル情報を保持してよい。
+
+たとえば `current_system.model` には `intra_system_scaling_model` または `cross_system_projection_model` を保持してよく、`future_system.model` にも同様に適切な側モデルを保持してよい。
+
+The single top-level `model` may represent the primary model, a composite model, or the representative model for the entire Estimate JSON.
+In addition, `current_system.model` and `future_system.model` may retain side-specific model information.
+
+For example, `current_system.model` may retain either an `intra_system_scaling_model` or a `cross_system_projection_model`, and `future_system.model` may likewise retain whichever side model is appropriate.
+
+必要に応じて、側ごとの `model` は `source_system`、`target_system`、`system_compatibility_rule` を持ってよい。
+
+When needed, a side-specific `model` may contain `source_system`, `target_system`, and `system_compatibility_rule`.
 
 ### 6.4 assumptions
 
