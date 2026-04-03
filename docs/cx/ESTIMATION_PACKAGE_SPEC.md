@@ -100,6 +100,32 @@ The target design is that the application side only needs to specify:
 Estimation methods are strongly coupled with how the required measurement data is obtained.
 Therefore BenchKit should preferably be able to represent not only the estimation model, but also the measurement assumptions of the method as part of the package.
 
+### 3.4 Git 公開を前提にしない / Do Not Assume Git Publication
+
+推定パッケージは、常に Git 管理下に置けるとは限らない。
+将来アーキテクチャの仕様、ベンダー提供のツールチェイン、契約上の制約、非公開管理の必要性などにより、推定パッケージが以下の形を取ることを許容しなければならない。
+
+- BenchKit と同じ公開リポジトリに同梱される package
+- ローカルファイルとして配置される package
+- 別の公開もしくは非公開リポジトリで管理される package
+- ベンダー指定の配置や呼び出し方法に従う package
+- 外部ツールや外部サービスを経由して実行される package
+
+したがって BenchKit は、推定パッケージの内容そのものを常に Git に格納することを必須要件としてはならない。
+BenchKit に求められるのは、推定パッケージの所在、識別情報、呼び出し契約、必要入力、適用条件を扱えることである。
+
+An estimation package cannot always be stored under Git control.
+Future-architecture specifications, vendor-provided toolchains, contractual restrictions, and private-management requirements may require packages to take forms such as:
+
+- a package bundled in the same public repository as BenchKit
+- a package stored as a local file
+- a package managed in a separate public or private repository
+- a package that follows vendor-specified placement or invocation rules
+- a package executed through an external tool or service
+
+Therefore BenchKit must not require that the package implementation itself always be stored in Git.
+What BenchKit needs is the ability to handle the package location, identity, invocation contract, required inputs, and applicability conditions.
+
 ## 4. 推定パッケージの論理構成 / Logical Structure of an Estimation Package
 
 推定パッケージは、概念上、少なくとも以下の要素を持つ。
@@ -335,6 +361,7 @@ In this form, the application side is responsible only for package selection and
 本書は以下をまだ固定しない。
 
 - パッケージの具体的なディレクトリ構成
+- パッケージの配置形態が公開同梱、ローカルファイル、別公開または非公開リポジトリ、ベンダー提供、外部サービスのどれであるかの表現方式
 - package ごとの shell API の詳細
 - package を shell で書くか外部ツールで書くか
 - package metadata の完全な schema
@@ -344,6 +371,7 @@ In this form, the application side is responsible only for package selection and
 This document does not yet fix:
 
 - the exact directory layout of packages
+- the exact representation for whether a package is publicly bundled, local-file-based, managed in a separate public or private repository, vendor-provided, or externally hosted
 - the detailed shell API of each package
 - whether packages are written in shell or external tools
 - the complete schema of package metadata
@@ -354,14 +382,14 @@ These should be fixed incrementally based on implementation experience with the 
 
 本書の次に必要なのは、少なくとも以下である。
 
-1. 推定パッケージ metadata 仕様
-2. 推定パッケージ呼び出し用 shell API 仕様
+1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
+2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
 3. 軽量パッケージの参照実装仕様
 4. 詳細パッケージの参照実装仕様
 
 The next documents needed after this one include at least:
 
-1. a metadata specification for estimation packages
-2. a shell API specification for invoking estimation packages
+1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
+2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
 3. a reference specification for lightweight packages
 4. a reference specification for detailed packages

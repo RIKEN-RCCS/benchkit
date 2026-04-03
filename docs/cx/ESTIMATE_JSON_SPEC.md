@@ -76,6 +76,12 @@ Estimate JSON は少なくとも以下を持たなければならない。
 - `timestamp`
 - `uuid`
 
+`current_system.benchmark` および `future_system.benchmark` は、それぞれの推定側における基準 benchmark result を表す。
+これらは原則として少ノードで実行された実測結果を想定する。
+`future_system.benchmark` は将来システムそのものの実測でなくてもよいが、少なくとも将来システムに近い現行アーキテクチャ上での実測結果、または同等の比較基準であることが望ましい。
+
+また、`target_nodes` は各システム側の推定先ノード数を表し、原則としてウィークスケーリング前提で解釈する。
+
 Estimate JSON must contain at least:
 
 - `code`
@@ -100,6 +106,12 @@ Each of `current_system` and `future_system` must contain at least:
 - `numproc_node`
 - `timestamp`
 - `uuid`
+
+`current_system.benchmark` and `future_system.benchmark` represent the baseline benchmark result for each estimation side.
+These are expected, in principle, to be measured results obtained at small node counts.
+`future_system.benchmark` does not have to be a direct measurement on the future system itself, but should preferably be at least a measured result obtained on a current architecture close to the future system, or an equivalent comparison baseline.
+
+In addition, `target_nodes` represents the estimated node count on each system side and is interpreted, in principle, under a weak-scaling assumption.
 
 ## 5. 現行互換の最小例 / Minimum Example Compatible with the Current Implementation
 
@@ -253,6 +265,13 @@ This field identifies the estimation model.
 
 推定時の仮定を保持する。
 
+この項目には、少なくとも以下のような仮定を保持してよい。
+
+- ウィークスケーリング前提
+- 将来システム仮定
+- 通信成分補正の有無
+- problem size の増やし方
+
 例:
 
 ```json
@@ -265,6 +284,13 @@ This field identifies the estimation model.
 ```
 
 This field stores assumptions made during estimation.
+
+This field may include assumptions such as:
+
+- weak-scaling assumption
+- future-system assumption
+- whether a communication-cost adjustment is applied
+- how problem size is increased
 
 ### 6.5 applicability
 
