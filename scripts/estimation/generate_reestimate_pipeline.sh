@@ -5,10 +5,8 @@
 # of a specific benchmark result identified by UUID.
 #
 # Required CI variables:
-#   result_uuid          - UUID of the benchmark result to re-estimate directly
 #   estimate_result_uuid - UUID of the estimate result to re-estimate from
-#   estimate_uuid        - legacy alias for result_uuid
-#   code           - Program code name (e.g., "qws")
+#   code                 - Program code name (e.g., "qws")
 # Optional CI variables:
 #   reestimation_reason  - e.g. package-update, model-tuning, manual-rerun
 #   reestimation_trigger - e.g. ci-reestimation, portal, local-test
@@ -18,8 +16,8 @@
 set -euo pipefail
 
 # Validate required variables
-if [[ -z "${result_uuid:-}" && -z "${estimate_result_uuid:-}" && -z "${estimate_uuid:-}" ]]; then
-  echo "ERROR: result_uuid or estimate_result_uuid must be specified" >&2
+if [[ -z "${estimate_result_uuid:-}" ]]; then
+  echo "ERROR: estimate_result_uuid must be specified" >&2
   exit 1
 fi
 

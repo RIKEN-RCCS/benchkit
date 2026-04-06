@@ -28,9 +28,7 @@ variables:
   benchpark: "false"
   park_only: "false"
   park_send: "false"
-  estimate_uuid: ""
   estimate_result_uuid: ""
-  result_uuid: ""
   reestimation_reason: ""
   reestimation_trigger: ""
 
@@ -78,7 +76,7 @@ generate_matrix:
       - .gitlab-ci.generated.yml
     expire_in: 1 hour
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: never  # 推定モードでは通常パイプラインを無効化
     - if: '$park_only == "true"'
       when: never  # park_onlyモードでは無効
@@ -115,7 +113,7 @@ trigger_child_pipeline:
     - job: generate_matrix
       optional: true
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: never  # 推定モードでは通常パイプラインを無効化
     - if: '$park_only == "true"'
       when: never  # park_onlyモードでは無効
@@ -152,7 +150,7 @@ generate_benchpark_matrix:
       - .gitlab-ci.benchpark.yml
     expire_in: 1 hour
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: never  # 推定モードではBenchParkパイプラインも無効化
     - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
       when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
@@ -186,7 +184,7 @@ trigger_benchpark_pipeline:
     - job: generate_benchpark_matrix
       optional: true
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: never  # 推定モードではBenchParkパイプラインも無効化
     - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
       when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
@@ -219,7 +217,7 @@ generate_estimate_matrix:
       - .gitlab-ci.estimate.yml
     expire_in: 1 hour
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: always
     - when: never
 
@@ -238,6 +236,6 @@ trigger_estimate_pipeline:
     - job: generate_estimate_matrix
       optional: true
   rules:
-    - if: '$estimate_uuid != "" || $estimate_result_uuid != "" || $result_uuid != ""'
+    - if: '$estimate_result_uuid != ""'
       when: always
     - when: never

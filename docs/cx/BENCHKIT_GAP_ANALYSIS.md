@@ -193,7 +193,7 @@ Once the estimation specification is clarified, many other design decisions beco
 | 詳細推定 package | `instrumented_app_sections` など取得方式別 package を持てること | `instrumented_app_sections_dummy` を `qws` 向け参照実装として実装済み | 実測区間時間や外部ツール区間時間を使う本格 package は未実装 | 最優先 |
 | 複合推定 | section ごとに異なる方式を合成できること | `qws` と `instrumented_app_sections_dummy` で section ごとの package 指定、artifact 参照、section package dispatch、section-level fallback を実装済み | 複数実アプリへの適用、本格 package 実装、より一般的な合成規則は未着手 | 高 |
 | 推定 provenance | 推定元 result と推定結果自体の出自情報を保持すること | 推定元 result の UUID / timestamp、requested/applied package、推定結果自体の UUID / timestamp を Estimate JSON に保持できる。result JSON 側にも server UUID / timestamp を保持できる | compare UI や再推定導線での活用は未整理 | 中 |
-| 再推定 | UUID 起点で再推定し比較可能にすること | shell フローはある | UUID 取得 API 仕様と比較表示の整理が未完 | 高 |
+| 再推定 | `estimate_result_uuid` 起点で再推定し比較可能にすること | 再推定専用 trigger、child pipeline、result / estimate / estimation input の再取得、`reestimation` ブロック付与、CI 上での保存完了まで動作する | compare UI、portal からの起動導線、表示上の差分把握が未完 | 高 |
 | 推定結果表示 | model / assumptions / applicability を表示できること | estimated 画面で requested/applied package、applicability、estimate UUID などの基本表示は可能 | section / overlap 単位の詳細表示、比較表示、`not_applicable` の説明補助は未整備 | 中 |
 
 この表から、現在の最小核は以下と整理できる。
@@ -205,8 +205,8 @@ Once the estimation specification is clarified, many other design decisions beco
 
 逆に、まだ核ではないが後で効くものは以下である。
 
-- UUID 比較 UI
-- 再推定要求フロー
+- 再推定比較 UI
+- portal からの再推定要求フロー
 - 複合推定の本格化
 - counter / trace / overlap の本格活用
 - section / overlap 単位の詳細 UI 表示
@@ -218,7 +218,7 @@ Once the estimation specification is clarified, many other design decisions beco
 1. `qws` 以外の app へ推定方式を横展開する
 2. section / overlap 単位の package applicability と `not_applicable` 詳細を portal で見やすくする
 3. 複数 detailed package 間の fallback と discovery を整理する
-4. その後に UUID 再推定と比較表示へ進む
+4. その後に再推定比較 UI と portal 起動導線へ進む
 
 ここでいう区間時間ダミー package は、すでに最初の参照実装として導入済みである。
 今後は、少なくとも以下を満たす方向へ育てる必要がある。

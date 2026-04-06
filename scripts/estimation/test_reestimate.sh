@@ -1,22 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "Usage: $0 <code> <result_uuid|estimate_result_uuid> [kind]"
+if [[ $# -ne 2 ]]; then
+  echo "Usage: $0 <code> <estimate_result_uuid>"
   echo "  <code>: program name (directory under programs/)"
-  echo "  <result_uuid|estimate_result_uuid>: UUID to use as the re-estimation entry point"
-  echo "  [kind]: result | estimate (default: estimate)"
+  echo "  <estimate_result_uuid>: UUID to use as the re-estimation entry point"
   echo ""
   echo "Examples:"
   echo "  $0 qws 11111111-2222-3333-4444-555555555555"
-  echo "  $0 qws 11111111-2222-3333-4444-555555555555 estimate"
-  echo "  $0 qws 11111111-2222-3333-4444-555555555555 result"
   exit 1
 fi
 
 code="$1"
 input_uuid="$2"
-kind="${3:-estimate}"
 
 if [[ ! "$input_uuid" =~ ^[0-9a-fA-F-]{36}$ ]]; then
   echo "ERROR: UUID format looks invalid: $input_uuid" >&2
@@ -36,28 +32,12 @@ fi
 rm -f results/result*.json results/estimate*.json results/source_estimate.json
 mkdir -p results
 
-case "$kind" in
-  estimate)
-    export estimate_result_uuid="$input_uuid"
-    unset result_uuid 2>/dev/null || true
-    unset estimate_uuid 2>/dev/null || true
-    ;;
-  result)
-    export result_uuid="$input_uuid"
-    unset estimate_result_uuid 2>/dev/null || true
-    unset estimate_uuid 2>/dev/null || true
-    ;;
-  *)
-    echo "ERROR: kind must be one of: estimate, result" >&2
-    exit 1
-    ;;
-esac
+export estimate_result_uuid="$input_uuid"
 
 export code
 
 echo "Re-estimation test"
 echo "  code: $code"
-echo "  kind: $kind"
 echo "  uuid: $input_uuid"
 echo ""
 
