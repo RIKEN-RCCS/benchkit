@@ -210,20 +210,35 @@ def ingest_padata():
 
 @api_bp.route("/api/query/result", methods=["GET"])
 def query_result():
-    """Search results by system, code, exp and return the latest match.
+    """Search results by uuid or by system/code/exp and return one result.
 
     Query parameters:
-      system (required): e.g. Fugaku
-      code   (required): e.g. qws
+      uuid   (optional): result UUID
+      system (required unless uuid is specified): e.g. Fugaku
+      code   (required unless uuid is specified): e.g. qws
       exp    (optional): e.g. default
 
-    Returns the full JSON of the most recent matching result file.
+    Returns the full JSON of the matching result file.
     """
     require_api_key()
 
+    uuid_value = request.args.get("uuid")
     system = request.args.get("system")
     code = request.args.get("code")
     exp = request.args.get("exp")
+
+    if uuid_value:
+        if not is_valid_uuid(uuid_value):
+            abort(400, description="Invalid UUID")
+
+        data = _load_json_by_uuid(
+            current_app.config["RECEIVED_DIR"],
+            ["_server_uuid"],
+            uuid_value,
+        )
+        if data is None:
+            abort(404, description=f"No result found for uuid={uuid_value}")
+        return jsonify(data), 200
 
     if not system or not code:
         abort(400, description="system and code are required")
@@ -270,31 +285,13 @@ def query_result():
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
 
 
-@api_bp.route("/api/query/result/<uuid_value>", methods=["GET"])
-def query_result_by_uuid(uuid_value):
-    """UUID で単一 Result JSON を返す。"""
-    require_api_key()
-
-    if not is_valid_uuid(uuid_value):
-        abort(400, description="Invalid UUID")
-
-    data = _load_json_by_uuid(
-        current_app.config["RECEIVED_DIR"],
-        ["_server_uuid"],
-        uuid_value,
-    )
-    if data is None:
-        abort(404, description=f"No result found for uuid={uuid_value}")
-
-    return jsonify(data), 200
-
-
-@api_bp.route("/api/query/estimate/<uuid_value>", methods=["GET"])
-def query_estimate_by_uuid(uuid_value):
+@api_bp.route("/api/query/estimate", methods=["GET"])
+def query_estimate():
     """UUID で単一 Estimate JSON を返す。"""
     require_api_key()
 
-    if not is_valid_uuid(uuid_value):
+    uuid_value = request.args.get("uuid")
+    if not uuid_value or not is_valid_uuid(uuid_value):
         abort(400, description="Invalid UUID")
 
     data = _load_json_by_uuid(

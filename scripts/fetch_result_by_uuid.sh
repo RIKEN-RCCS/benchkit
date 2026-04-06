@@ -23,7 +23,7 @@ if [[ -z "$resolved_result_uuid" && -n "${estimate_result_uuid:-}" ]]; then
   echo "Fetching estimate for UUID: $estimate_result_uuid"
   curl --fail -sS -H "X-API-Key: ${RESULT_SERVER_KEY}" \
     -o "results/source_estimate.json" \
-    "${RESULT_SERVER}/api/query/estimate/${estimate_result_uuid}"
+    "${RESULT_SERVER}/api/query/estimate?uuid=${estimate_result_uuid}"
 
   resolved_result_uuid="$(jq -r '.estimate_metadata.source_result_uuid // empty' results/source_estimate.json)"
   if [[ -z "$resolved_result_uuid" ]]; then
@@ -45,5 +45,5 @@ fi
 
 echo "Fetching result for UUID: $resolved_result_uuid"
 curl --fail -sS -H "X-API-Key: ${RESULT_SERVER_KEY}" -o "results/result0.json" \
-  "${RESULT_SERVER}/api/query/result/${resolved_result_uuid}"
+  "${RESULT_SERVER}/api/query/result?uuid=${resolved_result_uuid}"
 echo "Fetched result to results/result0.json"

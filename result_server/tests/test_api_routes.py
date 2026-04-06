@@ -353,7 +353,7 @@ class TestQueryByUuid:
         self._seed_json(received, "result_20250101_000000_12345678-1234-1234-1234-123456789abc.json", data)
 
         resp = client.get(
-            "/api/query/result/12345678-1234-1234-1234-123456789abc",
+            "/api/query/result?uuid=12345678-1234-1234-1234-123456789abc",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200
@@ -371,18 +371,18 @@ class TestQueryByUuid:
         self._seed_json(estimated, "estimate_20250101_000000_87654321-4321-4321-4321-cba987654321.json", data)
 
         resp = client.get(
-            "/api/query/estimate/87654321-4321-4321-4321-cba987654321",
+            "/api/query/estimate?uuid=87654321-4321-4321-4321-cba987654321",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200
         assert resp.get_json()["estimate_metadata"]["source_result_uuid"] == "12345678-1234-1234-1234-123456789abc"
 
     def test_query_result_by_uuid_missing_api_key_returns_401(self, client):
-        resp = client.get("/api/query/result/12345678-1234-1234-1234-123456789abc")
+        resp = client.get("/api/query/result?uuid=12345678-1234-1234-1234-123456789abc")
         assert resp.status_code == 401
 
     def test_query_estimate_by_uuid_missing_api_key_returns_401(self, client):
-        resp = client.get("/api/query/estimate/87654321-4321-4321-4321-cba987654321")
+        resp = client.get("/api/query/estimate?uuid=87654321-4321-4321-4321-cba987654321")
         assert resp.status_code == 401
 
 
