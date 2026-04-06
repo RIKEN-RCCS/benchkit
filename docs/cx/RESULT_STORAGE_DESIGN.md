@@ -71,7 +71,8 @@ By contrast, the following should remain design or implementation choices:
 - Result JSON は `results/result*.json` として生成される
 - estimate は `results/estimate_*.json` として生成・保存される
 - result server へ送信した後、server 側が払い出した UUID / timestamp が JSON に書き戻される
-- estimate 側でも、推定元 result の UUID / timestamp を Estimate JSON に保持できる
+- result 側では `_server_uuid` / `_server_timestamp` を JSON 本文に保持できる
+- estimate 側でも、推定元 result の UUID / timestamp に加えて、推定結果自体の UUID / timestamp を Estimate JSON に保持できる
 - estimate ファイル名自体にも UUID / timestamp を含める運用が存在する
 
 Web 上の論理的な見え方と、result server 側の実ディレクトリ構成は分かれている。
@@ -106,7 +107,8 @@ This system is currently primarily file-based.
 - Result JSON is produced as `results/result*.json`
 - estimates are produced and stored as `results/estimate_*.json`
 - after sending to the result server, server-issued UUID / timestamp are written back into JSON
-- Estimate JSON can retain the UUID / timestamp of the source result
+- Result JSON can retain `_server_uuid` / `_server_timestamp` in the payload itself
+- Estimate JSON can retain both the UUID / timestamp of the source result and the UUID / timestamp of the estimate result itself
 - estimate filenames may themselves include UUID / timestamp
 
 As a result, identifiers are currently distributed across multiple places:

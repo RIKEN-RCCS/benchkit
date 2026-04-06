@@ -116,7 +116,7 @@ The typical re-estimation flow in BenchKit is:
 
 再推定では少なくとも以下を入力として扱う。
 
-- `estimate_uuid`
+- `result_uuid`
 - `code`
 
 必要に応じて以下を追加で与えてよい。
@@ -129,7 +129,7 @@ The typical re-estimation flow in BenchKit is:
 
 At minimum, re-estimation uses the following inputs:
 
-- `estimate_uuid`
+- `result_uuid`
 - `code`
 
 Optionally, the following may also be supplied:
@@ -144,26 +144,28 @@ Optionally, the following may also be supplied:
 
 現行実装では、以下の要素が存在する。
 
-- `.gitlab-ci.yml` に `estimate_uuid` 変数がある
-- `generate_estimate_from_uuid.sh` が専用 child pipeline を生成する
-- `fetch_result_by_uuid.sh` が結果取得を行う
 - `run_estimate.sh` が app ごとの `estimate.sh` を呼び出す
 - `send_estimate.sh` が推定結果を結果サーバに送信する
+- Estimate JSON には推定元 benchmark result の UUID を `estimate_metadata.source_result_uuid` として保持できる
+- Estimate JSON には保存対象としての推定結果自体の UUID / timestamp を `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp` として保持できる
+- `requested_estimation_package` と実際に適用された `estimation_package` を区別できる
+- `applicability` を通じて `applicable`、`partially_applicable`、`fallback`、`not_applicable` を最終状態として保持できる
 
 In the current implementation, the following already exist:
 
-- an `estimate_uuid` variable in `.gitlab-ci.yml`
-- `generate_estimate_from_uuid.sh` to generate a dedicated child pipeline
-- `fetch_result_by_uuid.sh` to fetch the result
 - `run_estimate.sh` to invoke app-specific `estimate.sh`
 - `send_estimate.sh` to send estimation results to the result server
+- the ability to retain the source benchmark-result UUID as `estimate_metadata.source_result_uuid`
+- the ability to retain the estimate-result UUID / timestamp as `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp`
+- a distinction between `requested_estimation_package` and the actually applied `estimation_package`
+- final-state applicability recording through `applicable`, `partially_applicable`, `fallback`, and `not_applicable`
 
 ## 7. 現行実装と仕様のギャップ / Gaps Between Current Implementation and the Intended Specification
 
 ### 7.1 UUID 取得 API の仕様 / UUID-Based Result Retrieval API
 
-現行の `fetch_result_by_uuid.sh` は `${RESULT_SERVER}/api/result/${estimate_uuid}` を取得する前提になっている。
-しかし、現時点のコードベース上では、この API 仕様が明示的な仕様文書としては定義されておらず、結果サーバ側の公開口も明文化が弱い。
+再推定を UUID 起点で運用するには、UUID 指定で Result JSON を取得する API または同等の取得手段が必要である。
+現時点では、再推定の shell フロー自体は存在しても、その取得口の公開仕様や認証条件は文書としてまだ十分に固定されていない。
 
 したがって、以下を明確化する必要がある。
 
@@ -172,8 +174,8 @@ In the current implementation, the following already exist:
 - confidential 結果の扱い
 - 取得失敗時の振る舞い
 
-The current `fetch_result_by_uuid.sh` assumes a `${RESULT_SERVER}/api/result/${estimate_uuid}` endpoint.
-However, this API is not yet clearly documented as a formal specification, and the result-server-side exposure is not clearly described.
+UUID-based re-estimation requires an API or equivalent retrieval path that can fetch Result JSON by UUID.
+At present, the shell-side re-estimation flow exists, but the retrieval endpoint, exposure rules, and authentication conditions are not yet fixed clearly enough in the documents.
 
 The following therefore need to be clarified:
 
@@ -190,6 +192,8 @@ The following therefore need to be clarified:
 - 推定方式識別子
 - 推定パッケージ識別子
 - 推定実行時刻
+- 保存対象としての推定結果 UUID / timestamp
+- requested / applied package の識別
 
 これにより、同じ benchmark result から複数回再推定した履歴を区別しやすくする。
 
@@ -199,18 +203,20 @@ Re-estimation results should preferably include at least:
 - an estimation-method identifier
 - an estimation-package identifier
 - the estimation execution timestamp
+- the estimate-result UUID / timestamp as a stored object
+- a distinction between requested and applied package identities
 
 This makes it easier to distinguish multiple re-estimations from the same benchmark result.
 
 ### 7.3 比較表示の不足 / Missing Comparison Semantics
 
-現時点では、推定結果一覧は存在するが、同じ benchmark result から派生した複数推定結果を比較する前提の表示仕様はまだ弱い。
+現時点では、推定結果一覧と基本メタデータ表示は存在するが、同じ benchmark result から派生した複数推定結果を比較する前提の表示仕様はまだ弱い。
 
 At present, estimated results can be listed, but display semantics for comparing multiple estimation results derived from the same benchmark result are still weak.
 
 ### 7.4 必要入力不足時の扱いの不足 / Missing Semantics for Insufficient Inputs
 
-現時点では、推定方式を変更した際に、その方式に必要な詳細カウンター、アノテーション区間時間、補助入力ファイルなどが不足していた場合の扱いが十分に仕様化されていない。
+現時点では、推定方式を変更した際に、その方式に必要な詳細カウンター、アノテーション区間時間、補助入力ファイルなどが不足していた場合の再推定 UI / 比較表示の扱いが十分に仕様化されていない。
 
 少なくとも以下を明確化する必要がある。
 
@@ -253,13 +259,13 @@ Re-estimation in BenchKit should preferably satisfy at least:
 次に候補となる実装は以下である。
 
 1. UUID 指定取得 API の仕様化と実装確認
-2. Estimate JSON に benchmark result UUID と estimation method 識別を明示的に載せる
-3. 再推定結果どうしを比較する表示仕様を定義する
+2. 再推定向けに UUID 指定取得口と認証条件を文書化する
+3. 同一 `source_result_uuid` を軸にした比較表示仕様を定義する
 4. portal から再推定を起動する要求フローを定義する
 
 Candidate next steps include:
 
 1. specify and verify the UUID-based result retrieval API
-2. explicitly carry the benchmark-result UUID and estimation-method identity in Estimate JSON
-3. define a display specification for comparing re-estimation results
+2. document the retrieval endpoint and authentication conditions for re-estimation
+3. define a display specification for comparing re-estimation results using `source_result_uuid`
 4. define a portal-driven request flow for starting re-estimation
