@@ -129,7 +129,20 @@ _bk_attach_section_package_name() {
   fi
 
   echo "$breakdown_json" | jq -c --arg package_name "$package_name" '
-    .sections |= map(. + {estimation_package: $package_name})
+    .sections |= map(
+      if (.estimation_package // "") != "" then
+        .
+      else
+        . + {estimation_package: $package_name}
+      end
+    )
+    | .overlaps |= map(
+      if (.estimation_package // "") != "" then
+        .
+      else
+        . + {estimation_package: $package_name}
+      end
+    )
   '
 }
 

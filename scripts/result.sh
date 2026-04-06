@@ -233,25 +233,82 @@ while IFS= read -r line; do
     fi
 
   elif [[ "$line" == SECTION:* ]]; then
-    # Parse SECTION line: SECTION:name time:seconds
+    # Parse SECTION line:
+    # SECTION:name time:seconds [type:value] [members:a,b] [estimation_package:package_name] [artifact:path]
     sec_name=$(echo "$line" | sed 's/^SECTION://' | awk '{print $1}')
-    sec_time=$(echo "$line" | grep -Eo 'time:[ ]*[0-9.]*' | awk -F':' '{print $2}' | sed 's/^ *//')
+    sec_time=$(echo "$line" | grep -Eo 'time:[ ]*[^ ]+' | awk -F':' '{print $2}' | sed 's/^ *//')
+    sec_type=$(echo "$line" | grep -Eo 'type:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    sec_members=$(echo "$line" | grep -Eo 'members:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    sec_package=$(echo "$line" | grep -Eo 'estimation_package:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    sec_artifact=$(echo "$line" | grep -Eo 'artifact:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
 
-    if [ -z "$sections_json" ]; then
-      sections_json="[{\"name\": \"${sec_name}\", \"time\": ${sec_time}}]"
+    if [ "$sec_type" = "overlap" ]; then
+      if [ -z "$sec_members" ]; then
+        sec_members="$sec_name"
+      fi
+      sec_members_array=$(echo "$sec_members" | tr ',' '\n' | jq -R . | jq -s .)
+      sec_entry=$(jq -cn \
+        --argjson sections "$sec_members_array" \
+        --argjson time "$sec_time" \
+        --arg estimation_package "$sec_package" \
+        --arg artifact "$sec_artifact" '
+          {
+            sections: $sections,
+            time: $time
+          }
+          + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
+          + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+        ')
+
+      if [ -z "$overlaps_json" ]; then
+        overlaps_json="[${sec_entry}]"
+      else
+        overlaps_json=$(echo "$overlaps_json" | jq ". + [${sec_entry}]")
+      fi
     else
-      sections_json=$(echo "$sections_json" | jq ". + [{\"name\": \"${sec_name}\", \"time\": ${sec_time}}]")
+      sec_entry=$(jq -cn \
+        --arg name "$sec_name" \
+        --argjson time "$sec_time" \
+        --arg estimation_package "$sec_package" \
+        --arg artifact "$sec_artifact" '
+          {
+            name: $name,
+            time: $time
+          }
+          + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
+          + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+        ')
+
+      if [ -z "$sections_json" ]; then
+        sections_json="[${sec_entry}]"
+      else
+        sections_json=$(echo "$sections_json" | jq ". + [${sec_entry}]")
+      fi
     fi
 
   elif [[ "$line" == OVERLAP:* ]]; then
-    # Parse OVERLAP line: OVERLAP:sectionA,sectionB time:seconds
+    # Parse OVERLAP line:
+    # OVERLAP:sectionA,sectionB time:seconds [estimation_package:package_name] [artifact:path]
     ovl_sections_str=$(echo "$line" | sed 's/^OVERLAP://' | awk '{print $1}')
-    ovl_time=$(echo "$line" | grep -Eo 'time:[ ]*[0-9.]*' | awk -F':' '{print $2}' | sed 's/^ *//')
+    ovl_time=$(echo "$line" | grep -Eo 'time:[ ]*[^ ]+' | awk -F':' '{print $2}' | sed 's/^ *//')
+    ovl_package=$(echo "$line" | grep -Eo 'estimation_package:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    ovl_artifact=$(echo "$line" | grep -Eo 'artifact:[ ]*[^ ]+' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
 
     # Convert comma-separated section names to JSON array
     ovl_sections_array=$(echo "$ovl_sections_str" | tr ',' '\n' | jq -R . | jq -s .)
 
-    ovl_entry="{\"sections\": ${ovl_sections_array}, \"time\": ${ovl_time}}"
+    ovl_entry=$(jq -cn \
+      --argjson sections "$ovl_sections_array" \
+      --argjson time "$ovl_time" \
+      --arg estimation_package "$ovl_package" \
+      --arg artifact "$ovl_artifact" '
+        {
+          sections: $sections,
+          time: $time
+        }
+        + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
+        + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+      ')
 
     if [ -z "$overlaps_json" ]; then
       overlaps_json="[${ovl_entry}]"

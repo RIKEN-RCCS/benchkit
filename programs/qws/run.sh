@@ -19,6 +19,14 @@ echo "Date: $(date)" >> "$DEBUG_LOG"
 mkdir -p results && > results/result
 echo "Results directory created" >> "$DEBUG_LOG"
 
+create_dummy_estimation_artifact() {
+    local rel_path="$1"
+    local content="$2"
+    local full_path="../results/${rel_path}"
+    mkdir -p "$(dirname "$full_path")"
+    printf '%s\n' "$content" > "$full_path"
+}
+
 # print_results: check.sh実行後、FOMを抽出し結果行をstdoutに出力する共通関数
 # 引数: $1=出力ファイル, $2=Exp名, $3=numproc_node値
 # 使用例: print_results output_file CASE0 1 >> ../results/result
@@ -45,13 +53,21 @@ print_results() {
     section_allreduce=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.16}')
     section_write_result=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.08}')
     overlap_compute_halo=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.04}')
-    bk_emit_section prepare_rhs "$section_prepare_rhs"
-    bk_emit_section compute_hopping "$section_compute_hopping"
-    bk_emit_section compute_solver "$section_compute_solver"
-    bk_emit_section halo_exchange "$section_halo_exchange"
-    bk_emit_section allreduce "$section_allreduce"
-    bk_emit_section write_result "$section_write_result"
-    bk_emit_overlap compute_hopping,halo_exchange "$overlap_compute_halo"
+    create_dummy_estimation_artifact "estimation_inputs/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
+    create_dummy_estimation_artifact "estimation_inputs/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
+    create_dummy_estimation_artifact "estimation_inputs/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
+    create_dummy_estimation_artifact "estimation_inputs/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
+    create_dummy_estimation_artifact "estimation_inputs/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
+    create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
+    create_dummy_estimation_artifact "estimation_inputs/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
+
+    bk_emit_section prepare_rhs "$section_prepare_rhs" interval_time_simple results/estimation_inputs/prepare_rhs_interval.json
+    bk_emit_section compute_hopping "$section_compute_hopping" counter_papi_detailed results/estimation_inputs/compute_hopping_papi.tgz
+    bk_emit_section compute_solver "$section_compute_solver" counter_papi_detailed results/estimation_inputs/compute_solver_papi.tgz
+    bk_emit_section halo_exchange "$section_halo_exchange" trace_mpi_basic results/estimation_inputs/halo_exchange_trace.tgz
+    bk_emit_section allreduce "$section_allreduce" trace_collective_logp results/estimation_inputs/allreduce_trace.tgz
+    bk_emit_section write_result "$section_write_result" interval_time_simple results/estimation_inputs/write_result_interval.json
+    bk_emit_section overlap:compute_hopping,halo_exchange "$overlap_compute_halo" overlap_max_basic results/estimation_inputs/compute_halo_overlap.json --type overlap --members compute_hopping,halo_exchange
 }
 
 # results/result の各行は 1 つのベンチマークに対応しています。
