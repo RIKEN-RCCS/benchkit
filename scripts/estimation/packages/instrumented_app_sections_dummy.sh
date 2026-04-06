@@ -55,24 +55,23 @@ _bk_section_package_fallback_target() {
   echo ""
 }
 
-_bk_item_has_missing_artifacts() {
-  local item_json="$1"
-  local path
-  local artifact_count
+_bk_section_package_check_result() {
+  local package_name="$1"
+  local item_json="$2"
+  local item_kind="$3"
+  local fn_name
 
-  artifact_count=$(echo "$item_json" | jq -r '(.artifacts // []) | length')
-  if [[ "$artifact_count" == "0" ]]; then
-    return 0
+  _bk_load_section_package_impls
+
+  fn_name="bk_section_package_check_applicability_${package_name}"
+  if ! declare -F "$fn_name" >/dev/null 2>&1; then
+    cat <<EOF
+{"status":"not_applicable","missing_inputs":["${item_kind}_package_unsupported:${package_name}"]}
+EOF
+    return 1
   fi
 
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    if [[ ! -f "$path" ]]; then
-      return 0
-    fi
-  done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
-
-  return 1
+  "$fn_name" "$item_json" "$item_kind"
 }
 
 _bk_unrecoverable_bound_input_problems() {
@@ -82,7 +81,8 @@ _bk_unrecoverable_bound_input_problems() {
   local item_name
   local package_name
   local fallback_target
-  local fn_name
+  local check_result
+  local fallback_target
 
   _bk_load_section_package_impls
 
@@ -99,27 +99,13 @@ _bk_unrecoverable_bound_input_problems() {
       fi
 
       fallback_target=$(_bk_section_package_fallback_target "$package_name")
-      fn_name="bk_section_package_transform_${package_name}"
-
-      if ! declare -F "$fn_name" >/dev/null 2>&1; then
+      check_result=$(_bk_section_package_check_result "$package_name" "$item_json" "$item_kind")
+      if [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" != "applicable" ]]; then
         if [[ -z "$fallback_target" ]]; then
-          printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
-        fi
-        continue
-      fi
-
-      if _bk_item_has_missing_artifacts "$item_json"; then
-        if [[ -z "$fallback_target" ]]; then
-          if [[ "$(echo "$item_json" | jq -r '(.artifacts // []) | length')" == "0" ]]; then
-            printf '%s\n' "${item_kind}_artifact:${item_name}"
-          else
-            while IFS= read -r path; do
-              [[ -z "$path" ]] && continue
-              if [[ ! -f "$path" ]]; then
-                printf '%s\n' "artifact_path:${path}"
-              fi
-            done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
-          fi
+          while IFS= read -r missing_input; do
+            [[ -z "$missing_input" ]] && continue
+            printf '%s\n' "$missing_input"
+          done < <(echo "$check_result" | jq -r '.missing_inputs // [] | .[]')
         fi
       fi
     done < <(
@@ -174,6 +160,7 @@ _bk_unsupported_bound_packages() {
   local item_name
   local package_name
   local fn_name
+  local check_name
 
   _bk_load_section_package_impls
 
@@ -190,7 +177,8 @@ _bk_unsupported_bound_packages() {
       fi
 
       fn_name="bk_section_package_transform_${package_name}"
-      if ! declare -F "$fn_name" >/dev/null 2>&1; then
+      check_name="bk_section_package_check_applicability_${package_name}"
+      if ! declare -F "$fn_name" >/dev/null 2>&1 || ! declare -F "$check_name" >/dev/null 2>&1; then
         printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
       fi
     done < <(
@@ -407,6 +395,8 @@ _bk_dispatch_bound_item() {
   local package_name
   local fn_name
   local fallback_target
+  local check_result
+  local missing_inputs_json
 
   package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
   if [[ -z "$package_name" ]]; then
@@ -418,22 +408,33 @@ _bk_dispatch_bound_item() {
 
   while true; do
     fn_name="bk_section_package_transform_${package_name}"
-    if declare -F "$fn_name" >/dev/null 2>&1 && ! _bk_item_has_missing_artifacts "$item_json"; then
+    check_result=$(_bk_section_package_check_result "$package_name" "$item_json" "$item_kind")
+    if declare -F "$fn_name" >/dev/null 2>&1 && [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" == "applicable" ]]; then
       "$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"
       return 0
     fi
 
     fallback_target=$(_bk_section_package_fallback_target "$package_name")
     if [[ -z "$fallback_target" || "$fallback_target" == "$package_name" ]]; then
-      echo "$item_json" | jq -c '. + {scaling_method: "unresolved-package"}'
+      missing_inputs_json=$(echo "$check_result" | jq -c '.missing_inputs // []')
+      echo "$item_json" | jq -c \
+        --arg requested "$package_name" \
+        --argjson missing_inputs "$missing_inputs_json" '
+        .
+        + {requested_estimation_package: (.requested_estimation_package // $requested)}
+        + {scaling_method: "unresolved-package"}
+        + {package_applicability: {status: "not_applicable", missing_inputs: $missing_inputs}}
+      '
       return 0
     fi
 
-    item_json=$(echo "$item_json" | jq -c --arg requested "$package_name" --arg applied "$fallback_target" '
+    missing_inputs_json=$(echo "$check_result" | jq -c '.missing_inputs // []')
+    item_json=$(echo "$item_json" | jq -c --arg requested "$package_name" --arg applied "$fallback_target" --argjson missing_inputs "$missing_inputs_json" '
       .
       + {requested_estimation_package: (.requested_estimation_package // $requested)}
       + {estimation_package: $applied}
       + {fallback_used: $applied}
+      + {package_applicability: {status: "fallback", missing_inputs: $missing_inputs}}
     ')
     package_name="$fallback_target"
   done

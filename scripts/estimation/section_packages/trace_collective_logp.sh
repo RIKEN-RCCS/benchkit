@@ -6,6 +6,43 @@ bk_section_package_metadata_trace_collective_logp() {
 EOF
 }
 
+bk_section_package_check_applicability_trace_collective_logp() {
+  local item_json="$1"
+  local item_kind="$2"
+  local path
+  local missing=()
+
+  if [[ "$item_kind" != "section" ]]; then
+    cat <<'EOF'
+{"status":"not_applicable","missing_inputs":["item_kind:section_required"]}
+EOF
+    return 1
+  fi
+
+  if [[ "$(echo "$item_json" | jq -r '(.artifacts // []) | length')" == "0" ]]; then
+    cat <<'EOF'
+{"status":"not_applicable","missing_inputs":["section_artifact"]}
+EOF
+    return 1
+  fi
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if [[ ! -f "$path" ]]; then
+      missing+=("\"artifact_path:${path}\"")
+    fi
+  done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
+
+  if (( ${#missing[@]} > 0 )); then
+    printf '{"status":"not_applicable","missing_inputs":[%s]}\n' "$(IFS=,; echo "${missing[*]}")"
+    return 1
+  fi
+
+  cat <<'EOF'
+{"status":"applicable","missing_inputs":[]}
+EOF
+}
+
 bk_section_package_transform_trace_collective_logp() {
   local item_json="$1"
   local target_nodes="$2"

@@ -6,6 +6,24 @@ bk_section_package_metadata_interval_time_simple() {
 EOF
 }
 
+bk_section_package_check_applicability_interval_time_simple() {
+  local item_json="$1"
+  local _item_kind="$2"
+  local has_time
+
+  has_time=$(echo "$item_json" | jq -r 'if (.time // .bench_time // empty) == empty then "no" else "yes" end')
+  if [[ "$has_time" != "yes" ]]; then
+    cat <<'EOF'
+{"status":"not_applicable","missing_inputs":["item_time"]}
+EOF
+    return 1
+  fi
+
+  cat <<'EOF'
+{"status":"applicable","missing_inputs":[]}
+EOF
+}
+
 bk_section_package_transform_interval_time_simple() {
   local item_json="$1"
   local _target_nodes="$2"
