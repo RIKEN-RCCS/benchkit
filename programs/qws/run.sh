@@ -59,7 +59,7 @@ print_results() {
     create_dummy_estimation_artifact "estimation_inputs/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
     create_dummy_estimation_artifact "estimation_inputs/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
     create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
-    create_dummy_estimation_artifact "estimation_inputs/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
+    # Temporary CI check for not_applicable: leave overlap artifact missing.
 
     bk_emit_section prepare_rhs "$section_prepare_rhs" interval_time_simple results/estimation_inputs/prepare_rhs_interval.json
     bk_emit_section compute_hopping "$section_compute_hopping" counter_papi_detailed results/estimation_inputs/compute_hopping_papi.tgz
