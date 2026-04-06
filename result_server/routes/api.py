@@ -44,8 +44,31 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
     path = os.path.join(out_dir, filename)
     tmp_path = path + ".tmp"
 
+    try:
+        payload = json.loads(data.decode("utf-8"))
+    except Exception:
+        abort(400, description="Invalid JSON payload")
+
+    if not isinstance(payload, dict):
+        abort(400, description="Top-level JSON object is required")
+
+    if prefix == "result":
+        payload["_server_uuid"] = unique_id
+        payload["_server_timestamp"] = timestamp
+    elif prefix == "estimate":
+        estimate_meta = payload.get("estimate_metadata")
+        if not isinstance(estimate_meta, dict):
+            estimate_meta = {}
+        estimate_meta["estimation_result_uuid"] = unique_id
+        estimate_meta["estimation_result_timestamp"] = datetime.strptime(
+            timestamp, "%Y%m%d_%H%M%S"
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        payload["estimate_metadata"] = estimate_meta
+
+    serialized = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
     with open(tmp_path, "wb") as f:
-        f.write(data)
+        f.write(serialized)
         f.flush()
         os.fsync(f.fileno())
 

@@ -109,6 +109,11 @@ class TestIngestResult:
         assert len(files) == 1
         assert files[0].startswith("result_")
         assert files[0].endswith(".json")
+        with open(os.path.join(received, files[0]), "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        assert saved["code"] == "test"
+        assert saved["_server_uuid"] == body["id"]
+        assert saved["_server_timestamp"] == body["timestamp"]
 
     def test_missing_api_key_returns_401(self, client):
         """APIキーなしで401が返る"""
@@ -147,6 +152,11 @@ class TestIngestEstimate:
         files = os.listdir(estimated)
         assert len(files) == 1
         assert files[0].startswith("estimate_")
+        with open(os.path.join(estimated, files[0]), "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        assert saved["code"] == "est-test"
+        assert saved["estimate_metadata"]["estimation_result_uuid"] == body["id"]
+        assert "estimation_result_timestamp" in saved["estimate_metadata"]
 
     def test_missing_api_key_returns_401(self, client):
         resp = client.post("/api/ingest/estimate",
