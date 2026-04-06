@@ -17,14 +17,15 @@ load_estimation_package() {
   local package_name="$1"
 
   source "scripts/estimation/packages/${package_name}.sh"
+  BK_ESTIMATION_PACKAGE_VERSION=$(bk_estimation_package_metadata | jq -r '.version // empty')
   case "$package_name" in
     lightweight_fom_scaling)
-      BK_ESTIMATION_MODEL_NAME="${BK_ESTIMATION_MODEL_NAME:-scale-mock}"
-      BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+      BK_ESTIMATION_MODEL_NAME="scale-mock"
+      BK_ESTIMATION_MODEL_VERSION="0.1"
       ;;
     instrumented_app_sections_dummy)
-      BK_ESTIMATION_MODEL_NAME="${BK_ESTIMATION_MODEL_NAME:-instrumented-app-sections-dummy}"
-      BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+      BK_ESTIMATION_MODEL_NAME="instrumented-app-sections-dummy"
+      BK_ESTIMATION_MODEL_VERSION="0.1"
       ;;
     *)
       echo "ERROR: Unsupported estimation package for qws: ${package_name}" >&2
@@ -37,39 +38,10 @@ load_estimation_package "$BK_ESTIMATION_PACKAGE"
 
 read_values "$BK_ESTIMATION_INPUT_JSON"
 
-if ! bk_estimation_package_check_applicability; then
-  fallback_package=$(jq -r '.fallback_used // empty' <<< "${est_applicability_json:-null}")
-  fallback_status=$(jq -r '.status // empty' <<< "${est_applicability_json:-null}")
-  if [[ "$fallback_status" == "fallback" && -n "$fallback_package" ]]; then
-    echo "Falling back from ${BK_ESTIMATION_PACKAGE} to ${fallback_package}"
-    BK_ESTIMATION_PACKAGE="$fallback_package"
-    est_measurement_json=""
-    est_assumptions_json=""
-    est_input_artifacts_json=""
-    est_model_json=""
-    est_confidence_json=""
-    est_notes_json=""
-    est_current_model_json=""
-    est_future_model_json=""
-    est_current_fom_breakdown=""
-    est_future_fom_breakdown=""
-    load_estimation_package "$BK_ESTIMATION_PACKAGE"
-    bk_estimation_package_run
-    bk_estimation_package_apply_metadata
-
-    mkdir -p results
-    output_file="results/estimate_${est_code}_0.json"
-    print_json > "$output_file"
-    echo "Estimate written to $output_file"
-    exit 0
-  fi
-
+if ! bk_estimation_execute_with_fallback load_estimation_package; then
   echo "ERROR: estimation package ${BK_ESTIMATION_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
   exit 1
 fi
-
-bk_estimation_package_run
-bk_estimation_package_apply_metadata
 
 mkdir -p results
 output_file="results/estimate_${est_code}_0.json"

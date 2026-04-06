@@ -67,6 +67,8 @@ est_detail_level=""
 est_source_result_uuid=""
 est_estimation_package=""
 est_estimation_package_version=""
+est_requested_estimation_package=""
+est_requested_estimation_package_version=""
 est_measurement_json=""
 est_assumptions_json=""
 est_input_artifacts_json=""
@@ -198,6 +200,27 @@ bk_estimation_set_package_metadata() {
   est_detail_level="${4:-}"
 }
 
+bk_estimation_reset_output_state() {
+  est_current_system=""
+  est_current_fom=""
+  est_current_target_nodes=""
+  est_current_scaling_method=""
+  est_future_system=""
+  est_future_fom=""
+  est_future_target_nodes=""
+  est_future_scaling_method=""
+  est_current_model_json=""
+  est_future_model_json=""
+  est_current_fom_breakdown=""
+  est_future_fom_breakdown=""
+  est_measurement_json=""
+  est_assumptions_json=""
+  est_input_artifacts_json=""
+  est_model_json=""
+  est_confidence_json=""
+  est_notes_json=""
+}
+
 # ---------------------------------------------------------------------------
 # bk_estimation_set_applicability — Build applicability JSON for Estimate JSON
 #
@@ -284,6 +307,36 @@ bk_estimation_validate_system_relation() {
       return 1
       ;;
   esac
+}
+
+bk_estimation_execute_with_fallback() {
+  local loader_function="$1"
+
+  est_requested_estimation_package="${BK_ESTIMATION_PACKAGE:-}"
+  est_requested_estimation_package_version="${BK_ESTIMATION_PACKAGE_VERSION:-}"
+
+  if ! bk_estimation_package_check_applicability; then
+    local fallback_package
+    local fallback_status
+    fallback_package=$(jq -r '.fallback_used // empty' <<< "${est_applicability_json:-null}")
+    fallback_status=$(jq -r '.status // empty' <<< "${est_applicability_json:-null}")
+
+    if [[ "$fallback_status" == "fallback" && -n "$fallback_package" ]]; then
+      echo "Falling back from ${BK_ESTIMATION_PACKAGE} to ${fallback_package}"
+      BK_ESTIMATION_PACKAGE="$fallback_package"
+      bk_estimation_reset_output_state
+      "$loader_function" "$BK_ESTIMATION_PACKAGE"
+      bk_estimation_package_run
+      bk_estimation_package_apply_metadata
+      return 0
+    fi
+
+    return 1
+  fi
+
+  bk_estimation_package_run
+  bk_estimation_package_apply_metadata
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -380,7 +433,7 @@ print_json() {
   fi
 
   local estimate_metadata_block=""
-  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" ]]; then
+  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" || -n "$est_requested_estimation_package" || -n "$est_requested_estimation_package_version" ]]; then
     local estimate_metadata_json=""
     estimate_metadata_json=$(jq -cn \
       --arg estimation_id "$est_estimation_id" \
@@ -390,6 +443,8 @@ print_json() {
       --arg source_result_uuid "$est_source_result_uuid" \
       --arg estimation_package "$est_estimation_package" \
       --arg estimation_package_version "$est_estimation_package_version" \
+      --arg requested_estimation_package "$est_requested_estimation_package" \
+      --arg requested_estimation_package_version "$est_requested_estimation_package_version" \
       '{} 
       + (if $estimation_id != "" then {estimation_id: $estimation_id} else {} end)
       + (if $timestamp != "" then {timestamp: $timestamp} else {} end)
@@ -397,7 +452,9 @@ print_json() {
       + (if $detail_level != "" then {detail_level: $detail_level} else {} end)
       + (if $source_result_uuid != "" then {source_result_uuid: $source_result_uuid} else {} end)
       + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
-      + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)')
+      + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)
+      + (if $requested_estimation_package != "" then {requested_estimation_package: $requested_estimation_package} else {} end)
+      + (if $requested_estimation_package_version != "" then {requested_estimation_package_version: $requested_estimation_package_version} else {} end)')
     estimate_metadata_block=",
   \"estimate_metadata\": $estimate_metadata_json"
   fi
