@@ -55,7 +55,7 @@ print_results() {
     overlap_compute_halo=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.04}')
     create_dummy_estimation_artifact "estimation_inputs/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
     create_dummy_estimation_artifact "estimation_inputs/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
-    create_dummy_estimation_artifact "estimation_inputs/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
+    # Temporary CI check for section-level fallback: leave compute_solver artifact missing.
     create_dummy_estimation_artifact "estimation_inputs/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
     create_dummy_estimation_artifact "estimation_inputs/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
     create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
