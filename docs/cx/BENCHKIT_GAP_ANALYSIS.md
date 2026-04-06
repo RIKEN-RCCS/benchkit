@@ -64,7 +64,7 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 | ベンチマーク実行定義 | アプリごとの build/run/list を保持し、継続実行可能であること | `programs/*` に `build.sh` `run.sh` `list.csv`、一部 `estimate.sh` がある | 追加や修正がまだ人手中心。雛形生成や申請導線がない | 申請・承認・AI 連携の前提になる | 高 |
 | CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み | 拠点接続の検証や onboarding 手順が未整理 | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
 | 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み | app ごとの差異を自動検証する仕組みが弱い | 推定、可視化、AI 診断の入力品質に直結 | 高 |
-| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `estimate_common.sh`、`run_estimate.sh`、`send_estimate.sh`、`estimated` 画面あり。`qws` では軽量推定と詳細ダミー推定が動作し、推定元 result の UUID / timestamp も引き継げる | 横展開はまだ `qws` のみ。区間ごとの package 指定、補助データ受け渡し、再推定運用、比較表示は未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
+| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `estimate_common.sh`、`run_estimate.sh`、`send_estimate.sh`、`estimated` 画面あり。`qws` では軽量推定と詳細ダミー推定、section ごとの package 指定、補助データ参照、fallback、requested/applied package 識別、推定元 result の UUID / timestamp 引き回しまで動作する | 横展開はまだ `qws` のみ。推定結果自体の UUID / timestamp 保存、portal 表示強化、再推定運用、複数 detailed package の本実装は未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
 | 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み | 側ごとの model、applicability、参照ベンチマーク出自情報、推定結果自体の出自情報の見せ方がまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
 | 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み | 予算主体、アカウント主体、runner 主体との結び付きがない | 多拠点運用と予算管理の核になる | 高 |
 | ソース出自情報 | 最上位アプリケーションの commit hash を追跡すること | `bk_fetch_source` と `source_info` が実装済み | すべての app で徹底されていない。 archive/file の場合は commit hash を持てない | 推定比較、AI 最適化、回帰分析の再現性に直結 | 高 |
@@ -185,14 +185,14 @@ Once the estimation specification is clarified, many other design decisions beco
 |---|---|---|---|---|
 | 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `estimate_common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手 | 最優先 |
 | 軽量推定 package | FOM-only、weak scaling 前提、補正なしなら FOM 一定 | `lightweight_fom_scaling` が実装済み | 参照実装は 1 本のみ。current/future 側で別 model を使う実運用は未整備 | 高 |
-| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `lightweight_fom_scaling` と `instrumented_app_sections_dummy` は `applicable/needs_remeasurement` を返せる | fallback と複数 detailed package 間の分岐が未実装 | 高 |
+| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `lightweight_fom_scaling` と `instrumented_app_sections_dummy` は `applicable/fallback/not_applicable/needs_remeasurement` を扱え、requested/applied package の識別も Estimate JSON に残せる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | 軽量/詳細ダミーとも最小 metadata を持つ | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
 | section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | Estimate JSON には保持可能。`instrumented_app_sections_dummy` では section ごとに同一 package 名を出力 | `bk_emit_section` 系から package 指定を直接受ける仕組みが無い | 最優先 |
 | section ごとの補助データ参照 | tgz 等の補助データを section ごとに紐付けられること | 仕様のみ | 実装口が未着手 | 高 |
 | overlap 推定 | overlap を独立した推定部品として扱えること | Result JSON で保持でき、詳細ダミー package でも overlap の `bench_time/time` は扱える | overlap 専用 package や複数方式切替は未実装 | 中 |
 | 詳細推定 package | `instrumented_app_sections` など取得方式別 package を持てること | `instrumented_app_sections_dummy` を `qws` 向け参照実装として実装済み | 実測区間時間や外部ツール区間時間を使う本格 package は未実装 | 最優先 |
-| 複合推定 | section ごとに異なる方式を合成できること | 未実装 | section-level binding と package 合成規則の実装が前提 | 高 |
-| 推定 provenance | 推定元 result と推定結果自体の出自情報を保持すること | 推定元 result の UUID / timestamp は Estimate JSON に引き回せる | 推定結果自体の UUID / timestamp は未保存 | 最優先 |
+| 複合推定 | section ごとに異なる方式を合成できること | `qws` と `instrumented_app_sections_dummy` で section ごとの package 指定と補助データ参照を保持できる | section-level binding を実際の package 実行と合成規則へつなぐ本実装が未着手 | 高 |
+| 推定 provenance | 推定元 result と推定結果自体の出自情報を保持すること | 推定元 result の UUID / timestamp は Estimate JSON に引き回せる。要求 package と実適用 package の識別も保持できる | 推定結果自体の UUID / timestamp は未保存。保存方式と UI の扱いも未整理 | 最優先 |
 | 再推定 | UUID 起点で再推定し比較可能にすること | shell フローはある | UUID 取得 API 仕様と比較表示の整理が未完 | 高 |
 | 推定結果表示 | model / assumptions / applicability を表示できること | estimated 画面は基本表示のみ | 拡張メタデータ表示は未着手 | 中 |
 
@@ -215,9 +215,9 @@ Once the estimation specification is clarified, many other design decisions beco
 
 推定機構について、次の実装順を推奨する。
 
-1. section ごとの `estimation_package` と補助データ参照を、少なくとも生成側から Estimate JSON へ流せるようにする
-2. `applicability` を detailed package 間の fallback まで含めて返せるようにする
-3. 推定結果自体の UUID / timestamp を保存できるようにする
+1. 推定結果自体の UUID / timestamp を保存できるようにする
+2. portal で requested/applied package、applicability、detailed metadata を見せられるようにする
+3. `applicability` を複数 detailed package 間の fallback まで含めて返せるようにする
 4. その後に UUID 再推定と比較表示へ進む
 
 ここでいう区間時間ダミー package は、すでに最初の参照実装として導入済みである。

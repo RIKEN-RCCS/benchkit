@@ -210,6 +210,8 @@ Estimate JSON may include the following extension fields:
 - `source_result_uuid`
 - `estimation_package`
 - `estimation_package_version`
+- `requested_estimation_package`
+- `requested_estimation_package_version`
 
 例:
 
@@ -224,7 +226,9 @@ Estimate JSON may include the following extension fields:
     "detail_level": "basic",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
     "estimation_package": "lightweight_fom_scaling",
-    "estimation_package_version": "0.1"
+    "estimation_package_version": "0.1",
+    "requested_estimation_package": "instrumented_app_sections_dummy",
+    "requested_estimation_package_version": "0.1"
   }
 }
 ```
@@ -236,6 +240,10 @@ Estimate JSON may include the following extension fields:
 This field stores identifiers for the estimation process itself.
 `source_result_uuid` identifies the benchmark result used as estimation input.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
+`estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。
+`requested_estimation_package` と `requested_estimation_package_version` は、フォールバック前に最初に要求された推定パッケージを表す。
+`estimation_package` and `estimation_package_version` identify the package that was actually applied.
+`requested_estimation_package` and `requested_estimation_package_version` identify the package initially requested before any fallback.
 
 ### 6.2 measurement
 
@@ -346,6 +354,7 @@ This field may include assumptions such as:
 - `fallback_used`
 - `missing_inputs`
 - `required_actions`
+- `incompatibilities`
 
 例:
 
@@ -360,10 +369,16 @@ This field may include assumptions such as:
     ],
     "required_actions": [
       "re-measure-with-detailed-counter-tool"
-    ]
+    ],
+    "incompatibilities": []
   }
 }
 ```
+
+フォールバックが行われた場合、`applicability` には、要求されたパッケージをそのまま適用できなかった理由を記録できることが望ましい。
+その場合、`estimate_metadata.requested_estimation_package` は最初に要求されたパッケージを、`estimate_metadata.estimation_package` は実際に適用されたパッケージを表す。
+When fallback occurs, `applicability` should preferably record why the requested package could not be applied.
+In such a case, `estimate_metadata.requested_estimation_package` identifies the originally requested package, while `estimate_metadata.estimation_package` identifies the package actually applied.
 
 This field records whether the requested estimation method had sufficient inputs, whether fallback was used, and what was missing.
 

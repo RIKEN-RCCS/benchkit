@@ -340,8 +340,10 @@ It should preferably be able to return at least:
 ### 4.5 フォールバック方針 / Fallback Policy
 
 パッケージは、必要入力が不足していた場合に、どの軽量方式へフォールバックしてよいか、あるいはフォールバックせず停止すべきかを定義できることが望ましい。
+フォールバックが用いられた場合でも、要求されたパッケージの識別子は、実際に適用されたパッケージの識別子とは別に見える形で保持されることが望ましい。
 
 The package should preferably be able to define which lighter-weight method may be used as fallback when required inputs are missing, or whether execution must stop without fallback.
+When fallback is used, the requested package identity should remain visible separately from the actually applied package identity.
 
 ### 4.6 Estimate JSON への写像 / Mapping into Estimate JSON
 
@@ -355,6 +357,26 @@ The package should preferably be able to define which lighter-weight method may 
 - `confidence`
 - `fom_breakdown.sections`
 - `fom_breakdown.overlaps`
+
+特に、`estimate_metadata` では少なくとも次を区別できることが望ましい。
+
+- 要求された推定パッケージ
+- 実際に適用された推定パッケージ
+
+また、`applicability` では少なくとも次を記録できることが望ましい。
+
+- フォールバックが発生したかどうか
+- 要求されたパッケージを適用できなかった理由
+
+In particular, it is desirable that `estimate_metadata` can distinguish:
+
+- the requested estimation package
+- the actually applied estimation package
+
+And that `applicability` can record at least:
+
+- whether fallback occurred
+- why the requested package could not be applied
 
 必要に応じて、package は top-level `model` だけでなく `current_system.model` と `future_system.model` にも情報を写像してよい。
 
