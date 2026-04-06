@@ -31,17 +31,6 @@ _bk_has_section_named() {
   ' >/dev/null 2>&1
 }
 
-_bk_has_overlap_members() {
-  local breakdown_json="$1"
-  local members_csv="$2"
-  local members_json
-  members_json=$(echo "$members_csv" | tr ',' '\n' | jq -R . | jq -s .)
-
-  echo "$breakdown_json" | jq -e --argjson members "$members_json" '
-    (.overlaps // []) | any(.sections == $members)
-  ' >/dev/null 2>&1
-}
-
 _bk_missing_section_packages() {
   local breakdown_json="$1"
 
@@ -105,11 +94,7 @@ bk_estimation_package_check_applicability() {
     "allreduce"
     "write_result"
   )
-  local required_overlaps=(
-    "compute_hopping,halo_exchange"
-  )
   local section_name
-  local overlap_members
   local missing_metadata
 
   if [[ -z "${est_fom:-}" ]]; then
@@ -123,12 +108,6 @@ bk_estimation_package_check_applicability() {
     for section_name in "${required_sections[@]}"; do
       if ! _bk_has_section_named "$est_input_fom_breakdown" "$section_name"; then
         missing_inputs+=("\"section:${section_name}\"")
-      fi
-    done
-
-    for overlap_members in "${required_overlaps[@]}"; do
-      if ! _bk_has_overlap_members "$est_input_fom_breakdown" "$overlap_members"; then
-        missing_inputs+=("\"overlap:${overlap_members}\"")
       fi
     done
 
