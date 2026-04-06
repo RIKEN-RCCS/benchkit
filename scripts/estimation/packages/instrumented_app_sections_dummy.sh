@@ -22,6 +22,116 @@ bk_estimation_package_metadata() {
 EOF
 }
 
+_bk_section_packages_loaded=0
+
+_bk_load_section_package_impls() {
+  local package_file
+
+  if [[ "${_bk_section_packages_loaded}" == "1" ]]; then
+    return 0
+  fi
+
+  for package_file in scripts/estimation/section_packages/*.sh; do
+    [[ -f "$package_file" ]] || continue
+    # shellcheck disable=SC1090
+    source "$package_file"
+  done
+
+  _bk_section_packages_loaded=1
+}
+
+_bk_section_package_fallback_target() {
+  local package_name="$1"
+  local fn_name
+
+  _bk_load_section_package_impls
+
+  fn_name="bk_section_package_metadata_${package_name}"
+  if declare -F "$fn_name" >/dev/null 2>&1; then
+    "$fn_name" | jq -r '.fallback_target // empty'
+    return 0
+  fi
+
+  echo ""
+}
+
+_bk_item_has_missing_artifacts() {
+  local item_json="$1"
+  local path
+  local artifact_count
+
+  artifact_count=$(echo "$item_json" | jq -r '(.artifacts // []) | length')
+  if [[ "$artifact_count" == "0" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if [[ ! -f "$path" ]]; then
+      return 0
+    fi
+  done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
+
+  return 1
+}
+
+_bk_unrecoverable_bound_input_problems() {
+  local breakdown_json="$1"
+  local item_json
+  local item_kind
+  local item_name
+  local package_name
+  local fallback_target
+  local fn_name
+
+  _bk_load_section_package_impls
+
+  for item_kind in section overlap; do
+    while IFS= read -r item_json; do
+      [[ -z "$item_json" ]] && continue
+      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
+      [[ -z "$package_name" ]] && continue
+
+      if [[ "$item_kind" == "section" ]]; then
+        item_name=$(echo "$item_json" | jq -r '.name')
+      else
+        item_name=$(echo "$item_json" | jq -r '.sections | join(",")')
+      fi
+
+      fallback_target=$(_bk_section_package_fallback_target "$package_name")
+      fn_name="bk_section_package_transform_${package_name}"
+
+      if ! declare -F "$fn_name" >/dev/null 2>&1; then
+        if [[ -z "$fallback_target" ]]; then
+          printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
+        fi
+        continue
+      fi
+
+      if _bk_item_has_missing_artifacts "$item_json"; then
+        if [[ -z "$fallback_target" ]]; then
+          if [[ "$(echo "$item_json" | jq -r '(.artifacts // []) | length')" == "0" ]]; then
+            printf '%s\n' "${item_kind}_artifact:${item_name}"
+          else
+            while IFS= read -r path; do
+              [[ -z "$path" ]] && continue
+              if [[ ! -f "$path" ]]; then
+                printf '%s\n' "artifact_path:${path}"
+              fi
+            done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
+          fi
+        fi
+      fi
+    done < <(
+      if [[ "$item_kind" == "section" ]]; then
+        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
+      else
+        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
+      fi
+    )
+  done
+}
+
 _bk_has_section_named() {
   local breakdown_json="$1"
   local section_name="$2"
@@ -57,52 +167,29 @@ _bk_missing_section_artifacts() {
   '
 }
 
-_bk_missing_artifact_paths() {
+_bk_unsupported_bound_packages() {
   local breakdown_json="$1"
-  local missing=()
-  local path
+  local package_name
+  local fn_name
 
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    if [[ ! -f "$path" ]]; then
-      missing+=("\"artifact_path:${path}\"")
+  _bk_load_section_package_impls
+
+  while IFS= read -r package_name; do
+    [[ -z "$package_name" ]] && continue
+    fn_name="bk_section_package_transform_${package_name}"
+    if ! declare -F "$fn_name" >/dev/null 2>&1; then
+      printf '%s\n' "$package_name"
     fi
   done < <(
     echo "$breakdown_json" | jq -r '
       [
-        (.sections // [])[]?.artifacts[]?.path,
-        (.overlaps // [])[]?.artifacts[]?.path
-      ] | .[]
+        ((.sections // [])
+        | map(select((.estimation_package // "") != "") | "section_package_unsupported:" + .name + ":" + .estimation_package)),
+        ((.overlaps // [])
+        | map(select((.estimation_package // "") != "") | "overlap_package_unsupported:" + (.sections | join(",")) + ":" + .estimation_package))
+      ] | add | .[]
     '
   )
-
-  if (( ${#missing[@]} > 0 )); then
-    printf '%s\n' "${missing[@]}"
-  fi
-}
-
-_bk_unsupported_bound_packages() {
-  local breakdown_json="$1"
-
-  echo "$breakdown_json" | jq -r '
-    [
-      ((.sections // [])
-      | map(select(
-          (.estimation_package // "") as $pkg
-          | ($pkg != "")
-          and ($pkg != "interval_time_simple")
-          and ($pkg != "counter_papi_detailed")
-          and ($pkg != "trace_mpi_basic")
-          and ($pkg != "trace_collective_logp")
-        ) | "section_package_unsupported:" + .name + ":" + .estimation_package)),
-      ((.overlaps // [])
-      | map(select(
-          (.estimation_package // "") as $pkg
-          | ($pkg != "")
-          and ($pkg != "overlap_max_basic")
-        ) | "overlap_package_unsupported:" + (.sections | join(",")) + ":" + .estimation_package))
-    ] | add | .[]
-  '
 }
 
 bk_estimation_package_check_applicability() {
@@ -143,17 +230,12 @@ bk_estimation_package_check_applicability() {
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
-    done < <(_bk_missing_section_artifacts "$est_input_fom_breakdown")
-
-    while IFS= read -r missing_metadata; do
-      [[ -z "$missing_metadata" ]] && continue
-      missing_inputs+=("${missing_metadata}")
-    done < <(_bk_missing_artifact_paths "$est_input_fom_breakdown")
+    done < <(_bk_unsupported_bound_packages "$est_input_fom_breakdown")
 
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
-    done < <(_bk_unsupported_bound_packages "$est_input_fom_breakdown")
+    done < <(_bk_unrecoverable_bound_input_problems "$est_input_fom_breakdown")
   fi
 
   if ! bk_estimation_validate_system_relation \
@@ -305,43 +387,75 @@ _bk_logp_factor() {
     }'
 }
 
+_bk_dispatch_bound_item() {
+  local item_json="$1"
+  local target_nodes="$2"
+  local bench_nodes="$3"
+  local default_factor="$4"
+  local item_kind="$5"
+  local package_name
+  local fn_name
+  local fallback_target
+
+  package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
+  if [[ -z "$package_name" ]]; then
+    echo "$item_json"
+    return 0
+  fi
+
+  _bk_load_section_package_impls
+
+  while true; do
+    fn_name="bk_section_package_transform_${package_name}"
+    if declare -F "$fn_name" >/dev/null 2>&1 && ! _bk_item_has_missing_artifacts "$item_json"; then
+      "$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"
+      return 0
+    fi
+
+    fallback_target=$(_bk_section_package_fallback_target "$package_name")
+    if [[ -z "$fallback_target" || "$fallback_target" == "$package_name" ]]; then
+      echo "$item_json" | jq -c '. + {scaling_method: "unresolved-package"}'
+      return 0
+    fi
+
+    item_json=$(echo "$item_json" | jq -c --arg requested "$package_name" --arg applied "$fallback_target" '
+      .
+      + {requested_estimation_package: (.requested_estimation_package // $requested)}
+      + {estimation_package: $applied}
+      + {fallback_used: $applied}
+    ')
+    package_name="$fallback_target"
+  done
+}
+
 _bk_transform_breakdown_for_qws_demo() {
   local breakdown_json="$1"
   local target_nodes="$2"
   local bench_nodes="$3"
   local default_factor="$4"
+  local sections_out=()
+  local overlaps_out=()
+  local item_json
 
   if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
     echo ""
     return 0
   fi
 
-  local logp_factor
-  logp_factor=$(_bk_logp_factor "$target_nodes" "$bench_nodes")
+  while IFS= read -r item_json; do
+    [[ -z "$item_json" ]] && continue
+    sections_out+=("$(_bk_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "section")")
+  done < <(echo "$breakdown_json" | jq -c '.sections // [] | .[]')
 
-  echo "$breakdown_json" | jq -c \
-    --argjson default_factor "$default_factor" \
-    --argjson logp_factor "$logp_factor" '
-      .sections |= map(
-        if (.estimation_package // "") == "trace_collective_logp" then
-          .
-          + {time: ((.time // .bench_time // 0) * $logp_factor)}
-          + {bench_time: (.bench_time // .time // 0)}
-          + {scaling_method: "logP"}
-        else
-          .
-          + {time: ((.time // .bench_time // 0) * $default_factor)}
-          + {bench_time: (.bench_time // .time // 0)}
-          + {scaling_method: "fixed-factor"}
-        end
-      )
-      | .overlaps |= map(
-        .
-        + {time: ((.time // .bench_time // 0) * $default_factor)}
-        + {bench_time: (.bench_time // .time // 0)}
-        + {scaling_method: "fixed-factor"}
-      )
-    '
+  while IFS= read -r item_json; do
+    [[ -z "$item_json" ]] && continue
+    overlaps_out+=("$(_bk_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "overlap")")
+  done < <(echo "$breakdown_json" | jq -c '.overlaps // [] | .[]')
+
+  jq -cn \
+    --argjson sections "$(printf '%s\n' "${sections_out[@]}" | jq -s '.')" \
+    --argjson overlaps "$(printf '%s\n' "${overlaps_out[@]}" | jq -s '.')" \
+    '{sections: $sections, overlaps: $overlaps}'
 }
 
 bk_estimation_package_run() {
