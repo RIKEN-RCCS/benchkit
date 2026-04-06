@@ -29,3 +29,12 @@ bk_result_server_get_json_to_file() {
     -o "$output_path" \
     "${RESULT_SERVER}${path_and_query}"
 }
+
+bk_result_server_download_to_file() {
+  local path_and_query="$1"
+  local output_path="$2"
+  bk_result_server_require_env
+  curl --fail -L -sS -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+    -o "$output_path" \
+    "${RESULT_SERVER}${path_and_query}"
+}

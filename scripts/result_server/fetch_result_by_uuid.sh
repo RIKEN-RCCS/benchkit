@@ -50,3 +50,20 @@ bk_result_server_get_json_to_file \
   "/api/query/result?uuid=${resolved_result_uuid}" \
   "results/result0.json"
 echo "Fetched result to results/result0.json"
+
+set +e
+bk_result_server_download_to_file \
+  "/api/query/estimation-inputs?uuid=${resolved_result_uuid}" \
+  "results/estimation_inputs.tgz"
+download_exit=$?
+set -e
+
+if [[ $download_exit -eq 0 && -f "results/estimation_inputs.tgz" ]]; then
+  mkdir -p "results/estimation_inputs"
+  tar -xzf "results/estimation_inputs.tgz" -C "results/estimation_inputs"
+  rm -f "results/estimation_inputs.tgz"
+  echo "Restored estimation inputs to results/estimation_inputs/"
+else
+  rm -f "results/estimation_inputs.tgz"
+  echo "No stored estimation inputs found for UUID: $resolved_result_uuid"
+fi

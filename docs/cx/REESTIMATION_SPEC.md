@@ -164,6 +164,19 @@ In the current implementation, the following already exist:
 - a distinction between `requested_estimation_package` and the actually applied `estimation_package`
 - final-state applicability recording through `applicable`, `partially_applicable`, `fallback`, and `not_applicable`
 
+現時点では、re-estimation で再取得できるのは source result JSON までであり、
+server 側に保存された detailed estimation-input artifact の復元はまだ未実装である。
+そのため現状では、
+
+- artifact 不要な lightweight 再推定は成立しうる
+- artifact を要求する detailed 再推定は `not_applicable` で終わりうる
+
+At present, re-estimation can re-fetch the source result JSON itself, but restoration of stored detailed estimation-input artifacts is not yet implemented.
+Therefore:
+
+- lightweight or artifact-free re-estimation may succeed
+- detailed re-estimation that depends on missing artifacts may terminate as `not_applicable`
+
 ## 7. 現行実装と仕様のギャップ / Gaps Between Current Implementation and the Intended Specification
 
 ### 7.1 UUID 取得 API の仕様 / UUID-Based Result Retrieval API
@@ -262,6 +275,23 @@ Re-estimation in BenchKit should preferably satisfy at least:
 4. different estimation methods can coexist for the same benchmark result
 5. lightweight and detailed estimation can be compared along the same comparison axis
 6. insufficient inputs can be reported explicitly as not applicable, fallback, or re-measurement required
+7. detailed re-estimation should be able to restore estimation-input artifacts associated with the source result
+
+## 8.1 estimation input artifact の復元 / Restoration of Estimation Input Artifacts
+
+当面の再推定では、artifact 復元を次の流れで扱う。
+
+1. `estimate_result_uuid` から開始する場合は、estimate JSON から `source_result_uuid` を解決する
+2. `result_uuid` から開始する場合は、そのまま source result JSON を取得する
+3. `received_estimation_inputs/<result-stem>/` が存在する場合は、その内容を `results/estimation_inputs/` に復元する
+4. server 側に estimation input artifact が無い場合は、artifact 不要な推定のみを許可し、必要な推定は `not_applicable` とする
+
+Near-term restoration should follow this flow:
+
+1. if starting from `estimate_result_uuid`, resolve `source_result_uuid` from the estimate JSON
+2. fetch the source result JSON
+3. if `received_estimation_inputs/<result-stem>/` exists, restore its contents into `results/estimation_inputs/`
+4. if no stored estimation inputs exist, allow only methods that do not require them; otherwise terminate as `not_applicable`
 
 ## 9. 次の実装候補 / Next Implementation Candidates
 
@@ -276,5 +306,6 @@ Candidate next steps include:
 
 1. specify and verify the UUID-based estimate/result retrieval APIs
 2. document the retrieval endpoint and authentication conditions for re-estimation
-3. define a display specification for comparing re-estimation results using `source_result_uuid`
-4. define a portal-driven request flow for starting re-estimation
+3. persist estimation-input artifacts under `received_estimation_inputs/` and restore them during re-estimation fetch
+4. define a display specification for comparing re-estimation results using `source_result_uuid`
+5. define a portal-driven request flow for starting re-estimation

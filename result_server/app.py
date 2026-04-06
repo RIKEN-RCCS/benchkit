@@ -79,13 +79,19 @@ def create_app(prefix="", base_dir=None):
     base_issuer = os.environ.get("TOTP_ISSUER", "BenchKit")
     app.config["TOTP_ISSUER"] = f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
 
-    # make dir: received & estimated_results
+    # make dir: received, received_padata, received_estimation_inputs & estimated_results
     received_dir = os.path.join(base_dir, "received")
+    received_padata_dir = os.path.join(base_dir, "received_padata")
+    received_estimation_inputs_dir = os.path.join(base_dir, "received_estimation_inputs")
     estimated_dir = os.path.join(base_dir, "estimated_results")
     os.makedirs(received_dir, exist_ok=True)
+    os.makedirs(received_padata_dir, exist_ok=True)
+    os.makedirs(received_estimation_inputs_dir, exist_ok=True)
     os.makedirs(estimated_dir, exist_ok=True)
 
     app.config["RECEIVED_DIR"] = received_dir
+    app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # Register route blueprints

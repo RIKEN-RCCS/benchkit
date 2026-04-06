@@ -28,8 +28,8 @@ def setup_dev_environment(base_dir):
     os.environ["DEV_MODE"] = "1"
 
     # 必要なディレクトリを作成
-    for sub in ["main/received", "main/estimated_results", "main/flask_session",
-                 "dev1/received", "dev1/estimated_results", "dev1/flask_session"]:
+    for sub in ["main/received", "main/received_padata", "main/received_estimation_inputs", "main/estimated_results", "main/flask_session",
+                 "dev1/received", "dev1/received_padata", "dev1/received_estimation_inputs", "dev1/estimated_results", "dev1/flask_session"]:
         os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
 
 
@@ -133,11 +133,17 @@ def create_dev_app(base_dir):
     app.config["TOTP_ISSUER"] = f"{os.environ.get('TOTP_ISSUER', 'BenchKit')}-Local"
 
     received_dir = os.path.join(base_dir, "main", "received")
+    received_padata_dir = os.path.join(base_dir, "main", "received_padata")
+    received_estimation_inputs_dir = os.path.join(base_dir, "main", "received_estimation_inputs")
     estimated_dir = os.path.join(base_dir, "main", "estimated_results")
     os.makedirs(received_dir, exist_ok=True)
+    os.makedirs(received_padata_dir, exist_ok=True)
+    os.makedirs(received_estimation_inputs_dir, exist_ok=True)
     os.makedirs(estimated_dir, exist_ok=True)
 
     app.config["RECEIVED_DIR"] = received_dir
+    app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # results_loaderはcurrent_app.configから取得するため、モジュール変数の書き換え不要

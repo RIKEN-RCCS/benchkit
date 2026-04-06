@@ -87,6 +87,20 @@ for json_file in results/result*.json; do
     echo "No matching TGZ found for $json_file (expected: $tgz_file). Skipping upload."
   fi
 
+  if [[ -d "results/estimation_inputs" ]] && compgen -G "results/estimation_inputs/*" > /dev/null; then
+    estimation_inputs_archive="results/estimation_inputs_${uuid}.tgz"
+    tar -C "results/estimation_inputs" -czf "$estimation_inputs_archive" .
+    echo "Uploading $estimation_inputs_archive with UUID $uuid"
+    curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/estimation-inputs" \
+      -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+      -F "id=${uuid}" \
+      -F "file=@${estimation_inputs_archive}"
+    rm -f "$estimation_inputs_archive"
+    echo "Uploaded estimation inputs for $json_file"
+  else
+    echo "No estimation_inputs directory found for $json_file. Skipping estimation input upload."
+  fi
+
 done
 
 echo "Final result metadata manifest:"

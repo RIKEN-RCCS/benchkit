@@ -12,6 +12,8 @@ import types
 import tempfile
 import shutil
 import logging
+import io
+import tarfile
 
 import pytest
 
@@ -49,16 +51,20 @@ API_KEY = "test-api-key-12345"
 def tmp_dirs():
     """テスト用の一時ディレクトリ（received, estimated）"""
     received = tempfile.mkdtemp()
+    received_padata = tempfile.mkdtemp()
+    received_estimation_inputs = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
-    yield received, estimated
+    yield received, received_padata, received_estimation_inputs, estimated
     shutil.rmtree(received)
+    shutil.rmtree(received_padata)
+    shutil.rmtree(received_estimation_inputs)
     shutil.rmtree(estimated)
 
 
 @pytest.fixture
 def app(tmp_dirs):
     """テスト用Flaskアプリ"""
-    received, estimated = tmp_dirs
+    received, received_padata, received_estimation_inputs, estimated = tmp_dirs
 
     # APIキーを環境変数に設定
     import routes.api as api_mod
@@ -67,6 +73,8 @@ def app(tmp_dirs):
 
     app = Flask(__name__)
     app.config["RECEIVED_DIR"] = received
+    app.config["RECEIVED_PADATA_DIR"] = received_padata
+    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs
     app.config["ESTIMATED_DIR"] = estimated
     app.config["TESTING"] = True
 
@@ -148,7 +156,7 @@ class TestIngestEstimate:
         assert body["status"] == "ok"
 
         # estimated_dirにファイルが作成される
-        estimated = tmp_dirs[1]
+        estimated = tmp_dirs[3]
         files = os.listdir(estimated)
         assert len(files) == 1
         assert files[0].startswith("estimate_")
@@ -186,6 +194,8 @@ class TestIngestPadata:
         body = resp.get_json()
         assert body["status"] == "uploaded"
         assert body["replaced"] is False
+        saved_files = os.listdir(tmp_dirs[1])
+        assert saved_files == ["padata_20250101_120000_12345678-1234-1234-1234-123456789abc.tgz"]
 
     def test_missing_uuid_returns_400(self, client):
         """UUIDなしで400が返る"""
@@ -295,7 +305,7 @@ class TestQueryResult:
             json.dump(data, f)
 
     def test_query_returns_latest_match(self, client, tmp_dirs):
-        received, _ = tmp_dirs
+        received = tmp_dirs[0]
         old = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 1.0}
         new = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 9.9}
         self._seed_result(received, old, "result_20250101_000000_aaaa.json")
@@ -309,7 +319,7 @@ class TestQueryResult:
         assert resp.get_json()["FOM"] == 9.9
 
     def test_query_with_exp_filter(self, client, tmp_dirs):
-        received, _ = tmp_dirs
+        received = tmp_dirs[0]
         d1 = {"system": "Fugaku", "code": "qws", "Exp": "A", "FOM": 1.0}
         d2 = {"system": "Fugaku", "code": "qws", "Exp": "B", "FOM": 2.0}
         self._seed_result(received, d1, "result_20250101_000000_aaaa.json")
@@ -348,7 +358,7 @@ class TestQueryByUuid:
             json.dump(data, f)
 
     def test_query_result_by_uuid(self, client, tmp_dirs):
-        received, _ = tmp_dirs
+        received = tmp_dirs[0]
         data = {"code": "qws", "_server_uuid": "12345678-1234-1234-1234-123456789abc"}
         self._seed_json(received, "result_20250101_000000_12345678-1234-1234-1234-123456789abc.json", data)
 
@@ -360,7 +370,7 @@ class TestQueryByUuid:
         assert resp.get_json()["code"] == "qws"
 
     def test_query_estimate_by_uuid(self, client, tmp_dirs):
-        _, estimated = tmp_dirs
+        estimated = tmp_dirs[3]
         data = {
             "code": "qws",
             "estimate_metadata": {
@@ -384,6 +394,61 @@ class TestQueryByUuid:
     def test_query_estimate_by_uuid_missing_api_key_returns_401(self, client):
         resp = client.get("/api/query/estimate?uuid=87654321-4321-4321-4321-cba987654321")
         assert resp.status_code == 401
+
+
+class TestEstimationInputs:
+    def _seed_result(self, received_dir, uuid_value):
+        filename = f"result_20250101_000000_{uuid_value}.json"
+        path = os.path.join(received_dir, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+        return os.path.splitext(filename)[0]
+
+    def test_ingest_estimation_inputs_expands_under_result_stem(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        estimation_inputs_dir = tmp_dirs[2]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        result_stem = self._seed_result(received, uuid_value)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            payload = b'{"dummy": true}'
+            info = tarfile.TarInfo(name="prepare_rhs_interval.json")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+        saved_path = os.path.join(estimation_inputs_dir, result_stem, "prepare_rhs_interval.json")
+        assert os.path.exists(saved_path)
+
+    def test_query_estimation_inputs_returns_archive(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        estimation_inputs_dir = tmp_dirs[2]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        result_stem = self._seed_result(received, uuid_value)
+        target_dir = os.path.join(estimation_inputs_dir, result_stem)
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "compute_solver_papi.tgz"), "wb") as f:
+            f.write(b"dummy")
+
+        resp = client.get(
+            f"/api/query/estimation-inputs?uuid={uuid_value}",
+            headers={"X-API-Key": API_KEY},
+        )
+        assert resp.status_code == 200
+        assert resp.mimetype == "application/gzip"
+
+        archive_bytes = io.BytesIO(resp.data)
+        with tarfile.open(fileobj=archive_bytes, mode="r:gz") as tar:
+            names = tar.getnames()
+        assert "compute_solver_papi.tgz" in names
 
 
 # ============================================================

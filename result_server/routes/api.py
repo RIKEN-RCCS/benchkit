@@ -12,12 +12,14 @@
   POST /upload-tgz  → ingest_padata
 """
 
-from flask import Blueprint, request, abort, current_app, jsonify
+from flask import Blueprint, request, abort, current_app, jsonify, send_file
 import os
 import json
 import re
 import uuid
 import shutil
+import io
+import tarfile
 from datetime import datetime
 
 api_bp = Blueprint("api", __name__)
@@ -124,6 +126,38 @@ def _load_json_by_uuid(directory, field_path, uuid_value):
     return None
 
 
+def _find_result_file_by_uuid(received_dir, uuid_value):
+    json_files = sorted(
+        [f for f in os.listdir(received_dir) if f.endswith(".json")],
+        reverse=True,
+    )
+
+    for json_file in json_files:
+        path = os.path.join(received_dir, json_file)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+
+        if data.get("_server_uuid") == uuid_value or uuid_value in json_file:
+            return json_file, path, data
+
+    return None, None, None
+
+
+def _safe_extract_tar_bytes(file_storage, target_dir):
+    with tarfile.open(fileobj=file_storage.stream, mode="r:*") as tar:
+        for member in tar.getmembers():
+            normalized = os.path.normpath(member.name)
+            if os.path.isabs(normalized) or normalized.startswith(".."):
+                abort(400, description="Unsafe archive entry")
+        try:
+            tar.extractall(target_dir, filter="data")
+        except TypeError:
+            tar.extractall(target_dir)
+
+
 # ==========================================
 # 新パス: /api/ingest/*
 # ==========================================
@@ -172,7 +206,7 @@ def ingest_padata():
     if not uploaded_file:
         abort(400, description="No file uploaded")
 
-    received_dir = current_app.config["RECEIVED_DIR"]
+    received_dir = current_app.config["RECEIVED_PADATA_DIR"]
 
     matched_files = [
         f for f in os.listdir(received_dir)
@@ -201,6 +235,43 @@ def ingest_padata():
         "timestamp": timestamp,
         "file": os.path.basename(save_path),
         "replaced": bool(matched_files),
+    }, 200
+
+
+@api_bp.route("/api/ingest/estimation-inputs", methods=["POST"])
+def ingest_estimation_inputs():
+    """Estimation input archive (tgz) upload and expansion."""
+    require_api_key()
+
+    uuid_str = request.form.get("id")
+    if not uuid_str or not is_valid_uuid(uuid_str):
+        abort(400, description="Invalid or missing UUID")
+
+    uploaded_file = request.files.get("file")
+    if not uploaded_file:
+        abort(400, description="No file uploaded")
+
+    received_dir = current_app.config["RECEIVED_DIR"]
+    result_filename, _, _ = _find_result_file_by_uuid(received_dir, uuid_str)
+    if not result_filename:
+        abort(404, description=f"No result found for uuid={uuid_str}")
+
+    result_stem = os.path.splitext(result_filename)[0]
+    inputs_root = current_app.config["RECEIVED_ESTIMATION_INPUTS_DIR"]
+    target_dir = os.path.join(inputs_root, result_stem)
+    replaced = os.path.isdir(target_dir)
+    if replaced:
+        shutil.rmtree(target_dir)
+    os.makedirs(target_dir, exist_ok=True)
+
+    _safe_extract_tar_bytes(uploaded_file, target_dir)
+
+    print(f"Saved estimation inputs: {target_dir}", flush=True)
+    return {
+        "status": "uploaded",
+        "id": uuid_str,
+        "directory": result_stem,
+        "replaced": replaced,
     }, 200
 
 
@@ -283,6 +354,45 @@ def query_result():
         return jsonify(data), 200
 
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
+
+
+@api_bp.route("/api/query/estimation-inputs", methods=["GET"])
+def query_estimation_inputs():
+    """Return estimation input artifacts for a result UUID as a tar.gz archive."""
+    require_api_key()
+
+    uuid_value = request.args.get("uuid")
+    if not uuid_value or not is_valid_uuid(uuid_value):
+        abort(400, description="Invalid UUID")
+
+    result_filename, _, _ = _find_result_file_by_uuid(
+        current_app.config["RECEIVED_DIR"], uuid_value
+    )
+    if not result_filename:
+        abort(404, description=f"No result found for uuid={uuid_value}")
+
+    result_stem = os.path.splitext(result_filename)[0]
+    source_dir = os.path.join(
+        current_app.config["RECEIVED_ESTIMATION_INPUTS_DIR"], result_stem
+    )
+    if not os.path.isdir(source_dir):
+        abort(404, description=f"No estimation inputs found for uuid={uuid_value}")
+
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for entry in sorted(os.listdir(source_dir)):
+            tar.add(
+                os.path.join(source_dir, entry),
+                arcname=entry,
+            )
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="application/gzip",
+        as_attachment=True,
+        download_name=f"estimation_inputs_{result_stem}.tgz",
+    )
 
 
 @api_bp.route("/api/query/estimate", methods=["GET"])
