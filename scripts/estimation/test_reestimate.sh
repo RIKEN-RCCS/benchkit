@@ -87,6 +87,7 @@ if compgen -G "results/estimate*.json" > /dev/null; then
       exp,
       performance_ratio,
       applicability,
+      reestimation,
       estimate_metadata: {
         source_result_uuid,
         estimation_result_uuid,

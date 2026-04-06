@@ -18,11 +18,14 @@ if [[ -z "${code:-}" ]]; then
 fi
 
 mkdir -p results
+rm -f results/reestimation_context.json
 
 resolved_result_uuid="${result_uuid:-}"
+resolved_source_estimate_uuid=""
 
 if [[ -z "$resolved_result_uuid" && -n "${estimate_result_uuid:-}" ]]; then
   echo "Fetching estimate for UUID: $estimate_result_uuid"
+  resolved_source_estimate_uuid="$estimate_result_uuid"
   bk_result_server_get_json_to_file \
     "/api/query/estimate?uuid=${estimate_result_uuid}" \
     "results/source_estimate.json"
@@ -50,6 +53,23 @@ bk_result_server_get_json_to_file \
   "/api/query/result?uuid=${resolved_result_uuid}" \
   "results/result0.json"
 echo "Fetched result to results/result0.json"
+
+reestimation_reason="${reestimation_reason:-manual-rerun}"
+reestimation_trigger="${reestimation_trigger:-ci-reestimation}"
+jq -cn \
+  --arg source_result_uuid "$resolved_result_uuid" \
+  --arg source_estimate_result_uuid "$resolved_source_estimate_uuid" \
+  --arg reason "$reestimation_reason" \
+  --arg trigger "$reestimation_trigger" \
+  '{
+    source_result_uuid: $source_result_uuid,
+    reason: $reason,
+    trigger: $trigger
+  }
+  + (if $source_estimate_result_uuid != "" then {source_estimate_result_uuid: $source_estimate_result_uuid} else {} end)
+  + (if $source_estimate_result_uuid != "" then {previous_estimation_result_uuid: $source_estimate_result_uuid} else {} end)
+  ' > results/reestimation_context.json
+echo "Wrote re-estimation context to results/reestimation_context.json"
 
 set +e
 bk_result_server_download_to_file \

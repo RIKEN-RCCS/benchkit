@@ -78,6 +78,7 @@ est_model_json=""
 est_applicability_json=""
 est_confidence_json=""
 est_notes_json=""
+est_reestimation_json=""
 
 _bk_normalize_estimation_timestamp() {
   local raw="${1:-}"
@@ -93,6 +94,17 @@ _bk_normalize_estimation_timestamp() {
   fi
 
   echo "$raw"
+}
+
+load_reestimation_context() {
+  local context_file="results/reestimation_context.json"
+
+  if [[ ! -f "$context_file" ]]; then
+    est_reestimation_json=""
+    return 0
+  fi
+
+  est_reestimation_json=$(jq -c '.' "$context_file")
 }
 
 # ---------------------------------------------------------------------------
@@ -173,6 +185,8 @@ read_values() {
   # for the estimation result. Package-aware estimation scripts may override
   # this explicitly when needed.
   est_source_result_uuid="$est_uuid"
+
+  load_reestimation_context
 }
 
 # ---------------------------------------------------------------------------
@@ -229,6 +243,7 @@ bk_estimation_reset_output_state() {
   est_model_json=""
   est_confidence_json=""
   est_notes_json=""
+  est_reestimation_json=""
 }
 
 # ---------------------------------------------------------------------------
@@ -504,6 +519,12 @@ print_json() {
   \"notes\": $est_notes_json"
   fi
 
+  local reestimation_block=""
+  if [[ -n "$est_reestimation_json" && "$est_reestimation_json" != "null" ]]; then
+    reestimation_block=",
+  \"reestimation\": $est_reestimation_json"
+  fi
+
   cat <<EOF
 {
   "code": "$est_code",
@@ -536,7 +557,7 @@ print_json() {
       "uuid": "$est_future_bench_uuid"
     }${future_breakdown_block}${future_model_block}
   },
-  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}
+  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}${reestimation_block}
 }
 EOF
 }

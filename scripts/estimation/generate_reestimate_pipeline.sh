@@ -9,6 +9,9 @@
 #   estimate_result_uuid - UUID of the estimate result to re-estimate from
 #   estimate_uuid        - legacy alias for result_uuid
 #   code           - Program code name (e.g., "qws")
+# Optional CI variables:
+#   reestimation_reason  - e.g. package-update, model-tuning, manual-rerun
+#   reestimation_trigger - e.g. ci-reestimation, portal, local-test
 #
 # Output: .gitlab-ci.estimate.yml with fetch → estimate → send_estimate stages
 
