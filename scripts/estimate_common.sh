@@ -180,8 +180,16 @@ read_values() {
 # Outputs 0 when est_future_fom is 0 (avoids division by zero).
 # ---------------------------------------------------------------------------
 performance_ratio() {
-  awk -v cur="$est_current_fom" -v fut="$est_future_fom" \
-    'BEGIN { if (fut == 0) printf "0"; else printf "%.3f", cur / fut }'
+  awk -v cur="$est_current_fom" -v fut="$est_future_fom" '
+    BEGIN {
+      if (cur == "" || cur == "null" || fut == "" || fut == "null") {
+        printf "null"
+      } else if (fut == 0) {
+        printf "0"
+      } else {
+        printf "%.3f", cur / fut
+      }
+    }'
 }
 
 # ---------------------------------------------------------------------------
@@ -409,6 +417,8 @@ fetch_current_fom() {
 print_json() {
   local ratio
   ratio=$(performance_ratio)
+  local current_fom_value="${est_current_fom:-null}"
+  local future_fom_value="${est_future_fom:-null}"
 
   # Build fom_breakdown blocks conditionally
   local current_breakdown_block=""
@@ -507,7 +517,7 @@ print_json() {
   "exp": "$est_exp",
   "current_system": {
     "system": "$est_current_system",
-    "fom": $est_current_fom,
+    "fom": $current_fom_value,
     "target_nodes": "$est_current_target_nodes",
     "scaling_method": "$est_current_scaling_method",
     "benchmark": {
@@ -521,7 +531,7 @@ print_json() {
   },
   "future_system": {
     "system": "$est_future_system",
-    "fom": $est_future_fom,
+    "fom": $future_fom_value,
     "target_nodes": "$est_future_target_nodes",
     "scaling_method": "$est_future_scaling_method",
     "benchmark": {

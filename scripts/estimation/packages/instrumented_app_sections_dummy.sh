@@ -288,6 +288,15 @@ _bk_breakdown_total_time() {
     return 0
   fi
 
+  if echo "$breakdown_json" | jq -e '
+    ((.sections // []) | any((.time // null) == null))
+    or
+    ((.overlaps // []) | any((.time // null) == null))
+  ' >/dev/null 2>&1; then
+    echo "null"
+    return 0
+  fi
+
   echo "$breakdown_json" | jq -r '
     (
       (.sections // [])
@@ -312,7 +321,7 @@ _bk_scale_breakdown_to_total() {
 
   local source_total
   source_total=$(_bk_breakdown_total_time "$breakdown_json")
-  if [[ -z "$source_total" || "$source_total" == "0" ]]; then
+  if [[ -z "$source_total" || "$source_total" == "0" || "$source_total" == "null" ]]; then
     echo "$breakdown_json"
     return 0
   fi
@@ -422,6 +431,7 @@ _bk_dispatch_bound_item() {
         --argjson missing_inputs "$missing_inputs_json" '
         .
         + {requested_estimation_package: (.requested_estimation_package // $requested)}
+        + {time: null}
         + {scaling_method: "unresolved-package"}
         + {package_applicability: {status: "not_applicable", missing_inputs: $missing_inputs}}
       '
