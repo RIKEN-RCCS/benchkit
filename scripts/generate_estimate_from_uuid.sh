@@ -5,7 +5,9 @@
 # of a specific benchmark result identified by UUID.
 #
 # Required CI variables:
-#   estimate_uuid  - UUID of the benchmark result to re-estimate
+#   result_uuid          - UUID of the benchmark result to re-estimate directly
+#   estimate_result_uuid - UUID of the estimate result to re-estimate from
+#   estimate_uuid        - legacy alias for result_uuid
 #   code           - Program code name (e.g., "qws")
 #
 # Output: .gitlab-ci.estimate.yml with fetch → estimate → send_estimate stages
@@ -13,8 +15,8 @@
 set -euo pipefail
 
 # Validate required variables
-if [[ -z "${estimate_uuid:-}" ]]; then
-  echo "ERROR: estimate_uuid must be specified" >&2
+if [[ -z "${result_uuid:-}" && -z "${estimate_result_uuid:-}" && -z "${estimate_uuid:-}" ]]; then
+  echo "ERROR: result_uuid or estimate_result_uuid must be specified" >&2
   exit 1
 fi
 
@@ -25,7 +27,7 @@ fi
 
 OUTPUT_FILE=".gitlab-ci.estimate.yml"
 
-echo "Generating estimate pipeline YAML for UUID: $estimate_uuid, code: $code"
+echo "Generating estimate pipeline YAML for code: $code"
 
 cat > "$OUTPUT_FILE" <<YAML
 stages:
@@ -37,7 +39,7 @@ fetch_result:
   stage: fetch
   tags: [fncx-curl-jq]
   script:
-    - echo "Fetching result for UUID: \$estimate_uuid"
+    - echo "Fetching re-estimation input"
     - bash scripts/fetch_result_by_uuid.sh
   artifacts:
     paths:

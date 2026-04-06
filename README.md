@@ -240,7 +240,10 @@ python -m pytest tests/ -v
 - `estimate.sh` がアプリ固有の推定ロジックを実装（`programs/<code>/estimate.sh`）
 - `estimate_common.sh` が共通関数（API呼び出し、JSON出力等）を提供
 - 簡易推定と詳細推定の双方を将来的に受け入れられる設計を前提とする
-- UUID指定による再推定もサポート（`estimate_uuid` 変数でトリガー）
+- UUID指定による再推定もサポート
+  - `estimate_result_uuid` を指定すると、その estimate から `source_result_uuid` を引いて再推定
+  - `result_uuid` を指定すると、元 result を直接指定して再推定
+  - 旧 `estimate_uuid` は `result_uuid` の互換名として扱う
 
 ### 5. BenchPark統合パイプライン
 - `benchpark-bridge/config/apps.csv` で監視対象を定義

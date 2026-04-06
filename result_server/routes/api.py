@@ -92,6 +92,38 @@ def is_valid_uuid(value):
         return False
 
 
+def _load_json_by_uuid(directory, field_path, uuid_value):
+    """指定ディレクトリから UUID に一致する JSON を探して返す。"""
+    json_files = sorted(
+        [f for f in os.listdir(directory) if f.endswith(".json")],
+        reverse=True,
+    )
+
+    for json_file in json_files:
+        path = os.path.join(directory, json_file)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+
+        current = data
+        for key in field_path:
+            if not isinstance(current, dict):
+                current = None
+                break
+            current = current.get(key)
+
+        if current == uuid_value:
+            return data
+
+        # 互換用: ファイル名中のUUIDにもフォールバック
+        if uuid_value in json_file:
+            return data
+
+    return None
+
+
 # ==========================================
 # 新パス: /api/ingest/*
 # ==========================================
@@ -236,6 +268,44 @@ def query_result():
         return jsonify(data), 200
 
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
+
+
+@api_bp.route("/api/query/result/<uuid_value>", methods=["GET"])
+def query_result_by_uuid(uuid_value):
+    """UUID で単一 Result JSON を返す。"""
+    require_api_key()
+
+    if not is_valid_uuid(uuid_value):
+        abort(400, description="Invalid UUID")
+
+    data = _load_json_by_uuid(
+        current_app.config["RECEIVED_DIR"],
+        ["_server_uuid"],
+        uuid_value,
+    )
+    if data is None:
+        abort(404, description=f"No result found for uuid={uuid_value}")
+
+    return jsonify(data), 200
+
+
+@api_bp.route("/api/query/estimate/<uuid_value>", methods=["GET"])
+def query_estimate_by_uuid(uuid_value):
+    """UUID で単一 Estimate JSON を返す。"""
+    require_api_key()
+
+    if not is_valid_uuid(uuid_value):
+        abort(400, description="Invalid UUID")
+
+    data = _load_json_by_uuid(
+        current_app.config["ESTIMATED_DIR"],
+        ["estimate_metadata", "estimation_result_uuid"],
+        uuid_value,
+    )
+    if data is None:
+        abort(404, description=f"No estimate found for uuid={uuid_value}")
+
+    return jsonify(data), 200
 
 
 # ==========================================
