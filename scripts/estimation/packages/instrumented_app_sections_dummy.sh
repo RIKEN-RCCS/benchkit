@@ -22,17 +22,130 @@ bk_estimation_package_metadata() {
 EOF
 }
 
+_bk_has_section_named() {
+  local breakdown_json="$1"
+  local section_name="$2"
+
+  echo "$breakdown_json" | jq -e --arg section_name "$section_name" '
+    (.sections // []) | any(.name == $section_name)
+  ' >/dev/null 2>&1
+}
+
+_bk_has_overlap_members() {
+  local breakdown_json="$1"
+  local members_csv="$2"
+  local members_json
+  members_json=$(echo "$members_csv" | tr ',' '\n' | jq -R . | jq -s .)
+
+  echo "$breakdown_json" | jq -e --argjson members "$members_json" '
+    (.overlaps // []) | any(.sections == $members)
+  ' >/dev/null 2>&1
+}
+
+_bk_missing_section_packages() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -r '
+    [
+      (.sections // [])
+      | map(select((.estimation_package // "") == "") | "section_package:" + .name),
+      (.overlaps // [])
+      | map(select((.estimation_package // "") == "") | "overlap_package:" + (.sections | join(",")))
+    ] | add | .[]
+  '
+}
+
+_bk_missing_section_artifacts() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -r '
+    [
+      (.sections // [])
+      | map(select(((.artifacts // []) | length) == 0) | "section_artifact:" + .name),
+      (.overlaps // [])
+      | map(select(((.artifacts // []) | length) == 0) | "overlap_artifact:" + (.sections | join(",")))
+    ] | add | .[]
+  '
+}
+
+_bk_missing_artifact_paths() {
+  local breakdown_json="$1"
+  local missing=()
+  local path
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if [[ ! -f "$path" ]]; then
+      missing+=("\"artifact_path:${path}\"")
+    fi
+  done < <(
+    echo "$breakdown_json" | jq -r '
+      [
+        (.sections // [])[]?.artifacts[]?.path,
+        (.overlaps // [])[]?.artifacts[]?.path
+      ] | .[]
+    '
+  )
+
+  if (( ${#missing[@]} > 0 )); then
+    printf '%s\n' "${missing[@]}"
+  fi
+}
+
 bk_estimation_package_check_applicability() {
   local missing_inputs=()
   local incompatibilities=()
   local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
+  local required_sections=(
+    "prepare_rhs"
+    "compute_hopping"
+    "compute_solver"
+    "halo_exchange"
+    "allreduce"
+    "write_result"
+  )
+  local required_overlaps=(
+    "compute_hopping,halo_exchange"
+  )
+  local section_name
+  local overlap_members
+  local missing_metadata
 
   if [[ -z "${est_fom:-}" ]]; then
     missing_inputs+=('"fom"')
   fi
   if [[ -z "${est_input_fom_breakdown:-}" || "${est_input_fom_breakdown:-}" == "null" ]]; then
     missing_inputs+=('"fom_breakdown"')
+  fi
+
+  if [[ -n "${est_input_fom_breakdown:-}" && "${est_input_fom_breakdown:-}" != "null" ]]; then
+    for section_name in "${required_sections[@]}"; do
+      if ! _bk_has_section_named "$est_input_fom_breakdown" "$section_name"; then
+        missing_inputs+=("\"section:${section_name}\"")
+      fi
+    done
+
+    for overlap_members in "${required_overlaps[@]}"; do
+      if ! _bk_has_overlap_members "$est_input_fom_breakdown" "$overlap_members"; then
+        missing_inputs+=("\"overlap:${overlap_members}\"")
+      fi
+    done
+
+    while IFS= read -r missing_metadata; do
+      [[ -z "$missing_metadata" ]] && continue
+      missing_inputs+=("\"${missing_metadata}\"")
+    done < <(_bk_missing_section_packages "$est_input_fom_breakdown")
+
+    while IFS= read -r missing_metadata; do
+      [[ -z "$missing_metadata" ]] && continue
+      missing_inputs+=("\"${missing_metadata}\"")
+    done < <(_bk_missing_section_artifacts "$est_input_fom_breakdown")
+
+    while IFS= read -r missing_metadata; do
+      [[ -z "$missing_metadata" ]] && continue
+      missing_inputs+=("${missing_metadata}")
+    done < <(_bk_missing_artifact_paths "$est_input_fom_breakdown")
   fi
 
   if ! bk_estimation_validate_system_relation \
@@ -68,6 +181,7 @@ bk_estimation_package_check_applicability() {
     bk_estimation_set_applicability \
       "not_applicable" \
       "" \
+      '[]' \
       '[]' \
       "$incompatibilities_json"
     return 1

@@ -206,24 +206,28 @@ bk_estimation_set_package_metadata() {
 #   $2  fallback_used         (optional)
 #   $3  missing_inputs_json   (optional, JSON array)
 #   $4  required_actions_json (optional, JSON array)
+#   $5  incompatibilities_json (optional, JSON array)
 # ---------------------------------------------------------------------------
 bk_estimation_set_applicability() {
   local status="${1:-}"
   local fallback_used="${2:-}"
   local missing_inputs_json="${3:-[]}"
   local required_actions_json="${4:-[]}"
+  local incompatibilities_json="${5:-[]}"
 
   est_applicability_json=$(jq -cn \
     --arg status "$status" \
     --arg fallback_used "$fallback_used" \
     --argjson missing_inputs "$missing_inputs_json" \
     --argjson required_actions "$required_actions_json" \
+    --argjson incompatibilities "$incompatibilities_json" \
     '{
       status: $status
     }
     + (if $fallback_used != "" then {fallback_used: $fallback_used} else {} end)
     + (if ($missing_inputs | length) > 0 then {missing_inputs: $missing_inputs} else {} end)
-    + (if ($required_actions | length) > 0 then {required_actions: $required_actions} else {} end)')
+    + (if ($required_actions | length) > 0 then {required_actions: $required_actions} else {} end)
+    + (if ($incompatibilities | length) > 0 then {incompatibilities: $incompatibilities} else {} end)')
 }
 
 _bk_system_line() {
