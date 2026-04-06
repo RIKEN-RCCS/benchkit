@@ -230,6 +230,8 @@ trigger_estimate_pipeline:
       - artifact: .gitlab-ci.estimate.yml
         job: generate_estimate_matrix
     strategy: depend
+  inherit:
+    variables: true
   needs:
     - job: generate_estimate_matrix
       optional: true
