@@ -56,15 +56,21 @@ echo "Fetched result to results/result0.json"
 
 reestimation_reason="${reestimation_reason:-manual-rerun}"
 reestimation_trigger="${reestimation_trigger:-ci-reestimation}"
+reestimation_scope="${reestimation_scope:-both}"
+reestimation_baseline_policy="${reestimation_baseline_policy:-reuse-recorded-baseline}"
 jq -cn \
   --arg source_result_uuid "$resolved_result_uuid" \
   --arg source_estimate_result_uuid "$resolved_source_estimate_uuid" \
   --arg reason "$reestimation_reason" \
   --arg trigger "$reestimation_trigger" \
+  --arg scope "$reestimation_scope" \
+  --arg baseline_policy "$reestimation_baseline_policy" \
   '{
     source_result_uuid: $source_result_uuid,
     reason: $reason,
-    trigger: $trigger
+    trigger: $trigger,
+    scope: $scope,
+    baseline_policy: $baseline_policy
   }
   + (if $source_estimate_result_uuid != "" then {source_estimate_result_uuid: $source_estimate_result_uuid} else {} end)
   + (if $source_estimate_result_uuid != "" then {previous_estimation_result_uuid: $source_estimate_result_uuid} else {} end)
