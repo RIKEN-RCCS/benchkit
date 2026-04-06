@@ -5,7 +5,7 @@ BenchKit は、CX基盤を構成する中核ソフトウェアであり、継続
 
 **📋 新しいアプリケーションの追加方法**: [add-app.md](docs/guides/add-app.md) を参照してください。
 **🏢 新しい拠点の追加方法**: [add-site.md](docs/guides/add-site.md) を参照してください。
-**📊 性能推定支援機能**: [estimation.md](docs/guides/estimation.md) を参照してください。
+**📊 性能推定支援機能**: [add-estimation.md](docs/guides/add-estimation.md) を参照してください。
 **📚 CX上位仕様**: [CXフレームワーク仕様](docs/cx/CX_FRAMEWORK.md), [CX基盤仕様](docs/cx/CX_PLATFORM.md), [BenchKit仕様](docs/cx/BENCHKIT_SPEC.md) を参照してください。
 
 ---
@@ -103,7 +103,7 @@ benchkit/
 │   └── guides/
 │       ├── add-app.md                # アプリ追加手順（開発者向け）
 │       ├── add-site.md               # 拠点追加手順（拠点管理者向け）
-│       └── estimation.md             # 性能推定機能（推定開発者向け）
+│       └── add-estimation.md         # 性能推定ガイドの入口
 └── README.md
 ```
 
@@ -234,7 +234,7 @@ python -m pytest tests/ -v
 - 推定対象システム（MiyabiG等）の場合、性能推定パイプラインをトリガー
 
 ### 4. 性能推定パイプライン
-ベンチマーク結果から本番規模性能、スケーリング挙動、将来システムでの性能を推定します。詳細は [estimation.md](docs/guides/estimation.md) と [ESTIMATION_SPEC.md](docs/cx/ESTIMATION_SPEC.md) を参照。
+ベンチマーク結果から本番規模性能、スケーリング挙動、将来システムでの性能を推定します。詳細は [add-estimation.md](docs/guides/add-estimation.md) と [ESTIMATION_SPEC.md](docs/cx/ESTIMATION_SPEC.md) を参照。
 
 - 推定対象システム: `ESTIMATE_SYSTEMS`（job_functions.sh で定義、例: MiyabiG, RC_GH200）
 - `estimate.sh` がアプリ固有の推定ロジックを実装（`programs/<code>/estimate.sh`）
@@ -313,7 +313,7 @@ MiyabiC,no,1,1,112,0:10:00
 
 ### 自動スキップ機能
 重いベンチマーク処理を避けるため、以下のファイルのみ変更時は自動スキップ：
-- `README.md`, `docs/guides/add-app.md`, `docs/guides/add-site.md`, `docs/guides/estimation.md` （ドキュメント）
+- `README.md`, `docs/guides/add-app.md`, `docs/guides/add-site.md`, `docs/guides/add-estimation.md` （ドキュメント）
 - `result_server/templates/*.html` （Webテンプレート）
 - `.kiro/**/*`, `.vscode/**/*` （設定ファイル）
 
