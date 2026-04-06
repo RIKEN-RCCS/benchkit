@@ -10,6 +10,8 @@
 #   RESULT_SERVER  - Base URL of the result server
 set -euo pipefail
 
+source "$(dirname "$0")/result_server_client.sh"
+
 if [[ -z "${code:-}" ]]; then
   echo "ERROR: code must be specified" >&2
   exit 1
@@ -21,9 +23,9 @@ resolved_result_uuid="${result_uuid:-}"
 
 if [[ -z "$resolved_result_uuid" && -n "${estimate_result_uuid:-}" ]]; then
   echo "Fetching estimate for UUID: $estimate_result_uuid"
-  curl --fail -L -sS -H "X-API-Key: ${RESULT_SERVER_KEY}" \
-    -o "results/source_estimate.json" \
-    "${RESULT_SERVER}/api/query/estimate?uuid=${estimate_result_uuid}"
+  bk_result_server_get_json_to_file \
+    "/api/query/estimate?uuid=${estimate_result_uuid}" \
+    "results/source_estimate.json"
 
   resolved_result_uuid="$(jq -r '.estimate_metadata.source_result_uuid // empty' results/source_estimate.json)"
   if [[ -z "$resolved_result_uuid" ]]; then
@@ -44,6 +46,7 @@ if [[ -z "$resolved_result_uuid" ]]; then
 fi
 
 echo "Fetching result for UUID: $resolved_result_uuid"
-curl --fail -L -sS -H "X-API-Key: ${RESULT_SERVER_KEY}" -o "results/result0.json" \
-  "${RESULT_SERVER}/api/query/result?uuid=${resolved_result_uuid}"
+bk_result_server_get_json_to_file \
+  "/api/query/result?uuid=${resolved_result_uuid}" \
+  "results/result0.json"
 echo "Fetched result to results/result0.json"

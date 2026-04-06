@@ -9,6 +9,8 @@
 
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/result_server_client.sh"
+
 # ---------------------------------------------------------------------------
 # Global variables — populated by read_values
 # ---------------------------------------------------------------------------
@@ -364,15 +366,6 @@ fetch_current_fom() {
   local code="$2"
   local exp="${3:-}"
 
-  if [[ -z "${RESULT_SERVER:-}" ]]; then
-    echo "ERROR: RESULT_SERVER is not set" >&2
-    exit 1
-  fi
-  if [[ -z "${RESULT_SERVER_KEY:-}" ]]; then
-    echo "ERROR: RESULT_SERVER_KEY is not set" >&2
-    exit 1
-  fi
-
   local url="${RESULT_SERVER}/api/query/result?system=${system}&code=${code}"
   if [[ -n "$exp" ]]; then
     url="${url}&exp=${exp}"
@@ -381,7 +374,7 @@ fetch_current_fom() {
   local response
   local curl_exit
   set +e
-  response=$(curl -sf -H "X-API-Key: ${RESULT_SERVER_KEY}" "$url")
+  response=$(bk_result_server_get_json "/api/query/result?system=${system}&code=${code}${exp:+&exp=${exp}}")
   curl_exit=$?
   set -e
   if [[ $curl_exit -ne 0 || -z "$response" ]]; then
