@@ -610,15 +610,17 @@ These are kept open so that multiple approaches remain possible under the princi
 本書の次に必要なのは、少なくとも以下である。
 
 1. [`ESTIMATE_JSON_SPEC.md`](./ESTIMATE_JSON_SPEC.md)
-2. [`REESTIMATION_SPEC.md`](./REESTIMATION_SPEC.md)
-3. [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md)
-4. 推定結果画面の表示仕様
-5. AI 最適化への推定結果受け渡し仕様
+2. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
+3. [`REESTIMATION_SPEC.md`](./REESTIMATION_SPEC.md)
+4. [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md)
+5. 推定結果画面の表示仕様
+6. AI 最適化への推定結果受け渡し仕様
 
 The next documents needed after this one include at least:
 
 1. [`ESTIMATE_JSON_SPEC.md`](./ESTIMATE_JSON_SPEC.md)
-2. [`REESTIMATION_SPEC.md`](./REESTIMATION_SPEC.md)
-3. [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md)
-4. a presentation specification for estimation result views
-5. a handoff specification from estimation results to AI optimization
+2. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
+3. [`REESTIMATION_SPEC.md`](./REESTIMATION_SPEC.md)
+4. [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md)
+5. a presentation specification for estimation result views
+6. a handoff specification from estimation results to AI optimization

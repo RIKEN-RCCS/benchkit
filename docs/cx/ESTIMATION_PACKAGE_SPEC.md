@@ -23,10 +23,12 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 ## 1. 文書の位置づけ / Position of This Document
 
 本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) の下位仕様であり、BenchKit が推定方式をどのような単位で受け入れ、再利用し、差し替えるかを定義する。
+推定入力をどのように採取し BenchKit へ受け渡すかは、[`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md) を参照する。
 
 本書でいう推定パッケージは、推定モデル単体ではなく、計測入力の前提、必要入力、前処理、適用可能性判定、フォールバック方針、Estimate JSON への写像までを含む再利用単位である。
 
 This document is a lower-level specification under [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md). It defines the unit by which BenchKit accepts, reuses, and replaces estimation methods.
+For how estimation inputs are acquired and handed into BenchKit, see [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md).
 
 An estimation package in this document is not just an estimation model. It is a reusable unit that includes measurement prerequisites, required inputs, preprocessing, applicability evaluation, fallback policy, and mapping into Estimate JSON.
 
@@ -525,12 +527,14 @@ These should be fixed incrementally based on implementation experience with the 
 
 1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
 2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
-3. 軽量パッケージの参照実装仕様
-4. 詳細パッケージの参照実装仕様
+3. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
+4. 軽量パッケージの参照実装仕様
+5. 詳細パッケージの参照実装仕様
 
 The next documents needed after this one include at least:
 
 1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
 2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
-3. a reference specification for lightweight packages
-4. a reference specification for detailed packages
+3. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
+4. a reference specification for lightweight packages
+5. a reference specification for detailed packages
