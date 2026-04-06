@@ -1,5 +1,5 @@
 #!/bin/bash
-# generate_estimate_from_uuid.sh — UUID-based estimation pipeline YAML generator
+# generate_reestimate_pipeline.sh — UUID-based estimation pipeline YAML generator
 #
 # Generates a child pipeline YAML (.gitlab-ci.estimate.yml) for re-estimation
 # of a specific benchmark result identified by UUID.
@@ -40,7 +40,7 @@ fetch_result:
   tags: [fncx-curl-jq]
   script:
     - echo "Fetching re-estimation input"
-    - bash scripts/fetch_result_by_uuid.sh
+    - bash scripts/result_server/fetch_result_by_uuid.sh
   artifacts:
     paths:
       - results/
@@ -52,7 +52,7 @@ estimate_${code}:
   tags: ["general"]
   script:
     - echo "Running estimation for ${code}"
-    - bash scripts/run_estimate.sh ${code}
+    - bash scripts/estimation/run.sh ${code}
   artifacts:
     paths:
       - results/
@@ -65,7 +65,7 @@ send_estimate_${code}:
   environment:
     name: \$CI_COMMIT_BRANCH
   script:
-    - bash scripts/send_estimate.sh
+    - bash scripts/result_server/send_estimate.sh
 YAML
 
 echo "Generated $OUTPUT_FILE"

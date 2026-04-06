@@ -28,9 +28,9 @@ This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`
 
 ## 2. 目的 / Purpose
 
-本 API の目的は、推定パッケージごとの差を吸収しつつ、`estimate_common.sh` や app 側 `estimate.sh` から一貫した呼び出しができるようにすることである。
+本 API の目的は、推定パッケージごとの差を吸収しつつ、`scripts/estimation/common.sh` や app 側 `estimate.sh` から一貫した呼び出しができるようにすることである。
 
-The purpose of this API is to allow consistent invocation from `estimate_common.sh` and application-side `estimate.sh` while absorbing differences among estimation packages.
+The purpose of this API is to allow consistent invocation from `scripts/estimation/common.sh` and application-side `estimate.sh` while absorbing differences among estimation packages.
 
 ## 3. 基本方針 / Basic Policy
 
@@ -182,7 +182,7 @@ In the future, application-side `estimate.sh` should preferably be limited to:
 
 ```sh
 BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
-source scripts/estimate_common.sh
+source scripts/estimation/common.sh
 source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
 
 read_values "$1"

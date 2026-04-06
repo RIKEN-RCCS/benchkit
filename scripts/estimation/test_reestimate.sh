@@ -62,11 +62,11 @@ echo "  uuid: $input_uuid"
 echo ""
 
 echo "[1/2] Fetching source result"
-bash scripts/fetch_result_by_uuid.sh
+bash scripts/result_server/fetch_result_by_uuid.sh
 
 echo ""
 echo "[2/2] Running estimation"
-bash scripts/run_estimate.sh "$code"
+bash scripts/estimation/run.sh "$code"
 
 echo ""
 echo "Generated files:"

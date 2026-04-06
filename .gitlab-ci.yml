@@ -207,7 +207,7 @@ trigger_benchpark_pipeline:
 generate_estimate_matrix:
   stage: generate
   script:
-    - bash scripts/generate_estimate_from_uuid.sh
+    - bash scripts/estimation/generate_reestimate_pipeline.sh
   tags:
     - general
   artifacts:

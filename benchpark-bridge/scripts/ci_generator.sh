@@ -63,7 +63,7 @@ ${job_prefix}_send:
     - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
     - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
     - echo \"Sending results to server\"
-    - bash scripts/send_results.sh
+    - bash scripts/result_server/send_results.sh
 
 " >> "$output"
 }

@@ -45,7 +45,7 @@
 set -euo pipefail
 
 BK_ESTIMATION_PACKAGE="lightweight_fom_scaling"
-source scripts/estimate_common.sh
+source scripts/estimation/common.sh
 source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
 bk_run_estimation "$1"
@@ -150,7 +150,7 @@ bk_emit_overlap \
 set -euo pipefail
 
 BK_ESTIMATION_PACKAGE="instrumented_app_sections_dummy"
-source scripts/estimate_common.sh
+source scripts/estimation/common.sh
 source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
 bk_run_estimation "$1"

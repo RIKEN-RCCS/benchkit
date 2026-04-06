@@ -539,7 +539,7 @@ In this form, the application side is responsible only for package selection and
 - package を shell で書くか外部ツールで書くか
 - package metadata の完全な構造
 
-これらは、現行の `estimate_common.sh` と app 側 `estimate.sh` の実装経験を踏まえて段階的に固定する。
+これらは、現行の `scripts/estimation/common.sh` と app 側 `estimate.sh` の実装経験を踏まえて段階的に固定する。
 
 This document does not yet fix:
 
@@ -549,7 +549,7 @@ This document does not yet fix:
 - whether packages are written in shell or external tools
 - the complete schema of package metadata
 
-These should be fixed incrementally based on implementation experience with the current `estimate_common.sh` and application-side `estimate.sh`.
+These should be fixed incrementally based on implementation experience with the current `scripts/estimation/common.sh` and application-side `estimate.sh`.
 
 ## 9. 次に必要な下位仕様 / Next Detailed Specifications
 

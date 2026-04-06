@@ -1,8 +1,8 @@
 #!/bin/bash
-# run_estimate.sh — Estimation execution wrapper
+# run.sh — Estimation execution wrapper
 #
 # Called from CI job script section:
-#   bash scripts/run_estimate.sh <code>
+#   bash scripts/estimation/run.sh <code>
 #
 # Discovers result*.json files in results/ and runs the corresponding
 # application-specific estimate script for each one.

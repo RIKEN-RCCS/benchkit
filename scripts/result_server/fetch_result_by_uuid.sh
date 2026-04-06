@@ -10,7 +10,7 @@
 #   RESULT_SERVER  - Base URL of the result server
 set -euo pipefail
 
-source "$(dirname "$0")/result_server_client.sh"
+source "$(dirname "$0")/api.sh"
 
 if [[ -z "${code:-}" ]]; then
   echo "ERROR: code must be specified" >&2

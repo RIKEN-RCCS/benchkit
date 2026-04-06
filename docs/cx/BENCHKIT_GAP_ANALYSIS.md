@@ -64,7 +64,7 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 | ベンチマーク実行定義 | アプリごとの build/run/list を保持し、継続実行可能であること | `programs/*` に `build.sh` `run.sh` `list.csv`、一部 `estimate.sh` がある | 追加や修正がまだ人手中心。雛形生成や申請導線がない | 申請・承認・AI 連携の前提になる | 高 |
 | CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み | 拠点接続の検証や onboarding 手順が未整理 | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
 | 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み | app ごとの差異を自動検証する仕組みが弱い | 推定、可視化、AI 診断の入力品質に直結 | 高 |
-| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `estimate_common.sh`、`run_estimate.sh`、`send_estimate.sh`、`estimated` 画面あり。`qws` では軽量推定と詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
+| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`qws` では軽量推定と詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
 | 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示も入っている | section / overlap 単位の package applicability や `not_applicable` 詳細の見せ方、比較 UI がまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
 | 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み | 予算主体、アカウント主体、runner 主体との結び付きがない | 多拠点運用と予算管理の核になる | 高 |
 | ソース出自情報 | 最上位アプリケーションの commit hash を追跡すること | `bk_fetch_source` と `source_info` が実装済み | すべての app で徹底されていない。 archive/file の場合は commit hash を持てない | 推定比較、AI 最適化、回帰分析の再現性に直結 | 高 |
@@ -183,7 +183,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 | 項目 | 仕様上の期待 | 現状実装 | GAP | 優先度 |
 |---|---|---|---|---|
-| 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `estimate_common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手 | 最優先 |
+| 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手 | 最優先 |
 | 軽量推定 package | FOM-only、weak scaling 前提、補正なしなら FOM 一定 | `lightweight_fom_scaling` が実装済み | 参照実装は 1 本のみ。current/future 側で別 model を使う実運用は未整備 | 高 |
 | 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `lightweight_fom_scaling` と `instrumented_app_sections_dummy` はこれらを扱え、final Estimate JSON では `applicable`、`partially_applicable`、`fallback`、`not_applicable` を表現できる。requested/applied package の識別も保持できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | 軽量/詳細ダミーとも最小 metadata を持つ | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
@@ -198,7 +198,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 この表から、現在の最小核は以下と整理できる。
 
-1. `estimate_common.sh` を中心とした共通呼び出しと Estimate JSON 出力
+1. `scripts/estimation/common.sh` を中心とした共通呼び出しと Estimate JSON 出力
 2. `lightweight_fom_scaling` による FOM-only 軽量推定
 3. `instrumented_app_sections_dummy` による区間時間ベース詳細ダミー推定
 4. 推定元 result UUID / timestamp の引き回し

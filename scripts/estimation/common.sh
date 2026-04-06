@@ -1,15 +1,15 @@
 #!/bin/bash
-# estimate_common.sh — Common function library for performance estimation
+# common.sh — Common function library for performance estimation
 #
 # Provides shared variables and functions used by application-specific
 # estimate scripts (programs/<code>/estimate.sh).
 #
 # Usage:
-#   source scripts/estimate_common.sh
+#   source scripts/estimation/common.sh
 
 set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/result_server_client.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../result_server/api.sh"
 
 # ---------------------------------------------------------------------------
 # Global variables — populated by read_values

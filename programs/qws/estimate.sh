@@ -1,7 +1,7 @@
 #!/bin/bash
 # estimate.sh — Reference package-based estimation entrypoint for qws
 
-source scripts/estimate_common.sh
+source scripts/estimation/common.sh
 
 BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-instrumented_app_sections_dummy}"
 BK_ESTIMATION_BASELINE_SYSTEM="Fugaku"

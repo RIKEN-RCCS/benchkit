@@ -148,8 +148,8 @@ Optionally, the following may also be supplied:
 
 現行実装では、以下の要素が存在する。
 
-- `run_estimate.sh` が app ごとの `estimate.sh` を呼び出す
-- `send_estimate.sh` が推定結果を結果サーバに送信する
+- `scripts/estimation/run.sh` が app ごとの `estimate.sh` を呼び出す
+- `scripts/result_server/send_estimate.sh` が推定結果を結果サーバに送信する
 - Estimate JSON には推定元 benchmark result の UUID を `estimate_metadata.source_result_uuid` として保持できる
 - Estimate JSON には保存対象としての推定結果自体の UUID / timestamp を `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp` として保持できる
 - `requested_estimation_package` と実際に適用された `estimation_package` を区別できる
@@ -157,8 +157,8 @@ Optionally, the following may also be supplied:
 
 In the current implementation, the following already exist:
 
-- `run_estimate.sh` to invoke app-specific `estimate.sh`
-- `send_estimate.sh` to send estimation results to the result server
+- `scripts/estimation/run.sh` to invoke app-specific `estimate.sh`
+- `scripts/result_server/send_estimate.sh` to send estimation results to the result server
 - the ability to retain the source benchmark-result UUID as `estimate_metadata.source_result_uuid`
 - the ability to retain the estimate-result UUID / timestamp as `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp`
 - a distinction between `requested_estimation_package` and the actually applied `estimation_package`

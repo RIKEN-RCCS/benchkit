@@ -77,14 +77,18 @@ benchkit/
 │   ├── job_functions.sh      # 共通関数定義（CSVパース、System_CSV検索）
 │   ├── bk_functions.sh       # FOM/SECTION/OVERLAP出力標準化関数
 │   ├── result.sh             # 結果JSON変換（SECTION/OVERLAP対応、pipeline_timing付加）
-│   ├── send_results.sh       # 結果転送（uuid/timestamp書き戻し）
+│   ├── result_server/
 │   ├── record_timestamp.sh   # Unixエポックタイムスタンプ記録
 │   ├── collect_timing.sh     # パイプラインタイミング収集（build/queue/run時間）
-│   ├── estimate_common.sh    # 性能推定共通ライブラリ
-│   ├── run_estimate.sh       # 推定実行ラッパー
-│   ├── send_estimate.sh      # 推定結果転送
-│   ├── fetch_result_by_uuid.sh # UUID指定結果取得
-│   ├── generate_estimate_from_uuid.sh # UUID指定推定パイプライン生成
+│   │   ├── api.sh            # result_server JSON取得共通
+│   │   ├── send_results.sh   # 結果転送（uuid/timestamp書き戻し）
+│   │   ├── send_estimate.sh  # 推定結果転送
+│   │   └── fetch_result_by_uuid.sh # UUID指定結果取得
+│   ├── estimation/
+│   │   ├── common.sh         # 性能推定共通ライブラリ
+│   │   ├── run.sh            # 推定実行ラッパー
+│   │   ├── test_reestimate.sh # 再推定確認ヘルパー
+│   │   └── generate_reestimate_pipeline.sh # UUID指定推定パイプライン生成
 │   ├── wait_for_nfs.sh       # NFS同期待機（現在コメントアウト中）
 │   └── test_submit.sh        # テスト実行用
 ├── .gitlab-ci.yml            # メインCI定義
@@ -225,7 +229,7 @@ python -m pytest tests/ -v
 - `run.sh` は `scripts/bk_functions.sh` を `source` し、`bk_emit_result` / `bk_emit_section` / `bk_emit_overlap` で標準化された結果出力を行う
 - `record_timestamp.sh` は run/build_run ジョブ（計算ノード上）でビルド・実行の開始/終了時刻を記録する
 - `collect_timing.sh` と `result.sh` は send_results ジョブ（Docker ランナー `fncx-curl-jq` 上）で実行される。`collect_timing.sh` で `pipeline_timing`（build/queue/run時間）を集計し、`result.sh` で結果をJSON形式に変換（`pipeline_timing` 情報を自動付加）する
-- `scripts/send_results.sh` で結果サーバに転送・性能推定トリガー
+- `scripts/result_server/send_results.sh` で結果サーバに転送・性能推定トリガー
 
 ### 3. 結果転送・保存
 - `results/result[0-9].json` を結果サーバに転送
@@ -238,7 +242,7 @@ python -m pytest tests/ -v
 
 - 推定対象システム: `ESTIMATE_SYSTEMS`（job_functions.sh で定義、例: MiyabiG, RC_GH200）
 - `estimate.sh` がアプリ固有の推定ロジックを実装（`programs/<code>/estimate.sh`）
-- `estimate_common.sh` が共通関数（API呼び出し、JSON出力等）を提供
+- `scripts/estimation/common.sh` が共通関数（API呼び出し、JSON出力等）を提供
 - 簡易推定と詳細推定の双方を将来的に受け入れられる設計を前提とする
 - UUID指定による再推定もサポート
   - `estimate_result_uuid` を指定すると、その estimate から `source_result_uuid` を引いて再推定
@@ -250,7 +254,7 @@ python -m pytest tests/ -v
 - `benchpark-bridge/scripts/ci_generator.sh` により `.gitlab-ci.benchpark.yml` を自動生成
 - `benchpark-bridge/scripts/runner.sh` でBenchPark（Spack/Ramble）を実行
 - `benchpark-bridge/scripts/result_converter.py` でRamble結果をBenchKit JSON形式に変換
-- 結果は `scripts/send_results.sh` で結果サーバに転送
+- 結果は `scripts/result_server/send_results.sh` で結果サーバに転送
 
 ---
 

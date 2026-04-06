@@ -191,7 +191,7 @@ ${job_prefix}_send_results:
   script:
     - bash scripts/collect_timing.sh
     - bash scripts/result.sh ${program} ${system} ${mode} ${build_job} ${run_job} \$CI_PIPELINE_ID
-    - bash scripts/send_results.sh
+    - bash scripts/result_server/send_results.sh
   artifacts:
     paths:
       - results/
@@ -270,7 +270,7 @@ ${job_prefix}_estimate:
     name: \$CI_COMMIT_BRANCH
   script:
     - echo \"Running estimation for ${code}\"
-    - bash scripts/run_estimate.sh ${code}
+    - bash scripts/estimation/run.sh ${code}
   artifacts:
     paths:
       - results/
@@ -296,7 +296,7 @@ ${job_prefix}_send_estimate:
   environment:
     name: \$CI_COMMIT_BRANCH
   script:
-    - bash scripts/send_estimate.sh
+    - bash scripts/result_server/send_estimate.sh
 
 " >> "$output"
 }
