@@ -350,6 +350,8 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
 
         current = data.get("current_system", {})
         future = data.get("future_system", {})
+        estimate_meta = data.get("estimate_metadata", {})
+        applicability = data.get("applicability", {})
 
         # get timestamp and uuid
         match = re.search(r"\d{8}_\d{6}", json_file)
@@ -364,8 +366,11 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
         uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
         uid = uuid_match.group(0) if uuid_match else None
 
+        estimate_timestamp = estimate_meta.get("estimation_result_timestamp") or timestamp
+        estimate_uuid = estimate_meta.get("estimation_result_uuid") or uid
+
         row = {
-            "timestamp": timestamp,
+            "timestamp": estimate_timestamp,
             "code": data.get("code", ""),
             "exp": data.get("exp", ""),
             # System A (current_system)
@@ -385,6 +390,10 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
             "systemB_bench_fom": future.get("benchmark", {}).get("fom", ""),
             "systemB_bench_nodes": future.get("benchmark", {}).get("nodes", ""),
             # Common
+            "applicability_status": applicability.get("status", ""),
+            "requested_estimation_package": estimate_meta.get("requested_estimation_package", ""),
+            "estimation_package": estimate_meta.get("estimation_package", ""),
+            "estimate_uuid": estimate_uuid or "",
             "performance_ratio": data.get("performance_ratio", ""),
             "json_link": json_file,
         }
@@ -411,6 +420,10 @@ def load_estimated_results_table(directory, public_only=True, session_email=None
         ("B Bench FOM", "systemB_bench_fom"),
         ("B Bench Nodes", "systemB_bench_nodes"),
         # Common
+        ("Applicability", "applicability_status"),
+        ("Requested Package", "requested_estimation_package"),
+        ("Applied Package", "estimation_package"),
+        ("Estimate UUID", "estimate_uuid"),
         ("Performance Ratio", "performance_ratio"),
         ("JSON", "json_link"),
     ]

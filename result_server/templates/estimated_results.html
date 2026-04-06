@@ -25,6 +25,10 @@
       <th rowspan="2">Exp</th>
       <th colspan="7">System A</th>
       <th colspan="7">System B</th>
+      <th rowspan="2">Applicability</th>
+      <th rowspan="2">Requested Package</th>
+      <th rowspan="2">Applied Package</th>
+      <th rowspan="2">Estimate UUID</th>
       <th rowspan="2">Ratio</th>
       <th rowspan="2">JSON</th>
     </tr>
@@ -65,6 +69,10 @@
       <td>{{ r.systemB_bench_system }}</td>
       <td>{{ r.systemB_bench_fom }}</td>
       <td>{{ r.systemB_bench_nodes }}</td>
+      <td>{{ r.applicability_status }}</td>
+      <td>{{ r.requested_estimation_package }}</td>
+      <td>{{ r.estimation_package }}</td>
+      <td style="font-family: monospace; font-size: 0.9em;">{{ r.estimate_uuid }}</td>
       <td>{{ r.performance_ratio }}</td>
       <td>
         <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>
