@@ -324,18 +324,24 @@ It should preferably be able to express at least:
 少なくとも以下を返せることが望ましい。
 
 - 適用可能
-- フォールバック適用可能
+- フォールバック
 - 不適用
-- 再計測または追加準備が必要
+- 具体的な不足入力または必要な準備
 
 The package must be able to evaluate whether it is applicable to the provided inputs.
 
 It should preferably be able to return at least:
 
 - applicable
-- applicable with fallback
+- fallback
 - not applicable
-- re-measurement or additional preparation required
+- a concrete list of missing inputs or required actions
+
+ここでの `fallback` は、当該 package 自身がより軽量な package または component に切り替えることで継続できることを意味する。
+最終的な Estimate JSON では、この package-level fallback は、部分区間だけで起きたなら `partially_applicable`、top-level package の切り替えとして起きたなら `fallback` として現れうる。
+
+At the package level, `fallback` means that the package itself can continue by switching to another lighter-weight package or component.
+At the final Estimate JSON level, a package-level fallback may appear either as `partially_applicable` or as top-level `fallback`, depending on whether the switch happened only inside one part of the estimate or at the top-level package boundary.
 
 ### 4.5 フォールバック方針 / Fallback Policy
 
@@ -344,6 +350,8 @@ It should preferably be able to return at least:
 
 The package should preferably be able to define which lighter-weight method may be used as fallback when required inputs are missing, or whether execution must stop without fallback.
 When fallback is used, the requested package identity should remain visible separately from the actually applied package identity.
+When no acceptable fallback exists, the package may return `not_applicable`.
+In that case, BenchKit may still store and present the resulting record as a `not_applicable` estimate attempt rather than treating it as a pipeline failure.
 
 ### 4.6 Estimate JSON への写像 / Mapping into Estimate JSON
 

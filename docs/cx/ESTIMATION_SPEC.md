@@ -450,20 +450,27 @@ More detailed methods may instead use an explicit model, trace, counters, or int
 ### 4.5 適用可能性判定 / Applicability Evaluation
 
 推定実行前に、対象方式が必要とする入力が揃っているかを判定できることが望ましい。
-この判定は、少なくとも以下を返せることが望ましい。
+この判定は、少なくとも以下の最終状態を区別できることが望ましい。
 
 - 適用可能
-- フォールバック適用可能
+- 部分適用可能
+- フォールバック
 - 不適用
-- 再計測または追加準備が必要
 
 BenchKit should preferably be able to evaluate whether the required inputs for a chosen estimation method are present before execution.
-This evaluation should preferably be able to return at least:
+This evaluation should preferably be able to distinguish at least the following final states:
 
 - applicable
-- applicable with fallback
-- not applicable
-- re-measurement or additional preparation required
+- partially_applicable
+- fallback
+- not_applicable
+
+`partially_applicable` means that the estimate succeeded overall, but fallback was used for part of the section / overlap / component chain.
+`fallback` means that the requested top-level package did not succeed as requested, and the estimate succeeded only after switching to another top-level package.
+`not_applicable` means that estimation was attempted but did not succeed as an estimate result.
+
+`not_applicable` does not necessarily imply pipeline failure.
+BenchKit may still preserve and present a `not_applicable` estimate result as a record of an estimation attempt.
 
 applicability 評価が fallback を返す場合、少なくとも次を識別できることが望ましい。
 
@@ -476,6 +483,8 @@ When applicability evaluation returns fallback, it is desirable that the result 
 - the requested estimation package
 - the actually applied fallback package
 - the concrete reason the requested package could not be applied
+
+When only part of the section / overlap / component chain falls back while the overall estimate still succeeds, it is desirable that this be surfaced as `partially_applicable` at the top level.
 
 ### 4.6 履歴と再推定 / History and Re-Estimation
 

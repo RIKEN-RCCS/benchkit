@@ -377,10 +377,25 @@ This field may include assumptions such as:
 
 フォールバックが行われた場合、`applicability` には、要求されたパッケージをそのまま適用できなかった理由を記録できることが望ましい。
 その場合、`estimate_metadata.requested_estimation_package` は最初に要求されたパッケージを、`estimate_metadata.estimation_package` は実際に適用されたパッケージを表す。
+また、`applicability.status` は Estimate JSON の最終状態を表す値として扱う。
+少なくとも以下の 4 値を標準値として扱う。
+
+- `applicable`
+  - 要求された推定パッケージで、そのまま推定が成立した
+- `partially_applicable`
+  - 推定全体は成立したが、一部の section / overlap / component でフォールバックが行われた
+- `fallback`
+  - 要求された top-level 推定パッケージでは成立せず、別の top-level パッケージへ切り替えて推定が成立した
+- `not_applicable`
+  - 推定は試みられたが、最終的に推定結果として成立しなかった
+
+`not_applicable` はパイプライン失敗を意味しない。
+BenchKit は、推定不成立であっても、その試行結果を Estimate JSON として保存・表示してよい。
+
 When fallback occurs, `applicability` should preferably record why the requested package could not be applied.
 In such a case, `estimate_metadata.requested_estimation_package` identifies the originally requested package, while `estimate_metadata.estimation_package` identifies the package actually applied.
 
-This field records whether the requested estimation method had sufficient inputs, whether fallback was used, and what was missing.
+This field records the final applicability state of the estimate, whether fallback was used, and what was missing.
 
 ### 6.6 confidence
 
@@ -580,7 +595,6 @@ incrementally over time.
 
 - `measurement` の具体キー集合
 - `model` の詳細体系
-- `applicability.status` の標準値集合
 - `confidence` の尺度
 - `assumptions` の標準辞書
 - section / overlap category の標準語彙
@@ -592,7 +606,6 @@ This document does not yet fix:
 
 - the complete key set of `measurement`
 - the detailed taxonomy of `model`
-- the standard value set of `applicability.status`
 - the scale for `confidence`
 - a standard dictionary for `assumptions`
 - a standard vocabulary for section / overlap categories
