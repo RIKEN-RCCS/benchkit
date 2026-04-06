@@ -470,6 +470,85 @@ _bk_transform_breakdown_for_qws_demo() {
     '{sections: $sections, overlaps: $overlaps}'
 }
 
+_bk_collect_breakdown_package_issues() {
+  local breakdown_json="$1"
+
+  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
+    echo "[]"
+    return 0
+  fi
+
+  echo "$breakdown_json" | jq -c '
+    [
+      ((.sections // [])
+      | map(
+          {
+            item_kind: "section",
+            item_name: .name,
+            scaling_method: (.scaling_method // ""),
+            package_status: (.package_applicability.status // ""),
+            missing_inputs: (.package_applicability.missing_inputs // [])
+          }
+        )),
+      ((.overlaps // [])
+      | map(
+          {
+            item_kind: "overlap",
+            item_name: (.sections | join(",")),
+            scaling_method: (.scaling_method // ""),
+            package_status: (.package_applicability.status // ""),
+            missing_inputs: (.package_applicability.missing_inputs // [])
+          }
+        ))
+    ] | add
+  '
+}
+
+_bk_set_top_level_applicability_from_breakdowns() {
+  local issues_json="$1"
+  local has_not_applicable
+  local has_fallback
+  local aggregated_missing_inputs
+
+  has_not_applicable=$(echo "$issues_json" | jq -r '
+    any(
+      (.scaling_method == "unresolved-package")
+      or (.package_status == "not_applicable")
+    )
+  ')
+
+  has_fallback=$(echo "$issues_json" | jq -r '
+    any(.package_status == "fallback")
+  ')
+
+  aggregated_missing_inputs=$(echo "$issues_json" | jq -c '
+    [
+      .[]
+      | select((.missing_inputs | length) > 0)
+      | .missing_inputs[]
+    ] | unique
+  ')
+
+  if [[ "$has_not_applicable" == "true" ]]; then
+    bk_estimation_set_applicability \
+      "not_applicable" \
+      "" \
+      "$aggregated_missing_inputs" \
+      '["provide-missing-section-inputs-or-enable-compatible-fallback"]'
+    return 0
+  fi
+
+  if [[ "$has_fallback" == "true" ]]; then
+    bk_estimation_set_applicability \
+      "partially_applicable" \
+      "" \
+      "$aggregated_missing_inputs"
+    return 0
+  fi
+
+  bk_estimation_set_applicability "applicable"
+}
+
 bk_estimation_package_run() {
   local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
   local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-CASE0}"
@@ -483,6 +562,7 @@ bk_estimation_package_run() {
   local logp_package_name="trace_collective_logp"
   local breakdown_template
   local baseline_breakdown
+  local applicability_issues_json
 
   est_future_bench_system="$est_system"
   est_future_bench_fom="$est_fom"
@@ -523,6 +603,12 @@ bk_estimation_package_run() {
   est_future_fom=$(_bk_breakdown_total_time "$est_future_fom_breakdown")
   est_future_target_nodes="$future_target_nodes"
   est_future_scaling_method="$model_name"
+
+  applicability_issues_json=$(jq -cn \
+    --argjson current "$(_bk_collect_breakdown_package_issues "$est_current_fom_breakdown")" \
+    --argjson future "$(_bk_collect_breakdown_package_issues "$est_future_fom_breakdown")" \
+    '$current + $future')
+  _bk_set_top_level_applicability_from_breakdowns "$applicability_issues_json"
 
   est_measurement_json=$(jq -cn '
     {
