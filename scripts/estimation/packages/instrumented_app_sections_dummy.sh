@@ -81,6 +81,30 @@ _bk_missing_artifact_paths() {
   fi
 }
 
+_bk_unsupported_bound_packages() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -r '
+    [
+      ((.sections // [])
+      | map(select(
+          (.estimation_package // "") as $pkg
+          | ($pkg != "")
+          and ($pkg != "interval_time_simple")
+          and ($pkg != "counter_papi_detailed")
+          and ($pkg != "trace_mpi_basic")
+          and ($pkg != "trace_collective_logp")
+        ) | "section_package_unsupported:" + .name + ":" + .estimation_package)),
+      ((.overlaps // [])
+      | map(select(
+          (.estimation_package // "") as $pkg
+          | ($pkg != "")
+          and ($pkg != "overlap_max_basic")
+        ) | "overlap_package_unsupported:" + (.sections | join(",")) + ":" + .estimation_package))
+    ] | add | .[]
+  '
+}
+
 bk_estimation_package_check_applicability() {
   local missing_inputs=()
   local incompatibilities=()
@@ -125,6 +149,11 @@ bk_estimation_package_check_applicability() {
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("${missing_metadata}")
     done < <(_bk_missing_artifact_paths "$est_input_fom_breakdown")
+
+    while IFS= read -r missing_metadata; do
+      [[ -z "$missing_metadata" ]] && continue
+      missing_inputs+=("\"${missing_metadata}\"")
+    done < <(_bk_unsupported_bound_packages "$est_input_fom_breakdown")
   fi
 
   if ! bk_estimation_validate_system_relation \
@@ -281,7 +310,6 @@ _bk_transform_breakdown_for_qws_demo() {
   local target_nodes="$2"
   local bench_nodes="$3"
   local default_factor="$4"
-  local logp_section_name="$5"
 
   if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
     echo ""
@@ -292,11 +320,10 @@ _bk_transform_breakdown_for_qws_demo() {
   logp_factor=$(_bk_logp_factor "$target_nodes" "$bench_nodes")
 
   echo "$breakdown_json" | jq -c \
-    --arg logp_section_name "$logp_section_name" \
     --argjson default_factor "$default_factor" \
     --argjson logp_factor "$logp_factor" '
       .sections |= map(
-        if .name == $logp_section_name then
+        if (.estimation_package // "") == "trace_collective_logp" then
           .
           + {time: ((.time // .bench_time // 0) * $logp_factor)}
           + {bench_time: (.bench_time // .time // 0)}
@@ -327,6 +354,7 @@ bk_estimation_package_run() {
   local model_version="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
   local default_section_factor="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-0.5}"
   local logp_section_name="${BK_ESTIMATION_LOGP_SECTION_NAME:-allreduce}"
+  local logp_package_name="trace_collective_logp"
   local breakdown_template
   local baseline_breakdown
 
@@ -342,7 +370,7 @@ bk_estimation_package_run() {
   baseline_breakdown="$est_current_fom_breakdown"
   if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
     baseline_breakdown="$est_input_fom_breakdown"
-  elif ! echo "$baseline_breakdown" | jq -e --arg section_name "$logp_section_name" '.sections // [] | any(.name == $section_name)' >/dev/null; then
+  elif ! echo "$baseline_breakdown" | jq -e --arg pkg "$logp_package_name" '.sections // [] | any((.estimation_package // "") == $pkg)' >/dev/null; then
     baseline_breakdown="$est_input_fom_breakdown"
   fi
 
@@ -352,8 +380,7 @@ bk_estimation_package_run() {
       "$breakdown_template" \
       "$current_target_nodes" \
       "${est_current_bench_nodes:-1}" \
-      "$default_section_factor" \
-      "$logp_section_name")
+      "$default_section_factor")
     est_current_fom_breakdown=$(_bk_attach_section_package_name "$est_current_fom_breakdown" "instrumented_app_sections_dummy")
     est_current_fom=$(_bk_breakdown_total_time "$est_current_fom_breakdown")
   fi
@@ -365,8 +392,7 @@ bk_estimation_package_run() {
     "$est_input_fom_breakdown" \
     "$future_target_nodes" \
     "$est_node_count" \
-    "$default_section_factor" \
-    "$logp_section_name")
+    "$default_section_factor")
   est_future_fom_breakdown=$(_bk_attach_section_package_name "$est_future_fom_breakdown" "instrumented_app_sections_dummy")
   est_future_fom=$(_bk_breakdown_total_time "$est_future_fom_breakdown")
   est_future_target_nodes="$future_target_nodes"
@@ -388,14 +414,16 @@ bk_estimation_package_run() {
     --arg future_target_nodes "$future_target_nodes" \
     --arg default_section_factor "$default_section_factor" \
     --arg logp_section_name "$logp_section_name" \
+    --arg logp_package_name "$logp_package_name" \
     '{
       scaling_assumption: "weak-scaling",
       future_system_assumption: $future_system,
       baseline_system: $baseline_system,
       current_target_nodes: $current_target_nodes,
       future_target_nodes: $future_target_nodes,
-      default_section_rule: ("sections except " + $logp_section_name + " are scaled by " + $default_section_factor),
-      logp_section_rule: ($logp_section_name + " is scaled with logP"),
+      default_section_rule: ("sections except package " + $logp_package_name + " are scaled by " + $default_section_factor),
+      logp_section_rule: ("sections bound to package " + $logp_package_name + " are scaled with logP"),
+      logp_reference_section: $logp_section_name,
       overlap_rule: "overlap timings are scaled by the default section factor"
     }')
 
