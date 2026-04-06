@@ -169,27 +169,38 @@ _bk_missing_section_artifacts() {
 
 _bk_unsupported_bound_packages() {
   local breakdown_json="$1"
+  local item_json
+  local item_kind
+  local item_name
   local package_name
   local fn_name
 
   _bk_load_section_package_impls
 
-  while IFS= read -r package_name; do
-    [[ -z "$package_name" ]] && continue
-    fn_name="bk_section_package_transform_${package_name}"
-    if ! declare -F "$fn_name" >/dev/null 2>&1; then
-      printf '%s\n' "$package_name"
-    fi
-  done < <(
-    echo "$breakdown_json" | jq -r '
-      [
-        ((.sections // [])
-        | map(select((.estimation_package // "") != "") | "section_package_unsupported:" + .name + ":" + .estimation_package)),
-        ((.overlaps // [])
-        | map(select((.estimation_package // "") != "") | "overlap_package_unsupported:" + (.sections | join(",")) + ":" + .estimation_package))
-      ] | add | .[]
-    '
-  )
+  for item_kind in section overlap; do
+    while IFS= read -r item_json; do
+      [[ -z "$item_json" ]] && continue
+      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
+      [[ -z "$package_name" ]] && continue
+
+      if [[ "$item_kind" == "section" ]]; then
+        item_name=$(echo "$item_json" | jq -r '.name')
+      else
+        item_name=$(echo "$item_json" | jq -r '.sections | join(",")')
+      fi
+
+      fn_name="bk_section_package_transform_${package_name}"
+      if ! declare -F "$fn_name" >/dev/null 2>&1; then
+        printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
+      fi
+    done < <(
+      if [[ "$item_kind" == "section" ]]; then
+        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
+      else
+        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
+      fi
+    )
+  done
 }
 
 bk_estimation_package_check_applicability() {
