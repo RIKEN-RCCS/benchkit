@@ -401,6 +401,70 @@ The package should preferably be able to map its information into at least the f
 - `fom_breakdown.sections`
 - `fom_breakdown.overlaps`
 
+### 4.7 入力条件と出力内容 / Input Conditions and Outputs
+
+推定パッケージ開発者は、各 package について「何を入力として受け、何を出力として埋めるのか」を明示できなければならない。
+ここでいう入力は、単に Result JSON があるかどうかではなく、少なくとも次の観点を含む。
+
+- どの `system` の benchmark result を source として受けるか
+- どの `system` を target として想定するか
+- Result JSON のどの field を必須とするか
+- section / overlap ごとにどの artifact を必須とするか
+- artifact が無いときに `fallback` するのか `not_applicable` にするのか
+
+The package developer must be able to state, for each package, what it accepts as input and what it is expected to populate as output.
+Here, input means not only the presence of a Result JSON, but at least:
+
+- which benchmark-result `system` values are accepted as sources
+- which target systems are assumed
+- which Result JSON fields are required
+- which per-section or per-overlap artifacts are required
+- whether missing artifacts lead to `fallback` or `not_applicable`
+
+少なくとも次のような項目を package metadata または同等の文書化された定義として持てることが望ましい。
+
+- `source_system_scope`
+  - 例: `["MiyabiG"]`, `["RC_GH200"]`, `["MiyabiG","RC_GH200"]`
+- `target_system_scope`
+  - 例: `["FugakuNEXT"]`, `["Fugaku"]`
+- `required_result_fields`
+  - 例: `["fom", "fom_breakdown.sections", "measurement.annotation_method"]`
+- `required_section_artifacts`
+  - 例: `{"compute_solver":["papi"], "allreduce":["trace"]}`
+- `optional_section_artifacts`
+  - 例: `{"prepare_rhs":["interval"]}`
+- `output_fields`
+  - 例: `["current_system.fom_breakdown.sections[].time", "future_system.fom_breakdown.sections[].time", "current_system.model", "future_system.model"]`
+- `not_applicable_when`
+  - 例: `["missing required section artifact", "unsupported source system"]`
+- `fallback_to`
+  - 例: `"interval_time_simple"`
+
+For practical use, the package metadata or equivalent documented definition should preferably be able to express at least:
+
+- `source_system_scope`
+- `target_system_scope`
+- `required_result_fields`
+- `required_section_artifacts`
+- `optional_section_artifacts`
+- `output_fields`
+- `not_applicable_when`
+- `fallback_to`
+
+例えば、`counter_papi_detailed` 系のパッケージであれば、入力条件と出力内容は次のように読めるべきである。
+
+- 入力元 system は `MiyabiG` または `RC_GH200`
+- input として section ごとの PAPI artifact が必要
+- `compute_solver_papi.tgz` のような artifact が無ければ `fallback` または `not_applicable`
+- 出力として section `time`、必要なら `model`、`applicability` を埋める
+
+This makes it possible to read the package input conditions and outputs in a form such as:
+
+- source is `MiyabiG` or `RC_GH200`
+- per-section PAPI artifacts are required
+- if artifacts such as `compute_solver_papi.tgz` are missing, the package falls back or becomes `not_applicable`
+- the package writes section `time`, and when needed, `model` and `applicability`
+
 ## 5. BenchKit における責務分担 / Responsibility Split in BenchKit
 
 ### 5.1 フレームワーク側責務 / Framework-Side Responsibilities

@@ -16,7 +16,7 @@
 - `run.sh` で何を出せばよいか
 - `estimate.sh` をどこまで薄くできるか
 - 軽量推定から詳細推定へどう広げるか
-- いま何が簡単で、何がまだ重いか
+- 今後の改善
 
 ### 推定 package 開発者
 
@@ -26,10 +26,10 @@
 
 主に次が分かります。
 
-- package が持つべき責務
-- section package と top-level package の分け方
-- fallback / not_applicable の返し方
-- いま何が共通化できていて、何がまだ重いか
+- パッケージが持つべき責務
+- 区間パッケージと上位パッケージの分け方
+- 代替 / not_applicable の返し方
+- 今後の改善
 
 ## 先にざっくり知りたいこと
 
@@ -39,7 +39,7 @@
 - 詳細推定は `qws` が参照実装
 - app 側は「何を測って何を渡すか」を主に担当
 - package 側は「どう推定して、入力不足をどう扱うか」を主に担当
-- requested / applied package、applicability、UUID / timestamp、portal 基本表示は共通層でかなり吸収できている
+- 要求パッケージ / 実適用パッケージ、applicability、UUID / timestamp、ポータル基本表示は共通層でかなり吸収できている
 
 ## 仕様を見たい場合
 

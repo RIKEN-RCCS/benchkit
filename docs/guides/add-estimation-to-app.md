@@ -12,7 +12,7 @@
 5. [`estimate.sh` でやること](#5-estimatesh-でやること)
 6. [artifact の扱い](#6-artifact-の扱い)
 7. [確認ポイント](#7-確認ポイント)
-8. [いま何が簡単で、何がまだ重いか](#8-いま何が簡単で何がまだ重いか)
+8. [今後の改善](#8-今後の改善)
 
 ---
 
@@ -22,7 +22,7 @@
 
 - 軽量推定だけで始めるか
 - section / overlap まで出して詳細推定に進むか
-- section ごとにどの推定 package を使いたいか
+- section ごとにどの推定パッケージを使いたいか
 - 補助 artifact が必要か
 
 最初の一歩としては、軽量推定だけを載せるのが一番簡単です。
@@ -63,7 +63,7 @@ bk_run_estimation "$1"
 2. 必要なら overlap を出す
 3. section ごとに `estimation_package` を付ける
 4. 必要なら section ごとに `artifacts` を付ける
-5. `estimate.sh` で top-level package を詳細型に切り替える
+5. `estimate.sh` で上位パッケージを詳細型に切り替える
 
 現時点では `qws` が参照例です。
 
@@ -95,7 +95,7 @@ section / overlap を出す場合は、少なくとも次を意識します。
 
 - 区間名
 - 区間時間
-- その区間に使いたい推定 package 名
+- その区間に使いたい推定パッケージ名
 - 必要なら artifact 参照
 
 イメージとしては次のようになります。
@@ -121,7 +121,7 @@ bk_emit_overlap \
 ```
 
 アプリ側で大事なのは「何を測って何を渡すか」までです。
-その解釈や fallback は package 側へ寄せます。
+その解釈や代替処理はパッケージ側へ寄せます。
 
 ---
 
@@ -130,16 +130,16 @@ bk_emit_overlap \
 `estimate.sh` は薄い方がよいです。
 現時点では、基本的に次だけで済む形を目指します。
 
-- top-level estimation package を選ぶ
+- 上位の推定パッケージを選ぶ
 - 必要なら app 固有の最小パラメータを設定する
 - 共通フローを呼ぶ
 
 避けたいのは、app ごとに
 
-- fallback 制御
+- 代替制御
 - Estimate JSON 手組み
-- top-level applicability 判定
-- section package dispatch
+- 全体の適用可否判定
+- 区間パッケージの振り分け
 
 を書くことです。
 
@@ -175,7 +175,7 @@ mkdir -p results/estimation_inputs
 ```
 
 アプリ側の責務は「採取して置くこと」までです。
-その中身の評価や fallback の判断は package 側へ寄せます。
+その中身の評価や代替の判断はパッケージ側へ寄せます。
 
 ---
 
@@ -192,12 +192,12 @@ mkdir -p results/estimation_inputs
 - `fom_breakdown.sections` が出る
 - section ごとの `estimation_package` が残る
 - artifact 参照が残る
-- `requested_estimation_package` と実適用 package が必要なら分かれる
+- `requested_estimation_package` と実適用パッケージが必要なら分かれる
 
-### fallback の確認
+### 代替の確認
 
-- 一部区間だけ fallback したら top-level `applicability.status = partially_applicable`
-- fallback した区間に `requested_estimation_package` と `fallback_used` が残る
+- 一部区間だけ代替したら全体の `applicability.status = partially_applicable`
+- 代替した区間に `requested_estimation_package` と `fallback_used` が残る
 
 ### not_applicable の確認
 
@@ -207,17 +207,17 @@ mkdir -p results/estimation_inputs
 
 ---
 
-## 8. いま何が簡単で、何がまだ重いか
+## 8. 今後の改善
 
-### かなり簡単になっていること
+### すでに進んでいること
 
 - 軽量推定を 1 本載せること
 - `estimate.sh` を薄く保つこと
-- requested / applied package の記録
+- 要求パッケージ / 実適用パッケージの記録
 - UUID / timestamp の保存
-- portal での基本表示
+- ポータルでの基本表示
 
-### まだ重いこと
+### 今後の改善
 
 - section の切り方を app 側で設計すること
 - artifact をどう採るか決めること
