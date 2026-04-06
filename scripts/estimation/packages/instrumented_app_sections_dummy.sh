@@ -36,10 +36,10 @@ _bk_missing_section_packages() {
 
   echo "$breakdown_json" | jq -r '
     [
-      (.sections // [])
-      | map(select((.estimation_package // "") == "") | "section_package:" + .name),
-      (.overlaps // [])
-      | map(select((.estimation_package // "") == "") | "overlap_package:" + (.sections | join(",")))
+      ((.sections // [])
+      | map(select((.estimation_package // "") == "") | "section_package:" + .name)),
+      ((.overlaps // [])
+      | map(select((.estimation_package // "") == "") | "overlap_package:" + (.sections | join(","))))
     ] | add | .[]
   '
 }
@@ -49,10 +49,10 @@ _bk_missing_section_artifacts() {
 
   echo "$breakdown_json" | jq -r '
     [
-      (.sections // [])
-      | map(select(((.artifacts // []) | length) == 0) | "section_artifact:" + .name),
-      (.overlaps // [])
-      | map(select(((.artifacts // []) | length) == 0) | "overlap_artifact:" + (.sections | join(",")))
+      ((.sections // [])
+      | map(select(((.artifacts // []) | length) == 0) | "section_artifact:" + .name)),
+      ((.overlaps // [])
+      | map(select(((.artifacts // []) | length) == 0) | "overlap_artifact:" + (.sections | join(","))))
     ] | add | .[]
   '
 }
