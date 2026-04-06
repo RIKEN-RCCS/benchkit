@@ -246,8 +246,8 @@ python -m pytest tests/ -v
 - 簡易推定と詳細推定の双方を将来的に受け入れられる設計を前提とする
 - UUID指定による再推定もサポート
   - `estimate_result_uuid` を指定すると、その estimate から `source_result_uuid` を引いて再推定
-  - `result_uuid` を指定すると、元 result を直接指定して再推定
-  - 旧 `estimate_uuid` は `result_uuid` の互換名として扱う
+  - docs 上の正式な入口は `estimate_result_uuid` に統一する
+  - `result_uuid` は内部処理や互換のために残りうるが、利用者向け入口としては扱わない
 
 ### 5. BenchPark統合パイプライン
 - `benchpark-bridge/config/apps.csv` で監視対象を定義

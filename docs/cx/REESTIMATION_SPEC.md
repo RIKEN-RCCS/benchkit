@@ -286,7 +286,7 @@ Re-estimation in BenchKit should preferably satisfy at least:
 3. `received_estimation_inputs/<result-stem>/` が存在する場合は、その内容を `results/estimation_inputs/` に復元する
 4. server 側に estimation input artifact が無い場合は、artifact 不要な推定のみを許可し、必要な推定は `not_applicable` とする
 
-Near-term restoration should follow this flow:
+Current restoration should follow this flow:
 
 1. if starting from `estimate_result_uuid`, resolve `source_result_uuid` from the estimate JSON
 2. fetch the source result JSON
@@ -309,3 +309,40 @@ Candidate next steps include:
 3. persist estimation-input artifacts under `received_estimation_inputs/` and restore them during re-estimation fetch
 4. define a display specification for comparing re-estimation results using `source_result_uuid`
 5. define a portal-driven request flow for starting re-estimation
+
+## 10. 現在の実装状態の補遺 / Addendum on Current Status
+
+現時点の BenchKit では、再推定について次が成立している。
+
+- 利用者向け入口として `estimate_result_uuid` を使える
+- `estimate_result_uuid` から stored estimate JSON を取得し、そこから `source_result_uuid` を解決できる
+- source result JSON を結果サーバから再取得できる
+- `received_estimation_inputs/<result-stem>/` から detailed estimation input artifact を復元できる
+- 復元した artifact を使って detailed re-estimation を実行できる
+- 保存済み estimate JSON に `reestimation` ブロックを持てる
+- `reestimation` の既定値として `scope=both` と `baseline_policy=reuse-recorded-baseline` を持てる
+
+## 11. 再推定入口の整理 / Re-Estimation Entry-Point Policy
+
+利用者向けの再推定入口は `estimate_result_uuid` に統一する。
+
+- 既存の estimate を見て「これを再推定したい」という操作に最も自然である
+- compare UI や portal からの起動とも整合しやすい
+- どの estimate を起点にした再推定かを明示しやすい
+
+`result_uuid` は内部処理や正規化のために使うことがあっても、利用者向けの正式入口としては扱わない。
+また、`estimate_uuid` は文書上の正式入口とはしない。
+
+## 12. 再推定トリガ例 / Re-Estimation Trigger Example
+
+GitLab trigger API を使う場合、再推定専用トリガでは少なくとも `code` と `estimate_result_uuid` を渡す。
+
+```bash
+curl -X POST --fail \
+  -F token=$TOKEN \
+  -F ref=develop \
+  -F "variables[code]=qws" \
+  -F "variables[estimate_result_uuid]=e9f72d1b-1a83-450e-bb46-4ee47e4e41e4" \
+  -F "variables[reestimation_reason]=package-update" \
+  https://gitlab.example.com/api/v4/projects/PROJECT_ID/trigger/pipeline
+```
