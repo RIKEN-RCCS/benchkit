@@ -19,8 +19,8 @@ load_estimation_package() {
   source "scripts/estimation/packages/${package_name}.sh"
   BK_ESTIMATION_PACKAGE_VERSION=$(bk_estimation_package_metadata | jq -r '.version // empty')
   case "$package_name" in
-    lightweight_fom_scaling)
-      BK_ESTIMATION_MODEL_NAME="scale-mock"
+    weakscaling)
+      BK_ESTIMATION_MODEL_NAME="weakscaling"
       BK_ESTIMATION_MODEL_VERSION="0.1"
       ;;
     instrumented_app_sections_dummy)

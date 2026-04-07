@@ -1,16 +1,32 @@
 #!/bin/bash
 
-bk_section_package_metadata_trace_collective_logp() {
+bk_section_package_metadata_logp() {
   cat <<'EOF'
-{"name":"trace_collective_logp","fallback_target":"interval_time_simple"}
+{
+  "name": "logp",
+  "fallback_target": "identity",
+  "source_system_scope": {
+    "kind": "benchmark_system",
+    "accepted_values": ["any"]
+  },
+  "target_system_scope": {
+    "accepted_values": ["any"]
+  },
+  "item_kind_scope": ["section"],
+  "required_result_fields": ["time or bench_time"],
+  "required_artifact_kinds": [],
+  "output_fields": ["time", "bench_time", "scaling_method"],
+  "not_applicable_when": [
+    "item kind is not section",
+    "both time and bench_time are missing"
+  ]
+}
 EOF
 }
 
-bk_section_package_check_applicability_trace_collective_logp() {
+bk_section_package_check_applicability_logp() {
   local item_json="$1"
   local item_kind="$2"
-  local path
-  local missing=()
 
   if [[ "$item_kind" != "section" ]]; then
     cat <<'EOF'
@@ -19,22 +35,10 @@ EOF
     return 1
   fi
 
-  if [[ "$(echo "$item_json" | jq -r '(.artifacts // []) | length')" == "0" ]]; then
+  if ! echo "$item_json" | jq -e '(.time != null) or (.bench_time != null)' >/dev/null 2>&1; then
     cat <<'EOF'
-{"status":"not_applicable","missing_inputs":["section_artifact"]}
+{"status":"not_applicable","missing_inputs":["item_time"]}
 EOF
-    return 1
-  fi
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    if [[ ! -f "$path" ]]; then
-      missing+=("\"artifact_path:${path}\"")
-    fi
-  done < <(echo "$item_json" | jq -r '(.artifacts // [])[]?.path')
-
-  if (( ${#missing[@]} > 0 )); then
-    printf '{"status":"not_applicable","missing_inputs":[%s]}\n' "$(IFS=,; echo "${missing[*]}")"
     return 1
   fi
 
@@ -43,7 +47,7 @@ EOF
 EOF
 }
 
-bk_section_package_transform_trace_collective_logp() {
+bk_section_package_transform_logp() {
   local item_json="$1"
   local target_nodes="$2"
   local bench_nodes="$3"

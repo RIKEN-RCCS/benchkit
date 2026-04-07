@@ -448,7 +448,7 @@ Here, input means not only the presence of a Result JSON, but at least:
 ここで重要なのは、これらは「使える配下パッケージの集合」を表すものであり、app 固有の section 名そのものを固定で期待するための項目ではない、という点である。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表す。
 
 また、区間パッケージ側が `required_artifact_kinds` や system 範囲を定義している場合、それと実際の section / overlap の割当て、必要なデータ採取、採取済みデータの保存・復元との照合は BenchKit 側で扱う。app 側は原則として「section 名」と「どの推定 package を使うか」を決めればよく、採取手順や保存形式の具体記述を直接抱え込まない方がよい。
-  - 例: `"interval_time_simple"`
+  - 例: `"identity"`
 
 For practical use, the package metadata or equivalent documented definition should preferably be able to express at least:
 
@@ -521,6 +521,8 @@ The application side should preferably be limited to:
 
 特に詳細推定では、app 側は section 名と `estimation_package` の割当てを決めるところまでに責務を寄せ、PAPI の counter set 分割や trace 採取方法、保存形式のような共通化可能な処理は BenchKit 側へ寄せるのが望ましい。
 
+`weakscaling` のように artifact を前提としない section-wise package では、さらに app 側責務は明確になる。app 側は通常実行から section / overlap 時間を Result JSON へ出し、各 item に `identity` または `logp` を割り当てればよい。
+
 ### 5.3 推定パッケージ開発者側責務 / Estimation-Package-Developer Responsibilities
 
 推定パッケージ開発者の責務は、原則として以下を定義することにある。
@@ -533,6 +535,18 @@ The application side should preferably be limited to:
 - 必要に応じたフォールバック規則
 
 すなわち、BenchKit が共通ルールを提供し、app 側が package を選択し、package 開発者が推定方式の具体的意味を定める、という責務分離を基本とする。
+
+`weakscaling` の場合は、少なくとも次のように読めるのが望ましい。
+- app 側
+  - section / overlap 時間を書く
+  - `identity` / `logp` の割当てを決める
+- 推定パッケージ開発者側
+  - `identity` と `logp` の意味
+  - `weakscaling` の合成規則
+- BenchKit 側
+  - section package dispatch
+  - current / future breakdown 合成
+  - top-level `applicability` と Estimate JSON への正規化
 
 The estimation-package developer is primarily responsible for defining:
 
@@ -551,14 +565,14 @@ In other words, the intended separation is that BenchKit provides the common rul
 
 例:
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `baseline_ratio_estimation`
 
 これらは、高頻度実行や PoC に向く。
 
 Examples:
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `baseline_ratio_estimation`
 
 These are suitable for high-frequency runs and PoC work.
@@ -593,7 +607,7 @@ BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべ
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
 BK_ESTIMATION_TARGET_NODES=256
 
-bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section prepare_rhs identity
 bk_declare_section compute_hopping counter_papi_detailed
 bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
 
@@ -609,7 +623,7 @@ In BenchKit, a desirable future direction is that application-side `estimate.sh`
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
 BK_ESTIMATION_TARGET_NODES=256
 
-bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section prepare_rhs identity
 bk_declare_section compute_hopping counter_papi_detailed
 bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
 

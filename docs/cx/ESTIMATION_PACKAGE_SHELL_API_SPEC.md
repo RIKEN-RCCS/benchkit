@@ -181,7 +181,7 @@ In the future, application-side `estimate.sh` should preferably be limited to:
 ## 7. 参照イメージ / Reference Shape
 
 ```sh
-BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
+BK_ESTIMATION_PACKAGE=weakscaling
 source scripts/estimation/common.sh
 source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
 

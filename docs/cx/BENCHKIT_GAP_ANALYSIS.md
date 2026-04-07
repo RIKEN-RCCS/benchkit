@@ -169,7 +169,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 現状は `qws` が先行 app として、
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `instrumented_app_sections_dummy`
 - 推定元 result の UUID / timestamp 引き回し
 - side ごとの `model` 表現
@@ -184,8 +184,8 @@ Once the estimation specification is clarified, many other design decisions beco
 | 項目 | 仕様上の期待 | 現状実装 | GAP | 優先度 |
 |---|---|---|---|---|
 | 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手。`estimate.sh` 内の宣言ブロックの共通 API も未固定 | 最優先 |
-| 軽量推定 package | FOM-only、weak scaling 前提、補正なしなら FOM 一定 | `lightweight_fom_scaling` が実装済み | 参照実装は 1 本のみ。current/future 側で別 model を使う実運用は未整備 | 高 |
-| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `lightweight_fom_scaling` と `instrumented_app_sections_dummy` はこれらを扱え、final Estimate JSON では `applicable`、`partially_applicable`、`fallback`、`not_applicable` を表現できる。requested/applied package の識別も保持できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
+| 軽量推定 package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` の実装を整理中 | app / package / BenchKit の責務分離、他 app への横展開、表示整合は未完 | 高 |
+| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `weakscaling` と `instrumented_app_sections_dummy` はこれらを扱う方向で整理中。final Estimate JSON では `applicable`、`partially_applicable`、`fallback`、`not_applicable` を表現できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | 軽量/詳細ダミーとも最小 metadata を持つ | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
 | section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | `bk_emit_section` / `bk_emit_overlap` から Result JSON に `estimation_package` を載せられ、`instrumented_app_sections_dummy` でも dispatch に利用している | 他 app への横展開と package discovery の整理が未完。app 側が実行前に宣言する形は設計整理済みだが未実装 | 最優先 |
 | app 側推定宣言 | app 側が実行前に section / overlap と `estimation_package` をまとめて宣言できること | `estimate.sh` に宣言ブロックを寄せる方向性は整理済み | 宣言 API、既定値の与え方、`run.sh` からの読込み方は未固定。実装も未着手 | 最優先 |
@@ -201,7 +201,7 @@ Once the estimation specification is clarified, many other design decisions beco
 この表から、現在の最小核は以下と整理できる。
 
 1. `scripts/estimation/common.sh` を中心とした共通呼び出しと Estimate JSON 出力
-2. `lightweight_fom_scaling` による FOM-only 軽量推定
+2. `weakscaling` による `identity` / `logp` ベースの軽量推定
 3. `instrumented_app_sections_dummy` による区間時間ベース詳細ダミー推定
 4. 推定元 result UUID / timestamp の引き回し
 

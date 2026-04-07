@@ -2,7 +2,26 @@
 
 bk_section_package_metadata_overlap_max_basic() {
   cat <<'EOF'
-{"name":"overlap_max_basic","fallback_target":null}
+{
+  "name": "overlap_max_basic",
+  "fallback_target": "identity",
+  "source_system_scope": {
+    "kind": "benchmark_system",
+    "accepted_values": ["any"]
+  },
+  "target_system_scope": {
+    "accepted_values": ["any"]
+  },
+  "item_kind_scope": ["overlap"],
+  "required_result_fields": ["sections", "artifacts[].path", "time or bench_time"],
+  "required_artifact_kinds": ["overlap"],
+  "output_fields": ["time", "bench_time", "scaling_method"],
+  "not_applicable_when": [
+    "item kind is not overlap",
+    "artifact list is empty",
+    "artifact path is missing"
+  ]
+}
 EOF
 }
 

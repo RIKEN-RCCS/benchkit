@@ -157,7 +157,7 @@ In addition, `target_nodes` represents the estimated node count on each system s
     "system": "FugakuNEXT",
     "fom": 246.912,
     "target_nodes": "4",
-    "scaling_method": "scale-mock",
+    "scaling_method": "weakscaling",
     "benchmark": {
       "system": "MiyabiG",
       "fom": 123.456,
@@ -225,7 +225,7 @@ Estimate JSON may include the following extension fields:
     "method_class": "lightweight",
     "detail_level": "basic",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
-    "estimation_package": "lightweight_fom_scaling",
+    "estimation_package": "weakscaling",
     "estimation_package_version": "0.1",
     "requested_estimation_package": "instrumented_app_sections_dummy",
     "requested_estimation_package_version": "0.1"
@@ -290,7 +290,7 @@ This field stores how the measurement inputs used for estimation were obtained.
 {
   "model": {
     "type": "scaling",
-    "name": "scale-mock",
+    "name": "weakscaling",
     "version": "0.1",
     "implementation": "programs/qws/estimate.sh"
   }

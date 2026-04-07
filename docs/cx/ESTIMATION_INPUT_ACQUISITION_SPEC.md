@@ -389,6 +389,8 @@ The application developer should generally only need to ensure:
 
 詳細推定では、これに加えて app 側が `estimate.sh` の宣言ブロックで section / overlap と `estimation_package` の割当てを先に示せるようにしてよい。ただし、採取手順の詳細や保存形式の詳細まで app 側へ押し込めない方が望ましい。
 
+`weakscaling` のように artifact を要求しない package では、app 側は通常実行の中で section / overlap 時間を出し、その item ごとに `identity` または `logp` を割り当てるところまででよい。
+
 ### 8.2 推定パッケージ開発者の責務 / Estimation Package Developer Responsibility
 
 推定パッケージ開発者は、原則として次を定義する。
@@ -427,6 +429,8 @@ BenchKit is generally responsible for:
 - `estimate.sh` 内の宣言ブロックの読込み
 - package metadata を見た追加採取実行の組立て
 - `bk_emit_*` で与えられた値と追加採取結果の合流
+
+一方で `weakscaling` のような artifact 不要 package では、BenchKit 側は追加採取を組み立てるのではなく、app 側が出した section / overlap 時間に対して `identity` / `logp` を dispatch し、top-level FOM を合成する責務を持つ。
 
 ## 9. 現時点で固定しないこと / Items Intentionally Left Open
 

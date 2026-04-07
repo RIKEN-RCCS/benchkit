@@ -82,7 +82,7 @@ Estimation-package metadata must contain at least:
 
 例:
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `section_breakdown_scaling`
 
 This is the name used to identify the package.
@@ -271,7 +271,7 @@ Examples:
 
 ```json
 {
-  "name": "lightweight_fom_scaling",
+  "name": "weakscaling",
   "version": "0.1",
   "method_class": "lightweight",
   "detail_level": "basic",

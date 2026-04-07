@@ -61,12 +61,12 @@ print_results() {
     create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
     create_dummy_estimation_artifact "estimation_inputs/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
 
-    bk_emit_section prepare_rhs "$section_prepare_rhs" interval_time_simple results/estimation_inputs/prepare_rhs_interval.json
+    bk_emit_section prepare_rhs "$section_prepare_rhs" identity results/estimation_inputs/prepare_rhs_interval.json
     bk_emit_section compute_hopping "$section_compute_hopping" counter_papi_detailed results/estimation_inputs/compute_hopping_papi.tgz
     bk_emit_section compute_solver "$section_compute_solver" counter_papi_detailed results/estimation_inputs/compute_solver_papi.tgz
     bk_emit_section halo_exchange "$section_halo_exchange" trace_mpi_basic results/estimation_inputs/halo_exchange_trace.tgz
-    bk_emit_section allreduce "$section_allreduce" trace_collective_logp results/estimation_inputs/allreduce_trace.tgz
-    bk_emit_section write_result "$section_write_result" interval_time_simple results/estimation_inputs/write_result_interval.json
+    bk_emit_section allreduce "$section_allreduce" logp results/estimation_inputs/allreduce_trace.tgz
+    bk_emit_section write_result "$section_write_result" identity results/estimation_inputs/write_result_interval.json
     bk_emit_section overlap:compute_hopping,halo_exchange "$overlap_compute_halo" overlap_max_basic results/estimation_inputs/compute_halo_overlap.json --type overlap --members compute_hopping,halo_exchange
 }
 

@@ -45,7 +45,7 @@
 #!/bin/bash
 set -euo pipefail
 
-BK_ESTIMATION_PACKAGE="lightweight_fom_scaling"
+BK_ESTIMATION_PACKAGE="weakscaling"
 source scripts/estimation/common.sh
 source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
@@ -70,6 +70,18 @@ bk_run_estimation "$1"
 
 詳細推定では、app ごとの推定宣言を `estimate.sh` にまとめると整理しやすくなります。`estimate.sh` 自身は CI や再推定の入口になり、`run.sh` 側も必要に応じてこれを読み込む形にできます。
 
+`weakscaling` を使う場合は、特に次の分担を前提にすると分かりやすいです。
+- app 側
+  - section / overlap の時間を通常実行で出す
+  - 各 item に `identity` または `logp` を割り当てる
+- package 側
+  - `identity` は補正なし
+  - `logp` は node 数比較にもとづく補正
+- BenchKit 側
+  - section package の呼び分け
+  - current / future の合成
+  - top-level applicability の整理
+
 ここでまず宣言したいのは次です。
 - section 名
 - overlap 名
@@ -79,9 +91,9 @@ bk_run_estimation "$1"
 イメージとしては次のようになります。
 
 ```bash
-bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section prepare_rhs identity
 bk_declare_section compute_solver counter_papi_detailed
-bk_declare_section allreduce trace_collective_logp
+bk_declare_section allreduce logp
 bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
 ```
 
@@ -119,7 +131,7 @@ bk_emit_result \
 ```bash
 bk_emit_section \
   prepare_rhs 0.42 \
-  --estimation-package interval_time_simple \
+  --estimation-package identity \
   >> results/result
 
 bk_emit_section \
@@ -171,6 +183,8 @@ bk_run_estimation "$1"
 ## 7. 採取と保存の扱い
 
 詳細推定では、区間パッケージが `papi` や `trace` のような採取種別を要求することがあります。
+
+ただし `weakscaling` の場合は、追加採取を前提にしません。app 側が通常実行の中で section / overlap 時間を書き、`identity` と `logp` だけで推定する前提です。
 
 app 側では、まず section 名と `estimation_package` を決めることを優先してください。採取手順、複数回実行の要否、保存先、再推定時の復元方法は、共通化できるものから BenchKit 側へ寄せるのがよいです。
 

@@ -14,9 +14,40 @@ bk_estimation_package_metadata() {
     "optional": ["section_artifacts"],
     "external": []
   },
+  "required_result_fields": [
+    "code",
+    "system",
+    "fom",
+    "fom_breakdown.sections",
+    "target_nodes_current",
+    "target_nodes_future"
+  ],
+  "supported_section_packages": [
+    "identity",
+    "counter_papi_detailed",
+    "trace_mpi_basic",
+    "logp"
+  ],
+  "supported_overlap_packages": [
+    "overlap_max_basic"
+  ],
+  "output_fields": [
+    "applicability",
+    "current_system",
+    "current_system.fom_breakdown",
+    "future_system",
+    "future_system.fom_breakdown",
+    "performance_ratio",
+    "estimate_metadata"
+  ],
+  "not_applicable_when": [
+    "fom_breakdown is missing",
+    "a bound item has no usable package",
+    "a bound package and its fallback candidates are all unavailable"
+  ],
   "fallback_policy": {
     "mode": "allowed",
-    "target": "lightweight_fom_scaling"
+    "target": "weakscaling"
   }
 }
 EOF
@@ -256,11 +287,23 @@ bk_estimation_package_check_applicability() {
   if (( ${#missing_inputs[@]} > 0 )); then
     local missing_inputs_json
     missing_inputs_json="[$(IFS=,; echo "${missing_inputs[*]}")]"
-    bk_estimation_set_applicability \
-      "fallback" \
-      "lightweight_fom_scaling" \
-      "$missing_inputs_json" \
-      '["use-lightweight-fom-only-estimation-or-provide-section-breakdown"]'
+    if bk_estimation_validate_system_relation \
+      "intra_system_scaling_model" \
+      "${est_system:-}" \
+      "$future_system" \
+      "same_system_line"; then
+      bk_estimation_set_applicability \
+        "fallback" \
+        "weakscaling" \
+        "$missing_inputs_json" \
+        '["use-weakscaling-estimation-or-provide-section-breakdown"]'
+    else
+      bk_estimation_set_applicability \
+        "not_applicable" \
+        "" \
+        "$missing_inputs_json" \
+        '["provide-section-breakdown-for-cross-system-estimation"]'
+    fi
     return 1
   fi
 
@@ -569,7 +612,7 @@ bk_estimation_package_run() {
   local model_version="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
   local default_section_factor="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-0.5}"
   local logp_section_name="${BK_ESTIMATION_LOGP_SECTION_NAME:-allreduce}"
-  local logp_package_name="trace_collective_logp"
+  local logp_package_name="logp"
   local breakdown_template
   local baseline_breakdown
   local applicability_issues_json

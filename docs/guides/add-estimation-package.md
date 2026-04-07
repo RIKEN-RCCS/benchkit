@@ -50,10 +50,10 @@
 - top-level:
   `instrumented_app_sections_dummy.sh`
 - section:
-  `interval_time_simple.sh`
+  `identity.sh`
   `counter_papi_detailed.sh`
   `trace_mpi_basic.sh`
-  `trace_collective_logp.sh`
+  `logp.sh`
   `overlap_max_basic.sh`
 
 という分け方になっています。
@@ -94,11 +94,11 @@
 
 たとえば、
 
-- `interval_time_simple`
+- `identity`
   - 区間時間があれば固定比で変換
 - `counter_papi_detailed`
   - PAPI artifact があればそれを前提に変換
-- `trace_collective_logp`
+- `logp`
   - collective 系の区間を logP 扱いで変換
 
 です。
@@ -245,7 +245,7 @@ required_section_artifacts:
 output_fields:
   future_system.fom_breakdown.sections[].time
   current_system.fom_breakdown.sections[].time
-fallback_to: interval_time_simple
+fallback_to: identity
 ```
 
 このとき、上位パッケージと区間パッケージで役割を分けておくと整理しやすくなります。
@@ -259,6 +259,17 @@ fallback_to: interval_time_simple
   - 何を出力するか
 
 ここで、上位パッケージは app 固有の section 名を固定で期待しない方がよいです。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表します。
+
+`weakscaling` はこの分担を確認する最初の例として分かりやすいです。
+- app 側
+  - section / overlap 時間を出す
+  - 各 item に `identity` または `logp` を割り当てる
+- package 側
+  - `identity` と `logp` の意味を定義する
+  - `weakscaling` として合成する
+- BenchKit 側
+  - 割当てられた package を呼ぶ
+  - current / future の breakdown と top-level FOM をまとめる
 
 PAPI のように複数回の採取が必要な場合でも、package 開発者は「`papi` が必要」と定義するところまでに責務を寄せるのがよいです。どの counter set を何回に分けて取るか、どこへ保存するか、再推定時にどう復元するかは、できるだけ BenchKit 側の共通処理に寄せます。
 

@@ -2,7 +2,26 @@
 
 bk_section_package_metadata_trace_mpi_basic() {
   cat <<'EOF'
-{"name":"trace_mpi_basic","fallback_target":"interval_time_simple"}
+{
+  "name": "trace_mpi_basic",
+  "fallback_target": "identity",
+  "source_system_scope": {
+    "kind": "benchmark_system",
+    "accepted_values": ["any"]
+  },
+  "target_system_scope": {
+    "accepted_values": ["any"]
+  },
+  "item_kind_scope": ["section"],
+  "required_result_fields": ["name", "artifacts[].path", "time or bench_time"],
+  "required_artifact_kinds": ["trace"],
+  "output_fields": ["time", "bench_time", "scaling_method"],
+  "not_applicable_when": [
+    "item kind is not section",
+    "artifact list is empty",
+    "artifact path is missing"
+  ]
+}
 EOF
 }
 
