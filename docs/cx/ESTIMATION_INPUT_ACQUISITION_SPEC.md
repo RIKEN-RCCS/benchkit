@@ -303,6 +303,41 @@ At this stage, this document does not fix whether section / overlap registration
 
 However, the semantic elements ultimately received by BenchKit should preferably be aligned as described above.
 
+### 6.4 app 側宣言ブロック / Application-Side Declaration Block
+
+詳細推定では、app 側が `estimate.sh` の中に推定用の宣言ブロックを持てる形が望ましい。`run.sh` は必要に応じて `estimate.sh` を読み込み、`estimate.sh` 自身は CI や再推定の入口としても使える形にしてよい。
+
+ここで app 側が先に宣言する内容は、少なくとも次が望ましい。
+- section 名
+- overlap 名
+- 各 section / overlap に割り当てる `estimation_package`
+- target system や target nodes などの app 既定値
+
+重要なのは、これらの宣言は「何を推定したいか」を先に示すためのものであり、実測値が確定したあとに後付けで決めるものではない、という点である。
+
+### 6.5 `bk_emit_*` との共存 / Coexistence with `bk_emit_*`
+
+`estimate.sh` 内の宣言を導入しても、`bk_emit_section` や `bk_emit_overlap` を直ちに廃止する必要はない。宣言は section / overlap と package 割当てを先に示し、`bk_emit_*` は実際に得られた値を Result JSON に流し込む既存手段として共存してよい。
+
+この形により、少なくとも次の 3 通りが同居できる。
+- app 実行中に直接得られた section 時間を `bk_emit_section` で出す
+- 実行後のログ解析で得た値を `bk_emit_section` で出す
+- 追加採取実行の結果を BenchKit 側でまとめて反映する
+
+### 6.6 追加採取実行 / Additional Data-Collection Run
+
+PAPI のように、通常実行とは別に追加採取実行が必要な入力は、`run_estimation_data_collection` のような共通入口から扱える形が望ましい。
+
+概念的には次の 2 段に分かれる。
+1. 通常実行
+   - 例: `mpiexec a.out ...`
+   - 主に FOM や通常 section 時間を得る
+2. 推定データ採取実行
+   - 例: `run_estimation_data_collection mpiexec a.out ...`
+   - package metadata を見て必要な counter / trace / 追加ログ採取を行う
+
+このとき、どの追加採取が必要か、複数回実行が必要か、保存先をどうするかは BenchKit 側で共通化して扱うのが望ましい。app 側は原則として、通常実行コマンドと section / overlap への package 割当てを示せばよい。
+
 ## 7. 失敗時の扱い / Failure Handling
 
 ### 7.1 採取失敗と実行失敗を分ける / Distinguish Acquisition Failure from Execution Failure
@@ -352,6 +387,8 @@ The application developer should generally only need to ensure:
 - auxiliary artifact references can be passed when needed
 - application-specific section names can be defined
 
+詳細推定では、これに加えて app 側が `estimate.sh` の宣言ブロックで section / overlap と `estimation_package` の割当てを先に示せるようにしてよい。ただし、採取手順の詳細や保存形式の詳細まで app 側へ押し込めない方が望ましい。
+
 ### 8.2 推定パッケージ開発者の責務 / Estimation Package Developer Responsibility
 
 推定パッケージ開発者は、原則として次を定義する。
@@ -385,6 +422,11 @@ BenchKit is generally responsible for:
 - support for missing-input evaluation
 - handoff into estimation packages
 - unified storage and presentation formats
+
+詳細推定では、さらに次も BenchKit 側で扱うのが望ましい。
+- `estimate.sh` 内の宣言ブロックの読込み
+- package metadata を見た追加採取実行の組立て
+- `bk_emit_*` で与えられた値と追加採取結果の合流
 
 ## 9. 現時点で固定しないこと / Items Intentionally Left Open
 

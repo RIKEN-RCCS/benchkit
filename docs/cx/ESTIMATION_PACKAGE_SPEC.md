@@ -438,6 +438,16 @@ Here, input means not only the presence of a Result JSON, but at least:
 - `not_applicable_when`
   - 例: `["missing required section artifact", "unsupported source system"]`
 - `fallback_to`
+
+上位パッケージでは、必要であれば次のような項目も持ってよい。
+- `supported_section_packages`
+  - その上位パッケージが受け持てる区間パッケージ名の一覧
+- `supported_overlap_packages`
+  - その上位パッケージが受け持てる overlap パッケージ名の一覧
+
+ここで重要なのは、これらは「使える配下パッケージの集合」を表すものであり、app 固有の section 名そのものを固定で期待するための項目ではない、という点である。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表す。
+
+また、区間パッケージ側が `required_artifact_kinds` や system 範囲を定義している場合、それと実際の section / overlap の割当て、必要なデータ採取、採取済みデータの保存・復元との照合は BenchKit 側で扱う。app 側は原則として「section 名」と「どの推定 package を使うか」を決めればよく、採取手順や保存形式の具体記述を直接抱え込まない方がよい。
   - 例: `"interval_time_simple"`
 
 For practical use, the package metadata or equivalent documented definition should preferably be able to express at least:
@@ -487,6 +497,11 @@ BenchKit should preferably provide the following:
 - Estimate JSON standardization
 - retention of package identity metadata
 
+詳細推定では、BenchKit 側が次も扱うのが望ましい。
+- 区間パッケージ metadata と section / overlap への割当ての照合
+- `required_artifact_kinds` に応じた採取手順の共通化
+- 採取済みデータの保存先と復元方法の共通化
+
 ### 5.2 app 側責務 / Application-Side Responsibilities
 
 app 側の責務は、原則として以下に留めることが望ましい。
@@ -500,8 +515,11 @@ The application side should preferably be limited to:
 
 - selecting the estimation package to use
 - mapping application-specific FOM or section names
-- specifying application-specific auxiliary inputs
+- assigning an estimation package to each section / overlap
+- specifying application-specific auxiliary inputs only when truly necessary
 - minimal special handling
+
+特に詳細推定では、app 側は section 名と `estimation_package` の割当てを決めるところまでに責務を寄せ、PAPI の counter set 分割や trace 採取方法、保存形式のような共通化可能な処理は BenchKit 側へ寄せるのが望ましい。
 
 ### 5.3 推定パッケージ開発者側責務 / Estimation-Package-Developer Responsibilities
 
@@ -569,29 +587,37 @@ These are suitable for deeper analysis and future-system evaluation.
 
 ## 7. 参照実装イメージ / Reference Implementation Direction
 
-BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、例えば以下のような形へ寄せることが望ましい。
+BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、section / overlap と `estimation_package` の割当て、必要最小限の既定値、共通入口の呼出しだけを書く形へ寄せることが望ましい。
 
 ```sh
-BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
+BK_ESTIMATION_TARGET_NODES=256
 
-source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
-bk_run_estimation_package
+bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section compute_hopping counter_papi_detailed
+bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
+
+source scripts/estimation/common.sh
+bk_run_estimation
 ```
 
-この形では、app 側はパッケージ選択と最小限の app 固有設定を担い、推定方式の詳細はパッケージ側へ集約される。
+この形では、app 側は section / overlap への package 割当てと最小限の app 固有設定だけを担い、推定方式の詳細や追加採取は BenchKit と package 側へ集約される。
 
-In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead looks like:
+In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead focuses on section / overlap package assignments, minimal defaults, and common entrypoints:
 
 ```sh
-BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
+BK_ESTIMATION_TARGET_NODES=256
 
-source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
-bk_run_estimation_package
+bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section compute_hopping counter_papi_detailed
+bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
+
+source scripts/estimation/common.sh
+bk_run_estimation
 ```
 
-In this form, the application side is responsible only for package selection and minimal app-specific configuration, while the details of the estimation method are concentrated in the package.
+In this form, the application side is responsible only for assigning packages to sections / overlaps and providing minimal app-specific defaults, while the details of the estimation method and additional data acquisition are concentrated in BenchKit and the packages.
 
 ## 8. 現時点で固定しないもの / Items Not Fixed Yet
 

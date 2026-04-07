@@ -166,16 +166,16 @@ At the initial stage, the following order is recommended:
 
 app 側 `estimate.sh` は、将来的には少なくとも以下だけで済むことが望ましい。
 
-- package の選択
-- package の読み込み
-- 必要なら app 固有パラメータの設定
+- section / overlap と `estimation_package` の割当て宣言
+- target system や target nodes など、app 固有の既定値の宣言
+- 必要に応じた `run.sh` からの読込み
 - 共通の呼び出し順序に従った実行
 
 In the future, application-side `estimate.sh` should preferably be limited to:
 
-- selecting the package
-- loading the package
-- setting app-specific parameters if needed
+- declaring section / overlap to `estimation_package` assignments
+- declaring minimal app-specific defaults such as target system or target nodes
+- being sourced from `run.sh` when needed
 - executing according to the common invocation order
 
 ## 7. 参照イメージ / Reference Shape

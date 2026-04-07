@@ -248,6 +248,20 @@ output_fields:
 fallback_to: interval_time_simple
 ```
 
+このとき、上位パッケージと区間パッケージで役割を分けておくと整理しやすくなります。
+- 上位パッケージ
+  - どの区間パッケージ群を使って合成できるか
+  - 何を top-level Estimate JSON に出すか
+- 区間パッケージ
+  - どの system 範囲を受けるか
+  - section / overlap のどちらを受けるか
+  - どの採取種別を必要とするか
+  - 何を出力するか
+
+ここで、上位パッケージは app 固有の section 名を固定で期待しない方がよいです。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表します。
+
+PAPI のように複数回の採取が必要な場合でも、package 開発者は「`papi` が必要」と定義するところまでに責務を寄せるのがよいです。どの counter set を何回に分けて取るか、どこへ保存するか、再推定時にどう復元するかは、できるだけ BenchKit 側の共通処理に寄せます。
+
 ここが曖昧なまま実装を始めると、
 - package 自体は動く
 - でもどの system で使えるのか分からない

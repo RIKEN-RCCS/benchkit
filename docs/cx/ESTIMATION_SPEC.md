@@ -491,14 +491,14 @@ When only part of the section / overlap / component chain falls back while the o
 推定は一度きりの計算ではなく、モデルや仮定の更新に応じて再推定できることが重要である。
 BenchKit は、少なくとも以下を扱えるべきである。
 
-- benchmark result を再指定しての再推定
+- `estimate_result_uuid` を起点にした再推定
 - 推定結果の履歴保持
 - 異なる推定方式の比較
 
 Estimation is not a one-time calculation. Re-estimation in response to updated models or assumptions is important.
 BenchKit should be able to handle at least:
 
-- re-estimation from a specified benchmark result
+- re-estimation starting from `estimate_result_uuid`
 - history retention of estimation results
 - comparison of different estimation methods
 

@@ -1,44 +1,45 @@
-# アプリに性能推定を追加する手順
+# アプリに性能推定を追加する
 
-このドキュメントは、BenchKit の既存アプリに性能推定を追加する手順を開発者向けにまとめたものです。
-まずは軽量推定を載せ、その後に section ベースの詳細推定へ広げる流れを前提にしています。
+このガイドは、BenchKit の既存アプリに性能推定を追加する開発者向けの実務メモです。
+
+最初に押さえるべき点は次の 2 つです。
+- app 側でまず決めるのは、FOM と section / overlap の名前、および各 section / overlap に使う `estimation_package`
+- 採取手順、保存形式、再推定時の復元方法は、共通化できるものから BenchKit 側へ寄せる
 
 ## 目次
 
-1. [最初に何を決めるか](#1-最初に何を決めるか)
-2. [最小構成: 軽量推定だけ追加する](#2-最小構成-軽量推定だけ追加する)
-3. [詳細推定に広げる](#3-詳細推定に広げる)
-4. [`run.sh` でやること](#4-runsh-でやること)
-5. [`estimate.sh` でやること](#5-estimatesh-でやること)
-6. [artifact の扱い](#6-artifact-の扱い)
-7. [確認ポイント](#7-確認ポイント)
-8. [今後の改善](#8-今後の改善)
+1. [最初に決めること](#1-最初に決めること)
+2. [最小構成: 軽量推定だけを追加する](#2-最小構成-軽量推定だけを追加する)
+3. [詳細推定に入る](#3-詳細推定に入る)
+4. [`estimate.sh` に書くこと](#4-estimatesh-に書くこと)
+5. [`run.sh` で書くこと](#5-runsh-で書くこと)
+6. [`estimate.sh` を入口として使う](#6-estimatesh-を入口として使う)
+7. [採取と保存の扱い](#7-採取と保存の扱い)
+8. [確認ポイント](#8-確認ポイント)
+9. [今後の改善](#9-今後の改善)
 
 ---
 
-## 1. 最初に何を決めるか
+## 1. 最初に決めること
 
-推定を入れる前に、まず次を決めます。
+アプリに性能推定を入れる前に、まず次を決めます。
+- FOM を何にするか
+- どの section / overlap を result に出すか
+- 各 section / overlap にどの `estimation_package` を割り当てるか
 
-- 軽量推定だけで始めるか
-- section / overlap まで出して詳細推定に進むか
-- section ごとにどの推定パッケージを使いたいか
-- 補助 artifact が必要か
-
-最初の一歩としては、軽量推定だけを載せるのが一番簡単です。
+最初の一歩としては、軽量推定から入るのが一番簡単です。
 
 ---
 
-## 2. 最小構成: 軽量推定だけ追加する
+## 2. 最小構成: 軽量推定だけを追加する
 
-最小構成では、必要なのは次の 2 つです。
-
+最小構成では、次の 2 つで十分です。
 1. `run.sh` で FOM を出す
-2. `estimate.sh` で `lightweight_fom_scaling` を選ぶ
+2. `estimate.sh` で軽量推定 package を選ぶ
 
-この段階では、section や artifact は不要です。
+この段階では section や artifact は不要です。
 
-### `estimate.sh` の最小イメージ
+### `estimate.sh` の最小例
 
 ```bash
 #!/bin/bash
@@ -51,29 +52,48 @@ source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 bk_run_estimation "$1"
 ```
 
-ここで app 側に重いロジックを書かないのがポイントです。
-
 ---
 
-## 3. 詳細推定に広げる
+## 3. 詳細推定に入る
 
-詳細推定に進むときは、次の順で広げるのが安全です。
-
+詳細推定に入るときは、次の順で進めます。
 1. `run.sh` で section を出す
 2. 必要なら overlap を出す
-3. section ごとに `estimation_package` を付ける
-4. 必要なら section ごとに `artifacts` を付ける
-5. `estimate.sh` で上位パッケージを詳細型に切り替える
+3. section / overlap ごとに `estimation_package` を付ける
+4. `estimate.sh` で上位 package を詳細側に切り替える
 
-現時点では `qws` が参照例です。
+このとき app 側で最初に決めるべきなのは、どの section / overlap にどの推定 package を使うかです。
 
 ---
 
-## 4. `run.sh` でやること
+## 4. `estimate.sh` に書くこと
 
-### 最低限
+詳細推定では、app ごとの推定宣言を `estimate.sh` にまとめると整理しやすくなります。`estimate.sh` 自身は CI や再推定の入口になり、`run.sh` 側も必要に応じてこれを読み込む形にできます。
 
-最低限必要なのは FOM の出力です。
+ここでまず宣言したいのは次です。
+- section 名
+- overlap 名
+- 各 section / overlap に割り当てる `estimation_package`
+- target system や target nodes の app 既定値
+
+イメージとしては次のようになります。
+
+```bash
+bk_declare_section prepare_rhs interval_time_simple
+bk_declare_section compute_solver counter_papi_detailed
+bk_declare_section allreduce trace_collective_logp
+bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
+```
+
+この宣言は、実行後に section 値を代入するためのものではなく、「何を推定したいか」を実行前に示すためのものです。
+
+---
+
+## 5. `run.sh` で書くこと
+
+### 最小構成
+
+最小構成で必要なのは FOM の出力です。
 
 ```bash
 source "${PWD}/scripts/bk_functions.sh"
@@ -89,61 +109,51 @@ bk_emit_result \
   --nthreads "$nthreads" >> results/result
 ```
 
-### 詳細推定まで入れる場合
+### 詳細推定に入る場合
 
-section / overlap を出す場合は、少なくとも次を意識します。
-
+詳細推定では、少なくとも次を result に載せます。
 - 区間名
 - 区間時間
-- その区間に使いたい推定パッケージ名
-- 必要なら artifact 参照
-
-イメージとしては次のようになります。
+- その区間に使いたい推定 package 名
 
 ```bash
 bk_emit_section \
   prepare_rhs 0.42 \
   --estimation-package interval_time_simple \
-  --artifact results/estimation_inputs/prepare_rhs_interval.json \
   >> results/result
 
 bk_emit_section \
   compute_solver 1.03 \
   --estimation-package counter_papi_detailed \
-  --artifact results/estimation_inputs/compute_solver_papi.tgz \
   >> results/result
 
 bk_emit_overlap \
   compute_hopping,halo_exchange 0.23 \
   --estimation-package overlap_max_basic \
-  --artifact results/estimation_inputs/compute_halo_overlap.json \
   >> results/result
 ```
 
-アプリ側で大事なのは「何を測って何を渡すか」までです。
-その解釈や代替処理はパッケージ側へ寄せます。
+ここで app 側の主責務は、section 名と `estimation_package` の割当てを明示することです。
+
+通常実行のあとに、必要であれば追加採取用の共通入口を呼ぶ形が自然です。
+
+```bash
+. ./estimate.sh
+
+mpiexec ./a.out "$@"
+
+run_estimation_data_collection mpiexec ./a.out "$@"
+```
+
+`run_estimation_data_collection` の内部では、割り当てられた package を見て必要な採取を分岐します。PAPI のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
 
 ---
 
-## 5. `estimate.sh` でやること
+## 6. `estimate.sh` を入口として使う
 
-`estimate.sh` は薄い方がよいです。
-現時点では、基本的に次だけで済む形を目指します。
+`estimate.sh` は薄く保つ方がよいです。参照実装では、共通層に処理を寄せたうえで package 選択と最小限の app 固有設定だけを書く形を目指します。
 
-- 上位の推定パッケージを選ぶ
-- 必要なら app 固有の最小パラメータを設定する
-- 共通フローを呼ぶ
-
-避けたいのは、app ごとに
-
-- 代替制御
-- Estimate JSON 手組み
-- 全体の適用可否判定
-- 区間パッケージの振り分け
-
-を書くことです。
-
-### 詳細推定のイメージ
+### 詳細推定の例
 
 ```bash
 #!/bin/bash
@@ -158,74 +168,52 @@ bk_run_estimation "$1"
 
 ---
 
-## 6. artifact の扱い
+## 7. 採取と保存の扱い
 
-詳細推定では、補助 artifact を app 側で作ることがあります。
-典型例は次です。
+詳細推定では、区間パッケージが `papi` や `trace` のような採取種別を要求することがあります。
 
-- interval JSON
-- カウンター tgz
-- MPI trace tgz
-- overlap JSON
+app 側では、まず section 名と `estimation_package` を決めることを優先してください。採取手順、複数回実行の要否、保存先、再推定時の復元方法は、共通化できるものから BenchKit 側へ寄せるのがよいです。
 
-置き場所は、まずは `results/estimation_inputs/` に揃えるのが分かりやすいです。
+特に PAPI のように複数回実行が必要になる採取は、app 側に細かく書かせすぎると重くなります。package 側は「`papi` が必要」と定義し、BenchKit 側が採取や保存の共通処理を引き受ける形が自然です。
 
-```bash
-mkdir -p results/estimation_inputs
-```
+現状の参照実装では `results/estimation_inputs/` を使う例がありますが、これは将来も app 側が細かく書き続けるべきという意味ではありません。
 
-アプリ側の責務は「採取して置くこと」までです。
-その中身の評価や代替の判断はパッケージ側へ寄せます。
+`bk_emit_section` や `bk_emit_overlap` は残してよく、`estimate.sh` 内の宣言と共存できます。宣言は package 割当てを先に示し、`bk_emit_*` は実際に得られた値を Result JSON に流し込む手段として使います。
 
 ---
 
-## 7. 確認ポイント
+## 8. 確認ポイント
 
 ### 軽量推定の確認
-
-- `estimate*.json` が生成される
-- `estimate_metadata.estimation_package` が `lightweight_fom_scaling`
+- `estimate*.json` が出る
+- `estimate_metadata.estimation_package` が期待どおり
 - `performance_ratio` が出る
 
 ### 詳細推定の確認
-
 - `fom_breakdown.sections` が出る
 - section ごとの `estimation_package` が残る
-- artifact 参照が残る
-- `requested_estimation_package` と実適用パッケージが必要なら分かれる
+- 必要なら `requested_estimation_package` と実適用 package が分かれる
 
-### 代替の確認
-
-- 一部区間だけ代替したら全体の `applicability.status = partially_applicable`
+### fallback の確認
+- 一部区間だけ代替したとき `applicability.status = partially_applicable`
 - 代替した区間に `requested_estimation_package` と `fallback_used` が残る
 
-### not_applicable の確認
-
-- 不成立区間の `time` が `null`
-- top-level `fom` と `performance_ratio` が `null`
+### `not_applicable` の確認
+- 不成立の区間は `time: null`
+- top-level `fom` と `performance_ratio` は `null`
 - `applicability.status = not_applicable`
 
 ---
 
-## 8. 今後の改善
+## 9. 今後の改善
 
-### すでに進んでいること
-
-- 軽量推定を 1 本載せること
+すでに進んでいること:
+- 軽量推定を 1 本追加すること
 - `estimate.sh` を薄く保つこと
-- 要求パッケージ / 実適用パッケージの記録
+- requested / applied package の区別
 - UUID / timestamp の保存
-- ポータルでの基本表示
 
-### 今後の改善
-
-- section の切り方を app 側で設計すること
-- artifact をどう採るか決めること
-- 詳細推定を `qws` 以外へ横展開すること
-
-つまり現状では、
-
-- 軽量推定の導入負荷は小さい
-- 詳細推定は参照実装ができた段階
-
-という理解が近いです。
+今後の改善:
+- app 側に書く採取手順をさらに減らすこと
+- 詳細推定の採取・保存・復元を BenchKit 側へより集約すること
+- 複数アプリへの横展開を進めること
