@@ -736,7 +736,7 @@ bk_estimation_package_run() {
 
   est_confidence_json='{"level":"experimental","score":0.20}'
   est_notes_json=$(jq -cn \
-    --arg note "Reference implementation for qws-style application-defined section timings in BenchKit." \
+    --arg note "Reference implementation for application-defined section timing based estimation in BenchKit." \
     '{summary: $note}')
 }
 

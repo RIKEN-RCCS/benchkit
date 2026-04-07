@@ -97,6 +97,8 @@ bk_declare_section allreduce logp
 bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
 ```
 
+この宣言は `estimate.sh` にまとめ、`run.sh` 側では package 名を重ねて書かない形が望ましいです。app 側は「どの item にどの package を使うか」を先に決め、実行時には得られた値だけを出す形に寄せます。
+
 この宣言は、実行後に section 値を代入するためのものではなく、「何を推定したいか」を実行前に示すためのものです。
 
 ---
@@ -129,21 +131,22 @@ bk_emit_result \
 - その区間に使いたい推定 package 名
 
 ```bash
-bk_emit_section \
+bk_emit_declared_section \
   prepare_rhs 0.42 \
-  --estimation-package identity \
   >> results/result
 
-bk_emit_section \
+bk_emit_declared_section \
   compute_solver 1.03 \
-  --estimation-package counter_papi_detailed \
+  results/estimation_inputs/compute_solver_papi.tgz \
   >> results/result
 
-bk_emit_overlap \
+bk_emit_declared_overlap \
   compute_hopping,halo_exchange 0.23 \
-  --estimation-package overlap_max_basic \
+  results/estimation_inputs/compute_halo_overlap.json \
   >> results/result
 ```
+
+さらに整理を進めるなら、section 時間の配分やダミー artifact 作成のような推定専用処理も `estimate.sh` 側の関数へ寄せ、`run.sh` ではその関数を 1 回呼ぶだけにしてよいです。
 
 ここで app 側の主責務は、section 名と `estimation_package` の割当てを明示することです。
 
@@ -154,10 +157,10 @@ bk_emit_overlap \
 
 mpiexec ./a.out "$@"
 
-run_estimation_data_collection mpiexec ./a.out "$@"
+bk_run_estimation_data_collection mpiexec ./a.out "$@"
 ```
 
-`run_estimation_data_collection` の内部では、割り当てられた package を見て必要な採取を分岐します。PAPI のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
+`bk_run_estimation_data_collection` は BenchKit の共通入口です。内部では割り当てられた package や site 側の wrapper に応じて必要な採取を分岐します。PAPI や GPU profiler のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
 
 ---
 

@@ -655,6 +655,17 @@ This document does not yet fix:
 
 These should be fixed incrementally based on implementation experience with the current `scripts/estimation/common.sh` and application-side `estimate.sh`.
 
+### 8.4 追加採取の共通入口 / Common Data-Collection Entry
+
+BenchKit は、app 側の `estimate.sh` で宣言された section / overlap の package 割当てを見たうえで、追加採取が必要な package があるかどうかを判定してよい。
+その判定には package metadata の `acquisition_mode` を使ってよい。
+
+- `standard`: 追加採取を伴わない通常の入力処理
+- `special`: 追加採取や profiler のラップが必要な入力処理
+
+`special` に分類された package がある場合、BenchKit は `bk_run_estimation_data_collection` を通して、その package の実行規約に合わせてコマンドを渡す。
+複数 section を 1 回の追加採取でまとめられるかどうかは、現段階では共通仕様に固定せず、将来の package 実装で調整する。
+
 ## 9. 次に必要な下位仕様 / Next Detailed Specifications
 
 本書の次に必要なのは、少なくとも以下である。

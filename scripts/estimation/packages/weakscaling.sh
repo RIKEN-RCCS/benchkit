@@ -430,7 +430,7 @@ bk_estimation_package_run() {
 
   est_confidence_json='{"level":"experimental","score":0.30}'
   est_notes_json=$(jq -cn \
-    --arg note "Reference implementation for section-wise weak scaling with identity and logP corrections in BenchKit." \
+    --arg note "Reference implementation for section-wise weak-scaling estimation in BenchKit." \
     '{summary: $note}')
 }
 

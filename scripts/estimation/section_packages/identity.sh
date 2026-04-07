@@ -15,6 +15,7 @@ bk_section_package_metadata_identity() {
   "item_kind_scope": ["section", "overlap"],
   "required_result_fields": ["time or bench_time"],
   "required_artifact_kinds": [],
+  "acquisition_mode": "standard",
   "output_fields": ["time", "bench_time", "scaling_method"],
   "not_applicable_when": ["both time and bench_time are missing"]
 }

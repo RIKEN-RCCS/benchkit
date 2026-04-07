@@ -305,6 +305,27 @@ However, the semantic elements ultimately received by BenchKit should preferably
 
 ### 6.4 app 側宣言ブロック / Application-Side Declaration Block
 
+app 側の推定関連の記述は、原則として `estimate.sh` にまとめる。
+`estimate.sh` は次の 2 つの役割を兼ねてよい。
+
+- section / overlap と `estimation_package` の対応を宣言する
+- app ごとの推定入口として、BenchKit が読む既定値や補助関数を提供する
+
+`run.sh` は通常実行を担当し、必要であれば `estimate.sh` を読み込んで宣言を再利用する。
+`run.sh` が package 名や採取手順の詳細を個別に持つ必要はない。
+
+app 側に求める最低限の責務は次のとおりである。
+
+- `estimate.sh` に section / overlap の package 割当てを書く
+- `run.sh` は通常実行と FOM 出力に集中する
+- 追加採取の実行は BenchKit の共通入口に委ねる
+
+app 側の責務を最小化するためには、`estimate.sh` で section / overlap と `estimation_package` の対応を宣言し、`run.sh` では `bk_emit_declared_section` / `bk_emit_declared_overlap` によって値だけを出す形が望ましい。
+
+- `estimate.sh`: package の対応を宣言する
+- `run.sh`: 通常実行と実測値の出力を担う
+- BenchKit: 宣言された package 名の対応付けを共通関数で引き受ける
+
 詳細推定では、app 側が `estimate.sh` の中に推定用の宣言ブロックを持てる形が望ましい。`run.sh` は必要に応じて `estimate.sh` を読み込み、`estimate.sh` 自身は CI や再推定の入口としても使える形にしてよい。
 
 ここで app 側が先に宣言する内容は、少なくとも次が望ましい。
@@ -326,17 +347,21 @@ However, the semantic elements ultimately received by BenchKit should preferably
 
 ### 6.6 追加採取実行 / Additional Data-Collection Run
 
-PAPI のように、通常実行とは別に追加採取実行が必要な入力は、`run_estimation_data_collection` のような共通入口から扱える形が望ましい。
+PAPI のように、通常実行とは別に追加採取実行が必要な入力は、`bk_run_estimation_data_collection` のような共通入口から扱える形が望ましい。
 
 概念的には次の 2 段に分かれる。
 1. 通常実行
    - 例: `mpiexec a.out ...`
    - 主に FOM や通常 section 時間を得る
 2. 推定データ採取実行
-   - 例: `run_estimation_data_collection mpiexec a.out ...`
+   - 例: `bk_run_estimation_data_collection mpiexec a.out ...`
    - package metadata を見て必要な counter / trace / 追加ログ採取を行う
 
 このとき、どの追加採取が必要か、複数回実行が必要か、保存先をどうするかは BenchKit 側で共通化して扱うのが望ましい。app 側は原則として、通常実行コマンドと section / overlap への package 割当てを示せばよい。
+
+`bk_run_estimation_data_collection` は、app が宣言した package 一覧を見て、特殊採取が必要な package があればその package の実行規約に合わせてコマンドを組み立てる共通入口である。
+特殊採取が不要な package しか宣言されていない場合は、追加実行を行わずに戻ってよい。
+複数 section を 1 回の採取でまとめられる profiler がある場合の重複採取回避は、将来の拡張として扱う。
 
 ## 7. 失敗時の扱い / Failure Handling
 
