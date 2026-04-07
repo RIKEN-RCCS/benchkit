@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import (
     Blueprint, render_template, request, session,
-    redirect, url_for, flash, abort, current_app
+    redirect, url_for, flash, abort, current_app, make_response
 )
 from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE
 from utils.user_store import get_user_store
@@ -12,6 +12,22 @@ from routes.admin import admin_required
 from utils.node_hours import aggregate_node_hours, get_fiscal_year
 
 results_bp = Blueprint("results", __name__)
+
+
+def _render_confidential_auth_required():
+    systems_info = get_all_systems_info()
+    response = make_response(render_template(
+        "results_confidential.html",
+        rows=[], columns=[], systems_info=systems_info,
+        pagination={"page": 1, "per_page": DEFAULT_PER_PAGE, "total": 0, "total_pages": 1},
+        filter_options={"systems": [], "codes": [], "exps": []},
+        current_system=None, current_code=None,
+        current_exp=None, current_per_page=DEFAULT_PER_PAGE,
+        authenticated=False,
+    ))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def extract_query_params():
@@ -77,6 +93,8 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
 
     if not public_only:
         authenticated = session.get("authenticated", False)
+        if not authenticated:
+            return _render_confidential_auth_required()
         email = session.get("user_email")
         store = get_user_store()
         affs = store.get_affiliations(email) if email else []
@@ -99,14 +117,18 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
 
     filter_options = get_filter_options(received_dir, filter_code=filter_code, **filter_kwargs)
     systems_info = get_all_systems_info()
-    return render_template(
+    response = make_response(render_template(
         template_name,
         rows=rows, columns=columns, systems_info=systems_info,
         pagination=pagination_info, filter_options=filter_options,
         current_system=filter_system, current_code=filter_code,
         current_exp=filter_exp, current_per_page=per_page,
         **template_extra,
-    )
+    ))
+    if not public_only:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 # ==========================================

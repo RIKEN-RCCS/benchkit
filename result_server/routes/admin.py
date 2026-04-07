@@ -10,6 +10,7 @@ from flask import (
     Blueprint,
     abort,
     flash,
+    make_response,
     redirect,
     render_template,
     request,
@@ -20,6 +21,12 @@ from flask import (
 from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def _add_no_store_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _get_users_with_totp_status():
@@ -41,11 +48,11 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("authenticated"):
-            return redirect(url_for("auth.login"))
+            return _add_no_store_headers(make_response(redirect(url_for("auth.login"))))
         affiliations = session.get("user_affiliations", [])
         if "admin" not in affiliations:
             abort(403)
-        return f(*args, **kwargs)
+        return _add_no_store_headers(make_response(f(*args, **kwargs)))
 
     return decorated
 

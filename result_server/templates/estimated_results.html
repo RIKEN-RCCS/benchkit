@@ -12,6 +12,7 @@
 {% endblock %}
 
 {% block content %}
+{% if authenticated %}
 {% include "_filter_dropdowns.html" %}
 </div>
 
@@ -134,4 +135,5 @@ function applyServerFilter() {
     window.location.href = url;
 }
 </script>
+{% endif %}
 {% endblock %}

@@ -105,10 +105,25 @@ def _write_result(directory, filename, data):
 
 
 class TestUsageRoute:
+    def test_confidential_results_hides_table_when_unauthenticated(self, client, tmp_dirs):
+        received, _ = tmp_dirs
+        _write_result(
+            received,
+            "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+            {"code": "qws", "system": "Fugaku", "Exp": "CASE0", "FOM": 1.0},
+        )
+        resp = client.get("/results/confidential")
+        text = resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert "Authentication required to view confidential data." in text
+        assert '<table id="resultsTable"' not in text
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+
     def test_unauthenticated_user_is_redirected_to_login(self, client):
         resp = client.get("/results/usage")
         assert resp.status_code == 302
         assert "/auth/login" in resp.headers["Location"]
+        assert "no-store" in resp.headers.get("Cache-Control", "")
 
     def test_non_admin_user_gets_403(self, client):
         _login_session(client, "user@example.com", ["dev"])
@@ -120,6 +135,7 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         assert resp.status_code == 200
         assert "Usage Report" in resp.get_data(as_text=True)
+        assert "no-store" in resp.headers.get("Cache-Control", "")
 
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
         _login_session(client, "admin@example.com", ["admin"])

@@ -12,5 +12,7 @@
 {% endblock %}
 
 {% block content %}
+{% if authenticated %}
 {% include "_results_table.html" %}
+{% endif %}
 {% endblock %}

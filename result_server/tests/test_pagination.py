@@ -428,6 +428,9 @@ class TestEstimatedPagination:
         """推定結果ルートのページ範囲外リダイレクト"""
         self._make_estimated_files(tmp_dir, 5)
         with flask_app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["authenticated"] = True
+                sess["user_email"] = "user@example.com"
             resp = client.get("/estimated/?page=999")
             assert resp.status_code == 302
 
@@ -435,6 +438,32 @@ class TestEstimatedPagination:
 # ============================================================
 # 既存機能の互換性テスト
 # ============================================================
+
+class TestEstimatedAuth:
+    def test_estimated_route_hides_table_when_unauthenticated(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        _write_json(tmp_dir, f"estimate_20250101_000000_{uid}.json", {
+            "code": "qws",
+            "current_system": {"system": "SysA", "fom": 1.0, "target_nodes": "1", "scaling_method": "m", "benchmark": {"system": "SysA", "fom": 1.0, "nodes": "1"}},
+            "future_system": {"system": "SysB", "fom": 2.0, "target_nodes": "2", "scaling_method": "m", "benchmark": {"system": "SysB", "fom": 2.0, "nodes": "2"}},
+            "performance_ratio": 2.0,
+        })
+        with flask_app.test_client() as client:
+            resp = client.get("/estimated/")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "Authentication required to view estimated data." in html
+        assert '<table id="resultsTable"' not in html
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+
+    def test_estimated_json_requires_authentication(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        fname = f"estimate_20250101_000000_{uid}.json"
+        _write_json(tmp_dir, fname, {"code": "qws", "system": "SysA", "exp": "CASE0"})
+        with flask_app.test_client() as client:
+            resp = client.get(f"/estimated/{fname}")
+        assert resp.status_code == 403
+
 
 class TestExistingFeatureCompatibility:
     def test_load_results_table_returns_3_tuple(self, flask_app, tmp_dir):

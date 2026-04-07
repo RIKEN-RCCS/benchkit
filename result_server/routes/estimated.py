@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, request, session,
-    redirect, url_for, flash, abort, current_app
+    redirect, url_for, flash, abort, current_app, make_response
 )
 from utils.results_loader import load_estimated_results_table, get_filter_options, ESTIMATED_FIELD_MAP
 from routes.results import extract_query_params
@@ -11,10 +11,29 @@ from utils.system_info import get_all_systems_info
 estimated_bp = Blueprint("estimated", __name__)
 
 
+def _render_estimated_auth_required():
+    systems_info = get_all_systems_info()
+    response = make_response(render_template(
+        "estimated_results.html",
+        rows=[], columns=[],
+        authenticated=False, systems_info=systems_info,
+        pagination={"page": 1, "per_page": 100, "total": 0, "total_pages": 1},
+        filter_options={"systems": [], "codes": [], "exps": []},
+        current_system=None, current_code=None,
+        current_exp=None, current_per_page=100,
+    ))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 # GET /estimated/
 @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
 def estimated_results():
     authenticated = session.get("authenticated", False)
+    if not authenticated:
+        return _render_estimated_auth_required()
+
     email = session.get("user_email")
 
     store = get_user_store()
@@ -58,19 +77,24 @@ def estimated_results():
         field_map=ESTIMATED_FIELD_MAP,
     )
     systems_info = get_all_systems_info()
-    return render_template(
+    response = make_response(render_template(
         "estimated_results.html",
         rows=rows, columns=columns,
         authenticated=authenticated, systems_info=systems_info,
         pagination=pagination_info, filter_options=filter_options,
         current_system=filter_system, current_code=filter_code,
         current_exp=filter_exp, current_per_page=per_page,
-    )
+    ))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 # GET /estimated/<filename>
 @estimated_bp.route("/<filename>")
 def show_estimated_result(filename):
+    if not session.get("authenticated", False):
+        abort(403, "Authentication required to view estimated data")
     estimated_dir = current_app.config["ESTIMATED_DIR"]
     check_file_permission(filename, estimated_dir)
     return load_result_file(filename, estimated_dir)
