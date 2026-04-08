@@ -423,6 +423,7 @@ bk_estimation_execute_with_fallback() {
 
   est_requested_estimation_package="${BK_ESTIMATION_PACKAGE:-}"
   est_requested_estimation_package_version="${BK_ESTIMATION_PACKAGE_VERSION:-}"
+  "$loader_function" "$BK_ESTIMATION_PACKAGE"
 
   if ! bk_estimation_package_check_applicability; then
     local fallback_package
