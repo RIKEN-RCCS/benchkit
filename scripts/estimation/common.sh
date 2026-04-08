@@ -540,14 +540,14 @@ print_json() {
       + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)
       + (if $requested_estimation_package != "" then {requested_estimation_package: $requested_estimation_package} else {} end)
       + (if $requested_estimation_package_version != "" then {requested_estimation_package_version: $requested_estimation_package_version} else {} end)
-      + (if $current_estimation_package != "" || $requested_current_estimation_package != "" then {
+      + (if $current_estimation_package != "" or $requested_current_estimation_package != "" then {
           current_package:
             ((if $current_estimation_package != "" then {estimation_package: $current_estimation_package} else {} end)
             + (if $current_estimation_package_version != "" then {estimation_package_version: $current_estimation_package_version} else {} end)
             + (if $requested_current_estimation_package != "" then {requested_estimation_package: $requested_current_estimation_package} else {} end)
             + (if $requested_current_estimation_package_version != "" then {requested_estimation_package_version: $requested_current_estimation_package_version} else {} end))
         } else {} end)
-      + (if $future_estimation_package != "" || $requested_future_estimation_package != "" then {
+      + (if $future_estimation_package != "" or $requested_future_estimation_package != "" then {
           future_package:
             ((if $future_estimation_package != "" then {estimation_package: $future_estimation_package} else {} end)
             + (if $future_estimation_package_version != "" then {estimation_package_version: $future_estimation_package_version} else {} end)
