@@ -180,6 +180,12 @@ It is desirable to distinguish at least the following two kinds:
 Here, either kind of model may be used on either the `current_system` side or the `future_system` side.
 A single package may handle both internally, or separate packages may be selected for the `current_system` side and the `future_system` side.
 
+このとき、両側で同じ section 名や overlap 名を要求してはならない。
+`current_system` 側の package はその側の baseline result に含まれる区間構造を前提にしてよく、`future_system` 側の package は将来側の計測結果に含まれる別の区間構造を前提にしてよい。
+
+In this case, the two sides must not be forced to use the same section names or overlap names.
+The package on the `current_system` side may rely on the section structure present in its baseline result, while the package on the `future_system` side may rely on a different section structure present in its future-side measurement result.
+
 また、package または package 内部部品は、少なくとも次の system 整合条件を定義できることが望ましい。
 
 - `source_system_scope`
@@ -370,8 +376,6 @@ In that case, BenchKit may still store and present the resulting record as a `no
 
 - 要求された推定パッケージ
 - 実際に適用された推定パッケージ
-- `current_system` 側で使った推定パッケージ
-- `future_system` 側で使った推定パッケージ
 
 また、`applicability` では少なくとも次を記録できることが望ましい。
 
@@ -382,8 +386,6 @@ In particular, it is desirable that `estimate_metadata` can distinguish:
 
 - the requested estimation package
 - the actually applied estimation package
-- the estimation package used on the `current_system` side
-- the estimation package used on the `future_system` side
 
 And that `applicability` can record at least:
 
@@ -404,80 +406,6 @@ The package should preferably be able to map its information into at least the f
 - `confidence`
 - `fom_breakdown.sections`
 - `fom_breakdown.overlaps`
-
-### 4.7 入力条件と出力内容 / Input Conditions and Outputs
-
-推定パッケージ開発者は、各 package について「何を入力として受け、何を出力として埋めるのか」を明示できなければならない。
-ここでいう入力は、単に Result JSON があるかどうかではなく、少なくとも次の観点を含む。
-
-- どの `system` の benchmark result を source として受けるか
-- どの `system` を target として想定するか
-- Result JSON のどの field を必須とするか
-- section / overlap ごとにどの artifact を必須とするか
-- artifact が無いときに `fallback` するのか `not_applicable` にするのか
-
-The package developer must be able to state, for each package, what it accepts as input and what it is expected to populate as output.
-Here, input means not only the presence of a Result JSON, but at least:
-
-- which benchmark-result `system` values are accepted as sources
-- which target systems are assumed
-- which Result JSON fields are required
-- which per-section or per-overlap artifacts are required
-- whether missing artifacts lead to `fallback` or `not_applicable`
-
-少なくとも次のような項目を package metadata または同等の文書化された定義として持てることが望ましい。
-
-- `source_system_scope`
-  - 例: `["MiyabiG"]`, `["RC_GH200"]`, `["MiyabiG","RC_GH200"]`
-- `target_system_scope`
-  - 例: `["FugakuNEXT"]`, `["Fugaku"]`
-- `required_result_fields`
-  - 例: `["fom", "fom_breakdown.sections", "measurement.annotation_method"]`
-- `required_section_artifacts`
-  - 例: `{"compute_solver":["papi"], "allreduce":["trace"]}`
-- `optional_section_artifacts`
-  - 例: `{"prepare_rhs":["interval"]}`
-- `output_fields`
-  - 例: `["current_system.fom_breakdown.sections[].time", "future_system.fom_breakdown.sections[].time", "current_system.model", "future_system.model"]`
-- `not_applicable_when`
-  - 例: `["missing required section artifact", "unsupported source system"]`
-- `fallback_to`
-
-上位パッケージでは、必要であれば次のような項目も持ってよい。
-- `supported_section_packages`
-  - その上位パッケージが受け持てる区間パッケージ名の一覧
-- `supported_overlap_packages`
-  - その上位パッケージが受け持てる overlap パッケージ名の一覧
-
-ここで重要なのは、これらは「使える配下パッケージの集合」を表すものであり、app 固有の section 名そのものを固定で期待するための項目ではない、という点である。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表す。
-
-また、区間パッケージ側が `required_artifact_kinds` や system 範囲を定義している場合、それと実際の section / overlap の割当て、必要なデータ採取、採取済みデータの保存・復元との照合は BenchKit 側で扱う。app 側は原則として「section 名」と「どの推定 package を使うか」を決めればよく、採取手順や保存形式の具体記述を直接抱え込まない方がよい。
-  - 例: `"identity"`
-
-For practical use, the package metadata or equivalent documented definition should preferably be able to express at least:
-
-- `source_system_scope`
-- `target_system_scope`
-- `required_result_fields`
-- `required_section_artifacts`
-- `optional_section_artifacts`
-- `output_fields`
-- `not_applicable_when`
-- `fallback_to`
-
-例えば、`counter_papi_detailed` 系のパッケージであれば、入力条件と出力内容は次のように読めるべきである。
-
-- 入力元 system は `MiyabiG` または `RC_GH200`
-- input として section ごとの PAPI artifact が必要
-- `compute_solver_papi.tgz` のような artifact が無ければ `fallback` または `not_applicable`
-- 出力として section `time`、必要なら `model`、`applicability` を埋める
-
-This makes it possible to read the package input conditions and outputs in a form such as:
-
-- source is `MiyabiG` or `RC_GH200`
-- per-section PAPI artifacts are required
-- if artifacts such as `compute_solver_papi.tgz` are missing, the package falls back or becomes `not_applicable`
-- the package writes section `time`, and when needed, `model` and `applicability`
 
 ## 5. BenchKit における責務分担 / Responsibility Split in BenchKit
 
@@ -501,11 +429,6 @@ BenchKit should preferably provide the following:
 - Estimate JSON standardization
 - retention of package identity metadata
 
-詳細推定では、BenchKit 側が次も扱うのが望ましい。
-- 区間パッケージ metadata と section / overlap への割当ての照合
-- `required_artifact_kinds` に応じた採取手順の共通化
-- 採取済みデータの保存先と復元方法の共通化
-
 ### 5.2 app 側責務 / Application-Side Responsibilities
 
 app 側の責務は、原則として以下に留めることが望ましい。
@@ -519,13 +442,9 @@ The application side should preferably be limited to:
 
 - selecting the estimation package to use
 - mapping application-specific FOM or section names
-- assigning an estimation package to each section / overlap
-- specifying application-specific auxiliary inputs only when truly necessary
+- assigning an estimation package to each section / overlap when section-wise estimation is used
+- specifying application-specific auxiliary inputs
 - minimal special handling
-
-特に詳細推定では、app 側は section 名と `estimation_package` の割当てを決めるところまでに責務を寄せ、PAPI の counter set 分割や trace 採取方法、保存形式のような共通化可能な処理は BenchKit 側へ寄せるのが望ましい。
-
-`weakscaling` のように artifact を前提としない section-wise package では、さらに app 側責務は明確になる。app 側は通常実行から section / overlap 時間を Result JSON へ出し、各 item に `identity` または `logp` を割り当てればよい。
 
 ### 5.3 推定パッケージ開発者側責務 / Estimation-Package-Developer Responsibilities
 
@@ -539,18 +458,6 @@ The application side should preferably be limited to:
 - 必要に応じたフォールバック規則
 
 すなわち、BenchKit が共通ルールを提供し、app 側が package を選択し、package 開発者が推定方式の具体的意味を定める、という責務分離を基本とする。
-
-`weakscaling` の場合は、少なくとも次のように読めるのが望ましい。
-- app 側
-  - section / overlap 時間を書く
-  - `identity` / `logp` の割当てを決める
-- 推定パッケージ開発者側
-  - `identity` と `logp` の意味
-  - `weakscaling` の合成規則
-- BenchKit 側
-  - section package dispatch
-  - current / future breakdown 合成
-  - top-level `applicability` と Estimate JSON への正規化
 
 The estimation-package developer is primarily responsible for defining:
 
@@ -569,14 +476,14 @@ In other words, the intended separation is that BenchKit provides the common rul
 
 例:
 
-- `weakscaling`
+- `lightweight_fom_scaling`
 - `baseline_ratio_estimation`
 
 これらは、高頻度実行や PoC に向く。
 
 Examples:
 
-- `weakscaling`
+- `lightweight_fom_scaling`
 - `baseline_ratio_estimation`
 
 These are suitable for high-frequency runs and PoC work.
@@ -605,37 +512,29 @@ These are suitable for deeper analysis and future-system evaluation.
 
 ## 7. 参照実装イメージ / Reference Implementation Direction
 
-BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、section / overlap と `estimation_package` の割当て、必要最小限の既定値、共通入口の呼出しだけを書く形へ寄せることが望ましい。
+BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、例えば以下のような形へ寄せることが望ましい。
 
 ```sh
+BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
-BK_ESTIMATION_TARGET_NODES=256
 
-bk_declare_section prepare_rhs identity
-bk_declare_section compute_hopping counter_papi_detailed
-bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
-
-source scripts/estimation/common.sh
-bk_run_estimation
+source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
+bk_run_estimation_package
 ```
 
-この形では、app 側は section / overlap への package 割当てと最小限の app 固有設定だけを担い、推定方式の詳細や追加採取は BenchKit と package 側へ集約される。
+この形では、app 側はパッケージ選択と最小限の app 固有設定を担い、推定方式の詳細はパッケージ側へ集約される。
 
-In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead focuses on section / overlap package assignments, minimal defaults, and common entrypoints:
+In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead looks like:
 
 ```sh
+BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
 BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
-BK_ESTIMATION_TARGET_NODES=256
 
-bk_declare_section prepare_rhs identity
-bk_declare_section compute_hopping counter_papi_detailed
-bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
-
-source scripts/estimation/common.sh
-bk_run_estimation
+source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
+bk_run_estimation_package
 ```
 
-In this form, the application side is responsible only for assigning packages to sections / overlaps and providing minimal app-specific defaults, while the details of the estimation method and additional data acquisition are concentrated in BenchKit and the packages.
+In this form, the application side is responsible only for package selection and minimal app-specific configuration, while the details of the estimation method are concentrated in the package.
 
 ## 8. 現時点で固定しないもの / Items Not Fixed Yet
 
@@ -647,7 +546,7 @@ In this form, the application side is responsible only for assigning packages to
 - package を shell で書くか外部ツールで書くか
 - package metadata の完全な構造
 
-これらは、現行の `scripts/estimation/common.sh` と app 側 `estimate.sh` の実装経験を踏まえて段階的に固定する。
+これらは、現行の `estimate_common.sh` と app 側 `estimate.sh` の実装経験を踏まえて段階的に固定する。
 
 This document does not yet fix:
 
@@ -657,18 +556,7 @@ This document does not yet fix:
 - whether packages are written in shell or external tools
 - the complete schema of package metadata
 
-These should be fixed incrementally based on implementation experience with the current `scripts/estimation/common.sh` and application-side `estimate.sh`.
-
-### 8.4 追加採取の共通入口 / Common Data-Collection Entry
-
-BenchKit は、app 側の `estimate.sh` で宣言された section / overlap の package 割当てを見たうえで、追加採取が必要な package があるかどうかを判定してよい。
-その判定には package metadata の `acquisition_mode` を使ってよい。
-
-- `standard`: 追加採取を伴わない通常の入力処理
-- `special`: 追加採取や profiler のラップが必要な入力処理
-
-`special` に分類された package がある場合、BenchKit は `bk_run_estimation_data_collection` を通して、その package の実行規約に合わせてコマンドを渡す。
-複数 section を 1 回の追加採取でまとめられるかどうかは、現段階では共通仕様に固定せず、将来の package 実装で調整する。
+These should be fixed incrementally based on implementation experience with the current `estimate_common.sh` and application-side `estimate.sh`.
 
 ## 9. 次に必要な下位仕様 / Next Detailed Specifications
 

@@ -211,6 +211,7 @@ app 側では、まず section 名と `estimation_package` を決めることを
 - section ごとの `estimation_package` が残る
 - 必要なら `requested_estimation_package` と実適用 package が分かれる
 - 必要なら `estimate_metadata.current_package` と `estimate_metadata.future_package` で両側の package を分けて持てる
+- `current_system` 側と `future_system` 側で section / overlap の名前や粒度が一致しなくてもよい
 
 ### fallback の確認
 - 一部区間だけ代替したとき `applicability.status = partially_applicable`

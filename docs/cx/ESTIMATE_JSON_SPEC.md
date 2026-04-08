@@ -157,7 +157,7 @@ In addition, `target_nodes` represents the estimated node count on each system s
     "system": "FugakuNEXT",
     "fom": 246.912,
     "target_nodes": "4",
-    "scaling_method": "weakscaling",
+    "scaling_method": "scale-mock",
     "benchmark": {
       "system": "MiyabiG",
       "fom": 123.456,
@@ -212,8 +212,6 @@ Estimate JSON may include the following extension fields:
 - `estimation_package_version`
 - `requested_estimation_package`
 - `requested_estimation_package_version`
-- `current_package`
-- `future_package`
 
 例:
 
@@ -227,22 +225,10 @@ Estimate JSON may include the following extension fields:
     "method_class": "lightweight",
     "detail_level": "basic",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
-    "estimation_package": "weakscaling",
+    "estimation_package": "lightweight_fom_scaling",
     "estimation_package_version": "0.1",
     "requested_estimation_package": "instrumented_app_sections_dummy",
-    "requested_estimation_package_version": "0.1",
-    "current_package": {
-      "estimation_package": "weakscaling",
-      "estimation_package_version": "0.1",
-      "requested_estimation_package": "weakscaling",
-      "requested_estimation_package_version": "0.1"
-    },
-    "future_package": {
-      "estimation_package": "instrumented_app_sections_dummy",
-      "estimation_package_version": "0.1",
-      "requested_estimation_package": "instrumented_app_sections_dummy",
-      "requested_estimation_package_version": "0.1"
-    }
+    "requested_estimation_package_version": "0.1"
   }
 }
 ```
@@ -256,11 +242,8 @@ This field stores identifiers for the estimation process itself.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 `estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。
 `requested_estimation_package` と `requested_estimation_package_version` は、フォールバック前に最初に要求された推定パッケージを表す。
-`current_package` と `future_package` は、それぞれ `current_system` 側と `future_system` 側で使われた推定パッケージ情報を保持してよい。
-両側で同じパッケージを使う場合は同じ値になってよく、両側で別のパッケージを使う場合はここで区別する。
 `estimation_package` and `estimation_package_version` identify the package that was actually applied.
 `requested_estimation_package` and `requested_estimation_package_version` identify the package initially requested before any fallback.
-`current_package` and `future_package` may retain side-specific package identities for the `current_system` and `future_system` sides.
 
 ### 6.2 measurement
 
@@ -307,7 +290,7 @@ This field stores how the measurement inputs used for estimation were obtained.
 {
   "model": {
     "type": "scaling",
-    "name": "weakscaling",
+    "name": "scale-mock",
     "version": "0.1",
     "implementation": "programs/qws/estimate.sh"
   }
@@ -464,6 +447,14 @@ Each section may contain at least:
 - `time`
 - `estimation_package`
 - `artifacts`
+
+`current_system.fom_breakdown` と `future_system.fom_breakdown` は、同じ section 名、同じ overlap 名、同じ粒度を要求しない。
+現行側 baseline の計測時点と、将来側推定のための計測時点でコードや区間分割が異なっていてよい。
+したがって、両側の breakdown は 1 対 1 対応の比較表ではなく、それぞれの推定側を説明する補助情報として扱う。
+
+`current_system.fom_breakdown` and `future_system.fom_breakdown` do not have to share the same section names, overlap names, or granularity.
+The code version or section partitioning may legitimately differ between the current-side baseline measurement and the future-side estimation input.
+Accordingly, the two breakdowns should be treated as side-specific explanatory information rather than as a mandatory one-to-one comparison table.
 
 ここで、
 

@@ -325,6 +325,12 @@ For example, if projection from another current system is valid, `cross_system_p
 
 These may be the same model, separate models, separate estimation packages, or separate components within a composite estimation package.
 
+`current_system` 側と `future_system` 側では、section 名、overlap 名、区間粒度が一致しなくてもよい。
+現行側は古い baseline result に基づく区間構造、将来側は新しいコードや新しい区間分割に基づく区間構造、という構成を許容する。
+
+The section names, overlap names, and breakdown granularity do not have to match between the `current_system` side and the `future_system` side.
+It is acceptable for the current side to reflect the section structure of an older baseline result while the future side reflects newer code or a newer section partitioning.
+
 さらに、これらのモデル種別は単なる分類名ではなく、入力 benchmark result の `system` と、推定出力側の対象 `system` との整合条件を持たなければならない。
 
 - `intra_system_scaling_model`
@@ -491,14 +497,14 @@ When only part of the section / overlap / component chain falls back while the o
 推定は一度きりの計算ではなく、モデルや仮定の更新に応じて再推定できることが重要である。
 BenchKit は、少なくとも以下を扱えるべきである。
 
-- `estimate_result_uuid` を起点にした再推定
+- benchmark result を再指定しての再推定
 - 推定結果の履歴保持
 - 異なる推定方式の比較
 
 Estimation is not a one-time calculation. Re-estimation in response to updated models or assumptions is important.
 BenchKit should be able to handle at least:
 
-- re-estimation starting from `estimate_result_uuid`
+- re-estimation from a specified benchmark result
 - history retention of estimation results
 - comparison of different estimation methods
 
