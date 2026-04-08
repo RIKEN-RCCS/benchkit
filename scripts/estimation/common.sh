@@ -140,6 +140,48 @@ bk_estimation_load_package() {
   BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-${BK_ESTIMATION_PACKAGE_VERSION:-0.1}}"
 }
 
+bk_estimation_build_model_json_from_metadata() {
+  local role="$1"
+  local source_system="$2"
+  local target_system="$3"
+  local default_type="$4"
+  local default_name="$5"
+  local default_rule="$6"
+  local model_version="${7:-${BK_ESTIMATION_PACKAGE_VERSION:-0.1}}"
+  local package_metadata
+  local role_metadata
+
+  package_metadata=$(bk_estimation_package_metadata)
+  role_metadata=$(echo "$package_metadata" | jq -c --arg role "$role" '.models[$role] // {}')
+
+  jq -cn \
+    --arg type "$(echo "$role_metadata" | jq -r --arg v "$default_type" '.type // $v')" \
+    --arg name "$(echo "$role_metadata" | jq -r --arg v "$default_name" '.name // $v')" \
+    --arg version "$model_version" \
+    --arg source_system "$source_system" \
+    --arg target_system "$target_system" \
+    --arg system_compatibility_rule "$(echo "$role_metadata" | jq -r --arg v "$default_rule" '.system_compatibility_rule // $v')" \
+    --arg implementation "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh" \
+    --arg role "$role" '
+    {
+      type: $type,
+      name: $name,
+      version: $version
+    }
+    + (if $source_system != "" then {source_system: $source_system} else {} end)
+    + (if $target_system != "" then {target_system: $target_system} else {} end)
+    + (if $system_compatibility_rule != "" then {system_compatibility_rule: $system_compatibility_rule} else {} end)
+    + (if $role == "top_level" then {implementation: $implementation} else {} end)
+  '
+}
+
+bk_estimation_model_name_from_metadata() {
+  local role="$1"
+  local default_name="$2"
+
+  bk_estimation_package_metadata | jq -r --arg role "$role" --arg v "$default_name" '.models[$role].name // $v'
+}
+
 bk_estimation_run_recorded_current_with_weakscaling() {
   local baseline_system="${1:-${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}}"
   local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-CASE0}}"
@@ -168,20 +210,14 @@ bk_estimation_run_recorded_current_with_weakscaling() {
   if declare -F bk_estimation_package_build_recorded_current_model_json >/dev/null 2>&1; then
     est_current_model_json=$(bk_estimation_package_build_recorded_current_model_json "$baseline_system" "$current_model_version")
   else
-    est_current_model_json=$(jq -cn \
-      --arg type "intra_system_scaling_model" \
-      --arg name "${current_package}-current" \
-      --arg version "$current_model_version" \
-      --arg source_system "$baseline_system" \
-      --arg target_system "$baseline_system" \
-      '{
-        type: $type,
-        name: $name,
-        version: $version,
-        source_system: $source_system,
-        target_system: $target_system,
-        system_compatibility_rule: "same_system_line"
-      }')
+    est_current_model_json=$(bk_estimation_build_model_json_from_metadata \
+      "recorded_current" \
+      "$baseline_system" \
+      "$baseline_system" \
+      "intra_system_scaling_model" \
+      "${current_package}-current" \
+      "same_system_line" \
+      "$current_model_version")
   fi
 
   bk_estimation_set_current_package_metadata \

@@ -55,6 +55,22 @@ bk_estimation_package_metadata() {
   "fallback_policy": {
     "mode": "allowed",
     "target": "weakscaling"
+  },
+  "models": {
+    "top_level": {
+      "type": "section-wise",
+      "name": "instrumented-app-sections-dummy"
+    },
+    "current_system": {
+      "type": "intra_system_scaling_model",
+      "name": "instrumented-app-sections-current-scaling",
+      "system_compatibility_rule": "exact_match"
+    },
+    "future_system": {
+      "type": "cross_system_projection_model",
+      "name": "instrumented-app-sections-future-projection",
+      "system_compatibility_rule": "cross_system_allowed"
+    }
   }
 }
 EOF
@@ -414,14 +430,16 @@ bk_estimation_package_run() {
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
   local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
   local future_target_nodes="${BK_ESTIMATION_FUTURE_TARGET_NODES:-$est_node_count}"
-  local model_name="${BK_ESTIMATION_MODEL_NAME:-instrumented-app-sections-dummy}"
   local model_version="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+  local model_name
   local default_section_factor="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-0.5}"
   local logp_section_name="${BK_ESTIMATION_LOGP_SECTION_NAME:-allreduce}"
   local logp_package_name="logp"
   local breakdown_template
   local baseline_breakdown
   local applicability_issues_json
+
+  model_name=$(bk_estimation_model_name_from_metadata "top_level" "instrumented-app-sections-dummy")
 
   est_future_bench_system="$est_system"
   est_future_bench_fom="$est_fom"
@@ -497,47 +515,30 @@ bk_estimation_package_run() {
       overlap_rule: "overlap timings are scaled according to their bound overlap package"
     }')
 
-  est_model_json=$(jq -cn \
-    --arg type "section-wise" \
-    --arg name "$model_name" \
-    --arg version "$model_version" \
-    --arg implementation "scripts/estimation/packages/instrumented_app_sections_dummy.sh" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      implementation: $implementation
-    }')
-  est_current_model_json=$(jq -cn \
-    --arg type "intra_system_scaling_model" \
-    --arg name "instrumented-app-sections-current-scaling" \
-    --arg version "$model_version" \
-    --arg source_system "$baseline_system" \
-    --arg target_system "$baseline_system" \
-    --arg system_compatibility_rule "exact_match" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: $system_compatibility_rule
-    }')
-  est_future_model_json=$(jq -cn \
-    --arg type "cross_system_projection_model" \
-    --arg name "instrumented-app-sections-future-projection" \
-    --arg version "$model_version" \
-    --arg source_system "$est_system" \
-    --arg target_system "$future_system" \
-    --arg system_compatibility_rule "cross_system_allowed" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: $system_compatibility_rule
-    }')
+  est_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "top_level" \
+    "" \
+    "" \
+    "section-wise" \
+    "$model_name" \
+    "" \
+    "$model_version")
+  est_current_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "current_system" \
+    "$baseline_system" \
+    "$baseline_system" \
+    "intra_system_scaling_model" \
+    "instrumented-app-sections-current-scaling" \
+    "exact_match" \
+    "$model_version")
+  est_future_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "future_system" \
+    "$est_system" \
+    "$future_system" \
+    "cross_system_projection_model" \
+    "instrumented-app-sections-future-projection" \
+    "cross_system_allowed" \
+    "$model_version")
 
   est_confidence_json='{"level":"experimental","score":0.20}'
   est_notes_json=$(jq -cn \

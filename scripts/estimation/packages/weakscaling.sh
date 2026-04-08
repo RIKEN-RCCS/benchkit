@@ -46,6 +46,27 @@ bk_estimation_package_metadata() {
   "fallback_policy": {
     "mode": "none",
     "target": null
+  },
+  "models": {
+    "top_level": {
+      "type": "section-wise",
+      "name": "weakscaling"
+    },
+    "current_system": {
+      "type": "intra_system_scaling_model",
+      "name": "weakscaling-current",
+      "system_compatibility_rule": "same_system_line"
+    },
+    "future_system": {
+      "type": "intra_system_scaling_model",
+      "name": "weakscaling-future",
+      "system_compatibility_rule": "same_system_line"
+    },
+    "recorded_current": {
+      "type": "intra_system_scaling_model",
+      "name": "weakscaling-current",
+      "system_compatibility_rule": "same_system_line"
+    }
   }
 }
 EOF
@@ -133,9 +154,11 @@ bk_estimation_package_run() {
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-$est_system}"
   local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
   local future_target_nodes="${BK_ESTIMATION_FUTURE_TARGET_NODES:-$est_node_count}"
-  local model_name="${BK_ESTIMATION_MODEL_NAME:-weakscaling}"
   local model_version="${BK_ESTIMATION_MODEL_VERSION:-0.1}"
+  local model_name
   local applicability_issues_json
+
+  model_name=$(bk_estimation_model_name_from_metadata "top_level" "weakscaling")
 
   est_current_system="$current_system"
   est_current_target_nodes="$current_target_nodes"
@@ -191,45 +214,30 @@ bk_estimation_package_run() {
       logp_section_rule: "sections bound to package logp are scaled with logP"
     }')
 
-  est_model_json=$(jq -cn \
-    --arg type "section-wise" \
-    --arg name "$model_name" \
-    --arg version "$model_version" \
-    --arg implementation "scripts/estimation/packages/weakscaling.sh" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      implementation: $implementation
-    }')
-  est_current_model_json=$(jq -cn \
-    --arg type "intra_system_scaling_model" \
-    --arg name "weakscaling-current" \
-    --arg version "$model_version" \
-    --arg source_system "$est_system" \
-    --arg target_system "$current_system" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: "same_system_line"
-    }')
-  est_future_model_json=$(jq -cn \
-    --arg type "intra_system_scaling_model" \
-    --arg name "weakscaling-future" \
-    --arg version "$model_version" \
-    --arg source_system "$est_system" \
-    --arg target_system "$future_system" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: "same_system_line"
-    }')
+  est_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "top_level" \
+    "" \
+    "" \
+    "section-wise" \
+    "$model_name" \
+    "" \
+    "$model_version")
+  est_current_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "current_system" \
+    "$est_system" \
+    "$current_system" \
+    "intra_system_scaling_model" \
+    "weakscaling-current" \
+    "same_system_line" \
+    "$model_version")
+  est_future_model_json=$(bk_estimation_build_model_json_from_metadata \
+    "future_system" \
+    "$est_system" \
+    "$future_system" \
+    "intra_system_scaling_model" \
+    "weakscaling-future" \
+    "same_system_line" \
+    "$model_version")
 
   est_confidence_json='{"level":"experimental","score":0.30}'
   est_notes_json=$(jq -cn \
@@ -241,20 +249,14 @@ bk_estimation_package_build_recorded_current_model_json() {
   local baseline_system="$1"
   local model_version="$2"
 
-  jq -cn \
-    --arg type "intra_system_scaling_model" \
-    --arg name "weakscaling-current" \
-    --arg version "$model_version" \
-    --arg source_system "$baseline_system" \
-    --arg target_system "$baseline_system" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: "same_system_line"
-    }'
+  bk_estimation_build_model_json_from_metadata \
+    "recorded_current" \
+    "$baseline_system" \
+    "$baseline_system" \
+    "intra_system_scaling_model" \
+    "weakscaling-current" \
+    "same_system_line" \
+    "$model_version"
 }
 
 bk_estimation_package_apply_metadata() {
