@@ -393,7 +393,7 @@ _bk_logp_factor() {
     }'
 }
 
-_bk_transform_breakdown_for_qws_demo() {
+_bk_transform_bound_breakdown() {
   local breakdown_json="$1"
   local target_nodes="$2"
   local bench_nodes="$3"
@@ -441,7 +441,7 @@ bk_estimation_package_run() {
 
   if [[ -n "$baseline_breakdown" && "$baseline_breakdown" != "null" ]]; then
     breakdown_template=$(_bk_scale_breakdown_to_total "$baseline_breakdown" "$est_current_fom")
-    est_current_fom_breakdown=$(_bk_transform_breakdown_for_qws_demo \
+    est_current_fom_breakdown=$(_bk_transform_bound_breakdown \
       "$breakdown_template" \
       "$current_target_nodes" \
       "${est_current_bench_nodes:-1}" \
@@ -453,7 +453,7 @@ bk_estimation_package_run() {
   est_current_scaling_method="$model_name"
 
   est_future_system="$future_system"
-  est_future_fom_breakdown=$(_bk_transform_breakdown_for_qws_demo \
+  est_future_fom_breakdown=$(_bk_transform_bound_breakdown \
     "$est_input_fom_breakdown" \
     "$future_target_nodes" \
     "$est_node_count" \
@@ -510,7 +510,7 @@ bk_estimation_package_run() {
     }')
   est_current_model_json=$(jq -cn \
     --arg type "intra_system_scaling_model" \
-    --arg name "qws-intra-system-section-scaling" \
+    --arg name "instrumented-app-sections-current-scaling" \
     --arg version "$model_version" \
     --arg source_system "$baseline_system" \
     --arg target_system "$baseline_system" \
@@ -525,7 +525,7 @@ bk_estimation_package_run() {
     }')
   est_future_model_json=$(jq -cn \
     --arg type "cross_system_projection_model" \
-    --arg name "qws-cross-system-section-projection" \
+    --arg name "instrumented-app-sections-future-projection" \
     --arg version "$model_version" \
     --arg source_system "$est_system" \
     --arg target_system "$future_system" \
