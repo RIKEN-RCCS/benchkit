@@ -78,82 +78,12 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   return 0 2>/dev/null || exit 0
 fi
 
-qws_run_current_estimation() {
-  local current_package="${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
-  local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
-  local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
-  local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-CASE0}"
-  local current_package_version
-  local baseline_breakdown
+bk_estimation_run_declared_future_package "$BK_ESTIMATION_INPUT_JSON"
+bk_estimation_run_recorded_current_with_weakscaling \
+  "${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}" \
+  "${BK_ESTIMATION_BASELINE_EXP:-CASE0}" \
+  "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1024}" \
+  "${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}" \
+  "qws-current-weakscaling"
 
-  bk_estimation_load_package "$current_package"
-  current_package_version=$(bk_estimation_package_metadata | jq -r '.version // empty')
-
-  fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
-  baseline_breakdown="$est_current_fom_breakdown"
-  if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
-    baseline_breakdown="$est_input_fom_breakdown"
-  fi
-
-  est_current_system="$baseline_system"
-  est_current_target_nodes="$current_target_nodes"
-  est_current_scaling_method="$current_package"
-  est_current_fom_breakdown=$(_bk_weakscaling_transform_breakdown \
-    "$baseline_breakdown" \
-    "$current_target_nodes" \
-    "${est_current_bench_nodes:-1}")
-  est_current_fom=$(_bk_weakscaling_breakdown_total_time "$est_current_fom_breakdown")
-  est_current_model_json=$(jq -cn \
-    --arg type "intra_system_scaling_model" \
-    --arg name "qws-current-weakscaling" \
-    --arg version "${current_package_version:-0.1}" \
-    --arg source_system "$baseline_system" \
-    --arg target_system "$baseline_system" \
-    '{
-      type: $type,
-      name: $name,
-      version: $version,
-      source_system: $source_system,
-      target_system: $target_system,
-      system_compatibility_rule: "same_system_line"
-    }')
-
-  bk_estimation_set_current_package_metadata \
-    "$current_package" \
-    "${current_package_version:-0.1}" \
-    "$current_package" \
-    "${current_package_version:-0.1}"
-}
-
-case "$BK_ESTIMATION_FUTURE_PACKAGE" in
-  instrumented_app_sections_dummy|weakscaling)
-    ;;
-  *)
-    echo "ERROR: Unsupported future estimation package for qws: ${BK_ESTIMATION_FUTURE_PACKAGE}" >&2
-    exit 1
-    ;;
-esac
-
-read_values "$BK_ESTIMATION_INPUT_JSON"
-
-BK_ESTIMATION_PACKAGE="$BK_ESTIMATION_FUTURE_PACKAGE"
-case "$BK_ESTIMATION_FUTURE_PACKAGE" in
-  instrumented_app_sections_dummy)
-    BK_ESTIMATION_MODEL_NAME="instrumented-app-sections-dummy"
-    BK_ESTIMATION_MODEL_VERSION="0.1"
-    ;;
-  weakscaling)
-    BK_ESTIMATION_MODEL_NAME="weakscaling"
-    BK_ESTIMATION_MODEL_VERSION="0.1"
-    ;;
-esac
-if ! bk_estimation_execute_with_fallback bk_estimation_load_package; then
-  echo "ERROR: estimation package ${BK_ESTIMATION_FUTURE_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
-  exit 1
-fi
-qws_run_current_estimation
-
-mkdir -p results
-output_file="results/estimate_${est_code}_0.json"
-print_json > "$output_file"
-echo "Estimate written to $output_file"
+bk_estimation_write_output "results/estimate_${est_code}_0.json"

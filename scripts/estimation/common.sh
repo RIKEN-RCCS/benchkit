@@ -141,6 +141,101 @@ bk_estimation_load_package() {
   BK_ESTIMATION_MODEL_VERSION="${BK_ESTIMATION_MODEL_VERSION:-${BK_ESTIMATION_PACKAGE_VERSION:-0.1}}"
 }
 
+bk_estimation_run_recorded_current_with_weakscaling() {
+  local baseline_system="${1:-${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}}"
+  local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-CASE0}}"
+  local current_target_nodes="${3:-${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}}"
+  local current_package="${4:-${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}}"
+  local current_model_name="${5:-recorded-current-weakscaling}"
+  local current_model_version="${6:-}"
+  local baseline_breakdown=""
+
+  bk_estimation_load_package "$current_package"
+  current_model_version="${BK_ESTIMATION_PACKAGE_VERSION:-${current_model_version:-0.1}}"
+
+  fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
+  baseline_breakdown="$est_current_fom_breakdown"
+  if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
+    baseline_breakdown="$est_input_fom_breakdown"
+  fi
+
+  est_current_system="$baseline_system"
+  est_current_target_nodes="$current_target_nodes"
+  est_current_scaling_method="$current_package"
+  est_current_fom_breakdown=$(_bk_weakscaling_transform_breakdown \
+    "$baseline_breakdown" \
+    "$current_target_nodes" \
+    "${est_current_bench_nodes:-1}")
+  est_current_fom=$(_bk_weakscaling_breakdown_total_time "$est_current_fom_breakdown")
+  est_current_model_json=$(jq -cn \
+    --arg type "intra_system_scaling_model" \
+    --arg name "$current_model_name" \
+    --arg version "$current_model_version" \
+    --arg source_system "$baseline_system" \
+    --arg target_system "$baseline_system" \
+    '{
+      type: $type,
+      name: $name,
+      version: $version,
+      source_system: $source_system,
+      target_system: $target_system,
+      system_compatibility_rule: "same_system_line"
+    }')
+
+  bk_estimation_set_current_package_metadata \
+    "$current_package" \
+    "$current_model_version" \
+    "$current_package" \
+    "$current_model_version"
+}
+
+bk_estimation_run_declared_future_package() {
+  local input_json="$1"
+  local future_package="${BK_ESTIMATION_FUTURE_PACKAGE:-}"
+  local default_model_name=""
+  local default_model_version=""
+
+  if [[ $# -ge 2 && -n "${2:-}" ]]; then
+    default_model_name="$2"
+  fi
+  if [[ $# -ge 3 && -n "${3:-}" ]]; then
+    default_model_version="$3"
+  fi
+
+  if [[ -z "$future_package" ]]; then
+    echo "ERROR: BK_ESTIMATION_FUTURE_PACKAGE is not set" >&2
+    return 1
+  fi
+
+  read_values "$input_json"
+
+  BK_ESTIMATION_PACKAGE="$future_package"
+  if [[ -z "$default_model_name" ]]; then
+    default_model_name=$(printf '%s' "$future_package" | tr '_' '-')
+  fi
+  BK_ESTIMATION_MODEL_NAME="$default_model_name"
+  if [[ -n "$default_model_version" ]]; then
+    BK_ESTIMATION_MODEL_VERSION="$default_model_version"
+  else
+    unset BK_ESTIMATION_MODEL_VERSION || true
+  fi
+
+  if ! bk_estimation_execute_with_fallback bk_estimation_load_package; then
+    echo "ERROR: estimation package ${future_package} is not applicable for input ${input_json}" >&2
+    return 1
+  fi
+
+  return 0
+}
+
+bk_estimation_write_output() {
+  local output_file="$1"
+
+  mkdir -p "$(dirname "$output_file")"
+  print_json > "$output_file"
+  echo "Estimate written to $output_file"
+}
+
 # ---------------------------------------------------------------------------
 # read_values — Read benchmark Result_JSON into global variables
 #

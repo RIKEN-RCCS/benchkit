@@ -435,21 +435,24 @@ bk_estimation_package_run() {
 }
 
 bk_estimation_package_apply_metadata() {
+  local package_version
+  package_version=$(bk_estimation_package_metadata | jq -r '.version // "0.1"')
+
   bk_estimation_set_package_metadata \
     "weakscaling" \
-    "0.1" \
+    "$package_version" \
     "lightweight" \
     "basic"
   bk_estimation_set_current_package_metadata \
     "weakscaling" \
-    "0.1" \
+    "$package_version" \
     "${est_requested_estimation_package:-weakscaling}" \
-    "${est_requested_estimation_package_version:-0.1}"
+    "${est_requested_estimation_package_version:-$package_version}"
   bk_estimation_set_future_package_metadata \
     "weakscaling" \
-    "0.1" \
+    "$package_version" \
     "${est_requested_estimation_package:-weakscaling}" \
-    "${est_requested_estimation_package_version:-0.1}"
+    "${est_requested_estimation_package_version:-$package_version}"
 
   est_estimation_id="estimate-${est_code}-${est_uuid:-unknown}"
   est_estimation_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
