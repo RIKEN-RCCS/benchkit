@@ -2,14 +2,22 @@
 # estimate.sh — Reference package-based estimation entrypoint for qws
 
 qws_declare_estimation_layout() {
+  bk_clear_estimation_defaults
   bk_clear_estimation_declarations
-  bk_declare_section prepare_rhs half
-  bk_declare_section compute_hopping quarter
-  bk_declare_section compute_solver half
-  bk_declare_section halo_exchange quarter
-  bk_declare_section allreduce logp
-  bk_declare_section write_result half
-  bk_declare_overlap compute_hopping,halo_exchange half
+  bk_define_current_estimation_package weakscaling
+  bk_define_future_estimation_package instrumented_app_sections_dummy
+  bk_define_baseline_system Fugaku
+  bk_define_baseline_exp CASE0
+  bk_define_future_system FugakuNEXT
+  bk_define_current_target_nodes 1024
+  bk_define_future_target_nodes 256
+  bk_declare_section --side future prepare_rhs half
+  bk_declare_section --side future compute_hopping quarter
+  bk_declare_section --side future compute_solver half
+  bk_declare_section --side future halo_exchange quarter
+  bk_declare_section --side future allreduce logp
+  bk_declare_section --side future write_result half
+  bk_declare_overlap --side future compute_hopping,halo_exchange half
 }
 
 qws_create_dummy_estimation_artifact() {
@@ -46,56 +54,29 @@ qws_emit_estimation_data_from_fom() {
   qws_create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
   qws_create_dummy_estimation_artifact "estimation_inputs/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
 
-  bk_emit_declared_section prepare_rhs "$section_prepare_rhs" results/estimation_inputs/prepare_rhs_interval.json
-  bk_emit_declared_section compute_hopping "$section_compute_hopping" results/estimation_inputs/compute_hopping_papi.tgz
-  bk_emit_declared_section compute_solver "$section_compute_solver" results/estimation_inputs/compute_solver_papi.tgz
-  bk_emit_declared_section halo_exchange "$section_halo_exchange" results/estimation_inputs/halo_exchange_trace.tgz
-  bk_emit_declared_section allreduce "$section_allreduce" results/estimation_inputs/allreduce_trace.tgz
-  bk_emit_declared_section write_result "$section_write_result" results/estimation_inputs/write_result_interval.json
-  bk_emit_declared_overlap compute_hopping,halo_exchange "$overlap_compute_halo" results/estimation_inputs/compute_halo_overlap.json
+  bk_emit_declared_section --side future prepare_rhs "$section_prepare_rhs" results/estimation_inputs/prepare_rhs_interval.json
+  bk_emit_declared_section --side future compute_hopping "$section_compute_hopping" results/estimation_inputs/compute_hopping_papi.tgz
+  bk_emit_declared_section --side future compute_solver "$section_compute_solver" results/estimation_inputs/compute_solver_papi.tgz
+  bk_emit_declared_section --side future halo_exchange "$section_halo_exchange" results/estimation_inputs/halo_exchange_trace.tgz
+  bk_emit_declared_section --side future allreduce "$section_allreduce" results/estimation_inputs/allreduce_trace.tgz
+  bk_emit_declared_section --side future write_result "$section_write_result" results/estimation_inputs/write_result_interval.json
+  bk_emit_declared_overlap --side future compute_hopping,halo_exchange "$overlap_compute_halo" results/estimation_inputs/compute_halo_overlap.json
 }
 
 source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 
-BK_ESTIMATION_CURRENT_PACKAGE="${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
-BK_ESTIMATION_FUTURE_PACKAGE="${BK_ESTIMATION_FUTURE_PACKAGE:-instrumented_app_sections_dummy}"
-BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-$BK_ESTIMATION_FUTURE_PACKAGE}"
-BK_ESTIMATION_BASELINE_SYSTEM="Fugaku"
-BK_ESTIMATION_BASELINE_EXP="CASE0"
-BK_ESTIMATION_FUTURE_SYSTEM="FugakuNEXT"
-BK_ESTIMATION_CURRENT_TARGET_NODES="${BK_ESTIMATION_CURRENT_TARGET_NODES:-1024}"
-BK_ESTIMATION_FUTURE_TARGET_NODES="${BK_ESTIMATION_FUTURE_TARGET_NODES:-256}"
 BK_ESTIMATION_SECTION_DEFAULT_FACTOR="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-0.5}"
 BK_ESTIMATION_LOGP_SECTION_NAME="${BK_ESTIMATION_LOGP_SECTION_NAME:-allreduce}"
 BK_ESTIMATION_INPUT_JSON="$1"
 
 qws_declare_estimation_layout
+bk_estimation_apply_declared_defaults
+BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-$BK_ESTIMATION_FUTURE_PACKAGE}"
 
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   return 0 2>/dev/null || exit 0
 fi
-
-load_estimation_package() {
-  local package_name="$1"
-
-  source "scripts/estimation/packages/${package_name}.sh"
-  BK_ESTIMATION_PACKAGE_VERSION=$(bk_estimation_package_metadata | jq -r '.version // empty')
-  case "$package_name" in
-    weakscaling)
-      BK_ESTIMATION_MODEL_NAME="weakscaling"
-      BK_ESTIMATION_MODEL_VERSION="0.1"
-      ;;
-    instrumented_app_sections_dummy)
-      BK_ESTIMATION_MODEL_NAME="instrumented-app-sections-dummy"
-      BK_ESTIMATION_MODEL_VERSION="0.1"
-      ;;
-    *)
-      echo "ERROR: Unsupported estimation package for qws: ${package_name}" >&2
-      exit 1
-      ;;
-  esac
-}
 
 qws_run_current_estimation() {
   local current_package="${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
@@ -105,7 +86,7 @@ qws_run_current_estimation() {
   local current_package_version
   local baseline_breakdown
 
-  source "scripts/estimation/packages/${current_package}.sh"
+  bk_estimation_load_package "$current_package"
   current_package_version=$(bk_estimation_package_metadata | jq -r '.version // empty')
 
   fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
@@ -144,12 +125,29 @@ qws_run_current_estimation() {
     "${current_package_version:-0.1}"
 }
 
-load_estimation_package "$BK_ESTIMATION_FUTURE_PACKAGE"
+case "$BK_ESTIMATION_FUTURE_PACKAGE" in
+  instrumented_app_sections_dummy|weakscaling)
+    ;;
+  *)
+    echo "ERROR: Unsupported future estimation package for qws: ${BK_ESTIMATION_FUTURE_PACKAGE}" >&2
+    exit 1
+    ;;
+esac
 
 read_values "$BK_ESTIMATION_INPUT_JSON"
 
 BK_ESTIMATION_PACKAGE="$BK_ESTIMATION_FUTURE_PACKAGE"
-if ! bk_estimation_execute_with_fallback load_estimation_package; then
+case "$BK_ESTIMATION_FUTURE_PACKAGE" in
+  instrumented_app_sections_dummy)
+    BK_ESTIMATION_MODEL_NAME="instrumented-app-sections-dummy"
+    BK_ESTIMATION_MODEL_VERSION="0.1"
+    ;;
+  weakscaling)
+    BK_ESTIMATION_MODEL_NAME="weakscaling"
+    BK_ESTIMATION_MODEL_VERSION="0.1"
+    ;;
+esac
+if ! bk_estimation_execute_with_fallback bk_estimation_load_package; then
   echo "ERROR: estimation package ${BK_ESTIMATION_FUTURE_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
   exit 1
 fi

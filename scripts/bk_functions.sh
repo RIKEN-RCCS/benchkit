@@ -270,10 +270,77 @@ bk_emit_section() {
 
 bk_clear_estimation_declarations() {
   BK_ESTIMATION_DECLARATIONS=""
+  BK_ESTIMATION_DECLARATIONS_CURRENT=""
+  BK_ESTIMATION_DECLARATIONS_FUTURE=""
   export BK_ESTIMATION_DECLARATIONS
+  export BK_ESTIMATION_DECLARATIONS_CURRENT
+  export BK_ESTIMATION_DECLARATIONS_FUTURE
+}
+
+bk_clear_estimation_defaults() {
+  BK_ESTIMATION_DECLARED_CURRENT_PACKAGE=""
+  BK_ESTIMATION_DECLARED_FUTURE_PACKAGE=""
+  BK_ESTIMATION_DECLARED_BASELINE_SYSTEM=""
+  BK_ESTIMATION_DECLARED_BASELINE_EXP=""
+  BK_ESTIMATION_DECLARED_FUTURE_SYSTEM=""
+  BK_ESTIMATION_DECLARED_CURRENT_TARGET_NODES=""
+  BK_ESTIMATION_DECLARED_FUTURE_TARGET_NODES=""
+  export BK_ESTIMATION_DECLARED_CURRENT_PACKAGE
+  export BK_ESTIMATION_DECLARED_FUTURE_PACKAGE
+  export BK_ESTIMATION_DECLARED_BASELINE_SYSTEM
+  export BK_ESTIMATION_DECLARED_BASELINE_EXP
+  export BK_ESTIMATION_DECLARED_FUTURE_SYSTEM
+  export BK_ESTIMATION_DECLARED_CURRENT_TARGET_NODES
+  export BK_ESTIMATION_DECLARED_FUTURE_TARGET_NODES
+}
+
+bk_define_current_estimation_package() {
+  BK_ESTIMATION_DECLARED_CURRENT_PACKAGE="${1:-}"
+  export BK_ESTIMATION_DECLARED_CURRENT_PACKAGE
+}
+
+bk_define_future_estimation_package() {
+  BK_ESTIMATION_DECLARED_FUTURE_PACKAGE="${1:-}"
+  export BK_ESTIMATION_DECLARED_FUTURE_PACKAGE
+}
+
+bk_define_baseline_system() {
+  BK_ESTIMATION_DECLARED_BASELINE_SYSTEM="${1:-}"
+  export BK_ESTIMATION_DECLARED_BASELINE_SYSTEM
+}
+
+bk_define_baseline_exp() {
+  BK_ESTIMATION_DECLARED_BASELINE_EXP="${1:-}"
+  export BK_ESTIMATION_DECLARED_BASELINE_EXP
+}
+
+bk_define_future_system() {
+  BK_ESTIMATION_DECLARED_FUTURE_SYSTEM="${1:-}"
+  export BK_ESTIMATION_DECLARED_FUTURE_SYSTEM
+}
+
+bk_define_current_target_nodes() {
+  BK_ESTIMATION_DECLARED_CURRENT_TARGET_NODES="${1:-}"
+  export BK_ESTIMATION_DECLARED_CURRENT_TARGET_NODES
+}
+
+bk_define_future_target_nodes() {
+  BK_ESTIMATION_DECLARED_FUTURE_TARGET_NODES="${1:-}"
+  export BK_ESTIMATION_DECLARED_FUTURE_TARGET_NODES
 }
 
 bk_declare_section() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_declare_section: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     echo "bk_declare_section: requires <section_name> <estimation_package>" >&2
     return 1
@@ -282,17 +349,45 @@ bk_declare_section() {
   _bk_decl_name="$1"
   _bk_decl_package="$2"
 
-  if [ -n "$BK_ESTIMATION_DECLARATIONS" ]; then
-    BK_ESTIMATION_DECLARATIONS="${BK_ESTIMATION_DECLARATIONS}
+  case "$_bk_decl_side" in
+    current)
+      _bk_decl_var="BK_ESTIMATION_DECLARATIONS_CURRENT"
+      ;;
+    future)
+      _bk_decl_var="BK_ESTIMATION_DECLARATIONS_FUTURE"
+      ;;
+    *)
+      echo "bk_declare_section: side must be current or future" >&2
+      return 1
+      ;;
+  esac
+
+  eval "_bk_decl_existing=\${$_bk_decl_var:-}"
+  if [ -n "$_bk_decl_existing" ]; then
+    _bk_decl_existing="${_bk_decl_existing}
 section|${_bk_decl_name}|${_bk_decl_package}"
   else
-    BK_ESTIMATION_DECLARATIONS="section|${_bk_decl_name}|${_bk_decl_package}"
+    _bk_decl_existing="section|${_bk_decl_name}|${_bk_decl_package}"
   fi
 
+  eval "$_bk_decl_var=\$_bk_decl_existing"
+  BK_ESTIMATION_DECLARATIONS="$BK_ESTIMATION_DECLARATIONS_FUTURE"
+  export "$_bk_decl_var"
   export BK_ESTIMATION_DECLARATIONS
 }
 
 bk_declare_overlap() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_declare_overlap: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     echo "bk_declare_overlap: requires <members> <estimation_package>" >&2
     return 1
@@ -301,17 +396,45 @@ bk_declare_overlap() {
   _bk_decl_members="$1"
   _bk_decl_package="$2"
 
-  if [ -n "$BK_ESTIMATION_DECLARATIONS" ]; then
-    BK_ESTIMATION_DECLARATIONS="${BK_ESTIMATION_DECLARATIONS}
+  case "$_bk_decl_side" in
+    current)
+      _bk_decl_var="BK_ESTIMATION_DECLARATIONS_CURRENT"
+      ;;
+    future)
+      _bk_decl_var="BK_ESTIMATION_DECLARATIONS_FUTURE"
+      ;;
+    *)
+      echo "bk_declare_overlap: side must be current or future" >&2
+      return 1
+      ;;
+  esac
+
+  eval "_bk_decl_existing=\${$_bk_decl_var:-}"
+  if [ -n "$_bk_decl_existing" ]; then
+    _bk_decl_existing="${_bk_decl_existing}
 overlap|${_bk_decl_members}|${_bk_decl_package}"
   else
-    BK_ESTIMATION_DECLARATIONS="overlap|${_bk_decl_members}|${_bk_decl_package}"
+    _bk_decl_existing="overlap|${_bk_decl_members}|${_bk_decl_package}"
   fi
 
+  eval "$_bk_decl_var=\$_bk_decl_existing"
+  BK_ESTIMATION_DECLARATIONS="$BK_ESTIMATION_DECLARATIONS_FUTURE"
+  export "$_bk_decl_var"
   export BK_ESTIMATION_DECLARATIONS
 }
 
 bk_lookup_declared_estimation_package() {
+  _bk_lookup_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_lookup_declared_estimation_package: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_lookup_side="$1"
+    shift
+  fi
+
   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     echo "bk_lookup_declared_estimation_package: requires <section|overlap> <key>" >&2
     return 1
@@ -320,12 +443,25 @@ bk_lookup_declared_estimation_package() {
   _bk_lookup_kind="$1"
   _bk_lookup_key="$2"
 
-  if [ -z "$BK_ESTIMATION_DECLARATIONS" ]; then
+  case "$_bk_lookup_side" in
+    current)
+      _bk_lookup_declarations="${BK_ESTIMATION_DECLARATIONS_CURRENT:-}"
+      ;;
+    future)
+      _bk_lookup_declarations="${BK_ESTIMATION_DECLARATIONS_FUTURE:-${BK_ESTIMATION_DECLARATIONS:-}}"
+      ;;
+    *)
+      echo "bk_lookup_declared_estimation_package: side must be current or future" >&2
+      return 1
+      ;;
+  esac
+
+  if [ -z "$_bk_lookup_declarations" ]; then
     echo "bk_lookup_declared_estimation_package: no declarations found" >&2
     return 1
   fi
 
-  _bk_lookup_result=$(printf '%s\n' "$BK_ESTIMATION_DECLARATIONS" | awk -F'|' -v kind="$_bk_lookup_kind" -v key="$_bk_lookup_key" '
+  _bk_lookup_result=$(printf '%s\n' "$_bk_lookup_declarations" | awk -F'|' -v kind="$_bk_lookup_kind" -v key="$_bk_lookup_key" '
     $1 == kind && $2 == key { print $3; found=1; exit }
     END { if (!found) exit 1 }
   ')
@@ -340,6 +476,17 @@ bk_lookup_declared_estimation_package() {
 }
 
 bk_emit_declared_section() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_emit_declared_section: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     echo "bk_emit_declared_section: requires <section_name> <time> [artifact]" >&2
     return 1
@@ -348,12 +495,23 @@ bk_emit_declared_section() {
   _bk_decl_sec_name="$1"
   _bk_decl_sec_time="$2"
   _bk_decl_sec_artifact="${3:-}"
-  _bk_decl_sec_package=$(bk_lookup_declared_estimation_package section "$_bk_decl_sec_name") || return 1
+  _bk_decl_sec_package=$(bk_lookup_declared_estimation_package --side "$_bk_decl_side" section "$_bk_decl_sec_name") || return 1
 
   bk_emit_section "$_bk_decl_sec_name" "$_bk_decl_sec_time" "$_bk_decl_sec_package" "$_bk_decl_sec_artifact"
 }
 
 bk_emit_declared_overlap() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_emit_declared_overlap: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     echo "bk_emit_declared_overlap: requires <members> <time> [artifact]" >&2
     return 1
@@ -362,17 +520,31 @@ bk_emit_declared_overlap() {
   _bk_decl_ovl_members="$1"
   _bk_decl_ovl_time="$2"
   _bk_decl_ovl_artifact="${3:-}"
-  _bk_decl_ovl_package=$(bk_lookup_declared_estimation_package overlap "$_bk_decl_ovl_members") || return 1
+  _bk_decl_ovl_package=$(bk_lookup_declared_estimation_package --side "$_bk_decl_side" overlap "$_bk_decl_ovl_members") || return 1
 
   bk_emit_overlap "$_bk_decl_ovl_members" "$_bk_decl_ovl_time" "$_bk_decl_ovl_package" "$_bk_decl_ovl_artifact"
 }
 
 bk_list_declared_estimation_packages() {
-  if [ -z "$BK_ESTIMATION_DECLARATIONS" ]; then
+  _bk_list_side="${1:-future}"
+  case "$_bk_list_side" in
+    current)
+      _bk_list_declarations="${BK_ESTIMATION_DECLARATIONS_CURRENT:-}"
+      ;;
+    future)
+      _bk_list_declarations="${BK_ESTIMATION_DECLARATIONS_FUTURE:-${BK_ESTIMATION_DECLARATIONS:-}}"
+      ;;
+    *)
+      echo "bk_list_declared_estimation_packages: side must be current or future" >&2
+      return 1
+      ;;
+  esac
+
+  if [ -z "$_bk_list_declarations" ]; then
     return 0
   fi
 
-  printf '%s\n' "$BK_ESTIMATION_DECLARATIONS" | awk -F'|' '!seen[$3]++ { print $3 }'
+  printf '%s\n' "$_bk_list_declarations" | awk -F'|' '!seen[$3]++ { print $3 }'
 }
 
 bk_load_estimation_section_package_impls() {
