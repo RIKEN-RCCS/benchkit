@@ -3,13 +3,13 @@
 
 qws_declare_estimation_layout() {
   bk_clear_estimation_declarations
-  bk_declare_section prepare_rhs identity
-  bk_declare_section compute_hopping counter_papi_detailed
-  bk_declare_section compute_solver counter_papi_detailed
-  bk_declare_section halo_exchange trace_mpi_basic
+  bk_declare_section prepare_rhs half
+  bk_declare_section compute_hopping quarter
+  bk_declare_section compute_solver half
+  bk_declare_section halo_exchange quarter
   bk_declare_section allreduce logp
-  bk_declare_section write_result identity
-  bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
+  bk_declare_section write_result half
+  bk_declare_overlap compute_hopping,halo_exchange half
 }
 
 qws_create_dummy_estimation_artifact() {
@@ -58,7 +58,9 @@ qws_emit_estimation_data_from_fom() {
 source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 
-BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-instrumented_app_sections_dummy}"
+BK_ESTIMATION_CURRENT_PACKAGE="${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
+BK_ESTIMATION_FUTURE_PACKAGE="${BK_ESTIMATION_FUTURE_PACKAGE:-instrumented_app_sections_dummy}"
+BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-$BK_ESTIMATION_FUTURE_PACKAGE}"
 BK_ESTIMATION_BASELINE_SYSTEM="Fugaku"
 BK_ESTIMATION_BASELINE_EXP="CASE0"
 BK_ESTIMATION_FUTURE_SYSTEM="FugakuNEXT"
@@ -95,14 +97,63 @@ load_estimation_package() {
   esac
 }
 
-load_estimation_package "$BK_ESTIMATION_PACKAGE"
+qws_run_current_estimation() {
+  local current_package="${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
+  local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
+  local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
+  local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-CASE0}"
+  local current_package_version
+  local baseline_breakdown
+
+  source "scripts/estimation/packages/${current_package}.sh"
+  current_package_version=$(bk_estimation_package_metadata | jq -r '.version // empty')
+
+  fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
+  baseline_breakdown="$est_current_fom_breakdown"
+  if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
+    baseline_breakdown="$est_input_fom_breakdown"
+  fi
+
+  est_current_system="$baseline_system"
+  est_current_target_nodes="$current_target_nodes"
+  est_current_scaling_method="$current_package"
+  est_current_fom_breakdown=$(_bk_weakscaling_transform_breakdown \
+    "$baseline_breakdown" \
+    "$current_target_nodes" \
+    "${est_current_bench_nodes:-1}")
+  est_current_fom=$(_bk_weakscaling_breakdown_total_time "$est_current_fom_breakdown")
+  est_current_model_json=$(jq -cn \
+    --arg type "intra_system_scaling_model" \
+    --arg name "qws-current-weakscaling" \
+    --arg version "${current_package_version:-0.1}" \
+    --arg source_system "$baseline_system" \
+    --arg target_system "$baseline_system" \
+    '{
+      type: $type,
+      name: $name,
+      version: $version,
+      source_system: $source_system,
+      target_system: $target_system,
+      system_compatibility_rule: "same_system_line"
+    }')
+
+  bk_estimation_set_current_package_metadata \
+    "$current_package" \
+    "${current_package_version:-0.1}" \
+    "$current_package" \
+    "${current_package_version:-0.1}"
+}
+
+load_estimation_package "$BK_ESTIMATION_FUTURE_PACKAGE"
 
 read_values "$BK_ESTIMATION_INPUT_JSON"
 
+BK_ESTIMATION_PACKAGE="$BK_ESTIMATION_FUTURE_PACKAGE"
 if ! bk_estimation_execute_with_fallback load_estimation_package; then
-  echo "ERROR: estimation package ${BK_ESTIMATION_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
+  echo "ERROR: estimation package ${BK_ESTIMATION_FUTURE_PACKAGE} is not applicable for input ${BK_ESTIMATION_INPUT_JSON}" >&2
   exit 1
 fi
+qws_run_current_estimation
 
 mkdir -p results
 output_file="results/estimate_${est_code}_0.json"

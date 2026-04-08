@@ -24,11 +24,15 @@ bk_estimation_package_metadata() {
   ],
   "supported_section_packages": [
     "identity",
+    "half",
+    "quarter",
     "counter_papi_detailed",
     "trace_mpi_basic",
     "logp"
   ],
   "supported_overlap_packages": [
+    "half",
+    "quarter",
     "overlap_max_basic"
   ],
   "output_fields": [
@@ -677,7 +681,6 @@ bk_estimation_package_run() {
     --arg baseline_system "$baseline_system" \
     --arg current_target_nodes "$current_target_nodes" \
     --arg future_target_nodes "$future_target_nodes" \
-    --arg default_section_factor "$default_section_factor" \
     --arg logp_section_name "$logp_section_name" \
     --arg logp_package_name "$logp_package_name" \
     '{
@@ -686,10 +689,10 @@ bk_estimation_package_run() {
       baseline_system: $baseline_system,
       current_target_nodes: $current_target_nodes,
       future_target_nodes: $future_target_nodes,
-      default_section_rule: ("sections except package " + $logp_package_name + " are scaled by " + $default_section_factor),
+      default_section_rule: "sections and overlaps are scaled according to their bound section package",
       logp_section_rule: ("sections bound to package " + $logp_package_name + " are scaled with logP"),
       logp_reference_section: $logp_section_name,
-      overlap_rule: "overlap timings are scaled by the default section factor"
+      overlap_rule: "overlap timings are scaled according to their bound overlap package"
     }')
 
   est_model_json=$(jq -cn \
@@ -746,6 +749,16 @@ bk_estimation_package_apply_metadata() {
     "0.1" \
     "detailed" \
     "intermediate"
+  bk_estimation_set_current_package_metadata \
+    "instrumented_app_sections_dummy" \
+    "0.1" \
+    "${est_requested_estimation_package:-instrumented_app_sections_dummy}" \
+    "${est_requested_estimation_package_version:-0.1}"
+  bk_estimation_set_future_package_metadata \
+    "instrumented_app_sections_dummy" \
+    "0.1" \
+    "${est_requested_estimation_package:-instrumented_app_sections_dummy}" \
+    "${est_requested_estimation_package_version:-0.1}"
 
   est_estimation_id="estimate-${est_code}-${est_uuid:-unknown}"
   est_estimation_timestamp=$(date '+%Y-%m-%d %H:%M:%S')

@@ -212,6 +212,8 @@ Estimate JSON may include the following extension fields:
 - `estimation_package_version`
 - `requested_estimation_package`
 - `requested_estimation_package_version`
+- `current_package`
+- `future_package`
 
 例:
 
@@ -228,7 +230,19 @@ Estimate JSON may include the following extension fields:
     "estimation_package": "weakscaling",
     "estimation_package_version": "0.1",
     "requested_estimation_package": "instrumented_app_sections_dummy",
-    "requested_estimation_package_version": "0.1"
+    "requested_estimation_package_version": "0.1",
+    "current_package": {
+      "estimation_package": "weakscaling",
+      "estimation_package_version": "0.1",
+      "requested_estimation_package": "weakscaling",
+      "requested_estimation_package_version": "0.1"
+    },
+    "future_package": {
+      "estimation_package": "instrumented_app_sections_dummy",
+      "estimation_package_version": "0.1",
+      "requested_estimation_package": "instrumented_app_sections_dummy",
+      "requested_estimation_package_version": "0.1"
+    }
   }
 }
 ```
@@ -242,8 +256,11 @@ This field stores identifiers for the estimation process itself.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 `estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。
 `requested_estimation_package` と `requested_estimation_package_version` は、フォールバック前に最初に要求された推定パッケージを表す。
+`current_package` と `future_package` は、それぞれ `current_system` 側と `future_system` 側で使われた推定パッケージ情報を保持してよい。
+両側で同じパッケージを使う場合は同じ値になってよく、両側で別のパッケージを使う場合はここで区別する。
 `estimation_package` and `estimation_package_version` identify the package that was actually applied.
 `requested_estimation_package` and `requested_estimation_package_version` identify the package initially requested before any fallback.
+`current_package` and `future_package` may retain side-specific package identities for the `current_system` and `future_system` sides.
 
 ### 6.2 measurement
 

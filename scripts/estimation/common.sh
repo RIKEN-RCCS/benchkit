@@ -71,6 +71,14 @@ est_estimation_package=""
 est_estimation_package_version=""
 est_requested_estimation_package=""
 est_requested_estimation_package_version=""
+est_current_estimation_package=""
+est_current_estimation_package_version=""
+est_requested_current_estimation_package=""
+est_requested_current_estimation_package_version=""
+est_future_estimation_package=""
+est_future_estimation_package_version=""
+est_requested_future_estimation_package=""
+est_requested_future_estimation_package_version=""
 est_measurement_json=""
 est_assumptions_json=""
 est_input_artifacts_json=""
@@ -224,6 +232,48 @@ bk_estimation_set_package_metadata() {
   est_detail_level="${4:-}"
 }
 
+bk_estimation_set_current_package_metadata() {
+  est_current_estimation_package="${1:-}"
+  est_current_estimation_package_version="${2:-}"
+  est_requested_current_estimation_package="${3:-${1:-}}"
+  est_requested_current_estimation_package_version="${4:-${2:-}}"
+}
+
+bk_estimation_set_future_package_metadata() {
+  est_future_estimation_package="${1:-}"
+  est_future_estimation_package_version="${2:-}"
+  est_requested_future_estimation_package="${3:-${1:-}}"
+  est_requested_future_estimation_package_version="${4:-${2:-}}"
+}
+
+bk_estimation_finalize_side_package_metadata() {
+  if [[ -z "$est_current_estimation_package" ]]; then
+    est_current_estimation_package="$est_estimation_package"
+  fi
+  if [[ -z "$est_current_estimation_package_version" ]]; then
+    est_current_estimation_package_version="$est_estimation_package_version"
+  fi
+  if [[ -z "$est_requested_current_estimation_package" ]]; then
+    est_requested_current_estimation_package="$est_requested_estimation_package"
+  fi
+  if [[ -z "$est_requested_current_estimation_package_version" ]]; then
+    est_requested_current_estimation_package_version="$est_requested_estimation_package_version"
+  fi
+
+  if [[ -z "$est_future_estimation_package" ]]; then
+    est_future_estimation_package="$est_estimation_package"
+  fi
+  if [[ -z "$est_future_estimation_package_version" ]]; then
+    est_future_estimation_package_version="$est_estimation_package_version"
+  fi
+  if [[ -z "$est_requested_future_estimation_package" ]]; then
+    est_requested_future_estimation_package="$est_requested_estimation_package"
+  fi
+  if [[ -z "$est_requested_future_estimation_package_version" ]]; then
+    est_requested_future_estimation_package_version="$est_requested_estimation_package_version"
+  fi
+}
+
 bk_estimation_reset_output_state() {
   est_current_system=""
   est_current_fom=""
@@ -237,6 +287,14 @@ bk_estimation_reset_output_state() {
   est_future_model_json=""
   est_current_fom_breakdown=""
   est_future_fom_breakdown=""
+  est_current_estimation_package=""
+  est_current_estimation_package_version=""
+  est_requested_current_estimation_package=""
+  est_requested_current_estimation_package_version=""
+  est_future_estimation_package=""
+  est_future_estimation_package_version=""
+  est_requested_future_estimation_package=""
+  est_requested_future_estimation_package_version=""
   est_measurement_json=""
   est_assumptions_json=""
   est_input_artifacts_json=""
@@ -423,6 +481,7 @@ fetch_current_fom() {
 # with result_server's load_estimated_results_table / ESTIMATED_FIELD_MAP.
 # ---------------------------------------------------------------------------
 print_json() {
+  bk_estimation_finalize_side_package_metadata
   local ratio
   ratio=$(performance_ratio)
   local current_fom_value="${est_current_fom:-null}"
@@ -451,7 +510,7 @@ print_json() {
   fi
 
   local estimate_metadata_block=""
-  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" || -n "$est_requested_estimation_package" || -n "$est_requested_estimation_package_version" ]]; then
+  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" || -n "$est_requested_estimation_package" || -n "$est_requested_estimation_package_version" || -n "$est_current_estimation_package" || -n "$est_requested_current_estimation_package" || -n "$est_future_estimation_package" || -n "$est_requested_future_estimation_package" ]]; then
     local estimate_metadata_json=""
     estimate_metadata_json=$(jq -cn \
       --arg estimation_id "$est_estimation_id" \
@@ -463,6 +522,14 @@ print_json() {
       --arg estimation_package_version "$est_estimation_package_version" \
       --arg requested_estimation_package "$est_requested_estimation_package" \
       --arg requested_estimation_package_version "$est_requested_estimation_package_version" \
+      --arg current_estimation_package "$est_current_estimation_package" \
+      --arg current_estimation_package_version "$est_current_estimation_package_version" \
+      --arg requested_current_estimation_package "$est_requested_current_estimation_package" \
+      --arg requested_current_estimation_package_version "$est_requested_current_estimation_package_version" \
+      --arg future_estimation_package "$est_future_estimation_package" \
+      --arg future_estimation_package_version "$est_future_estimation_package_version" \
+      --arg requested_future_estimation_package "$est_requested_future_estimation_package" \
+      --arg requested_future_estimation_package_version "$est_requested_future_estimation_package_version" \
       '{} 
       + (if $estimation_id != "" then {estimation_id: $estimation_id} else {} end)
       + (if $timestamp != "" then {timestamp: $timestamp} else {} end)
@@ -472,7 +539,21 @@ print_json() {
       + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
       + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)
       + (if $requested_estimation_package != "" then {requested_estimation_package: $requested_estimation_package} else {} end)
-      + (if $requested_estimation_package_version != "" then {requested_estimation_package_version: $requested_estimation_package_version} else {} end)')
+      + (if $requested_estimation_package_version != "" then {requested_estimation_package_version: $requested_estimation_package_version} else {} end)
+      + (if $current_estimation_package != "" || $requested_current_estimation_package != "" then {
+          current_package:
+            ((if $current_estimation_package != "" then {estimation_package: $current_estimation_package} else {} end)
+            + (if $current_estimation_package_version != "" then {estimation_package_version: $current_estimation_package_version} else {} end)
+            + (if $requested_current_estimation_package != "" then {requested_estimation_package: $requested_current_estimation_package} else {} end)
+            + (if $requested_current_estimation_package_version != "" then {requested_estimation_package_version: $requested_current_estimation_package_version} else {} end))
+        } else {} end)
+      + (if $future_estimation_package != "" || $requested_future_estimation_package != "" then {
+          future_package:
+            ((if $future_estimation_package != "" then {estimation_package: $future_estimation_package} else {} end)
+            + (if $future_estimation_package_version != "" then {estimation_package_version: $future_estimation_package_version} else {} end)
+            + (if $requested_future_estimation_package != "" then {requested_estimation_package: $requested_future_estimation_package} else {} end)
+            + (if $requested_future_estimation_package_version != "" then {requested_estimation_package_version: $requested_future_estimation_package_version} else {} end))
+        } else {} end)')
     estimate_metadata_block=",
   \"estimate_metadata\": $estimate_metadata_json"
   fi

@@ -370,6 +370,8 @@ In that case, BenchKit may still store and present the resulting record as a `no
 
 - 要求された推定パッケージ
 - 実際に適用された推定パッケージ
+- `current_system` 側で使った推定パッケージ
+- `future_system` 側で使った推定パッケージ
 
 また、`applicability` では少なくとも次を記録できることが望ましい。
 
@@ -380,6 +382,8 @@ In particular, it is desirable that `estimate_metadata` can distinguish:
 
 - the requested estimation package
 - the actually applied estimation package
+- the estimation package used on the `current_system` side
+- the estimation package used on the `future_system` side
 
 And that `applicability` can record at least:
 
