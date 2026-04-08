@@ -1,51 +1,19 @@
 #!/bin/bash
 
+source "$(dirname "${BASH_SOURCE[0]}")/fixed_factor_common.sh"
+
 bk_section_package_metadata_logp() {
-  cat <<'EOF'
-{
-  "name": "logp",
-  "fallback_target": "identity",
-  "source_system_scope": {
-    "kind": "benchmark_system",
-    "accepted_values": ["any"]
-  },
-  "target_system_scope": {
-    "accepted_values": ["any"]
-  },
-  "item_kind_scope": ["section"],
-  "required_result_fields": ["time or bench_time"],
-  "required_artifact_kinds": [],
-  "acquisition_mode": "standard",
-  "output_fields": ["time", "bench_time", "scaling_method"],
-  "not_applicable_when": [
-    "item kind is not section",
-    "both time and bench_time are missing"
-  ]
-}
-EOF
+  bk_fixed_factor_section_package_metadata \
+    "logp" \
+    "identity" \
+    '["section"]' \
+    '["item kind is not section", "both time and bench_time are missing"]'
 }
 
 bk_section_package_check_applicability_logp() {
   local item_json="$1"
   local item_kind="$2"
-
-  if [[ "$item_kind" != "section" ]]; then
-    cat <<'EOF'
-{"status":"not_applicable","missing_inputs":["item_kind:section_required"]}
-EOF
-    return 1
-  fi
-
-  if ! echo "$item_json" | jq -e '(.time != null) or (.bench_time != null)' >/dev/null 2>&1; then
-    cat <<'EOF'
-{"status":"not_applicable","missing_inputs":["item_time"]}
-EOF
-    return 1
-  fi
-
-  cat <<'EOF'
-{"status":"applicable","missing_inputs":[]}
-EOF
+  bk_fixed_factor_section_package_check_applicability "$item_json" "section" "$item_kind"
 }
 
 bk_section_package_transform_logp() {
