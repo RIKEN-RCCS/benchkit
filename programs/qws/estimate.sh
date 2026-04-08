@@ -83,7 +83,6 @@ bk_estimation_run_recorded_current_with_weakscaling \
   "${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}" \
   "${BK_ESTIMATION_BASELINE_EXP:-CASE0}" \
   "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1024}" \
-  "${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}" \
-  "qws-current-weakscaling"
+  "${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
 
 bk_estimation_write_output "results/estimate_${est_code}_0.json"

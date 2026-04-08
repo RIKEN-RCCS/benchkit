@@ -237,6 +237,26 @@ bk_estimation_package_run() {
     '{summary: $note}')
 }
 
+bk_estimation_package_build_recorded_current_model_json() {
+  local baseline_system="$1"
+  local model_version="$2"
+
+  jq -cn \
+    --arg type "intra_system_scaling_model" \
+    --arg name "weakscaling-current" \
+    --arg version "$model_version" \
+    --arg source_system "$baseline_system" \
+    --arg target_system "$baseline_system" \
+    '{
+      type: $type,
+      name: $name,
+      version: $version,
+      source_system: $source_system,
+      target_system: $target_system,
+      system_compatibility_rule: "same_system_line"
+    }'
+}
+
 bk_estimation_package_apply_metadata() {
   local package_version
   package_version=$(bk_estimation_package_metadata | jq -r '.version // "0.1"')
