@@ -53,6 +53,41 @@ EOF
   "$fn_name" "$item_json" "$item_kind"
 }
 
+bk_top_level_bound_package_is_supported() {
+  local package_name="$1"
+  local item_kind="$2"
+  local metadata_key
+
+  if ! declare -F bk_estimation_package_metadata >/dev/null 2>&1; then
+    return 0
+  fi
+
+  case "$item_kind" in
+    section)
+      metadata_key="supported_section_packages"
+      ;;
+    overlap)
+      metadata_key="supported_overlap_packages"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  bk_estimation_package_metadata | jq -e --arg metadata_key "$metadata_key" --arg package_name "$package_name" '
+    (.[$metadata_key] // []) | index($package_name) != null
+  ' >/dev/null 2>&1
+}
+
+bk_top_level_unsupported_bound_package_result() {
+  local package_name="$1"
+  local item_kind="$2"
+
+  cat <<EOF
+{"status":"not_applicable","missing_inputs":["${item_kind}_package_unsupported:${package_name}"]}
+EOF
+}
+
 bk_top_level_dispatch_bound_item() {
   local item_json="$1"
   local target_nodes="$2"
@@ -81,7 +116,11 @@ bk_top_level_dispatch_bound_item() {
 
   while true; do
     fn_name="bk_section_package_transform_${package_name}"
-    check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
+    if bk_top_level_bound_package_is_supported "$package_name" "$item_kind"; then
+      check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
+    else
+      check_result=$(bk_top_level_unsupported_bound_package_result "$package_name" "$item_kind")
+    fi
     if declare -F "$fn_name" >/dev/null 2>&1 && [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" == "applicable" ]]; then
       "$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"
       return 0
@@ -235,7 +274,7 @@ bk_top_level_list_unsupported_bound_packages() {
 
       fn_name="bk_section_package_transform_${package_name}"
       check_name="bk_section_package_check_applicability_${package_name}"
-      if ! declare -F "$fn_name" >/dev/null 2>&1 || ! declare -F "$check_name" >/dev/null 2>&1; then
+      if ! bk_top_level_bound_package_is_supported "$package_name" "$item_kind" || ! declare -F "$fn_name" >/dev/null 2>&1 || ! declare -F "$check_name" >/dev/null 2>&1; then
         printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
       fi
     done < <(
@@ -265,7 +304,11 @@ bk_top_level_list_unrecoverable_bound_input_problems() {
       [[ -z "$package_name" ]] && continue
 
       fallback_target=$(bk_top_level_section_package_fallback_target "$package_name")
-      check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
+      if bk_top_level_bound_package_is_supported "$package_name" "$item_kind"; then
+        check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
+      else
+        check_result=$(bk_top_level_unsupported_bound_package_result "$package_name" "$item_kind")
+      fi
       if [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" != "applicable" && -z "$fallback_target" ]]; then
         while IFS= read -r missing_input; do
           [[ -z "$missing_input" ]] && continue
