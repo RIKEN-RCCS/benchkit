@@ -142,15 +142,6 @@ _bk_unrecoverable_bound_input_problems() {
   done
 }
 
-_bk_has_section_named() {
-  local breakdown_json="$1"
-  local section_name="$2"
-
-  echo "$breakdown_json" | jq -e --arg section_name "$section_name" '
-    (.sections // []) | any(.name == $section_name)
-  ' >/dev/null 2>&1
-}
-
 _bk_missing_section_packages() {
   local breakdown_json="$1"
 
@@ -220,15 +211,6 @@ bk_estimation_package_check_applicability() {
   local incompatibilities=()
   local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
-  local required_sections=(
-    "prepare_rhs"
-    "compute_hopping"
-    "compute_solver"
-    "halo_exchange"
-    "allreduce"
-    "write_result"
-  )
-  local section_name
   local missing_metadata
 
   if [[ -z "${est_fom:-}" ]]; then
@@ -239,12 +221,6 @@ bk_estimation_package_check_applicability() {
   fi
 
   if [[ -n "${est_input_fom_breakdown:-}" && "${est_input_fom_breakdown:-}" != "null" ]]; then
-    for section_name in "${required_sections[@]}"; do
-      if ! _bk_has_section_named "$est_input_fom_breakdown" "$section_name"; then
-        missing_inputs+=("\"section:${section_name}\"")
-      fi
-    done
-
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
