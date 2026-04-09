@@ -217,6 +217,40 @@ bk_estimation_apply_package_output_defaults_from_metadata() {
   fi
 }
 
+bk_estimation_build_assumptions_json_from_metadata() {
+  local baseline_system="$1"
+  local future_system="$2"
+  local current_target_nodes="$3"
+  local future_target_nodes="$4"
+  local logp_package_name="${5:-logp}"
+  local logp_section_name="${6:-}"
+  local package_metadata
+  local assumption_defaults
+
+  package_metadata=$(bk_estimation_package_metadata)
+  assumption_defaults=$(echo "$package_metadata" | jq -c '.defaults.assumptions // {}')
+
+  jq -cn \
+    --arg baseline_system "$baseline_system" \
+    --arg future_system "$future_system" \
+    --arg current_target_nodes "$current_target_nodes" \
+    --arg future_target_nodes "$future_target_nodes" \
+    --arg logp_package_name "$logp_package_name" \
+    --arg logp_section_name "$logp_section_name" \
+    --argjson defaults "$assumption_defaults" '
+    {}
+    + (if ($defaults.scaling_assumption // "") != "" then {scaling_assumption: $defaults.scaling_assumption} else {} end)
+    + (if $baseline_system != "" then {baseline_system: $baseline_system} else {} end)
+    + (if $future_system != "" then {future_system_assumption: $future_system} else {} end)
+    + (if $current_target_nodes != "" then {current_target_nodes: $current_target_nodes} else {} end)
+    + (if $future_target_nodes != "" then {future_target_nodes: $future_target_nodes} else {} end)
+    + (if ($defaults.default_section_rule // "") != "" then {default_section_rule: $defaults.default_section_rule} else {} end)
+    + (if ($defaults.logp_section_rule_template // "") != "" then {logp_section_rule: ($defaults.logp_section_rule_template | gsub("\\{logp_package_name\\}"; $logp_package_name))} else {} end)
+    + (if ($defaults.logp_reference_section // "") != "" or $logp_section_name != "" then {logp_reference_section: (if $logp_section_name != "" then $logp_section_name else $defaults.logp_reference_section end)} else {} end)
+    + (if ($defaults.overlap_rule // "") != "" then {overlap_rule: $defaults.overlap_rule} else {} end)
+  '
+}
+
 bk_estimation_run_recorded_current_with_weakscaling() {
   local baseline_system="${1:-${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}}"
   local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-CASE0}}"

@@ -82,6 +82,11 @@ bk_estimation_package_metadata() {
     },
     "notes": {
       "summary": "Reference implementation for section-wise weak-scaling estimation in BenchKit."
+    },
+    "assumptions": {
+      "scaling_assumption": "weak-scaling",
+      "default_section_rule": "sections and overlaps are kept identical unless a bound package applies an explicit correction",
+      "logp_section_rule_template": "sections bound to package {logp_package_name} are scaled with logP"
     }
   }
 }
@@ -208,20 +213,12 @@ bk_estimation_package_run() {
 
   bk_estimation_apply_package_output_defaults_from_metadata
 
-  est_assumptions_json=$(jq -cn \
-    --arg future_system "$future_system" \
-    --arg current_system "$current_system" \
-    --arg current_target_nodes "$current_target_nodes" \
-    --arg future_target_nodes "$future_target_nodes" \
-    '{
-      scaling_assumption: "weak-scaling",
-      baseline_system: $current_system,
-      future_system_assumption: $future_system,
-      current_target_nodes: $current_target_nodes,
-      future_target_nodes: $future_target_nodes,
-      default_section_rule: "sections and overlaps are kept identical unless a bound package applies an explicit correction",
-      logp_section_rule: "sections bound to package logp are scaled with logP"
-    }')
+  est_assumptions_json=$(bk_estimation_build_assumptions_json_from_metadata \
+    "$current_system" \
+    "$future_system" \
+    "$current_target_nodes" \
+    "$future_target_nodes" \
+    "logp")
 
   est_model_json=$(bk_estimation_build_model_json_from_metadata \
     "top_level" \

@@ -86,6 +86,12 @@ bk_estimation_package_metadata() {
     },
     "notes": {
       "summary": "Reference implementation for application-defined section timing based estimation in BenchKit."
+    },
+    "assumptions": {
+      "scaling_assumption": "weak-scaling",
+      "default_section_rule": "sections and overlaps are scaled according to their bound section package",
+      "logp_section_rule_template": "sections bound to package {logp_package_name} are scaled with logP",
+      "overlap_rule": "overlap timings are scaled according to their bound overlap package"
     }
   }
 }
@@ -505,24 +511,13 @@ bk_estimation_package_run() {
 
   bk_estimation_apply_package_output_defaults_from_metadata
 
-  est_assumptions_json=$(jq -cn \
-    --arg future_system "$future_system" \
-    --arg baseline_system "$baseline_system" \
-    --arg current_target_nodes "$current_target_nodes" \
-    --arg future_target_nodes "$future_target_nodes" \
-    --arg logp_section_name "$logp_section_name" \
-    --arg logp_package_name "$logp_package_name" \
-    '{
-      scaling_assumption: "weak-scaling",
-      future_system_assumption: $future_system,
-      baseline_system: $baseline_system,
-      current_target_nodes: $current_target_nodes,
-      future_target_nodes: $future_target_nodes,
-      default_section_rule: "sections and overlaps are scaled according to their bound section package",
-      logp_section_rule: ("sections bound to package " + $logp_package_name + " are scaled with logP"),
-      logp_reference_section: $logp_section_name,
-      overlap_rule: "overlap timings are scaled according to their bound overlap package"
-    }')
+  est_assumptions_json=$(bk_estimation_build_assumptions_json_from_metadata \
+    "$baseline_system" \
+    "$future_system" \
+    "$current_target_nodes" \
+    "$future_target_nodes" \
+    "$logp_package_name" \
+    "$logp_section_name")
 
   est_model_json=$(bk_estimation_build_model_json_from_metadata \
     "top_level" \
