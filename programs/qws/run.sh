@@ -86,12 +86,12 @@ case "$system" in
         ;;
     RC_DGXSP)
         source /etc/profile.d/modules.sh
-        module system/ng-dgx nvhpc-hpcx/26.3
+        module load system/ng-dgx nvhpc-hpcx/26.3
         mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=20 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_FX700)
-        module system/fx700 FJSVstclanga
+        module load system/fx700 FJSVstclanga
         mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=12 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;

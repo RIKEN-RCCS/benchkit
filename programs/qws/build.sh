@@ -45,11 +45,11 @@ case "$system" in
     ;;
 	RC_DGXSP)
 	source /etc/profile.d/modules.sh
-	module system/ng-dgx nvhpc-hpcx/26.3
+	module load system/ng-dgx nvhpc-hpcx/26.3
 	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
 	;;
 	RC_FX700)
-	module system/fx700 FJSVstclanga
+	module load system/fx700 FJSVstclanga
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi=
 	;;
     MiyabiG)
