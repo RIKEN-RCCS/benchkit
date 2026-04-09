@@ -98,114 +98,6 @@ bk_estimation_package_metadata() {
 EOF
 }
 
-_bk_unrecoverable_bound_input_problems() {
-  local breakdown_json="$1"
-  local item_json
-  local item_kind
-  local item_name
-  local package_name
-  local fallback_target
-  local check_result
-  local fallback_target
-
-  bk_top_level_load_section_package_impls
-
-  for item_kind in section overlap; do
-    while IFS= read -r item_json; do
-      [[ -z "$item_json" ]] && continue
-      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
-      [[ -z "$package_name" ]] && continue
-
-      if [[ "$item_kind" == "section" ]]; then
-        item_name=$(echo "$item_json" | jq -r '.name')
-      else
-        item_name=$(echo "$item_json" | jq -r '.sections | join(",")')
-      fi
-
-      fallback_target=$(bk_top_level_section_package_fallback_target "$package_name")
-      check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
-      if [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" != "applicable" ]]; then
-        if [[ -z "$fallback_target" ]]; then
-          while IFS= read -r missing_input; do
-            [[ -z "$missing_input" ]] && continue
-            printf '%s\n' "$missing_input"
-          done < <(echo "$check_result" | jq -r '.missing_inputs // [] | .[]')
-        fi
-      fi
-    done < <(
-      if [[ "$item_kind" == "section" ]]; then
-        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
-      else
-        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
-      fi
-    )
-  done
-}
-
-_bk_missing_section_packages() {
-  local breakdown_json="$1"
-
-  echo "$breakdown_json" | jq -r '
-    [
-      ((.sections // [])
-      | map(select((.estimation_package // "") == "") | "section_package:" + .name)),
-      ((.overlaps // [])
-      | map(select((.estimation_package // "") == "") | "overlap_package:" + (.sections | join(","))))
-    ] | add | .[]
-  '
-}
-
-_bk_missing_section_artifacts() {
-  local breakdown_json="$1"
-
-  echo "$breakdown_json" | jq -r '
-    [
-      ((.sections // [])
-      | map(select(((.artifacts // []) | length) == 0) | "section_artifact:" + .name)),
-      ((.overlaps // [])
-      | map(select(((.artifacts // []) | length) == 0) | "overlap_artifact:" + (.sections | join(","))))
-    ] | add | .[]
-  '
-}
-
-_bk_unsupported_bound_packages() {
-  local breakdown_json="$1"
-  local item_json
-  local item_kind
-  local item_name
-  local package_name
-  local fn_name
-  local check_name
-
-  bk_top_level_load_section_package_impls
-
-  for item_kind in section overlap; do
-    while IFS= read -r item_json; do
-      [[ -z "$item_json" ]] && continue
-      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
-      [[ -z "$package_name" ]] && continue
-
-      if [[ "$item_kind" == "section" ]]; then
-        item_name=$(echo "$item_json" | jq -r '.name')
-      else
-        item_name=$(echo "$item_json" | jq -r '.sections | join(",")')
-      fi
-
-      fn_name="bk_section_package_transform_${package_name}"
-      check_name="bk_section_package_check_applicability_${package_name}"
-      if ! declare -F "$fn_name" >/dev/null 2>&1 || ! declare -F "$check_name" >/dev/null 2>&1; then
-        printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
-      fi
-    done < <(
-      if [[ "$item_kind" == "section" ]]; then
-        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
-      else
-        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
-      fi
-    )
-  done
-}
-
 bk_estimation_package_check_applicability() {
   local missing_inputs=()
   local incompatibilities=()
@@ -224,17 +116,17 @@ bk_estimation_package_check_applicability() {
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
-    done < <(_bk_missing_section_packages "$est_input_fom_breakdown")
+    done < <(bk_top_level_list_missing_bound_packages "$est_input_fom_breakdown")
 
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
-    done < <(_bk_unsupported_bound_packages "$est_input_fom_breakdown")
+    done < <(bk_top_level_list_unsupported_bound_packages "$est_input_fom_breakdown")
 
     while IFS= read -r missing_metadata; do
       [[ -z "$missing_metadata" ]] && continue
       missing_inputs+=("\"${missing_metadata}\"")
-    done < <(_bk_unrecoverable_bound_input_problems "$est_input_fom_breakdown")
+    done < <(bk_top_level_list_unrecoverable_bound_input_problems "$est_input_fom_breakdown")
   fi
 
   if ! bk_estimation_validate_system_relation \
@@ -290,109 +182,6 @@ bk_estimation_package_check_applicability() {
 
   bk_estimation_set_applicability "applicable"
   return 0
-}
-
-_bk_breakdown_total_time() {
-  local breakdown_json="$1"
-
-  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
-    echo ""
-    return 0
-  fi
-
-  if echo "$breakdown_json" | jq -e '
-    ((.sections // []) | any((.time // null) == null))
-    or
-    ((.overlaps // []) | any((.time // null) == null))
-  ' >/dev/null 2>&1; then
-    echo "null"
-    return 0
-  fi
-
-  echo "$breakdown_json" | jq -r '
-    (
-      (.sections // [])
-      | map(.time // .bench_time // 0)
-      | add // 0
-    ) - (
-      (.overlaps // [])
-      | map(.time // .bench_time // 0)
-      | add // 0
-    )
-  '
-}
-
-_bk_scale_breakdown_to_total() {
-  local breakdown_json="$1"
-  local target_total="$2"
-
-  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
-    echo ""
-    return 0
-  fi
-
-  local source_total
-  source_total=$(_bk_breakdown_total_time "$breakdown_json")
-  if [[ -z "$source_total" || "$source_total" == "0" || "$source_total" == "null" ]]; then
-    echo "$breakdown_json"
-    return 0
-  fi
-
-  local factor
-  factor=$(awk -v target="$target_total" -v source="$source_total" 'BEGIN {printf "%.12f", target / source}')
-  _bk_scale_breakdown_times "$breakdown_json" "$factor"
-}
-
-_bk_attach_section_package_name() {
-  local breakdown_json="$1"
-  local package_name="$2"
-
-  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
-    echo ""
-    return 0
-  fi
-
-  echo "$breakdown_json" | jq -c --arg package_name "$package_name" '
-    .sections |= map(
-      if (.estimation_package // "") != "" then
-        .
-      else
-        . + {estimation_package: $package_name}
-      end
-    )
-    | .overlaps |= map(
-      if (.estimation_package // "") != "" then
-        .
-      else
-        . + {estimation_package: $package_name}
-      end
-    )
-  '
-}
-
-_bk_scale_breakdown_times() {
-  local breakdown_json="$1"
-  local factor="$2"
-
-  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
-    echo ""
-    return 0
-  fi
-
-  echo "$breakdown_json" | jq -c --argjson factor "$factor" '
-    .sections |= map(
-      .
-      + {time: ((.time // .bench_time // 0) * $factor)}
-      + {bench_time: ((.bench_time // .time // 0) * $factor)}
-      + {scaling_method: "instrumented-app-sections-dummy"}
-    )
-    | .overlaps |= map(
-      .
-      + {time: ((.time // .bench_time // 0) * $factor)}
-      + {bench_time: ((.bench_time // .time // 0) * $factor)}
-      + {scaling_method: "instrumented-app-sections-dummy"}
-    )
-  '
 }
 
 _bk_logp_factor() {
@@ -456,14 +245,14 @@ bk_estimation_package_run() {
   fi
 
   if [[ -n "$baseline_breakdown" && "$baseline_breakdown" != "null" ]]; then
-    breakdown_template=$(_bk_scale_breakdown_to_total "$baseline_breakdown" "$est_current_fom")
+    breakdown_template=$(bk_top_level_scale_breakdown_to_total "$baseline_breakdown" "$est_current_fom" "instrumented-app-sections-dummy")
     est_current_fom_breakdown=$(_bk_transform_bound_breakdown \
       "$breakdown_template" \
       "$current_target_nodes" \
       "${est_current_bench_nodes:-1}" \
       "$default_section_factor")
-    est_current_fom_breakdown=$(_bk_attach_section_package_name "$est_current_fom_breakdown" "instrumented_app_sections_dummy")
-    est_current_fom=$(_bk_breakdown_total_time "$est_current_fom_breakdown")
+    est_current_fom_breakdown=$(bk_top_level_attach_default_package_name "$est_current_fom_breakdown" "instrumented_app_sections_dummy")
+    est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
   fi
   est_current_target_nodes="$current_target_nodes"
   est_current_scaling_method="$model_name"
@@ -474,8 +263,8 @@ bk_estimation_package_run() {
     "$future_target_nodes" \
     "$est_node_count" \
     "$default_section_factor")
-  est_future_fom_breakdown=$(_bk_attach_section_package_name "$est_future_fom_breakdown" "instrumented_app_sections_dummy")
-  est_future_fom=$(_bk_breakdown_total_time "$est_future_fom_breakdown")
+  est_future_fom_breakdown=$(bk_top_level_attach_default_package_name "$est_future_fom_breakdown" "instrumented_app_sections_dummy")
+  est_future_fom=$(bk_top_level_breakdown_total_time "$est_future_fom_breakdown")
   est_future_target_nodes="$future_target_nodes"
   est_future_scaling_method="$model_name"
 

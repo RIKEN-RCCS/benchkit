@@ -184,6 +184,209 @@ bk_top_level_collect_breakdown_package_issues() {
   '
 }
 
+bk_top_level_list_missing_bound_packages() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -r '
+    [
+      ((.sections // [])
+      | map(select((.estimation_package // "") == "") | "section_package:" + .name)),
+      ((.overlaps // [])
+      | map(select((.estimation_package // "") == "") | "overlap_package:" + (.sections | join(","))))
+    ] | add | .[]
+  '
+}
+
+bk_top_level_list_missing_bound_artifacts() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -r '
+    [
+      ((.sections // [])
+      | map(select(((.artifacts // []) | length) == 0) | "section_artifact:" + .name)),
+      ((.overlaps // [])
+      | map(select(((.artifacts // []) | length) == 0) | "overlap_artifact:" + (.sections | join(","))))
+    ] | add | .[]
+  '
+}
+
+bk_top_level_list_unsupported_bound_packages() {
+  local breakdown_json="$1"
+  local item_json
+  local item_kind
+  local item_name
+  local package_name
+  local fn_name
+  local check_name
+
+  bk_top_level_load_section_package_impls
+
+  for item_kind in section overlap; do
+    while IFS= read -r item_json; do
+      [[ -z "$item_json" ]] && continue
+      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
+      [[ -z "$package_name" ]] && continue
+
+      if [[ "$item_kind" == "section" ]]; then
+        item_name=$(echo "$item_json" | jq -r '.name')
+      else
+        item_name=$(echo "$item_json" | jq -r '.sections | join(",")')
+      fi
+
+      fn_name="bk_section_package_transform_${package_name}"
+      check_name="bk_section_package_check_applicability_${package_name}"
+      if ! declare -F "$fn_name" >/dev/null 2>&1 || ! declare -F "$check_name" >/dev/null 2>&1; then
+        printf '%s\n' "${item_kind}_package_unsupported:${item_name}:${package_name}"
+      fi
+    done < <(
+      if [[ "$item_kind" == "section" ]]; then
+        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
+      else
+        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
+      fi
+    )
+  done
+}
+
+bk_top_level_list_unrecoverable_bound_input_problems() {
+  local breakdown_json="$1"
+  local item_json
+  local item_kind
+  local package_name
+  local fallback_target
+  local check_result
+
+  bk_top_level_load_section_package_impls
+
+  for item_kind in section overlap; do
+    while IFS= read -r item_json; do
+      [[ -z "$item_json" ]] && continue
+      package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
+      [[ -z "$package_name" ]] && continue
+
+      fallback_target=$(bk_top_level_section_package_fallback_target "$package_name")
+      check_result=$(bk_top_level_section_package_check_result "$package_name" "$item_json" "$item_kind")
+      if [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" != "applicable" && -z "$fallback_target" ]]; then
+        while IFS= read -r missing_input; do
+          [[ -z "$missing_input" ]] && continue
+          printf '%s\n' "$missing_input"
+        done < <(echo "$check_result" | jq -r '.missing_inputs // [] | .[]')
+      fi
+    done < <(
+      if [[ "$item_kind" == "section" ]]; then
+        echo "$breakdown_json" | jq -c '.sections // [] | .[]'
+      else
+        echo "$breakdown_json" | jq -c '.overlaps // [] | .[]'
+      fi
+    )
+  done
+}
+
+bk_top_level_breakdown_total_time() {
+  local breakdown_json="$1"
+
+  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
+    echo ""
+    return 0
+  fi
+
+  if echo "$breakdown_json" | jq -e '
+    ((.sections // []) | any((.time // null) == null))
+    or
+    ((.overlaps // []) | any((.time // null) == null))
+  ' >/dev/null 2>&1; then
+    echo "null"
+    return 0
+  fi
+
+  echo "$breakdown_json" | jq -r '
+    (
+      (.sections // [])
+      | map(.time // .bench_time // 0)
+      | add // 0
+    ) - (
+      (.overlaps // [])
+      | map(.time // .bench_time // 0)
+      | add // 0
+    )
+  '
+}
+
+bk_top_level_scale_breakdown_times() {
+  local breakdown_json="$1"
+  local factor="$2"
+  local scaling_method="$3"
+
+  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
+    echo ""
+    return 0
+  fi
+
+  echo "$breakdown_json" | jq -c --argjson factor "$factor" --arg scaling_method "$scaling_method" '
+    .sections |= map(
+      .
+      + {time: ((.time // .bench_time // 0) * $factor)}
+      + {bench_time: ((.bench_time // .time // 0) * $factor)}
+      + {scaling_method: $scaling_method}
+    )
+    | .overlaps |= map(
+      .
+      + {time: ((.time // .bench_time // 0) * $factor)}
+      + {bench_time: ((.bench_time // .time // 0) * $factor)}
+      + {scaling_method: $scaling_method}
+    )
+  '
+}
+
+bk_top_level_scale_breakdown_to_total() {
+  local breakdown_json="$1"
+  local target_total="$2"
+  local scaling_method="$3"
+  local source_total
+  local factor
+
+  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
+    echo ""
+    return 0
+  fi
+
+  source_total=$(bk_top_level_breakdown_total_time "$breakdown_json")
+  if [[ -z "$source_total" || "$source_total" == "0" || "$source_total" == "null" ]]; then
+    echo "$breakdown_json"
+    return 0
+  fi
+
+  factor=$(awk -v target="$target_total" -v source="$source_total" 'BEGIN {printf "%.12f", target / source}')
+  bk_top_level_scale_breakdown_times "$breakdown_json" "$factor" "$scaling_method"
+}
+
+bk_top_level_attach_default_package_name() {
+  local breakdown_json="$1"
+  local package_name="$2"
+
+  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
+    echo ""
+    return 0
+  fi
+
+  echo "$breakdown_json" | jq -c --arg package_name "$package_name" '
+    .sections |= map(
+      if (.estimation_package // "") != "" then
+        .
+      else
+        . + {estimation_package: $package_name}
+      end
+    )
+    | .overlaps |= map(
+      if (.estimation_package // "") != "" then
+        .
+      else
+        . + {estimation_package: $package_name}
+      end
+    )
+  '
+}
+
 bk_top_level_set_applicability_from_breakdowns() {
   local issues_json="$1"
   local not_applicable_advice_json="$2"
