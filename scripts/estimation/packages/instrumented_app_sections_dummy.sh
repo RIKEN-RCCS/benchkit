@@ -71,6 +71,22 @@ bk_estimation_package_metadata() {
       "name": "instrumented-app-sections-future-projection",
       "system_compatibility_rule": "cross_system_allowed"
     }
+  },
+  "defaults": {
+    "measurement": {
+      "tool": "application-section-timer",
+      "method": "section-timing",
+      "annotation_method": "app-defined-sections",
+      "counter_set": null,
+      "interval_timing_method": "measured"
+    },
+    "confidence": {
+      "level": "experimental",
+      "score": 0.20
+    },
+    "notes": {
+      "summary": "Reference implementation for application-defined section timing based estimation in BenchKit."
+    }
   }
 }
 EOF
@@ -487,14 +503,7 @@ bk_estimation_package_run() {
     '$current + $future')
   _bk_set_top_level_applicability_from_breakdowns "$applicability_issues_json"
 
-  est_measurement_json=$(jq -cn '
-    {
-      tool: "application-section-timer",
-      method: "section-timing",
-      annotation_method: "app-defined-sections",
-      counter_set: null,
-      interval_timing_method: "measured"
-    }')
+  bk_estimation_apply_package_output_defaults_from_metadata
 
   est_assumptions_json=$(jq -cn \
     --arg future_system "$future_system" \
@@ -540,21 +549,13 @@ bk_estimation_package_run() {
     "cross_system_allowed" \
     "$model_version")
 
-  est_confidence_json='{"level":"experimental","score":0.20}'
-  est_notes_json=$(jq -cn \
-    --arg note "Reference implementation for application-defined section timing based estimation in BenchKit." \
-    '{summary: $note}')
 }
 
 bk_estimation_package_apply_metadata() {
   local package_version
   package_version=$(bk_estimation_package_metadata | jq -r '.version // "0.1"')
 
-  bk_estimation_set_package_metadata \
-    "instrumented_app_sections_dummy" \
-    "$package_version" \
-    "detailed" \
-    "intermediate"
+  bk_estimation_apply_package_metadata_from_definition "instrumented_app_sections_dummy"
   bk_estimation_set_current_package_metadata \
     "instrumented_app_sections_dummy" \
     "$package_version" \

@@ -182,6 +182,41 @@ bk_estimation_model_name_from_metadata() {
   bk_estimation_package_metadata | jq -r --arg role "$role" --arg v "$default_name" '.models[$role].name // $v'
 }
 
+bk_estimation_apply_package_metadata_from_definition() {
+  local package_name="$1"
+  local package_metadata
+  local package_version
+  local method_class
+  local detail_level
+
+  package_metadata=$(bk_estimation_package_metadata)
+  package_version=$(echo "$package_metadata" | jq -r '.version // "0.1"')
+  method_class=$(echo "$package_metadata" | jq -r '.method_class // ""')
+  detail_level=$(echo "$package_metadata" | jq -r '.detail_level // ""')
+
+  bk_estimation_set_package_metadata \
+    "$package_name" \
+    "$package_version" \
+    "$method_class" \
+    "$detail_level"
+}
+
+bk_estimation_apply_package_output_defaults_from_metadata() {
+  local package_metadata
+
+  package_metadata=$(bk_estimation_package_metadata)
+
+  if [[ -z "$est_measurement_json" || "$est_measurement_json" == "null" ]]; then
+    est_measurement_json=$(echo "$package_metadata" | jq -c '.defaults.measurement // empty')
+  fi
+  if [[ -z "$est_confidence_json" || "$est_confidence_json" == "null" ]]; then
+    est_confidence_json=$(echo "$package_metadata" | jq -c '.defaults.confidence // empty')
+  fi
+  if [[ -z "$est_notes_json" || "$est_notes_json" == "null" ]]; then
+    est_notes_json=$(echo "$package_metadata" | jq -c '.defaults.notes // empty')
+  fi
+}
+
 bk_estimation_run_recorded_current_with_weakscaling() {
   local baseline_system="${1:-${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}}"
   local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-CASE0}}"
