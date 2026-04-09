@@ -93,50 +93,6 @@ bk_estimation_package_metadata() {
 EOF
 }
 
-_bk_weakscaling_transform_breakdown() {
-  local breakdown_json="$1"
-  local target_nodes="$2"
-  local bench_nodes="$3"
-  bk_top_level_transform_breakdown "$breakdown_json" "$target_nodes" "$bench_nodes" "1" "identity" "identity"
-}
-
-_bk_weakscaling_breakdown_total_time() {
-  local breakdown_json="$1"
-
-  if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
-    echo ""
-    return 0
-  fi
-
-  if echo "$breakdown_json" | jq -e '
-    ((.sections // []) | any((.time // null) == null))
-    or
-    ((.overlaps // []) | any((.time // null) == null))
-  ' >/dev/null 2>&1; then
-    echo "null"
-    return 0
-  fi
-
-  echo "$breakdown_json" | jq -r '
-    (
-      (.sections // [])
-      | map(.time // .bench_time // 0)
-      | add // 0
-    ) - (
-      (.overlaps // [])
-      | map(.time // .bench_time // 0)
-      | add // 0
-    )
-  '
-}
-
-_bk_weakscaling_set_top_level_applicability() {
-  local issues_json="$1"
-  bk_top_level_set_applicability_from_breakdowns \
-    "$issues_json" \
-    '["provide-section-times-or-use-supported-section-packages"]'
-}
-
 bk_estimation_package_check_applicability() {
   local current_system="${BK_ESTIMATION_CURRENT_SYSTEM:-$est_system}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-$est_system}"
@@ -190,8 +146,8 @@ bk_estimation_package_run() {
   est_current_bench_numproc_node="$est_numproc_node"
   est_current_bench_timestamp="$est_timestamp"
   est_current_bench_uuid="$est_uuid"
-  est_current_fom_breakdown=$(_bk_weakscaling_transform_breakdown "$est_input_fom_breakdown" "$current_target_nodes" "$est_node_count")
-  est_current_fom=$(_bk_weakscaling_breakdown_total_time "$est_current_fom_breakdown")
+  est_current_fom_breakdown=$(bk_top_level_transform_breakdown "$est_input_fom_breakdown" "$current_target_nodes" "$est_node_count" "1" "identity" "identity")
+  est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
 
   est_future_system="$future_system"
   est_future_target_nodes="$future_target_nodes"
@@ -202,14 +158,16 @@ bk_estimation_package_run() {
   est_future_bench_numproc_node="$est_numproc_node"
   est_future_bench_timestamp="$est_timestamp"
   est_future_bench_uuid="$est_uuid"
-  est_future_fom_breakdown=$(_bk_weakscaling_transform_breakdown "$est_input_fom_breakdown" "$future_target_nodes" "$est_node_count")
-  est_future_fom=$(_bk_weakscaling_breakdown_total_time "$est_future_fom_breakdown")
+  est_future_fom_breakdown=$(bk_top_level_transform_breakdown "$est_input_fom_breakdown" "$future_target_nodes" "$est_node_count" "1" "identity" "identity")
+  est_future_fom=$(bk_top_level_breakdown_total_time "$est_future_fom_breakdown")
 
   applicability_issues_json=$(jq -cn \
     --argjson current "$(bk_top_level_collect_breakdown_package_issues "$est_current_fom_breakdown")" \
     --argjson future "$(bk_top_level_collect_breakdown_package_issues "$est_future_fom_breakdown")" \
     '$current + $future')
-  _bk_weakscaling_set_top_level_applicability "$applicability_issues_json"
+  bk_top_level_set_applicability_from_breakdowns \
+    "$applicability_issues_json" \
+    '["provide-section-times-or-use-supported-section-packages"]'
 
   bk_estimation_apply_package_output_defaults_from_metadata
 
