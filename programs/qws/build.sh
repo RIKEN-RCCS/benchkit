@@ -13,11 +13,9 @@ cd qws
 case "$system" in
     Fugaku)
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_cross rdma= mpi=1 powerapi=
-	#fccpx --version
 	;;
     FugakuCN)
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi=
-	#fcc --version
 	;;
     FugakuLN)
 	# Private repository access check (CI connectivity test)
@@ -44,7 +42,16 @@ case "$system" in
     RC_GENOA)
 	module load system/genoa  mpi/openmpi-x86_64
  	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
-        ;;
+    ;;
+	RC_DGXSP)
+	source /etc/profile.d/modules.sh
+	module system/ng-dgx nvhpc-hpcx/26.3
+	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
+	;;
+	RC_FX700)
+	module system/fx700 FJSVstclanga
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi=
+	;;
     MiyabiG)
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
  	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=

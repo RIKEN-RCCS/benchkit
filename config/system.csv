@@ -2,9 +2,10 @@ system,mode,tag_build,tag_run,queue,queue_group
 Fugaku,cross,fugaku_login1,fugaku_jacamar,FJ,small
 FugakuLN,native,,fugaku_login1,none,small
 FugakuCN,native,,fugaku_jacamar,FJ,small
-RC_GH200,native,,cloud_jacamar,SLURM_RC_GH200,dummy
-RC_DGXS,native,,cloud_jacamar,SLURM_RC_DGXS,dummy
-RC_GENOA,native,,cloud_jacamar,SLURM_RC_GENOA,dummy
+RC_GH200,native,,cloud_jacamar,SLURM_RC,qc-gh200
+RC_DGXSP,native,,cloud_jacamar,SLURM_RC,ng-dgx-3h
+RC_GENOA,native,,cloud_jacamar,SLURM_RC,genoa
+RC_FX700,native,,cloud_jacamar,SLURM_RC,fx700
 MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
 MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
 FNCX,native,,fncx-curl-jq,none,small
