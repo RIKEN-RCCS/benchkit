@@ -50,7 +50,7 @@ case "$system" in
 	;;
 	RC_FX700)
 	module load system/fx700 FJSVstclanga
-	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi=
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= SYSLIBS=
 	;;
     MiyabiG)
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
