@@ -271,11 +271,14 @@ bk_estimation_run_recorded_current_with_weakscaling() {
   est_current_system="$baseline_system"
   est_current_target_nodes="$current_target_nodes"
   est_current_scaling_method="$current_package"
-  est_current_fom_breakdown=$(_bk_weakscaling_transform_breakdown \
+  est_current_fom_breakdown=$(bk_top_level_transform_breakdown \
     "$baseline_breakdown" \
-      "$current_target_nodes" \
-      "${est_current_bench_nodes:-1}")
-  est_current_fom=$(_bk_weakscaling_breakdown_total_time "$est_current_fom_breakdown")
+    "$current_target_nodes" \
+    "${est_current_bench_nodes:-1}" \
+    "1" \
+    "identity" \
+    "identity")
+  est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
   if declare -F bk_estimation_package_build_recorded_current_model_json >/dev/null 2>&1; then
     est_current_model_json=$(bk_estimation_package_build_recorded_current_model_json "$baseline_system" "$current_model_version")
   else
