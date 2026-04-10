@@ -85,11 +85,15 @@ This section keeps those visible so they are not forgotten later.
 - estimation compare UI:
   detail views now expose current / future breakdown, fallback, and applicability, but same-`code`/`exp` comparison remains intentionally deferred.
 - result quality handling:
-  quality badges and detail views are implemented, but they are not yet enforced as CI-failing validation; the current approach remains visibility-first.
+  quality badge、detail view、latest-result current-state summary は実装済みだが、CI を fail させる validator にはしていない。現状は visibility-first のままである。
+- result quality handling:
+  quality badges, detail views, and latest-result current-state summaries are implemented, but they are not yet enforced as CI-failing validation; the current approach remains visibility-first.
 - site capability checker:
   `/results/usage` now has lightweight configuration checks, but there is still no automatic checker directly tied to CI execution readiness.
 - app/system coverage evaluation:
-  the current coverage matrix uses `list.csv` plus mention-based detection in `build.sh` / `run.sh`, leaving room for a stricter future capability definition.
+  current の coverage matrix は `list.csv` と `build.sh` / `run.sh` の structured shell-branch detection に基づくが、完全な execution-contract checker にはまだなっていない。
+- app/system coverage evaluation:
+  the current coverage matrix uses `list.csv` plus structured shell-branch detection in `build.sh` / `run.sh`, but it still stops short of a full execution-contract checker.
 
 ## 3. 機能別ギャップ分析 / Function-by-Function Gap Analysis
 

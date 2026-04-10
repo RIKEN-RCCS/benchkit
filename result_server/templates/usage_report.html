@@ -304,12 +304,12 @@
         <tr>
           <td>{{ row.app }}</td>
           <td>{{ row.system }}</td>
-          <td>{{ row.timestamp }}</td>
+          <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
           <td>{{ 'yes' if row.source_tracked else 'no' }}</td>
           <td>{{ 'yes' if row.breakdown_present else 'no' }}</td>
           <td>{{ 'yes' if row.estimation_ready else 'no' }}</td>
           <td>{{ 'yes' if row.rich else 'no' }}</td>
-          <td>{{ row.warnings|length if row.warnings else 'none' }}</td>
+          <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
         </tr>
       {% endfor %}
       </tbody>

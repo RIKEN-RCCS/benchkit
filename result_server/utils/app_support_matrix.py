@@ -72,7 +72,7 @@ def _extract_supported_systems(content, candidate_systems):
     )
     any_case_start_pattern = re.compile(r"^\s*case\b.+\bin\s*$")
     case_end_pattern = re.compile(r"^\s*esac\b")
-    label_pattern = re.compile(r"^\s*([A-Za-z0-9_|-]+)\s*\)\s*(?:#.*)?$")
+    label_pattern = re.compile(r"^\s*([A-Za-z0-9_|\-*]+)\s*\)\s*(?:#.*)?$")
 
     system_case_depth = 0
     for line in content.splitlines():
@@ -100,6 +100,11 @@ def _extract_supported_systems(content, candidate_systems):
             token = token.strip()
             if token in candidates:
                 supported.add(token)
+            elif token.endswith("*") and token != "*":
+                prefix = token[:-1]
+                for system in candidate_systems:
+                    if system.startswith(prefix):
+                        supported.add(system)
 
     for system in candidate_systems:
         exact = re.escape(system)

@@ -56,6 +56,7 @@ def build_result_quality_rollup(directory: str) -> dict:
             "app": app,
             "system": system,
             "timestamp": display_timestamp,
+            "filename": filename,
             "source_tracked": stats["source_info_complete"],
             "breakdown_present": stats["has_breakdown"],
             "estimation_ready": quality["level"] in ("ready", "rich"),

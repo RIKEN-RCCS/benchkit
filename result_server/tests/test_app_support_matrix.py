@@ -204,3 +204,55 @@ esac
     )
 
     assert rows[0]["systems"]["MiyabiG"]["run_supported"] is True
+
+
+def test_support_matrix_handles_prefix_wildcards(tmp_path):
+    config_dir = tmp_path / "config"
+    programs_dir = tmp_path / "programs"
+    config_dir.mkdir()
+    programs_dir.mkdir()
+
+    _write_csv(
+        config_dir / "system.csv",
+        ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
+        [
+            ["Fugaku", "cross", "", "", "FJ", "small"],
+            ["FugakuCN", "native", "", "", "FJ", "small"],
+            ["MiyabiG", "cross", "", "", "SLURM", "small"],
+            ["MiyabiC", "cross", "", "", "SLURM", "small"],
+        ],
+    )
+
+    app_dir = programs_dir / "LQCD_dw_solver"
+    app_dir.mkdir()
+    (app_dir / "build.sh").write_text(
+        """case "$system" in
+  Fugaku*|Miyabi*)
+      echo prep
+      ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    (app_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
+    _write_csv(
+        app_dir / "list.csv",
+        ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
+        [
+            ["Fugaku", "yes", "1", "1", "12", "0:10:00"],
+            ["FugakuCN", "yes", "1", "1", "12", "0:10:00"],
+            ["MiyabiG", "yes", "1", "1", "2", "0:10:00"],
+            ["MiyabiC", "yes", "1", "1", "56", "0:10:00"],
+        ],
+    )
+
+    _, rows = load_app_system_support_matrix(
+        programs_dir=str(programs_dir),
+        system_csv_path=str(config_dir / "system.csv"),
+    )
+
+    systems = rows[0]["systems"]
+    assert systems["Fugaku"]["build_supported"] is True
+    assert systems["FugakuCN"]["build_supported"] is True
+    assert systems["MiyabiG"]["build_supported"] is True
+    assert systems["MiyabiC"]["build_supported"] is True
