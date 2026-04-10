@@ -147,6 +147,8 @@ class TestUsageRoute:
         text = resp.get_data(as_text=True)
         assert "Configuration Checks" in text
         assert "Application/System Coverage" in text
+        assert "Result Quality Coverage" in text
+        assert "No collected result-quality data is available yet." in text
         assert "qws" in text
 
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):

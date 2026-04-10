@@ -8,6 +8,7 @@ from utils.results_loader import load_results_table, load_single_result, load_mu
 from utils.user_store import get_user_store
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.site_diagnostics import build_site_diagnostics
+from utils.result_quality_rollup import build_result_quality_rollup
 from utils.result_file import load_result_file, check_file_permission
 from utils.system_info import get_all_systems_info
 from routes.admin import admin_required
@@ -243,6 +244,7 @@ def usage_report():
         for system in coverage_systems
     ]
     site_diagnostics = build_site_diagnostics()
+    result_quality_rollup = build_result_quality_rollup(current_app.config["RECEIVED_DIR"])
 
     return render_template(
         "usage_report.html",
@@ -254,6 +256,7 @@ def usage_report():
         coverage_systems=coverage_headers,
         app_support_rows=app_support_rows,
         site_diagnostics=site_diagnostics,
+        result_quality_rollup=result_quality_rollup,
     )
 
 
