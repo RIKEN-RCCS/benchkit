@@ -269,11 +269,14 @@ BenchKit のポータル層である。
 
 主な役割:
 
+- CX Portal のホームを入口として持つこと
 - 結果一覧
 - 結果詳細
 - 比較表示
 - 推定結果表示
+- 利用可能システム表示
 - 使用量表示
+- 結果品質サマリ表示
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
 
@@ -281,11 +284,14 @@ This is the portal layer of BenchKit.
 
 Main roles:
 
+- a CX Portal home page as the main entry point
 - result listing
 - result detail pages
 - comparison views
 - estimation result views
+- available-system views
 - usage views
+- result-quality summaries
 - authentication and authorization
 - future integration points for request and approval workflows
 

@@ -15,7 +15,7 @@
 
 - `run.sh` で何を出せばよいか
 - `estimate.sh` をどこまで薄くできるか
-- 軽量推定から詳細推定へどう広げるか
+- `weakscaling` から詳細推定へどう広げるか
 - 今後の改善
 
 ### 推定 package 開発者
@@ -35,10 +35,12 @@
 
 現時点の BenchKit では、次の整理で見ると分かりやすいです。
 
-- 軽量推定の導入はかなり簡単
+- 最小の導入経路は `weakscaling`
 - 詳細推定は `qws` が参照実装
 - app 側は「何を測って何を渡すか」を主に担当
 - package 側は「どう推定して、入力不足をどう扱うか」を主に担当
+- model 名、model type、measurement / confidence / notes / assumptions の既定値は package metadata 側へ寄せる方向で整理が進んでいる
+- BenchKit 共通層は current / future の flow、Estimate JSON の組み立て、requested/applied package や applicability の保持を主に担当する
 - 要求パッケージ / 実適用パッケージ、applicability、UUID / timestamp、ポータル基本表示は共通層でかなり吸収できている
 
 ## 仕様を見たい場合

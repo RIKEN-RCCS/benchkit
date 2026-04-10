@@ -9,7 +9,7 @@
 ## 目次
 
 1. [最初に決めること](#1-最初に決めること)
-2. [最小構成: 軽量推定だけを追加する](#2-最小構成-軽量推定だけを追加する)
+2. [最小構成: `weakscaling` を追加する](#2-最小構成-weakscaling-を追加する)
 3. [詳細推定に入る](#3-詳細推定に入る)
 4. [`estimate.sh` に書くこと](#4-estimatesh-に書くこと)
 5. [`run.sh` で書くこと](#5-runsh-で書くこと)
@@ -27,15 +27,15 @@
 - どの section / overlap を result に出すか
 - 各 section / overlap にどの `estimation_package` を割り当てるか
 
-最初の一歩としては、軽量推定から入るのが一番簡単です。
+最初の一歩としては、`weakscaling` から入るのが一番簡単です。
 
 ---
 
-## 2. 最小構成: 軽量推定だけを追加する
+## 2. 最小構成: `weakscaling` を追加する
 
 最小構成では、次の 2 つで十分です。
 1. `run.sh` で FOM を出す
-2. `estimate.sh` で軽量推定 package を選ぶ
+2. `estimate.sh` で `weakscaling` を選ぶ
 
 この段階では section や artifact は不要です。
 
@@ -74,6 +74,14 @@ bk_estimation_run_recorded_current_with_weakscaling \
   "${BK_ESTIMATION_CURRENT_PACKAGE}"
 bk_estimation_write_output "results/estimate_${est_code}_0.json"
 ```
+
+この最小形で app 側が主に決めるのは、次の宣言です。
+
+- current 側と future 側でどの top-level package を使うか
+- baseline system / exp
+- current / future の target nodes
+
+逆に、model 名、model type、measurement、confidence、notes、assumptions の既定値は、原則として package metadata 側が持つ前提で考えると整理しやすいです。
 
 ---
 
@@ -131,6 +139,16 @@ myapp_declare_estimation_layout() {
   bk_declare_overlap --side future compute_hopping,halo_exchange half
 }
 ```
+
+今の実装では、`estimate.sh` は「app 側の宣言」を置く場所として使い、package の model 定義や defaults まで持たせすぎない方が自然です。
+特に次は package 側へ寄せてよい前提です。
+
+- top-level / side-specific model 名
+- model type と compatibility rule
+- measurement の既定値
+- confidence の既定値
+- notes summary
+- assumptions の package 固有部分
 
 この宣言は `estimate.sh` にまとめ、`run.sh` 側では package 名を重ねて書かない形が望ましいです。app 側は「どの item にどの package を使うか」を先に決め、実行時には得られた値だけを出す形に寄せます。
 
@@ -250,6 +268,14 @@ bk_estimation_run_recorded_current_with_weakscaling \
 bk_estimation_write_output "results/estimate_${est_code}_0.json"
 ```
 
+この形で app 側が最後まで責務として持つのは、
+
+- どの section / overlap を result に出すか
+- どの section / overlap にどの `estimation_package` を割り当てるか
+- current / future でどの top-level package を選ぶか
+
+くらいにとどめるのが軽く保ちやすいです。
+
 ---
 
 ## 7. 採取と保存の扱い
@@ -270,7 +296,7 @@ app 側では、まず section 名と `estimation_package` を決めることを
 
 ## 8. 確認ポイント
 
-### 軽量推定の確認
+### `weakscaling` の確認
 - `estimate*.json` が出る
 - `estimate_metadata.estimation_package` が期待どおり
 - `performance_ratio` が出る
@@ -296,7 +322,7 @@ app 側では、まず section 名と `estimation_package` を決めることを
 ## 9. 今後の改善
 
 すでに進んでいること:
-- 軽量推定を 1 本追加すること
+- `weakscaling` を 1 本追加すること
 - `estimate.sh` を薄く保つこと
 - requested / applied package の区別
 - UUID / timestamp の保存

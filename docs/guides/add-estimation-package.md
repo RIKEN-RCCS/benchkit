@@ -1,174 +1,154 @@
 # 推定パッケージ追加手順（開発者向け）
 
-このドキュメントは、BenchKit に新しい推定パッケージを追加する手順を開発者向けにまとめたものです。
-軽量パッケージ、上位パッケージ、区間パッケージのどれを作る場合でも、最初に見る実務ガイドとして使うことを想定しています。
-
-## 目次
-
-1. [最初に決めること](#1-最初に決めること)
-2. [どこに置くか](#2-どこに置くか)
-3. [最低限実装するもの](#3-最低限実装するもの)
-4. [section package の考え方](#4-section-package-の考え方)
-5. [fallback と not_applicable](#5-fallback-と-not_applicable)
-6. [やらなくてよいこと](#6-やらなくてよいこと)
-7. [確認ポイント](#7-確認ポイント)
-8. [今後の改善](#8-今後の改善)
-
----
+このドキュメントは、BenchKit に新しい推定 package を追加する開発者向けガイドです。
+現在の実装では、package は「推定ロジックと package 固有 metadata を持つ側」、BenchKit 共通層は「flow と JSON 受け渡しを持つ側」として考えると整理しやすいです。
 
 ## 1. 最初に決めること
 
-まず次を決めます。
+新しい package を書き始める前に、まず次を決めます。
 
-- 上位パッケージか区間パッケージか
-- 必要入力は何か
-- 不足時に代替へ切り替えられるか
+- top-level package か section / overlap package か
+- 何を入力として受け取るか
+- 入力不足時に fallback できるか
 - 何を `bench_time -> time` に変換するか
-- どんな assumptions / model / measurement を返すか
+- どの assumptions / model / measurement を返したいか
 
 最初の package では、欲張らずに
 
 - 1 種類の入力
 - 1 つの変換規則
-- 1 つの代替方針
+- 1 つの applicability 方針
 
-に絞るのが安全です。
-
----
+から始めるのがおすすめです。
 
 ## 2. どこに置くか
 
-現時点では、主に次のどちらかに置きます。
+現在の実装では、主に次に分かれます。
 
 - top-level package
   - `scripts/estimation/packages/`
 - section package
   - `scripts/estimation/section_packages/`
 
-`qws` の詳細ダミーでは、
+`qws` の詳細ダミー推定では、たとえば次のような分担です。
 
-- top-level:
-  `instrumented_app_sections_dummy.sh`
-- section:
-  `identity.sh`
-  `counter_papi_detailed.sh`
-  `trace_mpi_basic.sh`
-  `logp.sh`
-  `overlap_max_basic.sh`
+- top-level
+  - `instrumented_app_sections_dummy.sh`
+- section / overlap
+  - `identity.sh`
+  - `logp.sh`
+  - `counter_papi_detailed.sh`
+  - `trace_mpi_basic.sh`
+  - `overlap_max_basic.sh`
 
-という分け方になっています。
+## 3. top-level package の責務
 
----
+top-level package は、主に次を担当します。
 
-## 3. 最低限実装するもの
+- metadata を返す
+- applicability を判定する
+- breakdown 全体を変換する
+- top-level FOM を組み立てる
+- side ごとの model 情報を返す
 
-### 上位パッケージ
+少なくとも、`weakscaling` や `instrumented_app_sections_dummy` のような top-level package では、`section` / `overlap` ごとの bound package をどう dispatch するかを意識します。
 
-少なくとも次があると扱いやすいです。
+## 4. section / overlap package の責務
 
-- メタデータ
-- applicability 判定
-- run
-- metadata の Estimate JSON 反映
+section package はもっと小さくてかまいません。
+主に次を返せれば十分です。
 
-### 区間パッケージ
+- metadata
+- applicability
+- 1 区間の変換結果
 
-区間パッケージは、もっと小さくてかまいません。
-現時点では少なくとも次で十分です。
+ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は BenchKit 共通層や top-level package 側へ寄せる方が自然です。
 
-- メタデータ
-- 適用可否判定
-- 変換処理
+## 5. metadata に持たせるもの
 
-### やることのイメージ
+現在の実装では、package metadata がかなり重要です。
+少なくとも top-level package では、次を metadata に持たせる前提で考えると整理しやすいです。
 
-- 入力が足りるか判定する
-- 足りれば `bench_time` などから `time` を作る
-- 足りなければ代替先を返すか `not_applicable` を返す
+- `name`
+- `version`
+- `method_class`
+- `detail_level`
+- `required_inputs`
+- `required_result_fields`
+- `supported_section_packages`
+- `supported_overlap_packages`
+- `output_fields`
+- `not_applicable_when`
+- `fallback_policy`
+- `models`
+- `defaults`
 
----
+特に `models` には、必要に応じて次を持たせます。
 
-## 4. 区間パッケージの考え方
+- `top_level`
+- `current_system`
+- `future_system`
+- `recorded_current`
 
-区間パッケージは「1 区間の変換規則」と考えると分かりやすいです。
+また `defaults` には、少なくとも次を持たせると共通層に寄せやすいです。
 
-たとえば、
+- `defaults.measurement`
+- `defaults.confidence`
+- `defaults.notes`
+- `defaults.assumptions`
 
-- `identity`
-  - 区間時間があれば固定比で変換
-- `counter_papi_detailed`
-  - PAPI artifact があればそれを前提に変換
-- `logp`
-  - collective 系の区間を logP 扱いで変換
+BenchKit 共通層は、これらを読んで Estimate JSON に写像する役割を主に持ちます。
 
-です。
+## 6. package 側に持たせるべきもの
 
-上位パッケージは、
+package 側で持つべきなのは、主に次です。
 
-- section / overlap を集約する
-- どの区間パッケージを呼ぶか決める
-- 全体の適用可否をまとめる
+- 推定ロジックそのもの
+- 必要入力と不足条件
+- fallback / not_applicable の方針
+- model 名や model type などの package 固有 metadata
+- assumptions / measurement / confidence / notes の package 固有既定値
 
-役割を持ちます。
+逆に、package 側が毎回持たなくてよいのは次です。
 
-この分離により、区間パッケージ開発者は 1 区間のルールに集中できます。
+- Estimate JSON 全体の手組み
+- requested / applied package の記録
+- current / future の side ごとの JSON 組み立て
+- UUID / timestamp の保存
+- 保存後の portal 表示
 
----
+## 7. app 固有 section 名をどこまで見るか
 
-## 5. 代替と not_applicable
+top-level package が app 固有の section 名まで固定前提で持ちすぎるのは避けた方がよいです。
+section 名そのものより、
 
-意味は次の通りです。
+- bound package があるか
+- 必要 artifact があるか
+- fallback 先があるか
+- system relation が成立するか
+
+を主に見る形の方が、他 app へ横展開しやすくなります。
+
+`instrumented_app_sections_dummy` でも、現在は固定 section 名そのものを前提にせず、bound package や必要入力の成立を主に見る方向へ寄せています。
+
+## 8. fallback と not_applicable
+
+実装時には、少なくとも次を明示できるとよいです。
 
 - `fallback`
-  - このパッケージ単体では要求どおり処理できない
-  - ただし別のパッケージへ切り替えれば継続できる
+  - この package では直接扱えないが、より軽い package へ落とせる
 - `not_applicable`
-  - 代替手段がなく、その項目は成立しない
+  - 必要入力や system relation が満たせず、推定を返すべきでない
 
-重要なのは、無理に成功っぽい値を返さないことです。
+特に fallback を使うときは、
 
-いまの方針では、
+- 最初に要求された package
+- 実際に適用した package
+- なぜ切り替えたか
 
-- 代替できない section / overlap は `time: null`
-- それを含む全体 FOM も `null`
-- top-level は `not_applicable`
+が Estimate JSON や portal 側で追えることが重要です。
 
-となります。
-
-これは後で問題切り分けしやすいので、かなり大事です。
-
----
-
-## 6. やらなくてよいこと
-
-package 開発者が毎回やらなくてよいことは次です。
-
-- 結果サーバーへの保存
-- UUID / timestamp の採番
-- ポータル表示
-- 全体の Estimate JSON の全面手組み
-- 比較画面のことを考えた表示整形
-
-BenchKit 側が引き受けるべきなのは、
-
-- 要求パッケージ / 実適用パッケージの記録
-- 全体の適用可否の集約
-- 出自情報の保持
-- 保存後のポータル表示
-
-です。
-
-package 開発者は、できるだけ
-
-- 必要入力
-- 変換規則
-- 代替方針
-
-に集中できる形がよいです。
-
----
-
-## 7. 確認ポイント
+## 9. 確認ポイント
 
 ### 単体で見るポイント
 
@@ -179,113 +159,26 @@ package 開発者は、できるだけ
 
 ### 全体で見るポイント
 
-- 要求パッケージ / 実適用パッケージが分かれる
-- 一部区間だけ代替したら `partially_applicable`
-- 不成立区間が残ると `not_applicable`
-- `null` が最終 FOM まで正しく伝播する
+- requested / applied package が残る
+- current / future package が必要なら分かれる
+- model 情報が side ごとに残る
+- `applicability` が top-level に集約される
+- portal や compare UI で意味が読める
 
-### ポータルで見るポイント
+## 10. いまの見方
 
-- 要求パッケージ
-- 実適用パッケージ
-- applicability
-- estimate UUID
+現状の BenchKit では、package を書き始める土台はかなり整っています。
 
-が最低限見える
+- package metadata を共通層へ写像する流れがある
+- current / future package を分けられる
+- `current_system.model` / `future_system.model` を side ごとに持てる
+- requested / applied package や fallback 理由を残せる
 
----
+一方で、まだ未完なのは次です。
 
-## 8. 今後の改善
+- package metadata discovery の一般化
+- 複数 detailed package の本格実装
+- portal 上での詳細 applicability 表示
+- compare UI での package 差分の見せ方
 
-### すでに進んでいること
-
-- 最初の package を 1 本追加すること
-- 要求パッケージ / 実適用パッケージを残すこと
-- 全体の適用可否を共通で持つこと
-- `not_applicable` を `null` 伝播で誠実に表現すること
-
-### 今後の改善
-
-- パッケージメタデータの見つけ方の共通化
-- 複数の詳細パッケージ間での代替の共通化
-- 区間パッケージのテンプレート化
-- ポータル側の詳細表示
-
-## パッケージの入口と出口を先に決める
-
-実装に入る前に、各推定 package について次を 1 回書き出しておくのがよいです。
-
-- どの入力 system の result を受けるか
-  - 例: `MiyabiG` のみ、`RC_GH200` のみ、またはその両方
-- どの出力先 system を想定するか
-  - 例: `FugakuNEXT`
-- Result JSON のどの field が必要か
-  - 例: `fom`, `fom_breakdown.sections`
-- どの区間 artifact が必要か
-  - 例: `compute_solver_papi.tgz`, `allreduce_trace.tgz`
-- それが無いときどうするか
-  - `fallback`
-  - `not_applicable`
-- 何を出力として埋めるか
-  - section `time`
-  - `current_system.model`
-  - `future_system.model`
-  - `applicability`
-
-最小のメモはこれで十分です。
-
-```text
-package: counter_papi_detailed
-source_system_scope: MiyabiG, RC_GH200
-target_system_scope: FugakuNEXT
-required_result_fields: fom_breakdown.sections
-required_section_artifacts:
-  compute_hopping: papi
-  compute_solver: papi
-output_fields:
-  future_system.fom_breakdown.sections[].time
-  current_system.fom_breakdown.sections[].time
-fallback_to: identity
-```
-
-このとき、上位パッケージと区間パッケージで役割を分けておくと整理しやすくなります。
-- 上位パッケージ
-  - どの区間パッケージ群を使って合成できるか
-  - 何を top-level Estimate JSON に出すか
-- 区間パッケージ
-  - どの system 範囲を受けるか
-  - section / overlap のどちらを受けるか
-  - どの採取種別を必要とするか
-  - 何を出力するか
-
-ここで、上位パッケージは app 固有の section 名を固定で期待しない方がよいです。どの section にどの package を割り当てるかは app 側 Result JSON の `estimation_package` で表します。
-
-`weakscaling` はこの分担を確認する最初の例として分かりやすいです。
-- app 側
-  - section / overlap 時間を出す
-  - 各 item に `identity` または `logp` を割り当てる
-- package 側
-  - `identity` と `logp` の意味を定義する
-  - `weakscaling` として合成する
-- BenchKit 側
-  - 割当てられた package を呼ぶ
-  - current / future の breakdown と top-level FOM をまとめる
-
-PAPI のように複数回の採取が必要な場合でも、package 開発者は「`papi` が必要」と定義するところまでに責務を寄せるのがよいです。どの counter set を何回に分けて取るか、どこへ保存するか、再推定時にどう復元するかは、できるだけ BenchKit 側の共通処理に寄せます。
-
-ここが曖昧なまま実装を始めると、
-- package 自体は動く
-- でもどの system で使えるのか分からない
-- artifact 欠損時の扱いが揺れる
-- 比較画面やポータルで意味が読み取りにくい
-
-となりやすいです。
-
-逆にここが最初に決まっていれば、BenchKit 側に寄せるべき共通処理と、package 側で本当に書くべきロジックがかなり分かりやすくなります。
-
-現状の見方としては、
-
-- package を書き始められる土台はある
-- 量産しやすい状態まではもう一歩
-
-という整理になります。
+そのため、最初の package では「小さく動かして、metadata と責務分担を崩さない」ことを優先するのがよいです。

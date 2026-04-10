@@ -54,7 +54,7 @@ BenchKit already has a solid foundation for continuous benchmarking, especially 
 - portal presentation of benchmark, estimation, and usage data
 - basic source provenance tracking for the top-level application
 
-Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a lightweight reference package, a detailed dummy package for `qws`, and result-provenance handoff have all been implemented.
+Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a `weakscaling` reference path, a detailed dummy package for `qws`, and result-provenance handoff have all been implemented.
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
 ## 3. 機能別ギャップ分析 / Function-by-Function Gap Analysis
@@ -62,13 +62,13 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 | 機能 | 仕様要求 | 現状実装 | 不足・課題 | 他機能への影響 | 優先度 |
 |---|---|---|---|---|---|
 | ベンチマーク実行定義 | アプリごとの build/run/list を保持し、継続実行可能であること | `programs/*` に `build.sh` `run.sh` `list.csv`、一部 `estimate.sh` がある | 追加や修正がまだ人手中心。雛形生成や申請導線がない | 申請・承認・AI 連携の前提になる | 高 |
-| CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み | 拠点接続の検証や onboarding 手順が未整理 | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
-| 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み | app ごとの差異を自動検証する仕組みが弱い | 推定、可視化、AI 診断の入力品質に直結 | 高 |
-| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`qws` では軽量推定と詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
-| 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示も入っている | section / overlap 単位の package applicability や `not_applicable` 詳細の見せ方、比較 UI がまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
+| CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み。`add-site.md` に `system.csv` / `queue.csv` / `system_info.csv` の責務分担、接続確認順序、障害切り分け、onboarding checklist も整理された | site capability を自動検証する checker や app ごとの対応 system の見える化は未実装 | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
+| 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み。portal 側では一覧の quality badge と詳細の `Quality` セクションで `source_info`、`fom_breakdown`、推定入力参照の有無を軽く確認できる | app ごとの差異を体系的に検証する validator や、quality を継続集計する仕組みはまだ弱い | 推定、可視化、AI 診断の入力品質に直結 | 高 |
+| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`qws` では `weakscaling` と詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
+| 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示があり、home からの導線も整理済み。未認証時は login required であることも入口で分かる | section / overlap 単位の package applicability や `not_applicable` 詳細の見せ方、比較 UI がまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
 | 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み | 予算主体、アカウント主体、runner 主体との結び付きがない | 多拠点運用と予算管理の核になる | 高 |
 | ソース出自情報 | 最上位アプリケーションの commit hash を追跡すること | `bk_fetch_source` と `source_info` が実装済み | すべての app で徹底されていない。 archive/file の場合は commit hash を持てない | 推定比較、AI 最適化、回帰分析の再現性に直結 | 高 |
-| 拠点接続 | runner, scheduler, queue, site 条件を扱えること | `system.csv` と CI 生成が連携済み | 拠点接続の明示仕様、接続確認手順、障害切り分けが未整備 | 使用量集計、申請、runner 分散運用に直結 | 高 |
+| 拠点接続 | runner, scheduler, queue, site 条件を扱えること | `system.csv` と CI 生成が連携済み。`system_info.csv` を含めた責務分担、接続確認手順、障害切り分け、site onboarding checklist が docs に整理済み | docs 依存がまだ強く、自動 checker や site ごとの capability summary は未実装 | 使用量集計、申請、runner 分散運用に直結 | 高 |
 | 認証・権限 | 結果・管理機能へのアクセス制御を行うこと | TOTP、admin、閲覧制御あり | 申請者、拠点担当者、推定モデル管理者などの役割分化が未定義 | 申請・承認・AI 指示導入時に重要になる | 中 |
 | shell-first 共通化 | shell を保ったまま共通処理を吸収すること | `bk_emit_*` と `bk_fetch_source` は導入済み | build/run テンプレート化、scaffold、部分生成の仕組みがない | app 追加の敷居を下げ、推定横展開も楽にする | 高 |
 | 申請・承認・自動PR | ポータルから変更要求を受け、承認後に Git へ落とせること | 構想のみ | 未実装 | app 追加、条件変更、推定モデル変更の運用負荷を大きく下げる | 高 |
@@ -184,7 +184,7 @@ Once the estimation specification is clarified, many other design decisions beco
 | 項目 | 仕様上の期待 | 現状実装 | GAP | 優先度 |
 |---|---|---|---|---|
 | 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手。`estimate.sh` 内の宣言ブロックの共通 API も未固定 | 最優先 |
-| 軽量推定 package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` を実装済み。`identity` / `logp` を current 側で適用し、unsupported な section package は fallback できる | 他 app への横展開、表示整合、より明示的な軽量 package discovery は未完 | 高 |
+| `weakscaling` package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` を実装済み。`identity` / `logp` を current 側で適用し、unsupported な section package は fallback できる | 他 app への横展開、表示整合、より明示的な package discovery は未完 | 高 |
 | 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `weakscaling` と `instrumented_app_sections_dummy` でこれらを扱える。Estimate JSON でも requested / applied package、fallback、`applicable` / `partially_applicable` / `fallback` / `not_applicable` を表現できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | 軽量/詳細ダミーとも最小 metadata を持つ | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
 | section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | `bk_emit_section` / `bk_emit_overlap` から Result JSON に `estimation_package` を載せられ、`instrumented_app_sections_dummy` でも dispatch に利用している。`weakscaling` では unsupported package を fallback する | 他 app への横展開と package discovery の整理が未完 | 最優先 |
@@ -201,7 +201,7 @@ Once the estimation specification is clarified, many other design decisions beco
 この表から、現在の最小核は以下と整理できる。
 
 1. `scripts/estimation/common.sh` を中心とした共通呼び出しと Estimate JSON 出力
-2. `weakscaling` による `identity` / `logp` ベースの軽量推定
+2. `weakscaling` による `identity` / `logp` ベースの最小推定経路
 3. `instrumented_app_sections_dummy` による区間時間ベース詳細ダミー推定
 4. 推定元 result UUID / timestamp の引き回し
 
@@ -231,7 +231,7 @@ Once the estimation specification is clarified, many other design decisions beco
 - `bench_time` と `time` を区別して保持する
 - `artifacts` が無くても動くが、あっても破綻しない
 
-これにより、軽量推定と詳細推定の最初の 2 本柱は揃った。
+これにより、`weakscaling` と詳細推定の最初の 2 本柱は揃った。
 そのうえで今後は、counter-based や trace-based package、section-level binding、推定結果 provenance へ進むのが自然である。
 
 ### 5.2 次点: AI 駆動最適化連携 / Next Priority: AI-Driven Optimization

@@ -138,12 +138,13 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 
 | パス | 説明 |
 |---|---|
+| `/` | CX Portal ホーム（主要導線、利用可能システム、開発者向けガイドへの入口） |
 | `/results/` | 結果一覧（公開、ページネーション・フィルタ対応） |
 | `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む、ページネーション・フィルタ対応） |
-| `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報） |
+| `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報、結果品質サマリ） |
 | `/results/compare?files=a,b` | リグレッション比較（複数結果の差分表示） |
 | `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ） |
-| `/estimated/` | 推定結果一覧（ページネーション・フィルタ対応、認証時は機密データ含む） |
+| `/estimated/` | 推定結果一覧（TOTP認証必須、ページネーション・フィルタ対応） |
 
 結果一覧・推定結果ページのクエリパラメータ:
 - `page` - ページ番号（1始まり、範囲外は自動リダイレクト）
@@ -151,7 +152,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - `system` - SYSTEMフィルタ
 - `code` - CODEフィルタ
 - `exp` - Expフィルタ
-| `/systemlist` | システム情報一覧 |
+| `/systemlist` | `config/system_info.csv` に基づく接続システム一覧 |
 | `/auth/login` | TOTP認証ログイン |
 | `/auth/setup/<token>` | TOTP初期登録（招待リンク経由） |
 | `/auth/logout` | ログアウト |
@@ -163,6 +164,8 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - サーバーサイドフィルタ: SYSTEM/CODE/Exp ドロップダウンによる絞り込み（フィルタはテーブルヘッダ行に内蔵、Exp は CODE に連動、フィルタ条件はページ遷移時に保持）
 - 結果テーブル列: Timestamp, SYSTEM, CODE, FOM, Compare, FOM version, Exp, Nodes, Proc/node, Thread/proc, JSON, PA Data, Mode, Trigger, Pipeline, Detail
 - ナビゲーション: ブラウザタブ風のアクティブ表示、認証時はタブが拡張（Public/All Results/Estimated）
+- CX Portal ホーム: `/` に主要導線、利用可能システム、アプリ開発者向けガイドへの入口を持つ
+- 結果品質サマリ: 結果一覧に quality badge、結果詳細に `Quality` セクションを表示し、`source_info`、`fom_breakdown`、推定入力参照の有無を軽く見られる
 - スカラー型メトリクス: テーブル形式で表示
 - ベクトル型メトリクス: Chart.js によるインタラクティブグラフ（メッセージサイズ vs バンド幅/レイテンシ等）
 - リグレッション比較: 複数結果を選択して差分をグラフ・テーブルで比較
