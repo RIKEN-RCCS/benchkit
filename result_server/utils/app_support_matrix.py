@@ -52,6 +52,14 @@ def _summarize_list_csv(list_csv_path):
     return summary
 
 
+def _file_mentions_system(path, system):
+    if not os.path.exists(path):
+        return False
+
+    with open(path, encoding="utf-8") as f:
+        return system in f.read()
+
+
 def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):
     programs_root = os.path.normpath(programs_dir or _DEFAULT_PROGRAMS_DIR)
     registered_systems = load_registered_systems(system_csv_path=system_csv_path)
@@ -65,6 +73,8 @@ def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):
             continue
 
         list_csv_path = os.path.join(entry.path, "list.csv")
+        build_sh_path = os.path.join(entry.path, "build.sh")
+        run_sh_path = os.path.join(entry.path, "run.sh")
         if not os.path.exists(list_csv_path):
             continue
 
@@ -73,8 +83,14 @@ def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):
 
         for system in registered_systems:
             item = summary.get(system)
-            if item and item["enabled_rows"] > 0:
+            build_supported = _file_mentions_system(build_sh_path, system)
+            run_supported = _file_mentions_system(run_sh_path, system)
+            scripts_supported = build_supported and run_supported
+
+            if item and item["enabled_rows"] > 0 and scripts_supported:
                 status = "enabled"
+            elif item and item["enabled_rows"] > 0:
+                status = "enabled_partial"
             elif item:
                 status = "configured_off"
             else:
@@ -84,6 +100,8 @@ def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):
                 "status": status,
                 "enabled_rows": item["enabled_rows"] if item else 0,
                 "disabled_rows": item["disabled_rows"] if item else 0,
+                "build_supported": build_supported,
+                "run_supported": run_supported,
             }
 
         matrix_rows.append({

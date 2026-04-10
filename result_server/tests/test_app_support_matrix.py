@@ -31,6 +31,8 @@ def test_load_app_system_support_matrix(tmp_path):
 
     qws_dir = programs_dir / "qws"
     qws_dir.mkdir()
+    (qws_dir / "build.sh").write_text("case \"$system\" in\nFugaku)\nRC_GENOA)\n", encoding="utf-8")
+    (qws_dir / "run.sh").write_text("case \"$system\" in\nFugaku)\n", encoding="utf-8")
     _write_csv(
         qws_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
@@ -42,6 +44,8 @@ def test_load_app_system_support_matrix(tmp_path):
 
     genesis_dir = programs_dir / "genesis"
     genesis_dir.mkdir()
+    (genesis_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
+    (genesis_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
     _write_csv(
         genesis_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
@@ -58,6 +62,10 @@ def test_load_app_system_support_matrix(tmp_path):
     assert systems == ["Fugaku", "RC_GENOA"]
     assert [row["app"] for row in rows] == ["genesis", "qws"]
     assert rows[0]["systems"]["Fugaku"]["status"] == "not_listed"
-    assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled"
+    assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled_partial"
+    assert rows[0]["systems"]["RC_GENOA"]["build_supported"] is False
+    assert rows[0]["systems"]["RC_GENOA"]["run_supported"] is False
     assert rows[1]["systems"]["Fugaku"]["status"] == "enabled"
+    assert rows[1]["systems"]["Fugaku"]["build_supported"] is True
+    assert rows[1]["systems"]["Fugaku"]["run_supported"] is True
     assert rows[1]["systems"]["RC_GENOA"]["status"] == "configured_off"

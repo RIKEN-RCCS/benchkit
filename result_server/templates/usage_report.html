@@ -29,6 +29,7 @@
       font-weight: 700;
     }
     .coverage-enabled { color: #0f766e; background: #dff7f2; }
+    .coverage-partial { color: #9a3412; background: #fff1e8; }
     .coverage-off { color: #9a3412; background: #fff3dd; }
     .coverage-missing { color: #94a3b8; background: #f1f5f9; }
     .coverage-legend {
@@ -148,7 +149,8 @@
   <h2 class="section-title">Application/System Coverage</h2>
   <p class="section-intro">Quick matrix of which registered systems are enabled in each application's <code>list.csv</code>.</p>
   <div class="coverage-legend">
-    <span><span class="coverage-status coverage-enabled">&#9733;</span> enabled</span>
+    <span><span class="coverage-status coverage-enabled">&#9733;</span> enabled and implemented</span>
+    <span><span class="coverage-status coverage-partial">&#9651;</span> enabled in list.csv, script support incomplete</span>
     <span><span class="coverage-status coverage-off">&#9675;</span> configured off</span>
     <span><span class="coverage-status coverage-missing">&mdash;</span> not listed</span>
   </div>
@@ -169,9 +171,11 @@
           {% for header in coverage_systems %}
             {% set item = row.systems.get(header.system, {}) %}
             {% if item.status == 'enabled' %}
-            <td title="enabled rows: {{ item.enabled_rows }}"><span class="coverage-status coverage-enabled">&#9733;</span></td>
+            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: yes&#10;run.sh: yes"><span class="coverage-status coverage-enabled">&#9733;</span></td>
+            {% elif item.status == 'enabled_partial' %}
+            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-partial">&#9651;</span></td>
             {% elif item.status == 'configured_off' %}
-            <td title="disabled rows: {{ item.disabled_rows }}"><span class="coverage-status coverage-off">&#9675;</span></td>
+            <td title="disabled rows: {{ item.disabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-off">&#9675;</span></td>
             {% else %}
             <td title="not listed"><span class="coverage-status coverage-missing">&mdash;</span></td>
             {% endif %}
