@@ -65,3 +65,5 @@ def test_home_page_renders_landing_content():
     assert "Available Systems" in html
     assert "Add a New Site" in html
     assert "Browse Results" in html
+    assert "Estimated Results (login required)" in html
+    assert "Login required" in html
