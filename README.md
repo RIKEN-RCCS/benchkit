@@ -266,6 +266,8 @@ BenchKit で日常的に触る設定は主に次の 3 つです。
   - システム固有の実行モード、Runner タグ、キュー種別、キューグループ
 - `config/queue.csv`
   - scheduler への submit 形式
+- `config/system_info.csv`
+  - Result Server や比較画面に出すシステム表示情報
 - `programs/<code>/list.csv`
   - アプリごとの実験条件
 

@@ -441,6 +441,30 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 
 テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`
 
+### `config/system_info.csv` に表示用メタデータを追加
+
+Result Server や比較画面でシステム情報を見せるために、`system_info.csv` にも同じ system を追加します。
+
+```csv
+system,name,cpu_name,cpu_per_node,cpu_cores,gpu_name,gpu_per_node,memory,display_order
+NewSystem,NewSystem,Example CPU,2,64,Example GPU,4,512GB,10
+```
+
+- `system`
+  - `config/system.csv` や `list.csv` と同じ system 名を使います
+- `name`
+  - 画面表示に使う名前です
+- `cpu_name`, `cpu_per_node`, `cpu_cores`
+  - CPU 構成です
+- `gpu_name`, `gpu_per_node`
+  - GPU がある場合に設定します。GPU がない場合は `-` を使います
+- `memory`
+  - ノードあたりメモリ容量です
+- `display_order`
+  - 一覧や比較画面での表示順です
+
+`system.csv` に追加したのに `system_info.csv` を追加しないと、実行自体は通っても UI 側で説明情報が欠けることがあります。
+
 ### BenchKit 側の責務分担
 
 拠点追加時に迷いやすい点ですが、BenchKit では設定の置き場所を次のように分けます。
@@ -449,12 +473,14 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
   - システム固有の実行モード、Runner タグ、キュー種別、キューグループを持つ
 - `config/queue.csv`
   - スケジューラ投入コマンドのテンプレートを持つ
+- `config/system_info.csv`
+  - Result Server や比較画面に出すシステム表示情報を持つ
 - `programs/<code>/list.csv`
   - アプリごとのノード数、プロセス数、スレッド数、制限時間だけを持つ
 - `programs/<code>/build.sh` / `run.sh`
   - `module load`、コンパイラ、`mpirun` / `srun` / `pjsub` の使い方、affinity など、実行そのものの差異を持つ
 
-言い換えると、`system.csv` と `queue.csv` は「どこでどう投入するか」、`list.csv` は「何条件で回すか」、`build.sh` / `run.sh` は「そのシステムでどう実行するか」の責務です。
+言い換えると、`system.csv` と `queue.csv` は「どこでどう投入するか」、`system_info.csv` は「そのシステムをどう見せるか」、`list.csv` は「何条件で回すか」、`build.sh` / `run.sh` は「そのシステムでどう実行するか」の責務です。
 
 ### 接続確認の推奨順序
 
