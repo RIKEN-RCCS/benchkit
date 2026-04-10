@@ -94,6 +94,24 @@ FULL_RESULT = {
     },
 }
 
+FULL_QUALITY = {
+    "level": "rich",
+    "label": "Rich",
+    "summary": "Breakdown, estimation bindings, source provenance, and artifacts are present.",
+    "warnings": [],
+    "stats": {
+        "has_fom": True,
+        "has_source_info": True,
+        "source_info_complete": True,
+        "has_breakdown": True,
+        "section_count": 2,
+        "overlap_count": 1,
+        "section_package_count": 2,
+        "overlap_package_count": 1,
+        "artifact_count": 3,
+    },
+}
+
 
 class TestResultDetailTemplate:
     """result_detail.html テンプレートのレンダリングテスト"""
@@ -102,7 +120,7 @@ class TestResultDetailTemplate:
         """4.1: メタ情報セクションが正しくレンダリングされる"""
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, filename="test.json")
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
 
         assert "benchpark-osu-micro-benchmarks" in html
         assert "RC_GH200" in html
@@ -118,7 +136,7 @@ class TestResultDetailTemplate:
         """4.2: ベクトル型メトリクスのグラフセクションが表示される"""
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, filename="test.json")
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
 
         assert "vectorChart" in html
         assert "cdn.jsdelivr.net/npm/chart.js" in html
@@ -131,7 +149,7 @@ class TestResultDetailTemplate:
         """4.3: ベクトル型メトリクスのデータテーブルが正しく表示される"""
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, filename="test.json")
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
 
         # カラムヘッダー
         assert "Bandwidth" in html
@@ -147,7 +165,7 @@ class TestResultDetailTemplate:
         """4.4: スカラーメトリクスが2つ以上のキーで表示される"""
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, filename="test.json")
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
 
         assert "Scalar Metrics" in html
         assert "other_metric" in html
@@ -161,7 +179,7 @@ class TestResultDetailTemplate:
         }
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=result, filename="test.json")
+            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
 
         # h2タグ内のセクション見出しが表示されないことを確認
         assert "<h2>Scalar Metrics</h2>" not in html
@@ -170,7 +188,7 @@ class TestResultDetailTemplate:
         """4.5: ビルド情報セクションが正しく表示される"""
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, filename="test.json")
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
 
         assert "Build Information" in html
         assert "spack" in html
@@ -184,7 +202,7 @@ class TestResultDetailTemplate:
         result = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=result, filename="test.json")
+            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
 
         assert "<h2>Build Information</h2>" not in html
 
@@ -193,7 +211,7 @@ class TestResultDetailTemplate:
         result = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=result, filename="test.json")
+            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
 
         assert "vectorChart" not in html
         assert "cdn.jsdelivr.net/npm/chart.js" not in html
@@ -206,8 +224,18 @@ class TestResultDetailTemplate:
         }
         with app.test_request_context():
             from flask import render_template
-            html = render_template("result_detail.html", result=result, filename="test.json")
+            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
 
         assert "Build Information" in html
         assert "cmake" in html
         assert "Compiler" not in html
+
+    def test_quality_section(self, app):
+        """Quality セクションが表示される"""
+        with app.test_request_context():
+            from flask import render_template
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+
+        assert "<h2>Quality</h2>" in html
+        assert "Rich" in html
+        assert "Breakdown" in html

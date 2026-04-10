@@ -74,6 +74,116 @@ def load_single_result(filename, save_dir):
         return None
 
 
+def summarize_result_quality(data):
+    """Result JSON の品質サマリを返す。"""
+    warnings = []
+
+    fom = data.get("FOM")
+    has_fom = fom not in (None, "", "null", "N/A")
+
+    source_info = data.get("source_info")
+    has_source_info = isinstance(source_info, dict) and bool(source_info)
+    source_info_complete = False
+    if has_source_info:
+        source_type = source_info.get("source_type")
+        if source_type == "git":
+            source_info_complete = all(source_info.get(k) for k in ("repo_url", "branch", "commit_hash"))
+        elif source_type == "file":
+            source_info_complete = all(source_info.get(k) for k in ("file_path", "md5sum"))
+        else:
+            warnings.append("source_info has unknown source_type")
+    else:
+        warnings.append("source_info is missing")
+
+    if has_source_info and not source_info_complete:
+        warnings.append("source_info is incomplete")
+
+    fom_breakdown = data.get("fom_breakdown")
+    sections = []
+    overlaps = []
+    if isinstance(fom_breakdown, dict):
+        if isinstance(fom_breakdown.get("sections"), list):
+            sections = fom_breakdown.get("sections", [])
+        if isinstance(fom_breakdown.get("overlaps"), list):
+            overlaps = fom_breakdown.get("overlaps", [])
+
+    has_breakdown = bool(sections or overlaps)
+    if not has_breakdown:
+        warnings.append("fom_breakdown is missing")
+
+    section_names = [s.get("name") for s in sections if isinstance(s, dict) and s.get("name")]
+    if len(section_names) != len(set(section_names)):
+        warnings.append("duplicate section names found")
+
+    unknown_overlap_refs = 0
+    for overlap in overlaps:
+        if not isinstance(overlap, dict):
+            continue
+        members = overlap.get("sections", [])
+        if not isinstance(members, list) or not members:
+            warnings.append("overlap has no sections")
+            continue
+        for member in members:
+            if member not in section_names:
+                unknown_overlap_refs += 1
+
+    if unknown_overlap_refs:
+        warnings.append("overlap references undefined sections")
+
+    section_pkg_count = sum(
+        1 for s in sections
+        if isinstance(s, dict) and isinstance(s.get("estimation_package"), str) and s.get("estimation_package")
+    )
+    overlap_pkg_count = sum(
+        1 for o in overlaps
+        if isinstance(o, dict) and isinstance(o.get("estimation_package"), str) and o.get("estimation_package")
+    )
+    artifact_count = sum(
+        len(item.get("artifacts", []))
+        for item in sections + overlaps
+        if isinstance(item, dict) and isinstance(item.get("artifacts"), list)
+    )
+
+    expected_pkg_items = len(sections) + len(overlaps)
+    actual_pkg_items = section_pkg_count + overlap_pkg_count
+    estimation_ready = has_breakdown and expected_pkg_items > 0 and expected_pkg_items == actual_pkg_items
+    provenance_rich = estimation_ready and source_info_complete and artifact_count > 0
+
+    if has_breakdown and expected_pkg_items > actual_pkg_items:
+        warnings.append("some breakdown items are missing estimation_package")
+
+    if provenance_rich:
+        level = "rich"
+        label = "Rich"
+        summary = "Breakdown, estimation bindings, source provenance, and artifacts are present."
+    elif estimation_ready:
+        level = "ready"
+        label = "Ready"
+        summary = "Breakdown and estimation bindings are present."
+    else:
+        level = "basic"
+        label = "Basic"
+        summary = "Core result fields are present, but estimation-related detail is limited."
+
+    return {
+        "level": level,
+        "label": label,
+        "summary": summary,
+        "warnings": warnings,
+        "stats": {
+            "has_fom": has_fom,
+            "has_source_info": has_source_info,
+            "source_info_complete": source_info_complete,
+            "has_breakdown": has_breakdown,
+            "section_count": len(sections),
+            "overlap_count": len(overlaps),
+            "section_package_count": section_pkg_count,
+            "overlap_package_count": overlap_pkg_count,
+            "artifact_count": artifact_count,
+        },
+    }
+
+
 def load_multiple_results(filenames, save_dir):
     """
     複数の結果JSONを読み込み、タイムスタンプ昇順でソートしたリストを返す。
@@ -187,6 +297,8 @@ def _build_row(json_file, data, tgz_files):
     else:
         source_hash = "-"
 
+    quality = summarize_result_quality(data)
+
     row = {
         "timestamp": timestamp,
         "code": code,
@@ -200,7 +312,7 @@ def _build_row(json_file, data, tgz_files):
         "json_link": url_for("results.show_result", filename=json_file),
         "data_link": url_for("results.show_result", filename=tgz_file) if tgz_file else None,
         "has_vector": has_vector,
-        "detail_link": url_for("results.result_detail", filename=json_file) if has_vector else None,
+        "detail_link": url_for("results.result_detail", filename=json_file),
         "filename": json_file,
         "build_time": build_time,
         "queue_time": queue_time,
@@ -212,6 +324,7 @@ def _build_row(json_file, data, tgz_files):
         "pipeline_id": pipeline_id,
         "source_info": source_info,
         "source_hash": source_hash,
+        "quality": quality,
     }
     return row
 

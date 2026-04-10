@@ -4,7 +4,7 @@ from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app, make_response
 )
-from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE
+from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE, summarize_result_quality
 from utils.user_store import get_user_store
 from utils.result_file import load_result_file, check_file_permission
 from utils.system_info import get_all_systems_info
@@ -199,7 +199,8 @@ def result_detail(filename):
     result = load_single_result(filename, save_dir=current_app.config["RECEIVED_DIR"])
     if result is None:
         abort(404, "Result file not found")
-    return render_template("result_detail.html", result=result, filename=filename)
+    quality = summarize_result_quality(result)
+    return render_template("result_detail.html", result=result, filename=filename, quality=quality)
 
 
 # ==========================================

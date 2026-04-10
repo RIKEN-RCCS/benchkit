@@ -74,7 +74,7 @@
         {% endfor %}
         <th>
             <span class="tooltip tooltip-right">Detail
-                <span class="tooltiptext">Link to detail page for vector metrics</span>
+                <span class="tooltiptext">Link to detail page</span>
             </span>
         </th>
     </tr>
@@ -163,11 +163,11 @@
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
                 {% elif key == "code" %}
                     {% if row.source_info and row.source_info.source_type == "git" %}
-                        <td><a href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a></td>
+                        <td><a href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% elif row.source_info and row.source_info.source_type == "file" %}
-                        <td title="{{ row.source_info.file_path }}">{{ row.code }}</td>
+                        <td title="{{ row.source_info.file_path }}">{{ row.code }}<span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% else %}
-                        <td title="{{ row.code }}">{{ row.code }}</td>
+                        <td title="{{ row.code }}">{{ row.code }}<span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% endif %}
                 {% elif key in ["fom_version", "exp", "ci_trigger", "pipeline_id", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
@@ -181,7 +181,7 @@
                 {% endif %}
             {% endfor %}
             <td>
-                {% if row.has_vector and row.detail_link %}
+                {% if row.detail_link %}
                     <a href="{{ row.detail_link }}">Detail</a>
                 {% else %}
                     -
@@ -191,6 +191,32 @@
     {% endfor %}
     </tbody>
 </table>
+
+<style>
+.quality-badge {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    font-size: 0.68em;
+    font-weight: 600;
+    line-height: 1.4;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.quality-basic {
+    background: #eef2f7;
+    color: #41566d;
+}
+.quality-ready {
+    background: #e7f6ea;
+    color: #1f6b33;
+}
+.quality-rich {
+    background: #e8f1ff;
+    color: #1f4f99;
+}
+</style>
 
 {% include "_pagination.html" %}
 

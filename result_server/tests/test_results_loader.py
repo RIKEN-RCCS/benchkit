@@ -47,7 +47,7 @@ _setup_stubs()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import Flask
-from utils.results_loader import load_single_result, load_multiple_results, load_results_table, get_filter_options
+from utils.results_loader import load_single_result, load_multiple_results, load_results_table, get_filter_options, summarize_result_quality
 
 
 # --- フィクスチャ ---
@@ -262,7 +262,7 @@ class TestLoadResultsTableExtension:
 
         assert len(rows) == 1
         assert rows[0]["has_vector"] is False
-        assert rows[0]["detail_link"] is None
+        assert rows[0]["detail_link"] == f"/results/detail/{filename}"
         assert rows[0]["filename"] == filename
 
     def test_has_vector_false_when_only_scalar(self, flask_app, tmp_dir):
@@ -280,7 +280,7 @@ class TestLoadResultsTableExtension:
 
         assert len(rows) == 1
         assert rows[0]["has_vector"] is False
-        assert rows[0]["detail_link"] is None
+        assert rows[0]["detail_link"] == f"/results/detail/{filename}"
 
     def test_existing_columns_unchanged(self, flask_app, tmp_dir):
         """既存のカラムリストが変更されていない"""
@@ -330,6 +330,61 @@ class TestLoadResultsTableExtension:
         assert row["timestamp"] == "2025-01-01 12:00:00"
         assert row["numproc_node"] == "48"
         assert row["nthreads"] == "12"
+
+
+class TestSummarizeResultQuality:
+    def test_basic_quality_without_breakdown(self):
+        quality = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+        })
+
+        assert quality["level"] == "basic"
+        assert "fom_breakdown is missing" in quality["warnings"]
+
+    def test_ready_quality_with_breakdown_and_packages(self):
+        quality = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "fom_breakdown": {
+                "sections": [
+                    {"name": "solver", "time": 1.0, "estimation_package": "identity"},
+                ],
+                "overlaps": [],
+            },
+        })
+
+        assert quality["level"] == "ready"
+        assert quality["stats"]["section_package_count"] == 1
+
+    def test_rich_quality_with_source_and_artifacts(self):
+        quality = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.invalid/repo.git",
+                "branch": "main",
+                "commit_hash": "0123456789abcdef0123456789abcdef01234567",
+            },
+            "fom_breakdown": {
+                "sections": [
+                    {
+                        "name": "solver",
+                        "time": 1.0,
+                        "estimation_package": "identity",
+                        "artifacts": [{"type": "file_reference", "path": "results/x"}],
+                    },
+                ],
+                "overlaps": [],
+            },
+        })
+
+        assert quality["level"] == "rich"
+        assert quality["stats"]["artifact_count"] == 1
 
 
 # ============================================================
