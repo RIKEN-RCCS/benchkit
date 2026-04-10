@@ -63,7 +63,11 @@ Fugaku,yes,1,4,12,0:10:00
 Fugaku,yes,2,4,12,0:20:00
 # MiyabiG/MiyabiC での設定例
 MiyabiG,yes,1,1,72,0:10:00
-MiyabiC,no,1,1,112,0:10:00
+MiyabiC,yes,1,1,112,0:10:00
+# RC系での設定例
+RC_DGXSP,yes,1,1,20,0:10:00
+RC_GENOA,yes,1,1,96,0:10:00
+RC_FX700,yes,1,4,12,0:10:00
 # ログインノードでのテスト用
 FugakuLN,yes,1,1,1,0:10:00
 ```
@@ -128,6 +132,22 @@ case "$system" in
         # Intel向けビルド
         make -j 8 compiler=intel arch=skylake mpi=1
         ;;
+    RC_GENOA)
+        # AMD Genoa向けビルド
+        module load system/genoa mpi/openmpi-x86_64
+        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        ;;
+    RC_DGXSP)
+        # DGX Spark向けビルド
+        source /etc/profile.d/modules.sh
+        module load system/ng-dgx nvhpc-hpcx/26.3
+        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        ;;
+    RC_FX700)
+        # A64FX系FX700向けビルド
+        module load system/fx700 FJSVstclanga
+        make -j 8 compiler=fujitsu_native mpi=1 SYSLIBS=
+        ;;
     *)
         echo "Unknown system: $system"
         exit 1
@@ -145,6 +165,9 @@ make -j 8 fugaku_benchmark= omp=1 compiler=fujitsu_cross rdma= mpi=1 powerapi=
 
 # MiyabiG向けNeoverse-N1ビルド
 make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
+
+# FX700向けA64FXネイティブビルド
+make -j 8 fugaku_benchmark= omp=1 compiler=fujitsu_native rdma= mpi=1 powerapi= SYSLIBS=
 ```
 
 ### ビルドテスト
@@ -359,7 +382,7 @@ Line# | Configuration
 ### 対応システム
 - **Fugaku/FugakuCN**: PJM（富岳）
 - **MiyabiG/MiyabiC**: PBS（Miyabi）
-- **RC_GH200**: SLURM（クラウド）
+- **RC_GH200/RC_DGXSP/RC_GENOA/RC_FX700**: SLURM（クラウド）
 - **FugakuLN**: テスト専用（投入なし）
 
 **注意**: トークンを消費するプロジェクトでは、`groups`の第二要素が自動で選択されます。変更したい場合は`scripts/test_submit.sh`を編集してください。

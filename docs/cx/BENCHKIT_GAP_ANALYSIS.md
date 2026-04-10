@@ -184,11 +184,11 @@ Once the estimation specification is clarified, many other design decisions beco
 | 項目 | 仕様上の期待 | 現状実装 | GAP | 優先度 |
 |---|---|---|---|---|
 | 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `qws/estimate.sh` がある | 他 app への横展開が未着手。`estimate.sh` 内の宣言ブロックの共通 API も未固定 | 最優先 |
-| 軽量推定 package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` の実装を整理中 | app / package / BenchKit の責務分離、他 app への横展開、表示整合は未完 | 高 |
-| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `weakscaling` と `instrumented_app_sections_dummy` はこれらを扱う方向で整理中。final Estimate JSON では `applicable`、`partially_applicable`、`fallback`、`not_applicable` を表現できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
+| 軽量推定 package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` を実装済み。`identity` / `logp` を current 側で適用し、unsupported な section package は fallback できる | 他 app への横展開、表示整合、より明示的な軽量 package discovery は未完 | 高 |
+| 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `weakscaling` と `instrumented_app_sections_dummy` でこれらを扱える。Estimate JSON でも requested / applied package、fallback、`applicable` / `partially_applicable` / `fallback` / `not_applicable` を表現できる | 複数 detailed package 間の分岐、より細かい fallback 選択、UI 表示は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | 軽量/詳細ダミーとも最小 metadata を持つ | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
-| section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | `bk_emit_section` / `bk_emit_overlap` から Result JSON に `estimation_package` を載せられ、`instrumented_app_sections_dummy` でも dispatch に利用している | 他 app への横展開と package discovery の整理が未完。app 側が実行前に宣言する形は設計整理済みだが未実装 | 最優先 |
-| app 側推定宣言 | app 側が実行前に section / overlap と `estimation_package` をまとめて宣言できること | `estimate.sh` に宣言ブロックを寄せる方向性は整理済み | 宣言 API、既定値の与え方、`run.sh` からの読込み方は未固定。実装も未着手 | 最優先 |
+| section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | `bk_emit_section` / `bk_emit_overlap` から Result JSON に `estimation_package` を載せられ、`instrumented_app_sections_dummy` でも dispatch に利用している。`weakscaling` では unsupported package を fallback する | 他 app への横展開と package discovery の整理が未完 | 最優先 |
+| app 側推定宣言 | app 側が実行前に section / overlap と `estimation_package` をまとめて宣言できること | `qws/estimate.sh` で current / future package、target system / nodes、future 側 section / overlap 宣言を持てる | 宣言 API の更なる標準化、既定値の与え方、他 app への横展開は未完 | 最優先 |
 | 追加採取実行 | 通常実行と別に詳細推定入力の採取だけを共通入口から追加実行できること | `bk_run_estimation_data_collection` 方向は整理済み | shell API、分岐条件、保存処理との接続は未実装 | 最優先 |
 | section ごとの補助データ参照 | tgz 等の補助データを section ごとに紐付けられること | `qws` では section / overlap ごとに `artifacts` を Result JSON に保持し、詳細ダミー package でも利用している | 他 app への横展開と artifact 収集方式の一般化が未着手 | 高 |
 | overlap 推定 | overlap を独立した推定部品として扱えること | Result JSON で保持でき、詳細ダミー package でも overlap の `bench_time/time` は扱える | overlap 専用 package や複数方式切替は未実装 | 中 |

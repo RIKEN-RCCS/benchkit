@@ -45,11 +45,34 @@
 #!/bin/bash
 set -euo pipefail
 
-BK_ESTIMATION_PACKAGE="weakscaling"
 source scripts/estimation/common.sh
-source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
-bk_run_estimation "$1"
+myapp_declare_estimation_layout() {
+  bk_clear_estimation_defaults
+  bk_clear_estimation_declarations
+  bk_define_current_estimation_package weakscaling
+  bk_define_future_estimation_package weakscaling
+  bk_define_baseline_system Fugaku
+  bk_define_baseline_exp CASE0
+  bk_define_future_system FutureSystemA
+  bk_define_current_target_nodes 1024
+  bk_define_future_target_nodes 1024
+}
+
+myapp_declare_estimation_layout
+bk_estimation_apply_declared_defaults
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
+bk_estimation_run_declared_future_package "$1"
+bk_estimation_run_recorded_current_with_weakscaling \
+  "${BK_ESTIMATION_BASELINE_SYSTEM}" \
+  "${BK_ESTIMATION_BASELINE_EXP}" \
+  "${BK_ESTIMATION_CURRENT_TARGET_NODES}" \
+  "${BK_ESTIMATION_CURRENT_PACKAGE}"
+bk_estimation_write_output "results/estimate_${est_code}_0.json"
 ```
 
 ---
@@ -91,10 +114,22 @@ bk_run_estimation "$1"
 イメージとしては次のようになります。
 
 ```bash
-bk_declare_section prepare_rhs identity
-bk_declare_section compute_solver counter_papi_detailed
-bk_declare_section allreduce logp
-bk_declare_overlap compute_hopping,halo_exchange overlap_max_basic
+myapp_declare_estimation_layout() {
+  bk_clear_estimation_defaults
+  bk_clear_estimation_declarations
+  bk_define_current_estimation_package weakscaling
+  bk_define_future_estimation_package instrumented_app_sections_dummy
+  bk_define_baseline_system Fugaku
+  bk_define_baseline_exp CASE0
+  bk_define_future_system FutureSystemA
+  bk_define_current_target_nodes 1024
+  bk_define_future_target_nodes 256
+
+  bk_declare_section --side future prepare_rhs half
+  bk_declare_section --side future compute_solver half
+  bk_declare_section --side future allreduce logp
+  bk_declare_overlap --side future compute_hopping,halo_exchange half
+}
 ```
 
 この宣言は `estimate.sh` にまとめ、`run.sh` 側では package 名を重ねて書かない形が望ましいです。app 側は「どの item にどの package を使うか」を先に決め、実行時には得られた値だけを出す形に寄せます。
@@ -132,15 +167,18 @@ bk_emit_result \
 
 ```bash
 bk_emit_declared_section \
+  --side future \
   prepare_rhs 0.42 \
   >> results/result
 
 bk_emit_declared_section \
+  --side future \
   compute_solver 1.03 \
   results/estimation_inputs/compute_solver_papi.tgz \
   >> results/result
 
 bk_emit_declared_overlap \
+  --side future \
   compute_hopping,halo_exchange 0.23 \
   results/estimation_inputs/compute_halo_overlap.json \
   >> results/result
@@ -174,11 +212,42 @@ bk_run_estimation_data_collection mpiexec ./a.out "$@"
 #!/bin/bash
 set -euo pipefail
 
-BK_ESTIMATION_PACKAGE="instrumented_app_sections_dummy"
 source scripts/estimation/common.sh
-source "scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh"
 
-bk_run_estimation "$1"
+myapp_declare_estimation_layout() {
+  bk_clear_estimation_defaults
+  bk_clear_estimation_declarations
+  bk_define_current_estimation_package weakscaling
+  bk_define_future_estimation_package instrumented_app_sections_dummy
+  bk_define_baseline_system Fugaku
+  bk_define_baseline_exp CASE0
+  bk_define_future_system FugakuNEXT
+  bk_define_current_target_nodes 1024
+  bk_define_future_target_nodes 256
+
+  bk_declare_section --side future prepare_rhs half
+  bk_declare_section --side future compute_hopping quarter
+  bk_declare_section --side future compute_solver half
+  bk_declare_section --side future halo_exchange quarter
+  bk_declare_section --side future allreduce logp
+  bk_declare_section --side future write_result half
+  bk_declare_overlap --side future compute_hopping,halo_exchange half
+}
+
+myapp_declare_estimation_layout
+bk_estimation_apply_declared_defaults
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
+bk_estimation_run_declared_future_package "$1"
+bk_estimation_run_recorded_current_with_weakscaling \
+  "${BK_ESTIMATION_BASELINE_SYSTEM}" \
+  "${BK_ESTIMATION_BASELINE_EXP}" \
+  "${BK_ESTIMATION_CURRENT_TARGET_NODES}" \
+  "${BK_ESTIMATION_CURRENT_PACKAGE}"
+bk_estimation_write_output "results/estimate_${est_code}_0.json"
 ```
 
 ---

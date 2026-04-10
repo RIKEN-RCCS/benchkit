@@ -240,7 +240,7 @@ python -m pytest tests/ -v
 ### 4. 性能推定パイプライン
 ベンチマーク結果から本番規模性能、スケーリング挙動、将来システムでの性能を推定します。詳細は [add-estimation.md](docs/guides/add-estimation.md) と [ESTIMATION_SPEC.md](docs/cx/ESTIMATION_SPEC.md) を参照。
 
-- 推定対象システム: `ESTIMATE_SYSTEMS`（job_functions.sh で定義、例: MiyabiG, RC_GH200）
+- 推定対象システム: `ESTIMATE_SYSTEMS`（`scripts/job_functions.sh` で定義。必要に応じて更新）
 - `estimate.sh` がアプリ固有の推定ロジックを実装（`programs/<code>/estimate.sh`）
 - `scripts/estimation/common.sh` が共通関数（API呼び出し、JSON出力等）を提供
 - 簡易推定と詳細推定の双方を将来的に受け入れられる設計を前提とする
@@ -265,6 +265,10 @@ python -m pytest tests/ -v
 system,mode,tag_build,tag_run,queue,queue_group
 Fugaku,cross,fugaku_login1,fugaku_jacamar,FJ,small
 FugakuLN,native,,fugaku_login1,none,small
+RC_GH200,native,,cloud_jacamar,SLURM_RC,qc-gh200
+RC_DGXSP,native,,cloud_jacamar,SLURM_RC,ng-dgx-3h
+RC_GENOA,native,,cloud_jacamar,SLURM_RC,genoa
+RC_FX700,native,,cloud_jacamar,SLURM_RC,fx700
 MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
 MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
 ```
@@ -283,7 +287,7 @@ MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
 queue,submit_cmd,template
 FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0004"
 PBS_Miyabi,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=gq49"
-SLURM_RC_GH200,sbatch,"-p qc-gh200 -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"
+SLURM_RC,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"
 none,none,none
 ```
 
@@ -300,7 +304,11 @@ Fugaku,yes,4,4,12,0:30:00
 FugakuCN,no,1,4,12,0:10:00
 # MiyabiG/MiyabiCでの実行例
 MiyabiG,yes,1,1,72,0:10:00
-MiyabiC,no,1,1,112,0:10:00
+MiyabiC,yes,1,1,112,0:10:00
+# RC系での実行例
+RC_DGXSP,yes,1,1,20,0:10:00
+RC_GENOA,yes,1,1,96,0:10:00
+RC_FX700,yes,1,4,12,0:10:00
 ```
 
 `list.csv` は **アプリごとの実験条件マトリクスの正本** です。ここにはジョブ投入の有無と、投入時に変わる実行条件だけを書きます。
@@ -338,7 +346,7 @@ MiyabiC,no,1,1,112,0:10:00
 
 ```bash
 # 特定システムのみ実行
-git commit -m "Fix bug [system:MiyabiG,MiyabiC]"
+git commit -m "Fix bug [system:MiyabiG,MiyabiC,RC_GENOA]"
 
 # 特定プログラムのみ実行
 git commit -m "Update qws [code:qws,genesis]"
@@ -360,7 +368,7 @@ git commit -m "Update docs [skip-ci]"
 
 | 変数 | 説明 | 例 |
 |------|------|-----|
-| `system` | システムフィルタ（BenchKit/BenchPark共通） | `MiyabiG,MiyabiC` |
+| `system` | システムフィルタ（BenchKit/BenchPark共通） | `MiyabiG,MiyabiC,RC_GENOA,RC_DGXSP,RC_FX700` |
 | `code` | BenchKitプログラムフィルタ | `qws,genesis` |
 | `app` | BenchParkアプリフィルタ | `osu-micro-benchmarks` |
 | `benchpark` | BenchParkパイプライン有効化 | `true` |

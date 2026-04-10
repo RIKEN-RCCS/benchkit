@@ -432,7 +432,7 @@ NewSystemLN,native,,newsystem_login,none,default
 
 ### `config/queue.csv` にキューシステムを追加（必要な場合）
 
-既存のキューシステム（`FJ`, `PBS_Miyabi`, `SLURM_RC_GH200`）に該当しない場合は追加：
+既存のキューシステム（`FJ`, `PBS_Miyabi`, `SLURM_RC`）に該当しない場合は追加：
 
 ```csv
 queue,submit_cmd,template

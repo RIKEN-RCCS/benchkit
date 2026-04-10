@@ -220,7 +220,9 @@ Examples:
 - MiyabiG
 - MiyabiC
 - RC_GH200
+- RC_DGXSP
 - RC_GENOA
+- RC_FX700
 - 将来の実システム
 
 実行環境は単なる計算資源ではなく、runner や Jacamar CI などの接続先として運用上の条件を伴う。
@@ -233,7 +235,9 @@ Examples:
 - MiyabiG
 - MiyabiC
 - RC_GH200
+- RC_DGXSP
 - RC_GENOA
+- RC_FX700
 - future real systems
 
 Execution environments are not just compute resources; they are operational integration targets for runners, Jacamar CI, and related components.

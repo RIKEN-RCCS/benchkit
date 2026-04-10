@@ -455,7 +455,7 @@ runner、Jacamar CI、scheduler、module 環境、共有ストレージなどの
 - 実行アカウントと予算主体
 
 例:
-`RC_GH200` では、runner tag、queue、module load、MPI 実行方法、結果回収先が定義されていて、CI からその条件で実行できなければならない。
+`RC_GH200`、`RC_DGXSP`、`RC_GENOA`、`RC_FX700` では、runner tag、queue、module load、MPI 実行方法、結果回収先が定義されていて、CI からその条件で実行できなければならない。
 
 BenchKit does not directly manage real systems, but it must define runners, Jacamar CI, scheduler behavior, module environments, shared storage, and similar execution conditions in an integrable form.
 
@@ -472,7 +472,7 @@ Therefore, site integration must handle at least:
 - execution account and budget owner
 
 Example:
-For `RC_GH200`, the runner tag, queue, module loading, MPI launch method, and result collection destination must be defined so that CI can execute under those conditions.
+For `RC_GH200`, `RC_DGXSP`, `RC_GENOA`, and `RC_FX700`, the runner tag, queue, module loading, MPI launch method, and result collection destination must be defined so that CI can execute under those conditions.
 
 ## 10. 将来拡張 / Future Extensions
 

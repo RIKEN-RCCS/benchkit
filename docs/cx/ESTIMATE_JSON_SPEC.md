@@ -222,13 +222,25 @@ Estimate JSON may include the following extension fields:
     "timestamp": "2026-04-03 13:00:00",
     "estimation_result_uuid": "22222222-2222-2222-2222-222222222222",
     "estimation_result_timestamp": "2026-04-03 13:00:00",
-    "method_class": "lightweight",
-    "detail_level": "basic",
+    "method_class": "detailed",
+    "detail_level": "intermediate",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
-    "estimation_package": "lightweight_fom_scaling",
+    "estimation_package": "instrumented_app_sections_dummy",
     "estimation_package_version": "0.1",
     "requested_estimation_package": "instrumented_app_sections_dummy",
-    "requested_estimation_package_version": "0.1"
+    "requested_estimation_package_version": "0.1",
+    "current_package": {
+      "estimation_package": "weakscaling",
+      "estimation_package_version": "0.1",
+      "requested_estimation_package": "weakscaling",
+      "requested_estimation_package_version": "0.1"
+    },
+    "future_package": {
+      "estimation_package": "instrumented_app_sections_dummy",
+      "estimation_package_version": "0.1",
+      "requested_estimation_package": "instrumented_app_sections_dummy",
+      "requested_estimation_package_version": "0.1"
+    }
   }
 }
 ```

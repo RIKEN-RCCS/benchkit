@@ -476,14 +476,14 @@ In other words, the intended separation is that BenchKit provides the common rul
 
 例:
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `baseline_ratio_estimation`
 
 これらは、高頻度実行や PoC に向く。
 
 Examples:
 
-- `lightweight_fom_scaling`
+- `weakscaling`
 - `baseline_ratio_estimation`
 
 These are suitable for high-frequency runs and PoC work.
@@ -515,11 +515,12 @@ These are suitable for deeper analysis and future-system evaluation.
 BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、例えば以下のような形へ寄せることが望ましい。
 
 ```sh
-BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
-BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
+BK_ESTIMATION_CURRENT_PACKAGE=weakscaling
+BK_ESTIMATION_FUTURE_PACKAGE=instrumented_app_sections_dummy
+BK_ESTIMATION_FUTURE_SYSTEM=FutureSystemA
 
-source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
-bk_run_estimation_package
+source programs/<code>/estimate.sh
+bk_estimation_run_declared_future_package result.json
 ```
 
 この形では、app 側はパッケージ選択と最小限の app 固有設定を担い、推定方式の詳細はパッケージ側へ集約される。
@@ -527,11 +528,12 @@ bk_run_estimation_package
 In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead looks like:
 
 ```sh
-BK_ESTIMATION_PACKAGE=lightweight_fom_scaling
-BK_ESTIMATION_TARGET_SYSTEM=FutureSystemA
+BK_ESTIMATION_CURRENT_PACKAGE=weakscaling
+BK_ESTIMATION_FUTURE_PACKAGE=instrumented_app_sections_dummy
+BK_ESTIMATION_FUTURE_SYSTEM=FutureSystemA
 
-source scripts/estimation/packages/${BK_ESTIMATION_PACKAGE}.sh
-bk_run_estimation_package
+source programs/<code>/estimate.sh
+bk_estimation_run_declared_future_package result.json
 ```
 
 In this form, the application side is responsible only for package selection and minimal app-specific configuration, while the details of the estimation method are concentrated in the package.
