@@ -23,6 +23,8 @@
         .quality-ready { background: #e7f6ea; color: #1f6b33; }
         .quality-rich { background: #e8f1ff; color: #1f4f99; }
         .quality-list { margin: 0; padding-left: 20px; }
+        .quality-level-cell { min-width: 420px; }
+        .quality-summary { display: block; margin-top: 0.35rem; line-height: 1.45; }
     </style>
 </head>
 <body>
@@ -41,9 +43,17 @@
         <tr><th>System</th><td>{{ result.get('system', 'N/A') }}</td></tr>
         <tr><th>Exp</th><td>{{ result.get('Exp', 'N/A') }}</td></tr>
         <tr><th>FOM</th><td>{{ "%.3f"|format(result.get('FOM', 'N/A')|float) if result.get('FOM', 'N/A') not in [None, '', 'N/A', 'null', 'nan'] else result.get('FOM', 'N/A') }}</td></tr>
-        <tr><th>FOM Unit</th><td>{{ result.get('FOM_unit', 'N/A') }}</td></tr>
+        <tr><th>FOM Unit</th><td>{{ result.get('FOM_unit') or 'implicit default (s)' }}</td></tr>
         <tr><th>Node Count</th><td>{{ result.get('node_count', 'N/A') }}</td></tr>
-        <tr><th>CPUs per Node</th><td>{{ result.get('cpus_per_node', 'N/A') }}</td></tr>
+        {% if result.get('numproc_node') not in [None, '', 'N/A', 'null'] %}
+        <tr><th>Processes per Node</th><td>{{ result.get('numproc_node') }}</td></tr>
+        {% endif %}
+        {% if result.get('nthreads') not in [None, '', 'N/A', 'null'] %}
+        <tr><th>Threads per Process</th><td>{{ result.get('nthreads') }}</td></tr>
+        {% endif %}
+        {% if result.get('cpus_per_node') not in [None, '', 'N/A', 'null'] %}
+        <tr><th>CPUs per Node</th><td>{{ result.get('cpus_per_node') }}</td></tr>
+        {% endif %}
     </table>
 </div>
 
@@ -53,7 +63,7 @@
     <table class="meta-table">
         <tr>
             <th>Level</th>
-            <td><span class="quality-badge quality-{{ quality.level }}">{{ quality.label }}</span> {{ quality.summary }}</td>
+            <td class="quality-level-cell"><span class="quality-badge quality-{{ quality.level }}">{{ quality.label }}</span><span class="quality-summary">{{ quality.summary }}</span></td>
         </tr>
         <tr>
             <th>Source Info</th>
@@ -83,8 +93,8 @@
             </td>
         </tr>
         <tr>
-            <th>Artifacts</th>
-            <td>{{ quality.stats.artifact_count }}</td>
+            <th>Estimation Inputs</th>
+            <td>{{ quality.stats.artifact_count }} artifact reference(s)</td>
         </tr>
         <tr>
             <th>Warnings</th>

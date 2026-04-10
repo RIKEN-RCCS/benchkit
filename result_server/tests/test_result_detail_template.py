@@ -127,6 +127,7 @@ class TestResultDetailTemplate:
         assert "osu_bibw" in html
         assert "6.47" in html
         assert "MB/s" in html
+        assert "CPUs per Node" in html
         # 戻りリンク（url_forで生成されるため、results blueprintのルートURL）
         assert "Back to Results" in html
         # ナビゲーション
@@ -205,6 +206,7 @@ class TestResultDetailTemplate:
             html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
 
         assert "<h2>Build Information</h2>" not in html
+        assert "implicit default (s)" in html
 
     def test_no_vector_section_when_no_metrics(self, app):
         """4.2: metricsがない場合はグラフセクション非表示"""
@@ -239,3 +241,4 @@ class TestResultDetailTemplate:
         assert "<h2>Quality</h2>" in html
         assert "Rich" in html
         assert "Breakdown" in html
+        assert "Estimation Inputs" in html
