@@ -65,8 +65,8 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 | CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み。`add-site.md` に `system.csv` / `queue.csv` / `system_info.csv` の責務分担、接続確認順序、障害切り分け、onboarding checklist も整理された | site capability を自動検証する checker や app ごとの対応 system の見える化は未実装 | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
 | 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み。portal 側では一覧の quality badge と詳細の `Quality` セクションで `source_info`、`fom_breakdown`、推定入力参照の有無を軽く確認できる | app ごとの差異を体系的に検証する validator や、quality を継続集計する仕組みはまだ弱い | 推定、可視化、AI 診断の入力品質に直結 | 高 |
 | 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`qws` では `weakscaling` と詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
-| 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示があり、home からの導線も整理済み。未認証時は login required であることも入口で分かる | section / overlap 単位の package applicability や `not_applicable` 詳細の見せ方、比較 UI がまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
-| 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み | 予算主体、アカウント主体、runner 主体との結び付きがない | 多拠点運用と予算管理の核になる | 高 |
+| 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示に加えて、HTML detail で current / future breakdown、section / overlap 単位の fallback / package applicability まで表示できる。home からの導線も整理済みで、未認証時は login required であることも入口で分かる | compare UI、`not_applicable` の説明補助、複数 estimate 間の差分把握はまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
+| 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み。node-hour 集計に加えて、登録済み system と app の対応状況を `list.csv` および `build.sh` / `run.sh` の検出に基づく coverage matrix で確認できる | 予算主体、アカウント主体、runner 主体との結び付きや、site capability の自動 checker はまだ弱い | 多拠点運用と予算管理の核になる | 高 |
 | ソース出自情報 | 最上位アプリケーションの commit hash を追跡すること | `bk_fetch_source` と `source_info` が実装済み | すべての app で徹底されていない。 archive/file の場合は commit hash を持てない | 推定比較、AI 最適化、回帰分析の再現性に直結 | 高 |
 | 拠点接続 | runner, scheduler, queue, site 条件を扱えること | `system.csv` と CI 生成が連携済み。`system_info.csv` を含めた責務分担、接続確認手順、障害切り分け、site onboarding checklist が docs に整理済み | docs 依存がまだ強く、自動 checker や site ごとの capability summary は未実装 | 使用量集計、申請、runner 分散運用に直結 | 高 |
 | 認証・権限 | 結果・管理機能へのアクセス制御を行うこと | TOTP、admin、閲覧制御あり | 申請者、拠点担当者、推定モデル管理者などの役割分化が未定義 | 申請・承認・AI 指示導入時に重要になる | 中 |
@@ -196,7 +196,7 @@ Once the estimation specification is clarified, many other design decisions beco
 | 複合推定 | section ごとに異なる方式を合成できること | `qws` と `instrumented_app_sections_dummy` で section ごとの package 指定、artifact 参照、section package dispatch、section-level fallback を実装済み | 複数実アプリへの適用、本格 package 実装、より一般的な合成規則は未着手 | 高 |
 | 推定 provenance | 推定元 result と推定結果自体の出自情報を保持すること | 推定元 result の UUID / timestamp、requested/applied package、推定結果自体の UUID / timestamp を Estimate JSON に保持できる。result JSON 側にも server UUID / timestamp を保持できる | compare UI や再推定導線での活用は未整理 | 中 |
 | 再推定 | `estimate_result_uuid` 起点で再推定し比較可能にすること | 再推定専用 trigger、child pipeline、result / estimate / estimation input の再取得、`reestimation` ブロック付与、CI 上での保存完了まで動作する | compare UI、portal からの起動導線、表示上の差分把握が未完 | 高 |
-| 推定結果表示 | model / assumptions / applicability を表示できること | estimated 画面で requested/applied package、applicability、estimate UUID などの基本表示は可能 | section / overlap 単位の詳細表示、比較表示、`not_applicable` の説明補助は未整備 | 中 |
+| 推定結果表示 | model / assumptions / applicability を表示できること | estimated 画面で requested/applied package、applicability、estimate UUID などの基本表示に加えて、detail 画面で current / future breakdown と section / overlap 単位の fallback / applicability を表示できる | 比較表示、`not_applicable` の説明補助、再推定との横並び表示は未整備 | 中 |
 
 この表から、現在の最小核は以下と整理できる。
 
@@ -211,14 +211,14 @@ Once the estimation specification is clarified, many other design decisions beco
 - portal からの再推定要求フロー
 - 複合推定の本格化
 - counter / trace / overlap の本格活用
-- section / overlap 単位の詳細 UI 表示
+- compare を含む推定差分 UI 表示
 
 #### 5.1.2 次の実装順 / Recommended Immediate Order
 
 推定機構について、次の実装順を推奨する。
 
 1. `qws` 以外の app へ推定方式を横展開する
-2. section / overlap 単位の package applicability と `not_applicable` 詳細を portal で見やすくする
+2. `not_applicable` と compare を含む推定差分 UI を portal で見やすくする
 3. 複数 detailed package 間の fallback と discovery を整理する
 4. その後に再推定比較 UI と portal 起動導線へ進む
 
