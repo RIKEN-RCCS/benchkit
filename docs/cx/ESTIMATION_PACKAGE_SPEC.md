@@ -285,7 +285,6 @@ These should preferably be mappable, in principle, into `estimate_metadata` and 
 
 例:
 
-- FOM のみを使う簡易推定
 - section / overlap を使う推定
 - 詳細性能カウンターを使う推定
 - アノテーション区間時間を使う推定

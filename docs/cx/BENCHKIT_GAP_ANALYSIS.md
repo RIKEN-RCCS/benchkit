@@ -57,6 +57,40 @@ BenchKit already has a solid foundation for continuous benchmarking, especially 
 Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a `weakscaling` reference path, a detailed dummy package for `qws`, and result-provenance handoff have all been implemented.
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
+## 2.1 現時点で明示しておく設計負債 / Explicit Design Debts to Keep Visible
+
+現時点では、未実装というより「いったん止めている」「境界をまだ固定しきっていない」論点がいくつかある。
+この節は、それらを後で見失わないための明示的なメモである。
+
+- 推定 package / flow の境界:
+  BenchKit 共通層と package 側の責務分担はかなり整理されたが、metadata discovery、複数 detailed package 間の一般化、package 間 compare の扱いはまだ固定していない。
+- app 側の推定宣言 API:
+  `estimate.sh` に current / future package と section 宣言を書く流れは見えてきたが、他 app へ横展開する前提の最終 API はまだ固めていない。
+- 推定結果 compare UI:
+  detail 画面で current / future breakdown、fallback、applicability は見えるようになったが、同一 `code/exp` 間の差分把握 UI はまだ後回しにしている。
+- 結果 quality の扱い:
+  portal 上の quality badge / detail は実装済みだが、CI を fail させる validator にはしていない。品質評価は現在も可視化中心である。
+- site capability checker:
+  `/results/usage` に lightweight configuration checks は入ったが、CI 実行可否と直接結び付く自動 checker にはまだしていない。
+- app/system coverage 判定:
+  現在の coverage matrix は `list.csv` と `build.sh` / `run.sh` の mention ベースであり、将来的により厳密な capability 定義へ置き換える余地がある。
+
+At the current stage, several issues are not simply “missing implementations” but rather intentionally deferred or not yet fully fixed as design boundaries.
+This section keeps those visible so they are not forgotten later.
+
+- estimation package / flow boundary:
+  the separation between BenchKit common flow and package-owned behavior is much clearer now, but metadata discovery, generalization across multiple detailed packages, and package-level comparison are not yet fixed.
+- application-side estimation declaration API:
+  the direction of declaring current / future packages and section bindings in `estimate.sh` is becoming clear, but the final cross-application API is not yet frozen.
+- estimation compare UI:
+  detail views now expose current / future breakdown, fallback, and applicability, but same-`code`/`exp` comparison remains intentionally deferred.
+- result quality handling:
+  quality badges and detail views are implemented, but they are not yet enforced as CI-failing validation; the current approach remains visibility-first.
+- site capability checker:
+  `/results/usage` now has lightweight configuration checks, but there is still no automatic checker directly tied to CI execution readiness.
+- app/system coverage evaluation:
+  the current coverage matrix uses `list.csv` plus mention-based detection in `build.sh` / `run.sh`, leaving room for a stricter future capability definition.
+
 ## 3. 機能別ギャップ分析 / Function-by-Function Gap Analysis
 
 | 機能 | 仕様要求 | 現状実装 | 不足・課題 | 他機能への影響 | 優先度 |

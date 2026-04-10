@@ -635,6 +635,30 @@ The following are intentionally left open at this stage:
 
 These are kept open so that multiple approaches remain possible under the principles of replaceability and avoiding lock-in.
 
+### 7.1 今は固定しないことを明示する論点 / Explicitly Deferred Design Points
+
+現時点で未確定の事項のうち、特に「今は固定しない」と判断している論点を明示しておく。
+
+- 複数 detailed package の一般化:
+  `instrumented_app_sections_dummy` は参照実装として扱い、複数 detailed package 間の discovery / compare / fallback 規則はまだ一般化しない。
+- package metadata discovery の本格利用:
+  metadata はすでに package 側の責務として整理されているが、portal や compare UI でどこまで積極的に活用するかは未確定とする。
+- compare UI の最終形:
+  current / future の detail 表示はあるが、複数 estimate を並べて差分を読む UI は今は固定しない。
+- acquisition path の本格差異:
+  `instrumented_app_sections`、`instrumented_tool_sections`、`counter_based` の概念は保持するが、各 path の厳密な capability contract はまだ固定しない。
+
+Among the open items above, the following are explicitly considered “not fixed yet” at the current stage.
+
+- generalization across multiple detailed packages:
+  `instrumented_app_sections_dummy` is treated as a reference implementation, while discovery / comparison / fallback rules across multiple detailed packages remain intentionally unfixed.
+- deeper use of package metadata discovery:
+  metadata is already owned by packages, but how aggressively it should drive portal behavior or comparison UI is still open.
+- the final compare UI shape:
+  current / future detail display exists, but a stable multi-estimate comparison interface is intentionally deferred.
+- fully specified acquisition-path contracts:
+  the concepts of `instrumented_app_sections`, `instrumented_tool_sections`, and `counter_based` remain, but their strict capability contracts are not yet frozen.
+
 ## 8. 次に必要な詳細仕様 / Next Detailed Specifications
 
 本書の次に必要なのは、少なくとも以下である。
