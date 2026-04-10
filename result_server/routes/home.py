@@ -4,9 +4,9 @@ from utils.system_info import get_all_systems_info
 
 
 GUIDE_LINKS = {
-    "add_app": "https://github.com/RIKEN-RCCS/benchkit/blob/develop/docs/guides/add-app.md",
-    "add_site": "https://github.com/RIKEN-RCCS/benchkit/blob/develop/docs/guides/add-site.md",
-    "add_estimation": "https://github.com/RIKEN-RCCS/benchkit/blob/develop/docs/guides/add-estimation.md",
+    "add_app": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-app.md",
+    "add_site": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-site.md",
+    "add_estimation": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-estimation.md",
 }
 
 
