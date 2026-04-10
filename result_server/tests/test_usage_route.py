@@ -145,6 +145,7 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         assert resp.status_code == 200
         text = resp.get_data(as_text=True)
+        assert "Configuration Checks" in text
         assert "Application/System Coverage" in text
         assert "qws" in text
 

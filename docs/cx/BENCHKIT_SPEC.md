@@ -278,6 +278,7 @@ BenchKit のポータル層である。
 - 利用可能システム表示
 - 使用量表示
 - 登録済み run 設定に基づく app / system coverage 表示
+- 登録済み system / queue / system_info に対する軽い configuration checks
 - 結果品質サマリ表示
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
@@ -295,6 +296,7 @@ Main roles:
 - available-system views
 - usage views
 - application/system coverage views derived from registered run settings
+- lightweight configuration checks for registered system, queue, and system-info definitions
 - result-quality summaries
 - authentication and authorization
 - future integration points for request and approval workflows
