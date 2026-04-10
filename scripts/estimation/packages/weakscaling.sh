@@ -9,7 +9,7 @@ bk_estimation_package_metadata() {
 {
   "name": "weakscaling",
   "version": "0.1",
-  "method_class": "lightweight",
+  "method_class": "minimum",
   "detail_level": "basic",
   "required_inputs": {
     "mandatory": ["result_json", "fom", "fom_breakdown", "target_nodes_current", "target_nodes_future"],

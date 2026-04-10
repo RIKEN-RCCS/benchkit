@@ -96,11 +96,11 @@ This is the package version. It should preferably be mappable to `estimate_metad
 ### 4.3 method_class
 
 推定方式の大分類である。
-現状実装では `weakscaling` のような最小経路も `lightweight` に分類されるが、これは FOM-only 推定を意味しない。
+現状実装では `weakscaling` のような最小経路は `minimum` に分類する。
 
 初期段階では少なくとも以下を推奨する。
 
-- `lightweight` (`weakscaling` を最小経路とする class)
+- `minimum` (`weakscaling` を最小経路とする class)
 - `detailed`
 - `external`
 
@@ -108,7 +108,7 @@ This is the high-level class of estimation method.
 
 At the initial stage, at least the following are recommended:
 
-- `lightweight` (`weakscaling`-based minimum path)
+- `minimum` (`weakscaling`-based minimum path)
 - `detailed`
 - `external`
 
@@ -140,7 +140,7 @@ At the initial stage, at least the following are recommended:
 - 任意入力一覧
 - 外部入力一覧
 
-`lightweight` class であっても、各システム側のターゲットノード数を推定入力として扱えることが望ましい。ここでいう `lightweight` は、`weakscaling` のような最小構成の区間分割推定を含む。
+`minimum` class であっても、各システム側のターゲットノード数を推定入力として扱えることが望ましい。ここでいう `minimum` は、`weakscaling` のような最小構成の区間分割推定を含む。
 
 The metadata defines the required input set for estimation.
 
@@ -150,7 +150,7 @@ It should preferably be able to express at least:
 - a list of optional inputs
 - a list of external inputs
 
-Even for the `lightweight` class, it should preferably be possible to treat the target node count on each system side as part of the estimation inputs. Here, `lightweight` includes minimum section-wise paths such as `weakscaling`.
+Even for the `minimum` class, it should preferably be possible to treat the target node count on each system side as part of the estimation inputs. Here, `minimum` includes minimum section-wise paths such as `weakscaling`.
 
 ### 4.6 fallback_policy
 
@@ -274,7 +274,7 @@ Examples:
 {
   "name": "weakscaling",
   "version": "0.1",
-  "method_class": "lightweight",
+  "method_class": "minimum",
   "detail_level": "basic",
   "required_inputs": {
     "mandatory": ["result_json", "fom", "target_nodes_current", "target_nodes_future"],
