@@ -11,7 +11,7 @@ import time
 import pyotp
 import qrcode
 
-ISSUER_NAME = "BenchKit"
+ISSUER_NAME = "CX Portal"
 
 # ブルートフォース対策: 最大試行回数とロックアウト時間
 MAX_LOGIN_ATTEMPTS = 5
@@ -35,7 +35,7 @@ def generate_totp_uri(
     Args:
         secret: Base32エンコードされた秘密鍵
         email: ユーザーのメールアドレス
-        issuer: サービス名（デフォルト: "BenchKit"）
+        issuer: サービス名（デフォルト: "CX Portal"）
 
     Returns:
         otpauth://totp/{issuer}:{email}?secret={secret}&issuer={issuer}
