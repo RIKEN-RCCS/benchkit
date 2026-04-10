@@ -6,6 +6,7 @@ from flask import (
 )
 from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE, summarize_result_quality
 from utils.user_store import get_user_store
+from utils.app_support_matrix import load_app_system_support_matrix
 from utils.result_file import load_result_file, check_file_permission
 from utils.system_info import get_all_systems_info
 from routes.admin import admin_required
@@ -234,6 +235,13 @@ def usage_report():
         period_filter = ""
         filtered_periods = result["periods"]
 
+    systems_info = get_all_systems_info()
+    coverage_systems, app_support_rows = load_app_system_support_matrix()
+    coverage_headers = [
+        {"system": system, "name": systems_info.get(system, {}).get("name", system)}
+        for system in coverage_systems
+    ]
+
     return render_template(
         "usage_report.html",
         result=result,
@@ -241,6 +249,8 @@ def usage_report():
         fiscal_year=fiscal_year,
         period_filter=period_filter,
         filtered_periods=filtered_periods,
+        coverage_systems=coverage_headers,
+        app_support_rows=app_support_rows,
     )
 
 

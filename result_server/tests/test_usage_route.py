@@ -140,6 +140,14 @@ class TestUsageRoute:
         assert "Usage Report" in resp.get_data(as_text=True)
         assert "no-store" in resp.headers.get("Cache-Control", "")
 
+    def test_usage_page_shows_app_system_coverage(self, client):
+        _login_session(client, "admin@example.com", ["admin"])
+        resp = client.get("/results/usage")
+        assert resp.status_code == 200
+        text = resp.get_data(as_text=True)
+        assert "Application/System Coverage" in text
+        assert "qws" in text
+
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
         _login_session(client, "admin@example.com", ["admin"])
 
