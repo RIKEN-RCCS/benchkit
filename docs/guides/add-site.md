@@ -441,6 +441,69 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 
 テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`
 
+### BenchKit 側の責務分担
+
+拠点追加時に迷いやすい点ですが、BenchKit では設定の置き場所を次のように分けます。
+
+- `config/system.csv`
+  - システム固有の実行モード、Runner タグ、キュー種別、キューグループを持つ
+- `config/queue.csv`
+  - スケジューラ投入コマンドのテンプレートを持つ
+- `programs/<code>/list.csv`
+  - アプリごとのノード数、プロセス数、スレッド数、制限時間だけを持つ
+- `programs/<code>/build.sh` / `run.sh`
+  - `module load`、コンパイラ、`mpirun` / `srun` / `pjsub` の使い方、affinity など、実行そのものの差異を持つ
+
+言い換えると、`system.csv` と `queue.csv` は「どこでどう投入するか」、`list.csv` は「何条件で回すか」、`build.sh` / `run.sh` は「そのシステムでどう実行するか」の責務です。
+
+### 接続確認の推奨順序
+
+新しい拠点を追加したら、最初の確認は次の順番で行うと切り分けが楽です。
+
+1. `get_sources` まで到達すること
+   - GitLab Runner がオンラインで、GitLab からソース取得できることを確認します。
+2. scheduler に投入できること
+   - `system.csv` の `queue` と `queue_group`、`queue.csv` のテンプレートが正しいことを確認します。
+3. `module load` と build が通ること
+   - `build.sh` のモジュール名、コンパイラ、依存ライブラリを確認します。
+4. run が `results/result` を生成すること
+   - `run.sh` の launcher、affinity、引数の渡し方を確認します。
+5. `result0.json` が作られること
+   - `scripts/result.sh` が Result JSON を組み立てられることを確認します。
+6. `send_results` まで通ること
+   - API key、Result Server 接続、`results/result*.json` の配置を確認します。
+
+最初の動作確認では、既存アプリで最小の 1 条件だけ `list.csv` に足して `scripts/test_submit.sh` で試すのが安全です。
+
+### 典型的な失敗の切り分け
+
+拠点追加直後に起きやすい失敗は、だいたい次の層に分けられます。
+
+| 失敗箇所 | よくある原因 | まず見る場所 |
+|---|---|---|
+| `get_sources` | Runner の Git 認証、GitLab 到達性、proxy 設定 | Runner ログ、`config.toml` の `environment` |
+| scheduler submit | `queue` / `queue_group` の不一致、submit template の typo | `config/system.csv`, `config/queue.csv` |
+| build | `module load` の typo、コンパイラ不一致、依存ライブラリ不足 | `programs/<code>/build.sh` |
+| run | `mpirun` / `srun` の引数、affinity、ノード側環境差異 | `programs/<code>/run.sh`, scheduler log |
+| result 生成 | `results/result` がない、FOM 出力形式が違う、`bk_emit_*` 未使用 | `scripts/result.sh`, `scripts/bk_functions.sh` |
+| send_results | API key、Result Server 接続、JSON 不足 | `scripts/result_server/send_results.sh`, Result Server log |
+
+CI ログでは、まず「どの stage まで進んだか」を見ると切り分けが早くなります。`get_sources` 前、build 前、run 前、send_results 前で原因の層がかなり絞れます。
+
+### 新規拠点オンボーディングのチェックリスト
+
+- [ ] GitLab Runner または Jacamar-CI が対象ログインノードで常駐している
+- [ ] GitLab の Runner 一覧で `online` になっている
+- [ ] `config/system.csv` に system が追加されている
+- [ ] 必要なら `config/queue.csv` に queue template が追加されている
+- [ ] `config/system_info.csv` に表示用メタデータが追加されている
+- [ ] 対象アプリの `build.sh` / `run.sh` に system 分岐が追加されている
+- [ ] 対象アプリの `list.csv` に最小 1 条件が追加されている
+- [ ] build が通る
+- [ ] run が通り、`results/result` が生成される
+- [ ] `result0.json` が生成される
+- [ ] Result Server への送信まで通る
+
 ---
 
 ## 10. ランナーの常駐化（systemd user mode）

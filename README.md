@@ -260,64 +260,20 @@ python -m pytest tests/ -v
 
 ## 設定ファイル
 
-### `config/system.csv` - システム・ランナー定義
-```csv
-system,mode,tag_build,tag_run,queue,queue_group
-Fugaku,cross,fugaku_login1,fugaku_jacamar,FJ,small
-FugakuLN,native,,fugaku_login1,none,small
-RC_GH200,native,,cloud_jacamar,SLURM_RC,qc-gh200
-RC_DGXSP,native,,cloud_jacamar,SLURM_RC,ng-dgx-3h
-RC_GENOA,native,,cloud_jacamar,SLURM_RC,genoa
-RC_FX700,native,,cloud_jacamar,SLURM_RC,fx700
-MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
-MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
-```
+BenchKit で日常的に触る設定は主に次の 3 つです。
 
-`system.csv` は **システム固有・拠点固有の実行ポリシーの正本** です。各システムについて以下を一元管理します。
+- `config/system.csv`
+  - システム固有の実行モード、Runner タグ、キュー種別、キューグループ
+- `config/queue.csv`
+  - scheduler への submit 形式
+- `programs/<code>/list.csv`
+  - アプリごとの実験条件
 
-- `mode` - `cross` / `native` の実行モード
-- `tag_build` / `tag_run` - GitLab Runner / Jacamar のタグ
-- `queue` - `config/queue.csv` のテンプレート選択に使うキュー種別
-- `queue_group` - 実際の投入先キューグループ
+詳細は用途ごとに次を参照してください。
 
-> **設計方針**: 同じシステムで共通な情報は `system.csv` に寄せ、各アプリの `list.csv` に重複定義しません。
-
-### `config/queue.csv` - キューシステム定義
-```csv
-queue,submit_cmd,template
-FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0004"
-PBS_Miyabi,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=gq49"
-SLURM_RC,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"
-none,none,none
-```
-
-### `programs/<code>/list.csv` - ベンチマーク実行条件
-同一システムで異なるノード数・プロセス数の組み合わせを複数定義可能：
-
-```csv
-system,enable,nodes,numproc_node,nthreads,elapse
-# 同一システム（Fugaku）で異なる実行条件
-Fugaku,yes,1,4,12,0:10:00
-Fugaku,yes,2,4,12,0:20:00
-Fugaku,yes,4,4,12,0:30:00
-# 無効化された設定（enable=noでスキップ）
-FugakuCN,no,1,4,12,0:10:00
-# MiyabiG/MiyabiCでの実行例
-MiyabiG,yes,1,1,72,0:10:00
-MiyabiC,yes,1,1,112,0:10:00
-# RC系での実行例
-RC_DGXSP,yes,1,1,20,0:10:00
-RC_GENOA,yes,1,1,96,0:10:00
-RC_FX700,yes,1,4,12,0:10:00
-```
-
-`list.csv` は **アプリごとの実験条件マトリクスの正本** です。ここにはジョブ投入の有無と、投入時に変わる実行条件だけを書きます。
-
-- `system` - 実行先システム名（`system.csv` と対応）
-- `enable` - その条件を実行するかどうか（`yes` / `no`）
-- `nodes`, `numproc_node`, `nthreads`, `elapse` - 実験条件
-
-> **設計方針**: `list.csv` には `mode` や `queue_group` を持たせません。これらは `system.csv` で一元管理します。
+- 新しい拠点を追加したい: [docs/guides/add-site.md](docs/guides/add-site.md)
+- 新しいアプリを追加したい: [docs/guides/add-app.md](docs/guides/add-app.md)
+- 推定機能を追加したい: [docs/guides/add-estimation.md](docs/guides/add-estimation.md)
 
 
 ## CI実行制御
