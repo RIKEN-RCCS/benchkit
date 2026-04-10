@@ -36,6 +36,7 @@ _setup_stubs()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from routes.home import register_home_routes
 from routes.results import results_bp
 from routes.estimated import estimated_bp
 from routes.auth import auth_bp
@@ -72,6 +73,8 @@ def app(tmp_dirs):
 
     store.create_user("admin@example.com", "SECRET", ["admin"])
     store.create_user("user@example.com", "SECRET", ["dev"])
+
+    register_home_routes(app)
 
     app.register_blueprint(results_bp, url_prefix="/results")
     app.register_blueprint(estimated_bp, url_prefix="/estimated")

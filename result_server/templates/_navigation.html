@@ -82,6 +82,7 @@
 
 <nav class="nav-bar">
     <div class="nav-left">
+        <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">🏠 Home</a>
         <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">🖥️ Systems</a>
 
         {% if session.get('authenticated') %}

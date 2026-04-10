@@ -110,9 +110,10 @@ def create_dev_app(base_dir):
     sys.modules["redis"] = types.ModuleType("redis")
     sys.modules["utils.totp_manager"] = _create_stub_totp_manager()
 
-    from flask import Flask, render_template, redirect, url_for
+    from flask import Flask, render_template
     from flask_session import Session
 
+    from routes.home import register_home_routes
     from utils.system_info import get_all_systems_info
 
     app = Flask(__name__, template_folder="templates")
@@ -148,6 +149,8 @@ def create_dev_app(base_dir):
 
     # results_loaderはcurrent_app.configから取得するため、モジュール変数の書き換え不要
 
+    register_home_routes(app)
+
     # ルートを登録
     from routes.results import results_bp
     app.register_blueprint(results_bp, url_prefix="/results")
@@ -160,10 +163,6 @@ def create_dev_app(base_dir):
 
     from routes.admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix="/admin")
-
-    @app.route("/")
-    def index():
-        return redirect(url_for("results.results"))
 
     @app.route("/systemlist")
     def systemlist():

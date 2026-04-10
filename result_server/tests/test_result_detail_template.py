@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from flask import Flask
+from routes.home import register_home_routes
 from routes.results import results_bp
 from routes.estimated import estimated_bp
 from routes.auth import auth_bp
@@ -44,6 +45,7 @@ def app():
     )
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret"
+    register_home_routes(app)
     app.register_blueprint(results_bp, url_prefix="/")
     app.register_blueprint(estimated_bp, url_prefix="/estimated")
     app.register_blueprint(auth_bp)

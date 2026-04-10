@@ -185,9 +185,11 @@ def admin_app():
 
     from routes.admin import admin_bp
     from routes.auth import auth_bp
+    from routes.home import register_home_routes
     from routes.results import results_bp
     from routes.estimated import estimated_bp
 
+    register_home_routes(app)
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(results_bp, url_prefix="/results")

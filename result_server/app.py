@@ -14,6 +14,7 @@ if not EXPECTED_API_KEY:
 from flask import Flask, render_template, current_app
 from flask_session import Session
 from routes.api import api_bp
+from routes.home import register_home_routes
 from routes.results import results_bp
 from routes.estimated import estimated_bp
 
@@ -94,6 +95,8 @@ def create_app(prefix="", base_dir=None):
     app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
 
+    register_home_routes(app, prefix=prefix)
+
     # Register route blueprints
     from routes.auth import auth_bp
     from routes.admin import admin_bp
@@ -126,11 +129,6 @@ app = create_app(prefix="", base_dir=os.path.join(BASE_PATH, "main"))
 
 # Develop
 app_dev = create_app(prefix="/dev", base_dir=os.path.join(BASE_PATH, "dev1"))
-
-
-@app.route("/")
-def index():
-    return "Flask app is running!"
 
 # -----------------------------------------
 # Development server startup (only when running python app.py directly)

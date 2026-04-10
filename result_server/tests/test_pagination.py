@@ -34,6 +34,7 @@ _setup_stubs()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import Flask
+from routes.home import register_home_routes
 from utils.results_loader import (
     paginate_list, load_results_table, load_estimated_results_table,
     get_filter_options, ESTIMATED_FIELD_MAP,
@@ -65,6 +66,8 @@ def flask_app(tmp_dir):
     app.config["REDIS_CONN"] = r_conn
     app.config["REDIS_PREFIX"] = "test:"
     app.config["USER_STORE"] = UserStore(r_conn, "test:")
+
+    register_home_routes(app)
 
     from routes.results import results_bp
     from routes.estimated import estimated_bp
