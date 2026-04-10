@@ -31,8 +31,14 @@ def test_load_app_system_support_matrix(tmp_path):
 
     qws_dir = programs_dir / "qws"
     qws_dir.mkdir()
-    (qws_dir / "build.sh").write_text("case \"$system\" in\nFugaku)\nRC_GENOA)\n", encoding="utf-8")
-    (qws_dir / "run.sh").write_text("case \"$system\" in\nFugaku)\n", encoding="utf-8")
+    (qws_dir / "build.sh").write_text(
+        "case \"$system\" in\nFugaku|RC_GENOA)\n  echo build\n  ;;\nesac\n",
+        encoding="utf-8",
+    )
+    (qws_dir / "run.sh").write_text(
+        "case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n",
+        encoding="utf-8",
+    )
     _write_csv(
         qws_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
@@ -69,3 +75,35 @@ def test_load_app_system_support_matrix(tmp_path):
     assert rows[1]["systems"]["Fugaku"]["build_supported"] is True
     assert rows[1]["systems"]["Fugaku"]["run_supported"] is True
     assert rows[1]["systems"]["RC_GENOA"]["status"] == "configured_off"
+
+
+def test_support_matrix_ignores_comment_only_mentions(tmp_path):
+    config_dir = tmp_path / "config"
+    programs_dir = tmp_path / "programs"
+    config_dir.mkdir()
+    programs_dir.mkdir()
+
+    _write_csv(
+        config_dir / "system.csv",
+        ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
+        [["RC_GENOA", "native", "", "", "SLURM_RC", "genoa"]],
+    )
+
+    app_dir = programs_dir / "sample"
+    app_dir.mkdir()
+    (app_dir / "build.sh").write_text("# TODO: support RC_GENOA later\n", encoding="utf-8")
+    (app_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
+    _write_csv(
+        app_dir / "list.csv",
+        ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
+        [["RC_GENOA", "yes", "1", "1", "1", "0:10:00"]],
+    )
+
+    _, rows = load_app_system_support_matrix(
+        programs_dir=str(programs_dir),
+        system_csv_path=str(config_dir / "system.csv"),
+    )
+
+    assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled_partial"
+    assert rows[0]["systems"]["RC_GENOA"]["build_supported"] is False
+    assert rows[0]["systems"]["RC_GENOA"]["run_supported"] is False

@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 
 
 _DEFAULT_SYSTEM_CSV = os.path.join(
@@ -57,7 +58,53 @@ def _file_mentions_system(path, system):
         return False
 
     with open(path, encoding="utf-8") as f:
-        return system in f.read()
+        content = f.read()
+
+    return system in _extract_supported_systems(content, [system])
+
+
+def _extract_supported_systems(content, candidate_systems):
+    candidates = set(candidate_systems)
+    supported = set()
+
+    case_start_pattern = re.compile(
+        r"""^\s*case\s+(?:"?\$system"?|"?\$\{system\}"?|"?\$1"?)\s+in\s*$"""
+    )
+    case_end_pattern = re.compile(r"^\s*esac\b")
+    label_pattern = re.compile(r"^\s*([A-Za-z0-9_|-]+)\)\s*(?:#.*)?$")
+
+    in_system_case = False
+    for line in content.splitlines():
+        if not in_system_case:
+            if case_start_pattern.match(line):
+                in_system_case = True
+            continue
+
+        if case_end_pattern.match(line):
+            in_system_case = False
+            continue
+
+        match = label_pattern.match(line)
+        if not match:
+            continue
+
+        for token in match.group(1).split("|"):
+            token = token.strip()
+            if token in candidates:
+                supported.add(token)
+
+    for system in candidate_systems:
+        exact = re.escape(system)
+        if re.search(
+            rf"""(?:\$system|\$\{{system\}}|\$1).*?(?:==|=)\s*["']?{exact}["']?""",
+            content,
+        ) or re.search(
+            rf"""["']?{exact}["']?\s*(?:==|=).*?(?:\$system|\$\{{system\}}|\$1)""",
+            content,
+        ):
+            supported.add(system)
+
+    return supported
 
 
 def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):

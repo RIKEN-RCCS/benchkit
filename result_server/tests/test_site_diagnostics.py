@@ -48,8 +48,14 @@ def test_build_site_diagnostics(tmp_path):
 
     qws_dir = programs_dir / "qws"
     qws_dir.mkdir()
-    (qws_dir / "build.sh").write_text("Fugaku)\nRC_PARTIAL)\n", encoding="utf-8")
-    (qws_dir / "run.sh").write_text("Fugaku)\n", encoding="utf-8")
+    (qws_dir / "build.sh").write_text(
+        "case \"$system\" in\nFugaku|RC_PARTIAL)\n  echo build\n  ;;\nesac\n",
+        encoding="utf-8",
+    )
+    (qws_dir / "run.sh").write_text(
+        "case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n",
+        encoding="utf-8",
+    )
     _write_csv(
         qws_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
