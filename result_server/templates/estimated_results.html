@@ -95,6 +95,26 @@
       {% else %}
         {% set applied_short = applied_full %}
       {% endif %}
+      {% set requested_title = requested_full %}
+      {% if r.requested_current_estimation_package %}
+        {% set requested_title = requested_title ~ '\ncurrent-side: ' ~ r.requested_current_estimation_package %}
+      {% endif %}
+      {% if r.requested_future_estimation_package %}
+        {% set requested_title = requested_title ~ '\nfuture-side: ' ~ r.requested_future_estimation_package %}
+      {% endif %}
+      {% set applied_title = applied_full %}
+      {% if r.method_class %}
+        {% set applied_title = applied_title ~ '\nclass: ' ~ r.method_class %}
+      {% endif %}
+      {% if r.detail_level %}
+        {% set applied_title = applied_title ~ '\ndetail: ' ~ r.detail_level %}
+      {% endif %}
+      {% if r.current_estimation_package %}
+        {% set applied_title = applied_title ~ '\ncurrent-side: ' ~ r.current_estimation_package %}
+      {% endif %}
+      {% if r.future_estimation_package %}
+        {% set applied_title = applied_title ~ '\nfuture-side: ' ~ r.future_estimation_package %}
+      {% endif %}
       <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
       <td>{{ r.code }}</td>
       <td>{{ r.exp }}</td>
@@ -113,11 +133,13 @@
       <td style="text-align: right;" title="{{ r.systemB_bench_fom }}">{{ "%.3f"|format(r.systemB_bench_fom|float) if r.systemB_bench_fom not in [None, '', 'N/A', 'null', 'nan'] else r.systemB_bench_fom }}</td>
       <td>{{ r.systemB_bench_nodes }}</td>
       <td>{{ r.applicability_status }}</td>
-      <td title="{{ requested_full }}">{{ requested_short }}</td>
-      <td title="{{ applied_full }}">{{ applied_short }}</td>
+      <td title="{{ requested_title }}">{{ requested_short }}</td>
+      <td title="{{ applied_title }}">{{ applied_short }}{% if r.method_class or r.detail_level %}<div style="font-size: 10px; line-height: 1.25; color: #6b7280;">{{ r.method_class }}{% if r.detail_level %} / {{ r.detail_level }}{% endif %}</div>{% endif %}</td>
       <td style="font-family: monospace; font-size: 0.9em;" title="{{ r.estimate_uuid }}">{{ r.estimate_uuid[:8] if r.estimate_uuid else '' }}</td>
       <td style="text-align: right;" title="{{ r.performance_ratio }}">{{ ratio }}</td>
       <td>
+        <a href="{{ url_for('estimated.estimated_detail', filename=r.json_link) }}">detail</a>
+        |
         <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>
       </td>
     </tr>

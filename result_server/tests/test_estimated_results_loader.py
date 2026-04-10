@@ -69,6 +69,16 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
         "estimate_metadata": {
             "requested_estimation_package": "instrumented_app_sections_dummy",
             "estimation_package": "weakscaling",
+            "method_class": "minimum",
+            "detail_level": "basic",
+            "current_package": {
+                "estimation_package": "weakscaling",
+                "requested_estimation_package": "weakscaling",
+            },
+            "future_package": {
+                "estimation_package": "instrumented_app_sections_dummy",
+                "requested_estimation_package": "instrumented_app_sections_dummy",
+            },
             "estimation_result_uuid": "11111111-2222-3333-4444-555555555555",
             "estimation_result_timestamp": "2026-04-06 12:34:56",
         },
@@ -83,4 +93,8 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
     assert rows[0]["estimate_uuid"] == "11111111-2222-3333-4444-555555555555"
     assert rows[0]["requested_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["estimation_package"] == "weakscaling"
+    assert rows[0]["method_class"] == "minimum"
+    assert rows[0]["detail_level"] == "basic"
+    assert rows[0]["current_estimation_package"] == "weakscaling"
+    assert rows[0]["future_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["applicability_status"] == "fallback"
