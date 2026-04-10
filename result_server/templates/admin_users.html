@@ -3,31 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <title>User Management - BenchKit Admin</title>
+    {% include "_table_base.html" %}
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        h1, h2 { color: #333; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-        th { background-color: #f8f9fa; }
-        input[type="email"], input[type="text"] {
-            padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+        .btn {
+            padding: 7px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            border: 1px solid transparent;
         }
-        button, .btn {
-            padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer;
-            font-size: 14px; color: #fff; text-decoration: none; display: inline-block;
-        }
-        .btn-primary { background-color: #007bff; }
-        .btn-primary:hover { background-color: #0056b3; }
-        .btn-danger { background-color: #dc3545; }
-        .btn-danger:hover { background-color: #a71d2a; }
-        .btn-warning { background-color: #ffc107; color: #333; }
-        .btn-warning:hover { background-color: #e0a800; }
-        .flash { padding: 10px; margin-bottom: 16px; border-radius: 4px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .invitation-box { padding: 12px; margin: 16px 0; background: #e8f4fd; border: 1px solid #b8daff; border-radius: 4px; word-break: break-all; }
-        .status-ok { color: #28a745; }
-        .status-pending { color: #dc3545; }
-        a { color: #007bff; }
-
+        .btn-primary { background-color: #0f766e; color: #fff; border-color: #0f766e; }
+        .btn-primary:hover { background-color: #0b5f59; color: #fff; }
+        .btn-danger { background-color: #fff1f2; color: #b42318; border-color: #fecdd3; }
+        .btn-danger:hover { background-color: #ffe4e6; color: #912018; }
+        .btn-warning { background-color: #fff8e7; color: #9a3412; border-color: #f7d38b; }
+        .btn-warning:hover { background-color: #ffefc2; color: #7c2d12; }
+        .flash { padding: 12px 14px; margin-bottom: 16px; border-radius: 14px; background-color: #edfdf3; color: #166534; border: 1px solid #bbf7d0; }
+        .invitation-box { padding: 14px; margin: 16px 0; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px; word-break: break-all; }
+        .status-ok { color: #15803d; font-weight: 600; }
+        .status-pending { color: #b91c1c; font-weight: 600; }
         .inline-form { display: inline; }
         .actions { white-space: nowrap; }
     </style>
@@ -36,7 +32,12 @@
 
 {% include "_navigation.html" %}
 
-<h1>User Management</h1>
+<div class="portal-page">
+<section class="page-hero">
+    <span class="page-eyebrow">BenchKit Portal</span>
+    <h1 class="page-title">User Management</h1>
+    <p class="page-subtitle">Manage access, affiliations, and TOTP onboarding for BenchKit portal users.</p>
+</section>
 
 {% with messages = get_flashed_messages() %}
 {% if messages %}
@@ -54,57 +55,65 @@
 </div>
 {% endif %}
 
-<h2>Add User</h2>
-<form method="POST" action="{{ url_for('admin.add_user') }}" style="margin-bottom: 24px;">
-    <input type="email" name="email" placeholder="user@example.com" required>
-    <input type="text" name="affiliations" placeholder="group1, group2">
-    <button type="submit" class="btn btn-primary">Add &amp; Generate Invitation</button>
-</form>
+<section class="page-card">
+    <h2 class="section-title">Add User</h2>
+    <p class="section-intro">Create a user record and generate a new invitation link for TOTP setup.</p>
+    <form method="POST" action="{{ url_for('admin.add_user') }}" class="control-row" style="margin-bottom: 0;">
+        <input type="email" name="email" placeholder="user@example.com" required>
+        <input type="text" name="affiliations" placeholder="group1, group2">
+        <button type="submit" class="btn btn-primary">Add &amp; Generate Invitation</button>
+    </form>
+</section>
 
-<h2>Registered Users</h2>
-<table>
-    <thead>
-        <tr>
-            <th>Email</th>
-            <th>Affiliations</th>
-            <th>TOTP Status</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for u in users %}
-        <tr>
-            <td>{{ u.email }}</td>
-            <td>{{ u.affiliations | join(', ') }}</td>
-            <td>
-                {% if u.has_totp %}
-                    <span class="status-ok">Registered</span>
-                {% else %}
-                    <span class="status-pending">Pending</span>
-                {% endif %}
-            </td>
-            <td class="actions">
-                <form class="inline-form" method="POST" action="{{ url_for('admin.update_affiliations', email=u.email) }}">
-                    <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
-                    <button type="submit" class="btn btn-warning">Update</button>
-                </form>
-                {% if u.email != session.get('user_email') %}
-                <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
-                      onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
-                    <button type="submit" class="btn btn-primary">Reinvite</button>
-                </form>
-                <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
-                      onsubmit="return confirm('Delete {{ u.email }}?');">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-                {% endif %}
-            </td>
-        </tr>
-    {% else %}
-        <tr><td colspan="4">No users registered.</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+<section class="page-card table-card">
+    <h2 class="section-title">Registered Users</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Affiliations</th>
+                    <th>TOTP Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+                <tr>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.affiliations | join(', ') }}</td>
+                    <td>
+                        {% if u.has_totp %}
+                            <span class="status-ok">Registered</span>
+                        {% else %}
+                            <span class="status-pending">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions">
+                        <form class="inline-form" method="POST" action="{{ url_for('admin.update_affiliations', email=u.email) }}">
+                            <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
+                            <button type="submit" class="btn btn-warning">Update</button>
+                        </form>
+                        {% if u.email != session.get('user_email') %}
+                        <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
+                              onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
+                            <button type="submit" class="btn btn-primary">Reinvite</button>
+                        </form>
+                        <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
+                              onsubmit="return confirm('Delete {{ u.email }}?');">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4">No users registered.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
 
 </body>
 </html>

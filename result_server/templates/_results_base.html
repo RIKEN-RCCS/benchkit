@@ -9,14 +9,22 @@
 
 {% include "_navigation.html" %}
 
-{% block auth_warning %}{% endblock %}
+    <div class="portal-page">
+        <section class="page-hero">
+            <span class="page-eyebrow">BenchKit Portal</span>
+        <h1 class="page-title">{% block page_title %}{{ self.title() }}{% endblock %}</h1>
+        <p class="page-subtitle">{% block page_subtitle %}Browse benchmark data, compare systems, and inspect result details collected through BenchKit workflows.{% endblock %}</p>
+        </section>
 
-<!-- keyword search disabled: filters cover all use cases
-<input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
-<br><br>
--->
+    {% block auth_warning %}{% endblock %}
 
-{% block content %}{% endblock %}
+    <!-- keyword search disabled: filters cover all use cases
+    <input type="text" id="filterInput" onkeyup="filterTable()" placeholder="Search by multiple keywords...">
+    <br><br>
+    -->
+
+    {% block content %}{% endblock %}
+</div>
 
 </body>
 </html>

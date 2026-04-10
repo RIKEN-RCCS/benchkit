@@ -4,7 +4,7 @@
 
 {% block auth_warning %}
 {% if not authenticated %}
-<div style="padding: 16px; margin-bottom: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+<div class="inline-notice">
     Authentication required to view confidential data.
     <a href="{{ url_for('auth.login') }}">Log in</a>
 </div>
@@ -13,6 +13,8 @@
 
 {% block content %}
 {% if authenticated %}
+<section class="page-card table-card">
 {% include "_results_table.html" %}
+</section>
 {% endif %}
 {% endblock %}

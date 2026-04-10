@@ -9,35 +9,47 @@
 
 {% include "_navigation.html" %}
 
-<table>
-    <thead>
-        <tr>
-            <th>SYSTEM</th>
-            <th>CPU Name</th>
-            <th>CPU/node</th>
-            <th>CPU Core Count</th>
-            <th>GPU Name</th>
-            <th>GPU/node</th>
-            <th>Memory</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for system_name, info in systems_info.items() %}
-        <tr>
-            <td><strong>{{ info.name }}</strong></td>
-            <td>{{ info.cpu_name }}</td>
-            <td>{{ info.cpu_per_node }}</td>
-            <td>{{ info.cpu_cores }}</td>
-            <td>{{ info.gpu_name }}</td>
-            <td>{{ info.gpu_per_node }}</td>
-            <td>{{ info.memory }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="portal-page">
+    <section class="page-hero">
+        <span class="page-eyebrow">BenchKit Portal</span>
+        <h1 class="page-title">Available Systems</h1>
+        <p class="page-subtitle">This page summarizes the systems currently registered in BenchKit for browsing, comparison, and onboarding guidance.</p>
+    </section>
 
-<br>
-<button onclick="history.back()">Back</button>
+    <section class="page-card table-card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>SYSTEM</th>
+                        <th>CPU Name</th>
+                        <th>CPU/node</th>
+                        <th>CPU Core Count</th>
+                        <th>GPU Name</th>
+                        <th>GPU/node</th>
+                        <th>Memory</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for system_name, info in systems_info.items() %}
+                    <tr>
+                        <td><strong>{{ info.name }}</strong></td>
+                        <td>{{ info.cpu_name }}</td>
+                        <td>{{ info.cpu_per_node }}</td>
+                        <td>{{ info.cpu_cores }}</td>
+                        <td>{{ info.gpu_name }}</td>
+                        <td>{{ info.gpu_per_node }}</td>
+                        <td>{{ info.memory }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="control-row" style="margin-top: 16px; margin-bottom: 0;">
+            <button class="soft-button" onclick="history.back()">Back</button>
+        </div>
+    </section>
+</div>
 
 </body>
 </html>

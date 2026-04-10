@@ -1,5 +1,5 @@
 <!-- templates/_filter_dropdowns.html -->
-<div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+<div class="control-row">
     <span style="font-weight: bold; font-size: 0.95em; color: #555;">Filter:</span>
     <label>SYSTEM: <select id="filterSystem" onchange="applyServerFilter()">
         <option value="">All</option>
@@ -13,7 +13,7 @@
             <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
         {% endfor %}
     </select></label>
-    <label style="margin-left: 8px; padding-left: 8px; border-left: 2px solid #ccc;">&#x2514; Exp: <select id="filterExp" onchange="applyServerFilter()">
+    <label style="margin-left: 8px; padding-left: 8px; border-left: 2px solid #cbd5e1;">&#x2514; Exp: <select id="filterExp" onchange="applyServerFilter()">
         <option value="">All</option>
         {% for val in filter_options.exps %}
             <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>

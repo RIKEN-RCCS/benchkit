@@ -1,10 +1,11 @@
 {% extends "_results_base.html" %}
 
 {% block title %}Estimated Results{% endblock %}
+{% block page_subtitle %}Review projected performance across systems and estimation packages. Estimated data requires authentication.{% endblock %}
 
 {% block auth_warning %}
 {% if not authenticated %}
-<div style="padding: 16px; margin-bottom: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+<div class="inline-notice">
     Authentication required to view estimated data.
     <a href="{{ url_for('auth.login') }}">Log in</a>
 </div>
@@ -13,11 +14,12 @@
 
 {% block content %}
 {% if authenticated %}
+<section class="page-card table-card">
 {% include "_filter_dropdowns.html" %}
-</div>
 
 {% include "_pagination.html" %}
 
+<div class="table-wrap">
 <table id="resultsTable" border="1">
   <thead>
     <tr>
@@ -118,6 +120,7 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
 
 {% include "_pagination.html" %}
 
@@ -135,5 +138,6 @@ function applyServerFilter() {
     window.location.href = url;
 }
 </script>
+</section>
 {% endif %}
 {% endblock %}
