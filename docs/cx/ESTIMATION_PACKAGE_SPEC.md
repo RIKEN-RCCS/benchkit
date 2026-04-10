@@ -42,7 +42,7 @@ An estimation package in this document is not just an estimation model. It is a 
 - 計測方式と推定方式の組を再利用可能にする
 - app ごとの `estimate.sh` の責務を最小化する
 - 推定方式ごとの必要入力と不足時の扱いを明確にする
-- 軽量推定と詳細推定を同じ枠組みで扱えるようにする
+- `weakscaling` を最小経路としつつ、より詳細な推定も同じ枠組みで扱えるようにする
 
 The purpose of the estimation package specification is to standardize estimation functionality while recognizing that estimation methods and measurement methods are practically coupled, and at the same time reduce the burden placed on application-specific `estimate.sh`.
 
@@ -52,7 +52,7 @@ This specification aims at least to:
 - make combinations of measurement and estimation reusable
 - minimize per-application `estimate.sh` responsibilities
 - clarify required inputs and missing-input behavior for each method
-- handle lightweight and detailed estimation within the same framework
+- handle a `weakscaling`-based minimum path and more detailed estimation within the same framework
 
 ## 3. 基本原則 / Core Principles
 
@@ -294,7 +294,7 @@ The package should preferably capture what measurement method it assumes.
 
 Examples:
 
-- lightweight estimation using only FOM
+- `weakscaling`-based estimation using section / overlap breakdown
 - estimation using section / overlap
 - estimation using detailed performance counters
 - estimation using annotated interval timings
@@ -472,21 +472,19 @@ In other words, the intended separation is that BenchKit provides the common rul
 
 ## 6. 推奨される導入形態 / Recommended Adoption Forms
 
-### 6.1 軽量パッケージ / Lightweight Packages
+### 6.1 `weakscaling` パッケージ / `weakscaling` Packages
 
 例:
 
 - `weakscaling`
-- `baseline_ratio_estimation`
 
-これらは、高頻度実行や PoC に向く。
+これは、最小構成の区間分割推定として同一 system line 内の scaling に向く。
 
 Examples:
 
 - `weakscaling`
-- `baseline_ratio_estimation`
 
-These are suitable for high-frequency runs and PoC work.
+This is suitable as the minimum section-wise estimation path for same-system-line scaling.
 
 ### 6.2 詳細パッケージ / Detailed Packages
 
@@ -567,7 +565,7 @@ These should be fixed incrementally based on implementation experience with the 
 1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
 2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
 3. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
-4. 軽量パッケージの参照実装仕様
+4. `weakscaling` パッケージの参照実装仕様
 5. 詳細パッケージの参照実装仕様
 
 The next documents needed after this one include at least:
@@ -575,5 +573,5 @@ The next documents needed after this one include at least:
 1. [`ESTIMATION_PACKAGE_METADATA_SPEC.md`](./ESTIMATION_PACKAGE_METADATA_SPEC.md)
 2. [`ESTIMATION_PACKAGE_SHELL_API_SPEC.md`](./ESTIMATION_PACKAGE_SHELL_API_SPEC.md)
 3. [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md)
-4. a reference specification for lightweight packages
+4. a reference specification for `weakscaling` packages
 5. a reference specification for detailed packages

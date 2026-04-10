@@ -153,7 +153,7 @@ BenchKit は以下を責務として持つ。
 - system ごとの実行条件と queue 情報を参照して CI ジョブを生成すること
 - `run.sh` の出力を標準化された Result JSON へ正規化すること
 - 推定結果を標準化された Estimate JSON として扱うこと
-- 軽量な推定経路と詳細な推定経路の両方を受け入れられること
+- `weakscaling` を最小経路としつつ、より詳細な推定経路も受け入れられること
 - Web ポータルとして結果、推定、使用量を提示すること
 - 将来の申請・承認・自動 PR・AI 最適化との接続点を提供すること
 
@@ -163,7 +163,7 @@ BenchKit is responsible for:
 - generating CI jobs using system-specific execution and queue information
 - normalizing `run.sh` output into standardized Result JSON
 - handling estimation output as standardized Estimate JSON
-- accommodating both lightweight and detailed estimation paths
+- accommodating both `weakscaling`-based minimum paths and more detailed estimation paths
 - presenting results, estimation outputs, and usage through a web portal
 - providing integration points for future request, approval, auto-PR, and AI optimization workflows
 
@@ -402,11 +402,11 @@ However, if the broader CX Platform later requires wider dependency provenance s
 ### 7.4 推定結果 / Estimation Results
 
 推定結果は、実測結果やモデルに基づいて生成される Estimate JSON である。
-BenchKit は、軽量な推定結果と詳細な推定結果の両方を扱えることが望ましい。
+BenchKit は、`weakscaling` を最小経路とする推定結果と、より詳細な推定結果の両方を扱えることが望ましい。
 また、推定方式や計測方式の違いを将来的に比較できるよう、推定結果には方式識別のための拡張余地を持たせるべきである。
 
 Estimation results are Estimate JSON records generated from measured results and estimation models.
-BenchKit should preferably be able to handle both lightweight and detailed estimation outputs.
+BenchKit should preferably be able to handle both `weakscaling`-based minimum estimation outputs and more detailed estimation outputs.
 It should also preserve room for method-identification metadata so that different measurement and estimation approaches can be compared in the future.
 さらに、BenchKit は少なくとも次の 2 種類の出自情報を保持できることが望ましい。
 - 各推定側の参照ベンチマークの出自情報
