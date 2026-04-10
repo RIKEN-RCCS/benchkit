@@ -40,7 +40,7 @@ Its focus is not the estimation algorithm itself, but the interface boundary amo
 - 推定パッケージ開発者がどの入力を期待してよいかを明確にする
 - BenchKit がどの形式で入力を受け取り、保存し、引き渡すかを明確にする
 - 入力採取失敗時の扱いを曖昧にしない
-- 軽量推定と詳細推定の両方を同じ枠組みで扱えるようにする
+- `weakscaling` を最小経路としつつ、より詳細な推定も同じ枠組みで扱えるようにする
 
 The purpose of this specification is to separate estimation-input acquisition from estimation-package internals and make the connection point with applications clear.
 
@@ -50,7 +50,7 @@ It aims at least to:
 - clarify what estimation-package developers may expect as inputs
 - clarify how BenchKit receives, stores, and passes those inputs
 - avoid ambiguity when input acquisition fails
-- handle both lightweight and detailed estimation within the same framework
+- handle a `weakscaling`-based minimum path and more detailed estimation within the same framework
 
 ## 3. 基本原則 / Core Principles
 
@@ -384,13 +384,13 @@ It should be possible to represent cases such as:
 
 採取失敗時には、少なくとも次のいずれかを明示すべきである。
 
-- 軽量推定へフォールバック可能
+- `weakscaling` へのフォールバック可能
 - 再計測が必要
 - 当該詳細 package は不適用
 
 When acquisition fails, at least one of the following should be made explicit:
 
-- fallback to lightweight estimation is possible
+- fallback to `weakscaling` is possible
 - re-measurement is required
 - the detailed package is not applicable
 

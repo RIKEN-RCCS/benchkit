@@ -374,7 +374,7 @@ This field may include assumptions such as:
 {
   "applicability": {
     "status": "fallback",
-    "fallback_used": "lightweight-fom-only",
+    "fallback_used": "weakscaling",
     "missing_inputs": [
       "detailed_counters",
       "annotated_interval_timings"
