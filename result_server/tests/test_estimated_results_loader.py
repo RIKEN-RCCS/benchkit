@@ -68,7 +68,7 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
         "performance_ratio": 2.0,
         "estimate_metadata": {
             "requested_estimation_package": "instrumented_app_sections_dummy",
-            "estimation_package": "lightweight_fom_scaling",
+            "estimation_package": "weakscaling",
             "estimation_result_uuid": "11111111-2222-3333-4444-555555555555",
             "estimation_result_timestamp": "2026-04-06 12:34:56",
         },
@@ -82,5 +82,5 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
     assert rows[0]["timestamp"] == "2026-04-06 12:34:56"
     assert rows[0]["estimate_uuid"] == "11111111-2222-3333-4444-555555555555"
     assert rows[0]["requested_estimation_package"] == "instrumented_app_sections_dummy"
-    assert rows[0]["estimation_package"] == "lightweight_fom_scaling"
+    assert rows[0]["estimation_package"] == "weakscaling"
     assert rows[0]["applicability_status"] == "fallback"

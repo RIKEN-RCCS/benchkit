@@ -80,14 +80,18 @@
       {% if requested_full == 'instrumented_app_sections_dummy' %}
         {% set requested_short = 'instr_app_sec' %}
       {% elif requested_full == 'lightweight_fom_scaling' %}
-        {% set requested_short = 'lightweight' %}
+        {% set requested_short = 'weakscaling' %}
+      {% elif requested_full == 'weakscaling' %}
+        {% set requested_short = 'weakscaling' %}
       {% else %}
         {% set requested_short = requested_full %}
       {% endif %}
       {% if applied_full == 'instrumented_app_sections_dummy' %}
         {% set applied_short = 'instr_app_sec' %}
       {% elif applied_full == 'lightweight_fom_scaling' %}
-        {% set applied_short = 'lightweight' %}
+        {% set applied_short = 'weakscaling' %}
+      {% elif applied_full == 'weakscaling' %}
+        {% set applied_short = 'weakscaling' %}
       {% else %}
         {% set applied_short = applied_full %}
       {% endif %}
