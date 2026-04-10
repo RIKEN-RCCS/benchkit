@@ -269,7 +269,7 @@ BenchKit のポータル層である。
 
 主な役割:
 
-- CX Portal のホームを入口として持つこと
+- CX Portal のホームを主入口として持つこと
 - 結果一覧
 - 結果詳細
 - 比較表示
@@ -278,10 +278,8 @@ BenchKit のポータル層である。
 - 利用可能システム表示
 - 使用量表示
 - 登録済み run 設定と shell 側の system 分岐に基づく app / system coverage 表示
-- 登録済み run 設定に基づく app / system coverage 表示
 - 登録済み system / queue / system_info に対する軽い configuration checks
-- 各 app / system の最新収集 result に基づく result-quality current-state summary
-- 結果品質サマリ表示
+- 結果品質サマリ表示（一覧・詳細・latest-result current-state summary を含む）
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
 
@@ -297,10 +295,9 @@ Main roles:
 - estimation detail views with current/future breakdown visibility
 - available-system views
 - usage views
-- application/system coverage views derived from registered run settings
 - application/system coverage views derived from registered run settings and shell-side system branches
 - lightweight configuration checks for registered system, queue, and system-info definitions
-- result-quality current-state summaries derived from the latest collected result for each application/system pair
+- result-quality summaries, including list/detail presentation and latest-result current-state summaries
 - authentication and authorization
 - future integration points for request and approval workflows
 

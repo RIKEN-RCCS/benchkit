@@ -59,7 +59,7 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 
 ## 2.1 現時点で明示しておく設計負債 / Explicit Design Debts to Keep Visible
 
-現時点では、未実装というより「いったん止めている」「境界をまだ固定しきっていない」論点がいくつかある。
+現時点では、単に未実装というより、「いったん方向は決めたが、まだ固定しきっていない」論点がいくつかある。
 この節は、それらを後で見失わないための明示的なメモである。
 
 - 推定 package / flow の境界:
@@ -69,13 +69,13 @@ However, estimation is still not yet broadly deployed across multiple applicatio
 - 推定結果 compare UI:
   detail 画面で current / future breakdown、fallback、applicability は見えるようになったが、同一 `code/exp` 間の差分把握 UI はまだ後回しにしている。
 - 結果 quality の扱い:
-  portal 上の quality badge / detail は実装済みだが、CI を fail させる validator にはしていない。品質評価は現在も可視化中心である。
+  portal 上の quality badge、detail view、latest-result current-state summary は実装済みだが、CI を fail させる validator にはしていない。品質評価は現在も visibility-first である。
 - site capability checker:
   `/results/usage` に lightweight configuration checks は入ったが、CI 実行可否と直接結び付く自動 checker にはまだしていない。
 - app/system coverage 判定:
-  現在の coverage matrix は `list.csv` と `build.sh` / `run.sh` の mention ベースであり、将来的により厳密な capability 定義へ置き換える余地がある。
+  現在の coverage matrix は `list.csv` と `build.sh` / `run.sh` の structured shell-branch detection に基づくが、完全な execution-contract checker にはまだなっていない。
 
-At the current stage, several issues are not simply “missing implementations” but rather intentionally deferred or not yet fully fixed as design boundaries.
+At the current stage, several issues are not simply "missing implementations" but rather intentionally deferred or not yet fully fixed as design boundaries.
 This section keeps those visible so they are not forgotten later.
 
 - estimation package / flow boundary:
@@ -85,13 +85,9 @@ This section keeps those visible so they are not forgotten later.
 - estimation compare UI:
   detail views now expose current / future breakdown, fallback, and applicability, but same-`code`/`exp` comparison remains intentionally deferred.
 - result quality handling:
-  quality badge、detail view、latest-result current-state summary は実装済みだが、CI を fail させる validator にはしていない。現状は visibility-first のままである。
-- result quality handling:
   quality badges, detail views, and latest-result current-state summaries are implemented, but they are not yet enforced as CI-failing validation; the current approach remains visibility-first.
 - site capability checker:
   `/results/usage` now has lightweight configuration checks, but there is still no automatic checker directly tied to CI execution readiness.
-- app/system coverage evaluation:
-  current の coverage matrix は `list.csv` と `build.sh` / `run.sh` の structured shell-branch detection に基づくが、完全な execution-contract checker にはまだなっていない。
 - app/system coverage evaluation:
   the current coverage matrix uses `list.csv` plus structured shell-branch detection in `build.sh` / `run.sh`, but it still stops short of a full execution-contract checker.
 
