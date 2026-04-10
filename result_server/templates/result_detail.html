@@ -9,6 +9,7 @@
         .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
         .back-link { margin-bottom: 15px; display: inline-block; }
         .meta-table { width: auto; }
+        .quality-table { width: min(100%, 980px); table-layout: fixed; }
         .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
         .meta-table td { min-width: 200px; }
         .chart-container { position: relative; width: 100%; max-width: 900px; height: 400px; margin: 0 auto; }
@@ -23,7 +24,7 @@
         .quality-ready { background: #e7f6ea; color: #1f6b33; }
         .quality-rich { background: #e8f1ff; color: #1f4f99; }
         .quality-list { margin: 0; padding-left: 20px; }
-        .quality-level-cell { min-width: 420px; }
+        .quality-level-cell { min-width: 840px; }
         .quality-summary { display: block; margin-top: 0.35rem; line-height: 1.45; }
     </style>
 </head>
@@ -60,7 +61,7 @@
 {% if quality %}
 <div class="section">
     <h2>Quality</h2>
-    <table class="meta-table">
+    <table class="meta-table quality-table">
         <tr>
             <th>Level</th>
             <td class="quality-level-cell"><span class="quality-badge quality-{{ quality.level }}">{{ quality.label }}</span><span class="quality-summary">{{ quality.summary }}</span></td>
