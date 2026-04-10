@@ -123,7 +123,7 @@ def setup(token):
     if request.method == "GET":
         secret = generate_secret()
         session["_setup_secret"] = secret
-        issuer = current_app.config.get("TOTP_ISSUER", "BenchKit")
+        issuer = current_app.config.get("TOTP_ISSUER", "CX Portal")
         qr_data = generate_qr_base64(secret, email, issuer=issuer)
         return render_template(
             "auth_setup.html",
@@ -149,7 +149,7 @@ def setup(token):
         flash("TOTP registration complete. You can now log in.")
         return redirect(url_for("auth.login"))
     else:
-        issuer = current_app.config.get("TOTP_ISSUER", "BenchKit")
+        issuer = current_app.config.get("TOTP_ISSUER", "CX Portal")
         qr_data = generate_qr_base64(secret, email, issuer=issuer)
         flash("Invalid code. Please try again.")
         return render_template(
