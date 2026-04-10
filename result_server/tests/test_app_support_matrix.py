@@ -107,3 +107,62 @@ def test_support_matrix_ignores_comment_only_mentions(tmp_path):
     assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled_partial"
     assert rows[0]["systems"]["RC_GENOA"]["build_supported"] is False
     assert rows[0]["systems"]["RC_GENOA"]["run_supported"] is False
+
+
+def test_support_matrix_handles_nested_case_blocks(tmp_path):
+    config_dir = tmp_path / "config"
+    programs_dir = tmp_path / "programs"
+    config_dir.mkdir()
+    programs_dir.mkdir()
+
+    _write_csv(
+        config_dir / "system.csv",
+        ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
+        [
+            ["Fugaku", "cross", "", "", "FJ", "small"],
+            ["RC_GH200", "native", "", "", "SLURM_RC", "gh200"],
+            ["MiyabiG", "cross", "", "", "SLURM", "small"],
+        ],
+    )
+
+    app_dir = programs_dir / "qws"
+    app_dir.mkdir()
+    (app_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
+    (app_dir / "run.sh").write_text(
+        """case "$system" in
+    Fugaku|FugakuCN)
+        case "$nodes" in
+            1)
+                echo run
+                ;;
+        esac
+        ;;
+    RC_GH200)
+        echo gh200
+        ;;
+    MiyabiG|MiyabiC)
+        echo miyabi
+        ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    _write_csv(
+        app_dir / "list.csv",
+        ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
+        [
+            ["Fugaku", "yes", "1", "4", "12", "0:10:00"],
+            ["RC_GH200", "yes", "1", "1", "72", "0:10:00"],
+            ["MiyabiG", "yes", "1", "1", "72", "0:10:00"],
+        ],
+    )
+
+    _, rows = load_app_system_support_matrix(
+        programs_dir=str(programs_dir),
+        system_csv_path=str(config_dir / "system.csv"),
+    )
+
+    systems = rows[0]["systems"]
+    assert systems["Fugaku"]["run_supported"] is True
+    assert systems["RC_GH200"]["run_supported"] is True
+    assert systems["MiyabiG"]["run_supported"] is True
