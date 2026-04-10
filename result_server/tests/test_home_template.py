@@ -59,7 +59,7 @@ def test_home_page_renders_landing_content():
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "BenchKit Portal" in html
+    assert "CX Portal" in html
     assert "Main Entry Points" in html
     assert "For Application Developers" in html
     assert "Available Systems" in html

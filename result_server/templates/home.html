@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>BenchKit Portal</title>
+    <title>CX Portal</title>
     <style>
         body {
             margin: 0;
@@ -252,11 +252,11 @@
 <div class="page">
     <section class="hero">
         <div class="hero-panel">
-            <span class="eyebrow">BenchKit Portal</span>
-            <h1>Benchmark Results, Estimation, and System Onboarding</h1>
+            <span class="eyebrow">CX Portal</span>
+            <h1>CX Data Flow, Connected Systems, and Portal Access</h1>
             <p>
-                BenchKit is a shell-first benchmark workflow for collecting results, comparing systems,
-                and preparing estimation-ready inputs across multiple computing sites.
+                This portal presents part of the CX workflow: data flowing from real systems into shared
+                result pages, system onboarding, and benchmark support for selected applications.
             </p>
             <div class="hero-actions">
                 <a class="button-link primary" href="{{ url_for('results.results') }}">Browse Results</a>
@@ -273,14 +273,14 @@
             <div>
                 <h2>At a Glance</h2>
                 <p class="panel-intro">
-                    Use this portal to discover available sites, browse result data, and find the right
-                    onboarding guide for new applications or systems.
+                    Use this portal to understand how CX connects to real systems, browse portal pages,
+                    and find the right onboarding guide for applications or sites.
                 </p>
             </div>
             <div class="summary-grid">
                 <div class="summary-card">
                     <span class="summary-value">{{ system_count }}</span>
-                    <span class="summary-label">Registered systems</span>
+                    <span class="summary-label">Connected systems</span>
                 </div>
                 <div class="summary-card">
                     <span class="summary-value">3</span>
@@ -288,11 +288,11 @@
                 </div>
                 <div class="summary-card">
                     <span class="summary-value">Results</span>
-                    <span class="summary-label">Measured benchmark data</span>
+                    <span class="summary-label">Portal result views</span>
                 </div>
                 <div class="summary-card">
                     <span class="summary-value">Guides</span>
-                    <span class="summary-label">App, site, and estimation onboarding</span>
+                    <span class="summary-label">Guides for apps and sites</span>
                 </div>
             </div>
         </aside>
@@ -302,7 +302,7 @@
         <div class="section-panel">
             <h2>Main Entry Points</h2>
             <p class="panel-intro">
-                Start here for the most common BenchKit workflows.
+                Start here for the main CX portal entry points.
             </p>
             <div class="link-list">
                 <a class="link-card" href="{{ url_for('results.results') }}">
@@ -321,7 +321,7 @@
                 </a>
                 <a class="link-card" href="{{ url_for('systemlist') }}">
                     <strong>Available Systems</strong>
-                    <span>See the systems currently registered in BenchKit, including CPU, GPU, and memory summaries.</span>
+                    <span>See the systems currently connected to the portal, including CPU, GPU, and memory summaries.</span>
                 </a>
             </div>
         </div>
@@ -334,7 +334,7 @@
             <div class="link-list">
                 <a class="link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
                     <strong>Add a New Application</strong>
-                    <span>Define `build.sh`, `run.sh`, `list.csv`, and result emission for a BenchKit application.</span>
+                    <span>Define `build.sh`, `run.sh`, `list.csv`, and result emission for a supported benchmark application.</span>
                 </a>
                 <a class="link-card" href="{{ guide_links.add_site }}" target="_blank" rel="noopener noreferrer">
                     <strong>Add a New Site</strong>
@@ -352,7 +352,7 @@
         <div class="systems-header">
             <div>
                 <h2>Available Systems</h2>
-                <p>Registered systems are sourced from `config/system_info.csv` and shown here for quick orientation.</p>
+                <p>Connected systems are sourced from `config/system_info.csv` and shown here for quick orientation.</p>
             </div>
         </div>
         <div class="system-grid">
