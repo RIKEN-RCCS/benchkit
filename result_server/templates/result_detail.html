@@ -71,9 +71,9 @@
             <th>Source Info</th>
             <td>
                 {% if quality.stats.has_source_info %}
-                    {{ "complete" if quality.stats.source_info_complete else "present but incomplete" }}
+                    top-level source tracked
                 {% else %}
-                    missing
+                    not tracked
                 {% endif %}
             </td>
         </tr>

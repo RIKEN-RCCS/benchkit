@@ -242,3 +242,4 @@ class TestResultDetailTemplate:
         assert "Rich" in html
         assert "Breakdown" in html
         assert "Estimation Inputs" in html
+        assert "top-level source tracked" in html
