@@ -163,11 +163,11 @@
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
                 {% elif key == "code" %}
                     {% if row.source_info and row.source_info.source_type == "git" %}
-                        <td><a href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+                        <td class="code-cell"><a class="code-link" href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% elif row.source_info and row.source_info.source_type == "file" %}
-                        <td title="{{ row.source_info.file_path }}">{{ row.code }}<span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+                        <td class="code-cell" title="{{ row.source_info.file_path }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% else %}
-                        <td title="{{ row.code }}">{{ row.code }}<span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+                        <td class="code-cell" title="{{ row.code }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% endif %}
                 {% elif key in ["fom_version", "exp", "ci_trigger", "pipeline_id", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
@@ -193,9 +193,22 @@
 </table>
 
 <style>
+.code-cell {
+    white-space: normal;
+    max-width: 220px;
+    overflow: visible;
+    text-overflow: clip;
+}
+.code-link {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
 .quality-badge {
     display: inline-block;
-    margin-left: 0.35rem;
+    margin-top: 0.2rem;
     padding: 0.05rem 0.35rem;
     border-radius: 999px;
     font-size: 0.68em;
