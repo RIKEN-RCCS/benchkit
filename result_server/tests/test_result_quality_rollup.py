@@ -14,7 +14,7 @@ def _write_result(path, data):
 
 def test_build_result_quality_rollup(tmp_path):
     _write_result(
-        tmp_path / "qws_1.json",
+        tmp_path / "result_20260401_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
         {
             "code": "qws",
             "system": "Fugaku",
@@ -34,10 +34,10 @@ def test_build_result_quality_rollup(tmp_path):
         },
     )
     _write_result(
-        tmp_path / "qws_2.json",
+        tmp_path / "result_20260402_010101_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
         {
             "code": "qws",
-            "system": "MiyabiG",
+            "system": "Fugaku",
             "FOM": 2.0,
             "source_info": {
                 "source_type": "git",
@@ -47,7 +47,7 @@ def test_build_result_quality_rollup(tmp_path):
         },
     )
     _write_result(
-        tmp_path / "genesis_1.json",
+        tmp_path / "result_20260403_010101_cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee.json",
         {
             "code": "genesis",
             "system": "RC_GENOA",
@@ -57,20 +57,19 @@ def test_build_result_quality_rollup(tmp_path):
 
     rollup = build_result_quality_rollup(str(tmp_path))
 
-    assert rollup["total_results"] == 3
-    assert rollup["app_count"] == 2
+    assert rollup["entry_count"] == 2
 
     genesis = next(row for row in rollup["rows"] if row["app"] == "genesis")
-    assert genesis["results"] == 1
-    assert genesis["source_tracked"] == 0
-    assert genesis["breakdown"] == 0
-    assert genesis["estimation_ready"] == 0
-    assert genesis["rich"] == 0
+    assert genesis["system"] == "RC_GENOA"
+    assert genesis["source_tracked"] is False
+    assert genesis["breakdown_present"] is False
+    assert genesis["estimation_ready"] is False
+    assert genesis["rich"] is False
 
     qws = next(row for row in rollup["rows"] if row["app"] == "qws")
-    assert qws["results"] == 2
-    assert qws["source_tracked"] == 1
-    assert qws["breakdown"] == 1
-    assert qws["estimation_ready"] == 1
-    assert qws["rich"] == 1
-    assert qws["source_tracked_pct"] == 50
+    assert qws["system"] == "Fugaku"
+    assert qws["timestamp"] == "2026-04-02 01:01:01"
+    assert qws["source_tracked"] is False
+    assert qws["breakdown_present"] is False
+    assert qws["estimation_ready"] is False
+    assert qws["rich"] is False

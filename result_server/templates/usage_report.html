@@ -283,29 +283,33 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Result Quality Coverage</h2>
-  <p class="section-intro">Quick rollup of collected benchmark results by application, including <strong>top-level source tracked</strong>, <strong>breakdown present</strong>, and <strong>estimation-ready</strong> coverage.</p>
+  <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing whether top-level source tracking, breakdown output, and estimation-ready fields are present.</p>
   {% if result_quality_rollup.rows %}
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Application</th>
-          <th>Results</th>
+          <th>System</th>
+          <th>Latest Result</th>
           <th>Top-Level Source Tracked</th>
           <th>Breakdown Present</th>
           <th>Estimation-Ready</th>
           <th>Rich</th>
+          <th>Warnings</th>
         </tr>
       </thead>
       <tbody>
       {% for row in result_quality_rollup.rows %}
         <tr>
           <td>{{ row.app }}</td>
-          <td>{{ row.results }}</td>
-          <td title="{{ row.source_tracked }} / {{ row.results }}">{{ row.source_tracked }} / {{ row.results }} ({{ row.source_tracked_pct }}%)</td>
-          <td title="{{ row.breakdown }} / {{ row.results }}">{{ row.breakdown }} / {{ row.results }} ({{ row.breakdown_pct }}%)</td>
-          <td title="{{ row.estimation_ready }} / {{ row.results }}">{{ row.estimation_ready }} / {{ row.results }} ({{ row.estimation_ready_pct }}%)</td>
-          <td title="{{ row.rich }} / {{ row.results }}">{{ row.rich }} / {{ row.results }} ({{ row.rich_pct }}%)</td>
+          <td>{{ row.system }}</td>
+          <td>{{ row.timestamp }}</td>
+          <td>{{ 'yes' if row.source_tracked else 'no' }}</td>
+          <td>{{ 'yes' if row.breakdown_present else 'no' }}</td>
+          <td>{{ 'yes' if row.estimation_ready else 'no' }}</td>
+          <td>{{ 'yes' if row.rich else 'no' }}</td>
+          <td>{{ row.warnings|length if row.warnings else 'none' }}</td>
         </tr>
       {% endfor %}
       </tbody>
