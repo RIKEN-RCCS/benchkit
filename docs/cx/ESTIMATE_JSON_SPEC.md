@@ -11,16 +11,16 @@ If any discrepancy exists, the Japanese version takes precedence.
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、BenchKit が保存・表示・比較する Estimate JSON の最小要件を定義する。
+本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、BenchKit が保存・表示し、将来の比較や再推定にも使えるように保持する Estimate JSON の最小要件を定義する。
 
-This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum requirements for Estimate JSON as stored, presented, and compared by BenchKit.
+This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum requirements for Estimate JSON as stored, presented, and preserved by BenchKit so that future comparison and re-estimation remain possible.
 
 ## 2. 目的 / Purpose
 
 Estimate JSON は、性能推定結果を以下の目的で保持する。
 
 - portal 表示
-- 比較
+- 比較可能性の保持
 - 履歴追跡
 - 再推定
 - AI 駆動最適化への受け渡し
@@ -28,7 +28,7 @@ Estimate JSON は、性能推定結果を以下の目的で保持する。
 Estimate JSON stores estimation results for the following purposes:
 
 - portal presentation
-- comparison
+- preserving comparability
 - history tracking
 - re-estimation
 - handoff to AI-driven optimization

@@ -28,7 +28,7 @@ This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`
 
 ## 2. 目的 / Purpose
 
-推定パッケージ metadata の目的は、BenchKit が推定パッケージを登録し、選択し、比較し、将来的に置き換え可能な形で扱えるようにすることである。
+推定パッケージ metadata の目的は、BenchKit が推定パッケージを登録し、選択し、適用可能性や fallback を判断し、将来の比較や置き換えにも耐えられる形で扱えるようにすることである。
 
 主な用途は以下である。
 
@@ -38,7 +38,7 @@ This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`
 - フォールバック方針の共有
 - Estimate JSON への写像の補助
 
-The purpose of estimation-package metadata is to allow BenchKit to register, select, compare, and replace estimation packages in a consistent way.
+The purpose of estimation-package metadata is to allow BenchKit to register and select estimation packages, evaluate applicability and fallback, and preserve future comparison and replacement in a consistent way.
 
 Typical uses include:
 
