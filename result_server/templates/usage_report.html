@@ -292,7 +292,10 @@
           <th>Application</th>
           <th>System</th>
           <th>Latest Result</th>
-          <th>Top-Level Source Tracked</th>
+          <th>Source Status</th>
+          <th>Source Type</th>
+          <th>Source Reference</th>
+          <th>Missing Source Fields</th>
           <th>Breakdown Present</th>
           <th>Estimation-Ready</th>
           <th>Rich</th>
@@ -305,7 +308,10 @@
           <td>{{ row.app }}</td>
           <td>{{ row.system }}</td>
           <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
-          <td>{{ 'yes' if row.source_tracked else 'no' }}</td>
+          <td>{{ row.source_status }}</td>
+          <td>{{ row.source_type }}</td>
+          <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
+          <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
           <td>{{ 'yes' if row.breakdown_present else 'no' }}</td>
           <td>{{ 'yes' if row.estimation_ready else 'no' }}</td>
           <td>{{ 'yes' if row.rich else 'no' }}</td>

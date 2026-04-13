@@ -151,6 +151,33 @@ class TestUsageRoute:
         assert "No collected result-quality data is available yet." in text
         assert "qws" in text
 
+    def test_usage_page_shows_source_tracking_columns_when_rollup_exists(self, client, tmp_dirs):
+        received, _ = tmp_dirs
+        _write_result(
+            received,
+            "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "Exp": "CASE0",
+                "FOM": 1.0,
+                "source_info": {
+                    "source_type": "git",
+                    "repo_url": "https://example.com/repo.git",
+                    "branch": "main",
+                    "commit_hash": "abcdef1234567890",
+                },
+            },
+        )
+
+        _login_session(client, "admin@example.com", ["admin"])
+        resp = client.get("/results/usage")
+        text = resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert "Source Status" in text
+        assert "Source Reference" in text
+        assert "top-level source tracked" in text
+
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
         _login_session(client, "admin@example.com", ["admin"])
 

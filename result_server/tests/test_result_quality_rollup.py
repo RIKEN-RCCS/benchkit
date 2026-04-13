@@ -62,6 +62,10 @@ def test_build_result_quality_rollup(tmp_path):
     genesis = next(row for row in rollup["rows"] if row["app"] == "genesis")
     assert genesis["system"] == "RC_GENOA"
     assert genesis["source_tracked"] is False
+    assert genesis["source_status"] == "not tracked"
+    assert genesis["source_type"] == "—"
+    assert genesis["source_reference"] == "—"
+    assert genesis["source_missing_fields"] == ["source_info"]
     assert genesis["breakdown_present"] is False
     assert genesis["estimation_ready"] is False
     assert genesis["rich"] is False
@@ -70,6 +74,10 @@ def test_build_result_quality_rollup(tmp_path):
     assert qws["system"] == "Fugaku"
     assert qws["timestamp"] == "2026-04-02 01:01:01"
     assert qws["source_tracked"] is False
+    assert qws["source_status"] == "not tracked"
+    assert qws["source_type"] == "git"
+    assert qws["source_reference"] == "main"
+    assert qws["source_missing_fields"] == ["commit_hash"]
     assert qws["breakdown_present"] is False
     assert qws["estimation_ready"] is False
     assert qws["rich"] is False
