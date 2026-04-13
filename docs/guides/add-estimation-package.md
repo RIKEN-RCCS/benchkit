@@ -163,7 +163,7 @@ section 名そのものより、
 - current / future package が必要なら分かれる
 - model 情報が side ごとに残る
 - `applicability` が top-level に集約される
-- portal や compare UI で意味が読める
+- portal の detail や、将来の compare UI で意味が読める
 
 ## 10. いまの見方
 
