@@ -112,7 +112,7 @@ This document only positions BenchKit as one of the major components of the CX P
 
 - ベンチマーク結果の参照
 - 推定結果の参照
-- 使用量レポートの参照。ここには app / system coverage、軽量な configuration checks、最新 result に基づく quality / source tracking の current-state 表示も含まれる
+- 使用量レポートの参照。ここには app / system coverage、軽量な configuration checks、最新 result に基づく quality / source provenance の current-state 表示も含まれる
 - 将来の申請・承認・AI指示ワークフローへの接続点
 
 現状では CX 基盤の内部ソフトウェアにより提供される。
@@ -121,7 +121,7 @@ The Result Portal provides user-facing access to:
 
 - benchmark results
 - estimation results
-- usage reports, including current-state views for app/system coverage, lightweight configuration checks, and latest-result quality/source tracking
+- usage reports, including current-state views for app/system coverage, lightweight configuration checks, and latest-result quality/source provenance
 - future integration points for requests, approvals, and AI instructions
 
 It is currently provided by internal software components of the CX Platform.

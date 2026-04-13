@@ -143,7 +143,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む、ページネーション・フィルタ対応） |
 | `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報、結果品質サマリ） |
 | `/results/compare?files=a,b` | ベンチマーク結果のリグレッション比較（複数 Result JSON の差分表示） |
-| `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ、app/system coverage matrix、lightweight configuration checks、最新 result ベースの quality / source tracking 状態を含む） |
+| `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ、app/system coverage matrix、lightweight configuration checks、最新 result ベースの quality / source provenance current-state を含む） |
 | `/estimated/` | 推定結果一覧（TOTP認証必須、ページネーション・フィルタ対応、HTML detail ページあり。stable な compare UI は未整備） |
 | `/systemlist` | `config/system_info.csv` に基づく接続システム一覧 |
 | `/auth/login` | TOTP認証ログイン |
