@@ -18,13 +18,13 @@ These names are BenchKit-level presets. Each profiler adapter defines the concre
 ## Current `fapp` Mapping
 
 - `single`
-  - `pa1`
+  - event set `pa1`
 - `simple`
-  - `pa1..pa5`
+  - event set `pa1..pa5`
 - `standard`
-  - `pa1..pa11`
+  - event set `pa1..pa11`
 - `detailed`
-  - `pa1..pa17`
+  - event set `pa1..pa17`
 
 Default report behavior for `fapp` is:
 
@@ -49,7 +49,7 @@ This makes it possible to inspect profiler coverage without downloading the arch
   - `Profiler` shows `tool / level`
   - the secondary line shows `report_format` and run count
 - Result detail
-  - `PA Data Summary` shows the level preset, events, and report kinds
+  - `PA Data Summary` shows tool-specific events, explicit events, and report kinds
 
 ## Why This Helps
 

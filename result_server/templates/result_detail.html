@@ -109,23 +109,23 @@
         <tr><th>Report Format</th><td>{{ result['profile_data'].get('report_format', 'N/A') }}</td></tr>
         <tr><th>Run Count</th><td>{{ result['profile_data'].get('run_count', 'N/A') }}</td></tr>
         <tr>
-            <th>Level Summary</th>
+            <th>Tool-Specific Events</th>
             <td>
                 {% set level = result['profile_data'].get('level') %}
                 {% if result['profile_data'].get('tool') == 'fapp' %}
                     {% if level == 'single' %}
-                        single preset: pa1
+                        fapp event set: pa1
                     {% elif level == 'simple' %}
-                        simple preset: pa1..pa5
+                        fapp event set: pa1..pa5
                     {% elif level == 'standard' %}
-                        standard preset: pa1..pa11
+                        fapp event set: pa1..pa11
                     {% elif level == 'detailed' %}
-                        detailed preset: pa1..pa17
+                        fapp event set: pa1..pa17
                     {% else %}
-                        tool-specific preset
+                        fapp tool-specific event set
                     {% endif %}
                 {% else %}
-                    tool-specific preset
+                    tool-specific event set
                 {% endif %}
             </td>
         </tr>

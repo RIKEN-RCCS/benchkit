@@ -371,8 +371,8 @@ bk_profiler_artifact/
     cpu_pa_rep1.csv
 ```
 
-より一般的な profiler helper の設計方針は [Profiler Support Guide](C:/Users/yoshi/benchkit/docs/guides/profiler-support.md) を参照してください。
-level の早見表と portal 上の見え方は [Profiler Level Reference](C:/Users/yoshi/benchkit/docs/guides/profiler-level-reference.md) にまとめています。
+より一般的な profiler helper の設計方針は [Profiler Support Guide](profiler-support.md) を参照してください。
+level の早見表と portal 上の見え方は [Profiler Level Reference](profiler-level-reference.md) にまとめています。
 
 ---
 
