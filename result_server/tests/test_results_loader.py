@@ -527,3 +527,23 @@ class TestCascadeFilter:
         # codes and systems should still be populated
         assert "qws" in opts["codes"]
         assert "Fugaku" in opts["systems"]
+
+
+class TestPadataLinkResolution:
+    def test_data_link_uses_server_uuid_when_filename_has_no_uuid(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = "result0.json"
+        tgz_name = f"padata_20250101_120000_{uid}.tgz"
+        _write_json(tmp_dir, filename, {
+            "code": "qws",
+            "system": "Fugaku",
+            "FOM": 1.0,
+            "_server_uuid": uid,
+        })
+        open(os.path.join(tmp_dir, tgz_name), "wb").close()
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        assert rows[0]["data_link"] == f"/results/{tgz_name}"

@@ -250,7 +250,7 @@ def _build_row(json_file, data, tgz_files):
             pass
 
     uuid_match = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", json_file, re.IGNORECASE)
-    uid = uuid_match.group(0) if uuid_match else None
+    uid = uuid_match.group(0) if uuid_match else data.get("_server_uuid")
     tgz_file = next((f for f in tgz_files if uid in f), None) if uid else None
 
     # metrics.vector の有無を判定
