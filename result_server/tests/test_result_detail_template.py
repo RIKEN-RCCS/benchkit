@@ -164,6 +164,7 @@ class TestResultDetailTemplate:
         assert "PA Data Summary" in html
         assert "fapp" in html
         assert "single" in html
+        assert "single preset: pa1" in html
         assert "summary_text" in html
         assert "pa1" in html
 

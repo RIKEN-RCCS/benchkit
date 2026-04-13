@@ -20,7 +20,7 @@
 }
 </style>
 
-<p class="results-table-note">Use the server-side filters to narrow the table first, then select visible rows if you want to open the compare view.</p>
+<p class="results-table-note">Use the server-side filters to narrow the table first, check the profiler summary when PA data is available, and then select visible rows if you want to open the compare view.</p>
 
 <div class="results-table-wrap">
 <table id="resultsTable" class="results-table">
@@ -28,7 +28,7 @@
     <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -66,6 +66,10 @@
                   <span class="tooltip tooltip-right">{{ col_name }}
                     <span class="tooltiptext">Performance Analysis data archive (detailed profiling data)</span>
                   </span>
+                {% elif col_name == "Profiler" %}
+                  <span class="tooltip">{{ col_name }}
+                    <span class="tooltiptext">Profiler tool, level, and report summary extracted from uploaded PA metadata</span>
+                  </span>
                 {% elif col_name == "Trigger" %}
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">CI pipeline trigger source (schedule, push, web, etc.)</span>
@@ -102,7 +106,7 @@
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
               {% if col_name == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
@@ -179,6 +183,25 @@
                     </td>
                 {% elif key in ["nodes", "numproc_node", "nthreads"] %}
                     <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
+                {% elif key == "profile_summary" %}
+                    <td class="profile-cell">
+                        {% if row.profile_summary_meta.has_profile_data %}
+                            <span class="tooltip">
+                                <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
+                                {% if row.profile_summary_meta.subline %}
+                                <span class="profile-subline">{{ row.profile_summary_meta.subline }}</span>
+                                {% endif %}
+                                <span class="tooltiptext">
+                                    {{ row.profile_summary_meta.headline }}
+                                    {% if row.profile_summary_meta.subline %}<br>{{ row.profile_summary_meta.subline }}{% endif %}
+                                    {% if row.profile_summary_meta.events %}<br>events: {{ row.profile_summary_meta.events | join(', ') }}{% endif %}
+                                    {% if row.profile_summary_meta.report_kinds %}<br>reports: {{ row.profile_summary_meta.report_kinds | join(', ') }}{% endif %}
+                                </span>
+                            </span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
@@ -250,6 +273,22 @@
 .quality-rich {
     background: #e8f1ff;
     color: #1f4f99;
+}
+.profile-cell {
+    min-width: 150px;
+    white-space: normal;
+}
+.profile-headline {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.profile-subline {
+    display: block;
+    margin-top: 0.15rem;
+    color: #607282;
+    font-size: 0.82em;
+    line-height: 1.35;
 }
 </style>
 

@@ -298,6 +298,39 @@ def _build_row(json_file, data, tgz_files):
         source_hash = "-"
 
     quality = summarize_result_quality(data)
+    profile_data = data.get("profile_data")
+    profile_summary = "-"
+    profile_summary_meta = {
+        "has_profile_data": False,
+        "headline": "",
+        "subline": "",
+        "events": [],
+        "report_kinds": [],
+    }
+    if isinstance(profile_data, dict) and profile_data:
+        tool = profile_data.get("tool") or ""
+        level = profile_data.get("level") or ""
+        report_format = profile_data.get("report_format") or ""
+        run_count = profile_data.get("run_count")
+        events = profile_data.get("events") if isinstance(profile_data.get("events"), list) else []
+        report_kinds = profile_data.get("report_kinds") if isinstance(profile_data.get("report_kinds"), list) else []
+
+        headline_parts = [part for part in (tool, level) if part]
+        profile_summary = " / ".join(headline_parts) if headline_parts else "profile data"
+
+        subline_parts = []
+        if report_format:
+            subline_parts.append(report_format)
+        if isinstance(run_count, int):
+            subline_parts.append(f"{run_count} run" if run_count == 1 else f"{run_count} runs")
+
+        profile_summary_meta = {
+            "has_profile_data": True,
+            "headline": profile_summary,
+            "subline": ", ".join(subline_parts),
+            "events": events,
+            "report_kinds": report_kinds,
+        }
 
     row = {
         "timestamp": timestamp,
@@ -325,6 +358,9 @@ def _build_row(json_file, data, tgz_files):
         "source_info": source_info,
         "source_hash": source_hash,
         "quality": quality,
+        "profile_data": profile_data,
+        "profile_summary": profile_summary,
+        "profile_summary_meta": profile_summary_meta,
     }
     return row
 
@@ -389,6 +425,7 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("Nodes", "nodes"),
         ("P/N", "numproc_node"),
         ("T/P", "nthreads"),
+        ("Profiler", "profile_summary"),
         ("JSON", "json_link"),
         ("PA Data", "data_link"),
         ("Trigger", "ci_trigger"),

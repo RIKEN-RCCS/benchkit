@@ -302,6 +302,7 @@ class TestLoadResultsTableExtension:
             ("Nodes", "nodes"),
             ("P/N", "numproc_node"),
             ("T/P", "nthreads"),
+            ("Profiler", "profile_summary"),
             ("JSON", "json_link"),
             ("PA Data", "data_link"),
             ("Trigger", "ci_trigger"),
@@ -330,6 +331,35 @@ class TestLoadResultsTableExtension:
         assert row["timestamp"] == "2025-01-01 12:00:00"
         assert row["numproc_node"] == "48"
         assert row["nthreads"] == "12"
+        assert row["profile_summary"] == "-"
+
+    def test_profile_summary_is_built_from_profile_data(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
+            "code": "qws",
+            "system": "Fugaku",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "profile_data": {
+                "tool": "fapp",
+                "level": "detailed",
+                "report_format": "both",
+                "run_count": 17,
+                "events": [f"pa{i}" for i in range(1, 18)],
+                "report_kinds": ["summary_text", "cpu_pa_csv"],
+            },
+        })
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["profile_summary"] == "fapp / detailed"
+        assert row["profile_summary_meta"]["headline"] == "fapp / detailed"
+        assert row["profile_summary_meta"]["subline"] == "both, 17 runs"
+        assert row["profile_summary_meta"]["events"][0] == "pa1"
+        assert "cpu_pa_csv" in row["profile_summary_meta"]["report_kinds"]
 
 
 class TestSummarizeResultQuality:

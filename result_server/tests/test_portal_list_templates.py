@@ -87,14 +87,15 @@ def test_results_template_renders_table_note():
 
         html = render_template(
             "results.html",
-            columns=[
-                ("Timestamp", "timestamp"),
-                ("SYSTEM", "system"),
-                ("CODE", "code"),
-                ("FOM", "fom"),
-                ("Exp", "exp"),
-                ("JSON", "json_link"),
-            ],
+                columns=[
+                    ("Timestamp", "timestamp"),
+                    ("SYSTEM", "system"),
+                    ("CODE", "code"),
+                    ("FOM", "fom"),
+                    ("Exp", "exp"),
+                    ("Profiler", "profile_summary"),
+                    ("JSON", "json_link"),
+                ],
             rows=[
                 {
                     "timestamp": "2026-04-13 12:00:00",
@@ -119,6 +120,14 @@ def test_results_template_renders_table_note():
                     "ci_trigger": "push",
                     "pipeline_id": "10",
                     "source_hash": "main@abcdef12",
+                    "profile_summary": "fapp / detailed",
+                    "profile_summary_meta": {
+                        "has_profile_data": True,
+                        "headline": "fapp / detailed",
+                        "subline": "both, 17 runs",
+                        "events": ["pa1", "pa2"],
+                        "report_kinds": ["summary_text", "cpu_pa_csv"],
+                    },
                 }
             ],
             pagination={"total": 1, "page": 1, "total_pages": 1},
@@ -140,9 +149,11 @@ def test_results_template_renders_table_note():
             },
         )
 
-    assert "Use the server-side filters to narrow the table first" in html
+    assert "check the profiler summary when PA data is available" in html
     assert "results-table-wrap" in html
     assert "Compare" in html
+    assert "fapp / detailed" in html
+    assert "Profiler" in html
 
 
 def test_estimated_results_template_renders_table_note():
