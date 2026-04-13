@@ -247,13 +247,13 @@ This makes it easier to distinguish multiple re-estimations from the same benchm
 
 ### 7.3 比較表示の不足 / Missing Comparison Semantics
 
-現時点では、推定結果一覧と基本メタデータ表示は存在するが、同じ benchmark result から派生した複数推定結果を比較する前提の表示仕様はまだ弱い。
+現時点では、推定結果一覧と estimate detail 表示は存在するが、同じ benchmark result から派生した複数推定結果を比較する前提の表示仕様はまだ弱い。
 
-At present, estimated results can be listed, but display semantics for comparing multiple estimation results derived from the same benchmark result are still weak.
+At present, estimated results can be listed and inspected in detail, but display semantics for comparing multiple estimation results derived from the same benchmark result are still weak.
 
 ### 7.4 必要入力不足時の扱いの不足 / Missing Semantics for Insufficient Inputs
 
-現時点では、推定方式を変更した際に、その方式に必要な詳細カウンター、アノテーション区間時間、補助入力ファイルなどが不足していた場合の再推定 UI / 比較表示の扱いが十分に仕様化されていない。
+現時点では、推定方式を変更した際に、その方式に必要な詳細カウンター、アノテーション区間時間、補助入力ファイルなどが不足していた場合の再推定 detail / compare 表示の扱いが十分に仕様化されていない。
 
 少なくとも以下を明確化する必要がある。
 
@@ -262,7 +262,7 @@ At present, estimated results can be listed, but display semantics for comparing
 - 再計測や追加準備を要求する条件
 - その判定結果を Estimate JSON やポータルへどう残すか
 
-At present, the handling of missing detailed counters, annotated interval timings, or auxiliary input files required by a changed estimation method is not specified well enough.
+At present, the handling of missing detailed counters, annotated interval timings, or auxiliary input files required by a changed estimation method is not specified well enough for re-estimation detail / comparison views.
 
 At least the following need to be clarified:
 

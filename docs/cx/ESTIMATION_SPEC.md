@@ -499,14 +499,14 @@ BenchKit は、少なくとも以下を扱えるべきである。
 
 - benchmark result を再指定しての再推定
 - 推定結果の履歴保持
-- 異なる推定方式の比較
+- 異なる推定方式の比較可能性の保持
 
 Estimation is not a one-time calculation. Re-estimation in response to updated models or assumptions is important.
 BenchKit should be able to handle at least:
 
 - re-estimation from a specified benchmark result
 - history retention of estimation results
-- comparison of different estimation methods
+- preservation of comparability across different estimation methods
 
 ## 5. 推定方式の分類 / Classes of Estimation Methods
 
