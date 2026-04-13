@@ -366,7 +366,8 @@ def _matches_filters(data, filter_system, filter_code, filter_exp, field_map=Non
 
 
 def load_results_table(directory, public_only=True, session_email=None, authenticated=False, affiliations=None,
-                       page=1, per_page=100, filter_system=None, filter_code=None, filter_exp=None):
+                       page=1, per_page=100, filter_system=None, filter_code=None, filter_exp=None,
+                       padata_directory=None):
     # per_page バリデーション
     if per_page not in ALLOWED_PER_PAGE:
         per_page = DEFAULT_PER_PAGE
@@ -374,7 +375,8 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
     affs = affiliations if affiliations is not None else []
     files = os.listdir(directory)
     json_files = sorted([f for f in files if f.endswith(".json")], reverse=True)
-    tgz_files = [f for f in files if f.endswith(".tgz")]
+    tgz_dir = padata_directory or directory
+    tgz_files = [f for f in os.listdir(tgz_dir) if f.endswith(".tgz")]
 
     columns = [
         ("Timestamp", "timestamp"),

@@ -547,3 +547,23 @@ class TestPadataLinkResolution:
 
         assert len(rows) == 1
         assert rows[0]["data_link"] == f"/results/{tgz_name}"
+
+    def test_data_link_uses_separate_padata_directory(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        padata_dir = os.path.join(tmp_dir, "received_padata")
+        os.makedirs(padata_dir, exist_ok=True)
+        tgz_name = f"padata_20250101_120000_{uid}.tgz"
+
+        _write_json(tmp_dir, filename, {
+            "code": "qws",
+            "system": "Fugaku",
+            "FOM": 1.0,
+        })
+        open(os.path.join(padata_dir, tgz_name), "wb").close()
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True, padata_directory=padata_dir)
+
+        assert len(rows) == 1
+        assert rows[0]["data_link"] == f"/results/{tgz_name}"

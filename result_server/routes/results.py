@@ -84,12 +84,14 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     filter_exp = params["filter_exp"]
 
     received_dir = current_app.config["RECEIVED_DIR"]
+    received_padata_dir = current_app.config["RECEIVED_PADATA_DIR"]
 
     # public_only=False の場合のみセッション認証情報を取得
     load_kwargs = dict(
         public_only=public_only,
         page=page, per_page=per_page,
         filter_system=filter_system, filter_code=filter_code, filter_exp=filter_exp,
+        padata_directory=received_padata_dir,
     )
     filter_kwargs = dict(public_only=public_only)
     template_extra = {}
