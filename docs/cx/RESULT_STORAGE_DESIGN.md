@@ -118,10 +118,10 @@ As a result, identifiers are currently distributed across multiple places:
 - server-side stored filenames
 
 現行の portal 実装では、`/results/usage` も各 app / system 組について最新に収集された result から lightweight な current-state view を導出している。
-これには result quality と source tracking の可視化が含まれるが、それ自体が新しい authoritative な storage object を導入するわけではない。
+これには result quality と source provenance の可視化が含まれるが、それ自体が新しい authoritative な storage object を導入するわけではない。
 
 In the current portal implementation, `/results/usage` also derives lightweight current-state views from the latest collected result for each application/system pair.
-This includes result quality and source-tracking visibility, but it does not introduce a new authoritative storage object of its own.
+This includes result quality and source-provenance visibility, but it does not introduce a new authoritative storage object of its own.
 
 ## 4. 現状方式の利点 / Benefits of the Current File-Based Approach
 
@@ -136,7 +136,7 @@ This includes result quality and source-tracking visibility, but it does not int
 また、portal はこの方式の上で、次のような lightweight な運用ビューを計算できる。
 
 - 最新 result の quality state
-- 最新 result の source-tracking state
+- 最新 result の source-provenance state
 - app / system ごとの current-state summary
 
 しかもこれは、別の DB-backed な state model を新たに固定しなくても実現できる。
@@ -152,7 +152,7 @@ The current approach has at least the following benefits:
 It also allows the portal to compute lightweight operational views such as:
 
 - latest-result quality state
-- latest-result source-tracking state
+- latest-result source-provenance state
 - app/system current-state summaries
 
 without committing yet to a separate database-backed state model.
