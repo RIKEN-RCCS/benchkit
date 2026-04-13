@@ -26,6 +26,26 @@ print_results() {
     qws_emit_estimation_data_from_fom "$fom"
 }
 
+resolve_latest_fugaku_stdout() {
+    local stdout_name=$1
+    local output_root="output.${PJM_JOBID}/0"
+    local candidate
+    local latest=""
+
+    shopt -s nullglob
+    for candidate in "${output_root}"/*/"${stdout_name}"; do
+        latest="$candidate"
+    done
+    shopt -u nullglob
+
+    if [[ -z "$latest" ]]; then
+        echo "ERROR: could not resolve Fugaku stdout path for ${stdout_name} under ${output_root}" >&2
+        return 1
+    fi
+
+    printf '%s\n' "$latest"
+}
+
 emit_qws_dummy_padata() {
     mkdir -p pa
     echo dummy > ./pa/padat.0
@@ -51,16 +71,16 @@ case "$system" in
         case "$nodes" in
             1)
                 bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
-                print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE0 1 >> ../results/result
+                print_results "$(resolve_latest_fugaku_stdout stdout.1.0)" CASE0 1 >> ../results/result
                 if ! bk_profiler_enabled "$qws_profiler_tool"; then
                     emit_qws_dummy_padata ../results/padata0.tgz
                 fi
                 mpiexec -n 2 ./main 32 6 4 3 1 1 1 2 -1 -1 6 50 > CASE1
-                print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
+                print_results "$(resolve_latest_fugaku_stdout stdout.2.0)" CASE1 2 >> ../results/result
                 ;;
             2)
                 bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7
-                print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
+                print_results "$(resolve_latest_fugaku_stdout stdout.1.0)" CASE7 4 >> ../results/result
                 if ! bk_profiler_enabled "$qws_profiler_tool"; then
                     emit_qws_dummy_padata ../results/padata0.tgz
                 fi
