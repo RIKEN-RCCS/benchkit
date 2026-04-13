@@ -4,6 +4,157 @@
     <meta charset="UTF-8">
     <title>Available Computing Systems</title>
     {% include "_table_base.html" %}
+    <style>
+        .systems-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .summary-card {
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid #dce8ee;
+            background: #f7fbfc;
+        }
+        .summary-value {
+            display: block;
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .summary-label {
+            display: block;
+            margin-top: 6px;
+            color: #52606d;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .systems-table-wrap {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 68vh;
+            border-radius: 14px;
+        }
+        .systems-table {
+            min-width: 920px;
+        }
+        .systems-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .systems-table th:first-child,
+        .systems-table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            min-width: 160px;
+            background: inherit;
+        }
+        .systems-table thead th:first-child {
+            z-index: 3;
+            background: #eef6f8;
+        }
+        .systems-table td {
+            max-width: none;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            vertical-align: top;
+        }
+        .systems-table .spec-cell {
+            min-width: 180px;
+            word-break: break-word;
+        }
+        .systems-table .numeric-cell {
+            min-width: 96px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .systems-footnote {
+            margin: 14px 0 0;
+            color: #52606d;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        .systems-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 16px;
+        }
+        .systems-filter-input {
+            min-width: 240px;
+            flex: 1 1 280px;
+        }
+        .systems-filter-chip {
+            padding: 7px 12px;
+            border-radius: 999px;
+            border: 1px solid #c7dce5;
+            background: #ffffff;
+            color: #0f766e;
+            cursor: pointer;
+            transition: background-color 120ms ease, transform 120ms ease, border-color 120ms ease;
+        }
+        .systems-filter-chip:hover {
+            background: #eef8f7;
+            border-color: #9fc7c2;
+            transform: translateY(-1px);
+        }
+        .systems-filter-chip.active {
+            background: #0f766e;
+            border-color: #0f766e;
+            color: #ffffff;
+        }
+        .systems-visible-count {
+            margin-left: auto;
+            color: #52606d;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+    </style>
+    <script>
+        function applySystemFilters() {
+            const input = document.getElementById("systemFilterInput");
+            const rows = document.querySelectorAll("[data-system-row]");
+            const visibleCount = document.getElementById("systemsVisibleCount");
+            const filterMode = document.querySelector(".systems-filter-chip.active")?.dataset.filter || "all";
+            const needle = (input?.value || "").toLowerCase().trim();
+            let shown = 0;
+
+            rows.forEach((row) => {
+                const rowText = row.innerText.toLowerCase();
+                const rowType = row.dataset.systemType || "cpu";
+                const modeMatch =
+                    filterMode === "all" ||
+                    (filterMode === "gpu" && rowType === "gpu") ||
+                    (filterMode === "cpu" && rowType === "cpu");
+                const textMatch = !needle || rowText.includes(needle);
+                const visible = modeMatch && textMatch;
+                row.style.display = visible ? "" : "none";
+                if (visible) {
+                    shown += 1;
+                }
+            });
+
+            if (visibleCount) {
+                visibleCount.textContent = `${shown} visible`;
+            }
+        }
+
+        function setSystemFilter(mode) {
+            document.querySelectorAll(".systems-filter-chip").forEach((button) => {
+                button.classList.toggle("active", button.dataset.filter === mode);
+            });
+            applySystemFilters();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            applySystemFilters();
+        });
+    </script>
 </head>
 <body>
 
@@ -17,8 +168,37 @@
     </section>
 
     <section class="page-card table-card">
-        <div class="table-wrap">
-            <table>
+        <div class="systems-summary">
+            <div class="summary-card">
+                <span class="summary-value">{{ systems_summary.total_count }}</span>
+                <span class="summary-label">Connected systems registered in the portal.</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-value">{{ systems_summary.gpu_enabled_count }}</span>
+                <span class="summary-label">Systems with GPU accelerators listed in <code>system_info.csv</code>.</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-value">{{ systems_summary.cpu_only_count }}</span>
+                <span class="summary-label">CPU-only systems available for benchmark onboarding and browsing.</span>
+            </div>
+        </div>
+
+        <div class="systems-controls">
+            <input
+                id="systemFilterInput"
+                class="systems-filter-input"
+                type="text"
+                placeholder="Filter systems by name, CPU, GPU, or memory"
+                oninput="applySystemFilters()"
+            >
+            <button type="button" class="systems-filter-chip active" data-filter="all" onclick="setSystemFilter('all')">All</button>
+            <button type="button" class="systems-filter-chip" data-filter="gpu" onclick="setSystemFilter('gpu')">GPU-enabled</button>
+            <button type="button" class="systems-filter-chip" data-filter="cpu" onclick="setSystemFilter('cpu')">CPU-only</button>
+            <span id="systemsVisibleCount" class="systems-visible-count">{{ systems_summary.total_count }} visible</span>
+        </div>
+
+        <div class="systems-table-wrap">
+            <table class="systems-table">
                 <thead>
                     <tr>
                         <th>SYSTEM</th>
@@ -32,19 +212,22 @@
                 </thead>
                 <tbody>
                     {% for system_name, info in systems_info.items() %}
-                    <tr>
-                        <td><strong>{{ info.name }}</strong></td>
-                        <td>{{ info.cpu_name }}</td>
-                        <td>{{ info.cpu_per_node }}</td>
-                        <td>{{ info.cpu_cores }}</td>
-                        <td>{{ info.gpu_name }}</td>
-                        <td>{{ info.gpu_per_node }}</td>
-                        <td>{{ info.memory }}</td>
+                    <tr data-system-row data-system-type="{% if info.gpu_name != '-' %}gpu{% else %}cpu{% endif %}">
+                        <td title="{{ info.name }}"><strong>{{ info.name }}</strong></td>
+                        <td class="spec-cell" title="{{ info.cpu_name }}">{{ info.cpu_name }}</td>
+                        <td class="numeric-cell">{{ info.cpu_per_node }}</td>
+                        <td class="numeric-cell">{{ info.cpu_cores }}</td>
+                        <td class="spec-cell" title="{{ info.gpu_name }}">{{ info.gpu_name }}</td>
+                        <td class="numeric-cell">{{ info.gpu_per_node }}</td>
+                        <td class="spec-cell">{{ info.memory }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        <p class="systems-footnote">
+            Hardware summaries are sourced from <code>config/system_info.csv</code>. Use this page for quick orientation, then follow the onboarding guides when adding new systems or applications.
+        </p>
         <div class="control-row" style="margin-top: 16px; margin-bottom: 0;">
             <button class="soft-button" onclick="history.back()">Back</button>
         </div>

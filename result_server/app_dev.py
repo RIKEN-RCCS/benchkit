@@ -114,7 +114,7 @@ def create_dev_app(base_dir):
     from flask_session import Session
 
     from routes.home import register_home_routes
-    from utils.system_info import get_all_systems_info
+    from utils.system_info import get_all_systems_info, summarize_systems_info
 
     app = Flask(__name__, template_folder="templates")
 
@@ -167,7 +167,11 @@ def create_dev_app(base_dir):
     @app.route("/systemlist")
     def systemlist():
         systems_info = get_all_systems_info()
-        return render_template("systemlist.html", systems_info=systems_info)
+        return render_template(
+            "systemlist.html",
+            systems_info=systems_info,
+            systems_summary=summarize_systems_info(systems_info),
+        )
 
     return app
 

@@ -108,9 +108,13 @@ def create_app(prefix="", base_dir=None):
 
     @app.route(f"{prefix}/systemlist")
     def systemlist():
-        from utils.system_info import get_all_systems_info
+        from utils.system_info import get_all_systems_info, summarize_systems_info
         systems_info = get_all_systems_info()
-        return render_template("systemlist.html", systems_info=systems_info)
+        return render_template(
+            "systemlist.html",
+            systems_info=systems_info,
+            systems_summary=summarize_systems_info(systems_info),
+        )
 
     return app
 

@@ -76,3 +76,20 @@ def get_all_systems_info():
         if name not in ordered:
             ordered[name] = info
     return ordered
+
+
+def summarize_systems_info(systems_info):
+    """Return lightweight summary counts for the system list page."""
+    total_count = len(systems_info)
+    gpu_enabled_count = 0
+
+    for info in systems_info.values():
+        gpu_name = (info.get("gpu_name") or "-").strip()
+        if gpu_name and gpu_name != "-":
+            gpu_enabled_count += 1
+
+    return {
+        "total_count": total_count,
+        "gpu_enabled_count": gpu_enabled_count,
+        "cpu_only_count": total_count - gpu_enabled_count,
+    }

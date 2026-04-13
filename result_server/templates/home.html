@@ -208,9 +208,33 @@
         .system-card {
             padding: 18px;
         }
+        .system-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
         .system-card h3 {
-            margin: 0 0 12px;
+            margin: 0;
             font-size: 18px;
+        }
+        .system-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .system-badge.gpu {
+            background: #eef6ff;
+            color: #1d4ed8;
+        }
+        .system-badge.cpu {
+            background: #f3f4f6;
+            color: #4b5563;
         }
         .system-meta {
             display: grid;
@@ -359,7 +383,14 @@
         <div class="system-grid">
             {% for system in systems %}
             <article class="system-card">
-                <h3>{{ system.name }}</h3>
+                <div class="system-card-header">
+                    <h3>{{ system.name }}</h3>
+                    {% if system.gpu_name != '-' %}
+                    <span class="system-badge gpu">GPU-enabled</span>
+                    {% else %}
+                    <span class="system-badge cpu">CPU-only</span>
+                    {% endif %}
+                </div>
                 <div class="system-meta">
                     <div><strong>CPU</strong> {{ system.cpu_name }}</div>
                     <div><strong>CPU/node</strong> {{ system.cpu_per_node }} | <strong>Cores</strong> {{ system.cpu_cores }}</div>
