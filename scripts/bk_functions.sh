@@ -810,6 +810,15 @@ bk_profiler_write_meta() {
   } > "$_bk_meta_file"
 }
 
+bk_profiler_call_optional_hook() {
+  _bk_hook_name="$1"
+  shift || true
+
+  if declare -F "$_bk_hook_name" >/dev/null 2>&1; then
+    "$_bk_hook_name" "$@"
+  fi
+}
+
 bk_profiler() {
   if [ $# -lt 2 ]; then
     echo "bk_profiler: requires a profiler tool and an execution command" >&2
@@ -901,8 +910,12 @@ bk_profiler() {
         _bk_fapp_rep_name="rep${_bk_fapp_run_index}"
         _bk_fapp_rep_dir="${_bk_profiler_dir}/${_bk_fapp_rep_name}"
         mkdir -p "$_bk_fapp_rep_dir"
+        echo "bk_profiler[fapp]: starting ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
+        bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
         # shellcheck disable=SC2086
         fapp -C -d "$_bk_fapp_rep_dir" ${BK_PROFILER_ARGS:-} -Hevent="${_bk_fapp_event}" "$@"
+        bk_profiler_call_optional_hook bk_profiler_after_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
+        echo "bk_profiler[fapp]: completed ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
         cp -R "$_bk_fapp_rep_dir" "$_bk_stage_dir/raw/${_bk_fapp_rep_name}"
         if [ -n "$_bk_profiler_run_names" ]; then
           _bk_profiler_run_names="${_bk_profiler_run_names},${_bk_fapp_rep_name}"
