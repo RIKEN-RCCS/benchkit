@@ -9,13 +9,15 @@ bk_fetch_source https://github.com/RIKEN-LQCD/qws.git qws
 
 cd qws
 
+qws_profiler_tool="fapp"
+
 # システムに合わせてbuild方法を書く。systemの選択肢はlist.csvに合わせる。
 case "$system" in
     Fugaku)
-	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_cross rdma= mpi=1 powerapi=
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_cross rdma= mpi=1 powerapi= profiler=${qws_profiler_tool}
 	;;
     FugakuCN)
-	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi=
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= profiler=${qws_profiler_tool}
 	;;
     FugakuLN)
 	# Private repository access check (CI connectivity test)

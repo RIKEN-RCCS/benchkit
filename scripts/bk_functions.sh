@@ -617,6 +617,124 @@ bk_run_estimation_data_collection() {
   return 1
 }
 
+# Profiler helpers
+#
+# BenchKit keeps the common wrapper in bk_functions.sh, while each application
+# decides whether to use a profiler and which profiler tool to request.
+#
+# Positional arguments:
+#   $1 - profiler tool (empty|none|off|fapp)
+#
+# Supported variables:
+#   BK_PROFILER_ARGS         optional extra measurement flags
+#   BK_PROFILER_REPORT_ARGS  optional extra postprocess flags
+#   BK_PROFILER_DIR          raw profile output dir (default: pa)
+#   BK_PROFILER_STAGE_DIR    temporary staging dir for archive creation
+bk_get_profiler_tool() {
+  _bk_profiler_tool="${1:-}"
+  case "$_bk_profiler_tool" in
+    ""|none|off)
+      printf '%s\n' ""
+      return 0
+      ;;
+    fapp)
+      printf '%s\n' "$_bk_profiler_tool"
+      return 0
+      ;;
+    *)
+      echo "bk_get_profiler_tool: unsupported profiler '${_bk_profiler_tool}'" >&2
+      return 1
+      ;;
+  esac
+}
+
+bk_profiler_enabled() {
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  [ -n "$_bk_profiler_tool" ]
+}
+
+bk_profiler() {
+  if [ $# -lt 2 ]; then
+    echo "bk_profiler: requires a profiler tool and an execution command" >&2
+    return 1
+  fi
+
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  shift
+  _bk_profiler_archive="${BK_PROFILER_ARCHIVE:-results/padata.tgz}"
+  _bk_profiler_dir="${BK_PROFILER_DIR:-pa}"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --archive)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --archive requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_archive="$1"
+        ;;
+      --raw-dir)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --raw-dir requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_dir="$1"
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  if [ $# -eq 0 ]; then
+    echo "bk_profiler: requires an execution command" >&2
+    return 1
+  fi
+
+  if [ -z "$_bk_profiler_tool" ]; then
+    "$@"
+    return $?
+  fi
+
+  rm -rf "$_bk_profiler_dir"
+  mkdir -p "$_bk_profiler_dir"
+
+  case "$_bk_profiler_tool" in
+    fapp)
+      export FLIB_FASTOMP="${FLIB_FASTOMP:-TRUE}"
+      # shellcheck disable=SC2086
+      fapp -C -d "$_bk_profiler_dir" ${BK_PROFILER_ARGS:-} "$@"
+      ;;
+  esac
+
+  _bk_stage_dir="${BK_PROFILER_STAGE_DIR:-bk_profiler_artifact}"
+  rm -rf "$_bk_stage_dir"
+  mkdir -p "$_bk_stage_dir"
+  cp -R "$_bk_profiler_dir" "$_bk_stage_dir/raw"
+
+  case "$_bk_profiler_tool" in
+    fapp)
+      if command -v fapp >/dev/null 2>&1; then
+        export FLIB_FASTOMP="${FLIB_FASTOMP:-TRUE}"
+        # shellcheck disable=SC2086
+        fapp -A -d "$_bk_profiler_dir" ${BK_PROFILER_REPORT_ARGS:-} > "$_bk_stage_dir/fapp_A.txt" 2>&1 || true
+      else
+        echo "fapp not found in PATH" > "$_bk_stage_dir/fapp_A.txt"
+      fi
+      ;;
+  esac
+
+  tar -czf "$_bk_profiler_archive" "$_bk_stage_dir"
+  rm -rf "$_bk_stage_dir"
+}
+
 # bk_emit_overlap - Backward-compatible wrapper for overlap-like section timing.
 #
 # Positional arguments:

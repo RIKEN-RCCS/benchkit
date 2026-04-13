@@ -7,7 +7,9 @@ nthreads="$4"
 export OMP_NUM_THREADS=$nthreads
 
 source "${PWD}/scripts/bk_functions.sh"
-# estimate.sh は性能推定支援の補助関数を使う場合に読み込みます。
+qws_profiler_tool="fapp"
+qws_profiler_args="-Hevent=pa1"
+# Load estimation helpers used when emitting section/overlap metadata.
 source "${PWD}/programs/qws/estimate.sh"
 
 mkdir -p results && > results/result
@@ -22,6 +24,15 @@ print_results() {
     fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
     bk_emit_result --fom "$fom" --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
     qws_emit_estimation_data_from_fom "$fom"
+}
+
+emit_qws_dummy_padata() {
+    mkdir -p pa
+    echo dummy > ./pa/padat.0
+    echo dummy > ./pa/padat.1
+    echo dummy > ./pa/padat.2
+    echo dummy > ./pa/padat.3
+    tar -czf "$1" ./pa
 }
 
 [[ -d qws ]] || git clone https://github.com/RIKEN-LQCD/qws.git
@@ -39,20 +50,20 @@ case "$system" in
     Fugaku|FugakuCN)
         case "$nodes" in
             1)
-                mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+                BK_PROFILER_ARGS="$qws_profiler_args" bk_profiler "$qws_profiler_tool" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE0 1 >> ../results/result
-                mkdir -p pa
-                echo dummy > ./pa/padat.0
-                echo dummy > ./pa/padat.1
-                echo dummy > ./pa/padat.2
-                echo dummy > ./pa/padat.3
-                tar -czf ../results/padata0.tgz ./pa
+                if ! bk_profiler_enabled "$qws_profiler_tool"; then
+                    emit_qws_dummy_padata ../results/padata0.tgz
+                fi
                 mpiexec -n 2 ./main 32 6 4 3 1 1 1 2 -1 -1 6 50 > CASE1
                 print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
                 ;;
             2)
-                mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7
+                BK_PROFILER_ARGS="$qws_profiler_args" bk_profiler "$qws_profiler_tool" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
+                if ! bk_profiler_enabled "$qws_profiler_tool"; then
+                    emit_qws_dummy_padata ../results/padata0.tgz
+                fi
                 ;;
             *)
                 echo "Undefined node numbers for system: $system"
@@ -63,12 +74,7 @@ case "$system" in
     FugakuLN)
         echo 'dummy call for CI test: QWS program: ./main 32 6 4 3 1 1 1 1 -1 -1 6 50'
         bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-        mkdir -p pa
-        echo dummy > ./pa/padat.0
-        echo dummy > ./pa/padat.1
-        echo dummy > ./pa/padat.2
-        echo dummy > ./pa/padat.3
-        tar -czf ../results/padata0.tgz ./pa
+        emit_qws_dummy_padata ../results/padata0.tgz
         ;;
     FNCX)
         echo 'dummy call for FNCX Docker runner test'

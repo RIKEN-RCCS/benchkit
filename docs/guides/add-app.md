@@ -325,6 +325,26 @@ echo "detailed_data" > pa/analysis.dat
 tar -czf ../results/padata0.tgz ./pa
 ```
 
+### Fugaku で `fapp` を使う場合
+
+Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、BenchKit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
+`qws` では Fugaku 系 build / run の内部で `fapp` を選び、まず `single` 相当として `-Hevent=pa1` を付けた `bk_profiler fapp ...` を通して raw data と `fapp -A` の summary を `results/padata0.tgz` として保存できます。
+
+```bash
+# qws は Fugaku 系 build / run の内部で fapp を利用
+bash programs/qws/build.sh Fugaku
+bash programs/qws/run.sh Fugaku 1 4 12
+```
+
+追加オプションが必要なら、以下を併用できます。
+
+- `BK_PROFILER_ARGS`
+  - `fapp -C` にそのまま渡す追加引数
+- `BK_PROFILER_REPORT_ARGS`
+  - `fapp -A` にそのまま渡す追加引数
+- `BK_PROFILER_DIR`
+  - raw profile data の出力先ディレクトリ名（既定値: `pa`）
+
 ---
 
 ## 6. ローカルテスト
