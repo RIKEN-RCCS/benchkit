@@ -279,7 +279,7 @@ BenchKit のポータル層である。
 - 使用量表示
 - 登録済み run 設定と shell 側の system 分岐に基づく app / system coverage 表示
 - 登録済み system / queue / system_info に対する軽い configuration checks
-- 結果品質サマリ表示（一覧・詳細・latest-result current-state summary を含む）
+- 結果品質サマリ表示（一覧・詳細・latest-result current-state summary・source tracking current-state を含む）
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
 
@@ -297,7 +297,7 @@ Main roles:
 - usage views
 - application/system coverage views derived from registered run settings and shell-side system branches
 - lightweight configuration checks for registered system, queue, and system-info definitions
-- result-quality summaries, including list/detail presentation and latest-result current-state summaries
+- result-quality summaries, including list/detail presentation, latest-result current-state summaries, and source-tracking current-state visibility
 - authentication and authorization
 - future integration points for request and approval workflows
 
@@ -376,6 +376,9 @@ BenchKit が最低限追跡すべき項目は以下である。
 例:
 最上位アプリケーションが GitHub 上の `qws` であれば、`main` ブランチのどの commit hash から得られた結果かを追跡できなければならない。
 
+また、ポータル上では `/results/usage` を通じて、各 app / system の最新 result を基準に source tracking の current-state を確認できることが望ましい。
+ここでは `source_status`、`source_type`、`source_reference`、不足している source field を軽く見られる形が自然である。
+
 一方で、依存パッケージやビルド環境全体の完全な provenance 追跡は、現時点では BenchKit の必須責務とはしない。
 この領域は、BenchPark、Ramble、Spack などの外部ツールが本来強みを持つ領域であり、
 国際協力および役割分担の観点からも、それらに委ねることを基本方針とする。
@@ -399,6 +402,9 @@ At minimum, BenchKit should track:
 
 Example:
 If the top-level application is `qws` on GitHub, BenchKit must be able to trace which commit hash on the `main` branch produced the result.
+
+It is also desirable for the portal to expose source-tracking current state through `/results/usage`, based on the latest result for each application/system pair.
+A lightweight view of `source_status`, `source_type`, `source_reference`, and missing source fields is a natural form for that visibility.
 
 By contrast, complete provenance tracking for dependency packages and the full build environment is not currently a mandatory responsibility of BenchKit.
 That area is a natural strength of external tools such as BenchPark, Ramble, and Spack, and from the perspective of international collaboration and role sharing, it should generally be delegated to them.

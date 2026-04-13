@@ -143,7 +143,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | `/results/confidential` | 結果一覧（TOTP認証付き、機密データ含む、ページネーション・フィルタ対応） |
 | `/results/detail/<filename>` | 個別結果詳細（Chart.jsグラフ、データテーブル、ビルド情報、結果品質サマリ） |
 | `/results/compare?files=a,b` | リグレッション比較（複数結果の差分表示） |
-| `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ、app/system coverage matrix と lightweight configuration checks を含む） |
+| `/results/usage` | ノード時間使用量レポート（admin専用、月次/半期/年度切替、会計年度選択、期間フィルタ、app/system coverage matrix、lightweight configuration checks、最新 result ベースの quality / source tracking 状態を含む） |
 | `/estimated/` | 推定結果一覧（TOTP認証必須、ページネーション・フィルタ対応、HTML detail ページあり） |
 
 結果一覧・推定結果ページのクエリパラメータ:
@@ -166,6 +166,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - ナビゲーション: ブラウザタブ風のアクティブ表示、認証時はタブが拡張（Public/All Results/Estimated）
 - CX Portal ホーム: `/` に主要導線、利用可能システム、アプリ開発者向けガイドへの入口を持つ
 - 結果品質サマリ: 結果一覧に quality badge、結果詳細に `Quality` セクションを表示し、`source_info`、`fom_breakdown`、推定入力参照の有無を軽く見られる
+- source tracking current-state: `/results/usage` に、各 app/system の最新 result を基準に `source_status`、`source_type`、`source_reference`、不足している source field を見られる
 - 推定結果詳細: `/estimated/detail/<filename>` で current / future の breakdown、requested/applied package、section / overlap 単位の fallback / applicability を見られる
 - app/system coverage: `/results/usage` に、登録済み system と app の対応状況を `enabled and implemented` / `enabled in list.csv, script support incomplete` / `configured off` / `not listed` で示す matrix がある
 - configuration checks: `/results/usage` に、`system.csv` / `queue.csv` / `system_info.csv` の軽い診断と partial support の検出がある
