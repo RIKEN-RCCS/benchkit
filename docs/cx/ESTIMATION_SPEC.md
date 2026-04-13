@@ -644,7 +644,7 @@ These are kept open so that multiple approaches remain possible under the princi
 - package metadata discovery の本格利用:
   metadata はすでに package 側の責務として整理されているが、portal や compare UI でどこまで積極的に活用するかは未確定とする。
 - compare UI の最終形:
-  current / future の detail 表示はあるが、複数 estimate を並べて差分を読む UI は今は固定しない。
+  current / future の detail 表示に加え、section / overlap 単位の fallback / applicability 表示まではあるが、複数 estimate を並べて差分を読む UI は今は固定しない。
 - acquisition path の本格差異:
   `instrumented_app_sections`、`instrumented_tool_sections`、`counter_based` の概念は保持するが、各 path の厳密な capability contract はまだ固定しない。
 
@@ -655,7 +655,7 @@ Among the open items above, the following are explicitly considered “not fixed
 - deeper use of package metadata discovery:
   metadata is already owned by packages, but how aggressively it should drive portal behavior or comparison UI is still open.
 - the final compare UI shape:
-  current / future detail display exists, but a stable multi-estimate comparison interface is intentionally deferred.
+  current / future detail display, including section/overlap-level fallback and applicability, already exists, but a stable multi-estimate comparison interface is intentionally deferred.
 - fully specified acquisition-path contracts:
   the concepts of `instrumented_app_sections`, `instrumented_tool_sections`, and `counter_based` remain, but their strict capability contracts are not yet frozen.
 

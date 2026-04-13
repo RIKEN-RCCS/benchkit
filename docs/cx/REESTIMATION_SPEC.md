@@ -196,7 +196,8 @@ However, when those artifacts do not exist on the server:
 - `source_result_uuid` に対応する estimation input artifact を返す取得 API
 
 現時点では、再推定の shell フローと取得口自体は実装済みである。
-一方で、取得 API の公開方針、認証条件、portal や compare UI からの見せ方は文書としてまだ十分に整理されていない。
+一方で、取得 API の公開方針と認証条件、ならびに compare UI や portal からの再推定起動導線は文書としてまだ十分に整理されていない。
+estimate 自体の detail 表示は portal にあるが、再推定を compare 運用へどう接続するかはまだ保留である。
 
 したがって、以下を明確化する必要がある。
 
@@ -313,14 +314,14 @@ Current restoration should follow this flow:
 
 1. 再推定向け取得 API の公開方針と認証条件を文書化する
 2. 同一 `source_result_uuid` を軸にした比較表示仕様を定義する
-3. `reestimation` ブロックを portal / compare UI で活かす
+3. `reestimation` ブロックを detail / compare UI でどう活かすかを定義する
 4. portal から再推定を起動する要求フローを定義する
 
 Candidate next steps include:
 
 1. document the exposure policy and authentication conditions of the re-estimation retrieval APIs
 2. define a display specification for comparing re-estimation results using `source_result_uuid`
-3. surface the `reestimation` block in portal / compare UI
+3. define how the `reestimation` block should surface in detail / compare UI
 4. define a portal-driven request flow for starting re-estimation
 
 ## 10. 現在の実装状態の補遺 / Addendum on Current Status

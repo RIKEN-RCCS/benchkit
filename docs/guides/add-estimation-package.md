@@ -173,12 +173,13 @@ section 名そのものより、
 - current / future package を分けられる
 - `current_system.model` / `future_system.model` を side ごとに持てる
 - requested / applied package や fallback 理由を残せる
+- portal の estimated detail では section / overlap 単位の fallback / applicability まで追える
 
 一方で、まだ未完なのは次です。
 
 - package metadata discovery の一般化
 - 複数 detailed package の本格実装
-- portal 上での詳細 applicability 表示
 - compare UI での package 差分の見せ方
+- reestimation や compare と package metadata をどう結び付けるか
 
 そのため、最初の package では「小さく動かして、metadata と責務分担を崩さない」ことを優先するのがよいです。
