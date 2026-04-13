@@ -266,4 +266,9 @@ def usage_report():
 # ==========================================
 @results_bp.route("/<filename>")
 def show_result(filename):
+    if filename.endswith(".tgz"):
+        # TGZ payloads live in RECEIVED_PADATA_DIR, but confidentiality should
+        # still be resolved against the paired result JSON in RECEIVED_DIR.
+        check_file_permission(filename, current_app.config["RECEIVED_DIR"])
+        return load_result_file(filename, current_app.config["RECEIVED_PADATA_DIR"])
     return serve_confidential_file(filename, current_app.config["RECEIVED_DIR"])
