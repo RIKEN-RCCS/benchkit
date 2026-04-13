@@ -41,7 +41,7 @@
 - package 側は「どう推定して、入力不足をどう扱うか」を主に担当
 - model 名、model type、measurement / confidence / notes / assumptions の既定値は package metadata 側へ寄せる方向で整理が進んでいる
 - BenchKit 共通層は current / future の flow、Estimate JSON の組み立て、requested/applied package や applicability の保持を主に担当する
-- 要求パッケージ / 実適用パッケージ、applicability、UUID / timestamp、ポータル基本表示は共通層でかなり吸収できている
+- 要求パッケージ / 実適用パッケージ、applicability、UUID / timestamp、portal の list/detail 表示に必要な基本情報は共通層でかなり吸収できている
 
 ## 仕様を見たい場合
 

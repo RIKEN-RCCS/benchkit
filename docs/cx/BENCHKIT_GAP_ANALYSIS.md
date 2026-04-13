@@ -199,7 +199,7 @@ Once the estimation specification is clarified, many other design decisions beco
 - Exp の扱い
 - FOM breakdown をどこまで推定対象にするか
 - 推定モデルの種別と識別方法
-- 再推定のトリガ、履歴、比較表示
+- 再推定のトリガ、履歴、比較可能性と表示導線
 
 現状は `qws` が先行 app として、
 
