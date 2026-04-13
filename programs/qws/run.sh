@@ -8,7 +8,7 @@ export OMP_NUM_THREADS=$nthreads
 
 source "${PWD}/scripts/bk_functions.sh"
 qws_profiler_tool="fapp"
-qws_profiler_level="single"
+qws_profiler_level="simple"
 # Load estimation helpers used when emitting section/overlap metadata.
 source "${PWD}/programs/qws/estimate.sh"
 

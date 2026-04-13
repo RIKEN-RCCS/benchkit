@@ -77,41 +77,39 @@ EOF
 chmod +x "${FAKE_BIN}/fapp" "${FAKE_BIN}/fapppx"
 export PATH="${FAKE_BIN}:${PATH}"
 
-run_and_check_default() {
-  local archive="${TMP_DIR}/default.tgz"
-  local extract_dir="${TMP_DIR}/default_extract"
+run_and_check_level() {
+  local level="$1"
+  local expected_last_rep="$2"
+  local expected_last_event="$3"
+  local expected_format="$4"
+  local expect_csv="$5"
+  local archive="${TMP_DIR}/${level}.tgz"
+  local extract_dir="${TMP_DIR}/${level}_extract"
+  local raw_dir="${TMP_DIR}/${level}_pa"
 
-  bk_profiler fapp --archive "$archive" --raw-dir "${TMP_DIR}/default_pa" -- true
+  bk_profiler fapp --level "$level" --archive "$archive" --raw-dir "$raw_dir" -- true
   mkdir -p "$extract_dir"
   tar -xzf "$archive" -C "$extract_dir"
 
   test -f "${extract_dir}/bk_profiler_artifact/meta.json"
   test -f "${extract_dir}/bk_profiler_artifact/raw/rep1/event.txt"
-  test -f "${extract_dir}/bk_profiler_artifact/reports/fapp_A_rep1.txt"
-  ! test -f "${extract_dir}/bk_profiler_artifact/reports/cpu_pa_rep1.csv"
-  grep -q '"level": "single"' "${extract_dir}/bk_profiler_artifact/meta.json"
-  grep -q '"report_format": "text"' "${extract_dir}/bk_profiler_artifact/meta.json"
-  grep -q '"event": "pa1"' "${extract_dir}/bk_profiler_artifact/meta.json"
+  test -f "${extract_dir}/bk_profiler_artifact/raw/rep${expected_last_rep}/event.txt"
+  test -f "${extract_dir}/bk_profiler_artifact/reports/fapp_A_rep${expected_last_rep}.txt"
+
+  if [ "$expect_csv" = "yes" ]; then
+    test -f "${extract_dir}/bk_profiler_artifact/reports/cpu_pa_rep${expected_last_rep}.csv"
+  else
+    ! test -f "${extract_dir}/bk_profiler_artifact/reports/cpu_pa_rep${expected_last_rep}.csv"
+  fi
+
+  grep -q "\"level\": \"${level}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
+  grep -q "\"report_format\": \"${expected_format}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
+  grep -q "\"event\": \"${expected_last_event}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
 }
 
-run_and_check_simple_both() {
-  local archive="${TMP_DIR}/simple.tgz"
-  local extract_dir="${TMP_DIR}/simple_extract"
-
-  bk_profiler fapp --level simple --report-format both --archive "$archive" --raw-dir "${TMP_DIR}/simple_pa" -- true
-  mkdir -p "$extract_dir"
-  tar -xzf "$archive" -C "$extract_dir"
-
-  test -f "${extract_dir}/bk_profiler_artifact/meta.json"
-  test -f "${extract_dir}/bk_profiler_artifact/raw/rep5/event.txt"
-  test -f "${extract_dir}/bk_profiler_artifact/reports/fapp_A_rep5.txt"
-  test -f "${extract_dir}/bk_profiler_artifact/reports/cpu_pa_rep5.csv"
-  grep -q '"level": "simple"' "${extract_dir}/bk_profiler_artifact/meta.json"
-  grep -q '"report_format": "both"' "${extract_dir}/bk_profiler_artifact/meta.json"
-  grep -q '"event": "pa5"' "${extract_dir}/bk_profiler_artifact/meta.json"
-}
-
-run_and_check_default
-run_and_check_simple_both
+run_and_check_level single 1 pa1 text no
+run_and_check_level simple 5 pa5 both yes
+run_and_check_level standard 11 pa11 both yes
+run_and_check_level detailed 17 pa17 both yes
 
 echo "bk_profiler tests passed"
