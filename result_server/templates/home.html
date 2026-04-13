@@ -134,6 +134,9 @@
             grid-template-columns: 1fr 1fr;
             gap: 24px;
         }
+        .content-grid.three-up {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
         .section-panel {
             padding: 26px;
         }
@@ -308,12 +311,12 @@
                     <span class="summary-label">Connected systems</span>
                 </div>
                 <div class="summary-card">
-                    <span class="summary-value">3</span>
+                    <span class="summary-value">{% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}4{% else %}3{% endif %}</span>
                     <span class="summary-label">Primary entry points</span>
                 </div>
                 <div class="summary-card">
                     <span class="summary-value">Results</span>
-                    <span class="summary-label">Portal result views</span>
+                    <span class="summary-label">Measured and projected views</span>
                 </div>
                 <div class="summary-card">
                     <span class="summary-value">Guides</span>
@@ -323,30 +326,30 @@
         </aside>
     </section>
 
-    <section class="content-grid">
+    <section class="content-grid {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}three-up{% endif %}">
         <div class="section-panel">
             <h2>Main Entry Points</h2>
             <p class="panel-intro">
-                Start here for the main CX portal entry points.
+                Start here for the main portal pages used to browse measured results, projected outputs, and connected systems.
             </p>
             <div class="link-list">
                 <a class="link-card" href="{{ url_for('results.results') }}">
                     <strong>Results</strong>
-                    <span>Browse measured benchmark results, compare runs, and inspect result quality details.</span>
+                    <span>Browse measured benchmark results, compare runs, and inspect result-quality detail pages.</span>
                 </a>
                 <a class="link-card" href="{% if session.get('authenticated') %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
                     {% if session.get('authenticated') %}
                     <strong>Estimated Results</strong>
-                    <span>Review system projections and estimation outputs derived from benchmark inputs.</span>
+                    <span>Review system projections, current/future breakdowns, and estimation detail derived from benchmark inputs.</span>
                     {% else %}
                     <strong>Estimated Results</strong>
-                    <span>Review system projections and estimation outputs derived from benchmark inputs after signing in.</span>
+                    <span>Review system projections and estimation detail derived from benchmark inputs after signing in.</span>
                     <span class="access-note">Login required</span>
                     {% endif %}
                 </a>
                 <a class="link-card" href="{{ url_for('systemlist') }}">
-                    <strong>Available Systems</strong>
-                    <span>See the systems currently connected to the portal, including CPU, GPU, and memory summaries.</span>
+                    <strong>Systems</strong>
+                    <span>See connected systems, quick hardware summaries, and onboarding-facing system metadata.</span>
                 </a>
             </div>
         </div>
@@ -371,6 +374,25 @@
                 </a>
             </div>
         </div>
+
+        {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}
+        <div class="section-panel">
+            <h2>Operations Views</h2>
+            <p class="panel-intro">
+                These pages help administrators check node-hour usage, application/system coverage, configuration state, and portal access setup.
+            </p>
+            <div class="link-list">
+                <a class="link-card" href="{{ url_for('results.usage_report') }}">
+                    <strong>Usage Report</strong>
+                    <span>Inspect node-hour usage together with coverage checks, latest result quality state, and source provenance state.</span>
+                </a>
+                <a class="link-card" href="{{ url_for('admin.users') }}">
+                    <strong>User Management</strong>
+                    <span>Manage user affiliations, invitation links, and TOTP onboarding for the portal.</span>
+                </a>
+            </div>
+        </div>
+        {% endif %}
     </section>
 
     <section class="systems-section">

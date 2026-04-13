@@ -1,7 +1,7 @@
 {% extends "_results_base.html" %}
 
 {% block title %}Usage Report{% endblock %}
-{% block page_subtitle %}Review <strong>node-hour usage</strong> across systems, periods, and applications, and check application/system coverage from registered run settings.{% endblock %}
+{% block page_subtitle %}Review <strong>node-hour usage</strong>, registered coverage, configuration checks, and latest result current-state across applications and systems.{% endblock %}
 
 {% block content %}
 <section class="page-card table-card">
@@ -239,7 +239,7 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Configuration Checks</h2>
-  <p class="section-intro">Lightweight diagnostics for registered systems, queue definitions, and application support coverage.</p>
+  <p class="section-intro">Lightweight checks for registered systems, queue definitions, and application support completeness.</p>
   <div class="diagnostic-grid">
     <div class="diagnostic-card">
       <h3>Registered Systems</h3>
@@ -296,7 +296,7 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Application/System Coverage</h2>
-  <p class="section-intro">Quick matrix of which registered systems are enabled in each application's <code>list.csv</code>.</p>
+  <p class="section-intro">Current support matrix based on <code>list.csv</code> plus detected <code>build.sh</code> / <code>run.sh</code> system branches.</p>
   <div class="coverage-legend">
     <span><span class="coverage-status coverage-enabled">&#9733;</span> enabled and implemented</span>
     <span><span class="coverage-status coverage-partial">&#9651;</span> enabled in list.csv, script support incomplete</span>
@@ -340,7 +340,7 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Result Quality Coverage</h2>
-  <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing whether top-level source tracking, breakdown output, and estimation-ready fields are present.</p>
+  <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing source provenance, breakdown output, and estimation-ready fields.</p>
   {% if result_quality_rollup.rows %}
   <div class="table-wrap">
     <table class="quality-table">
@@ -348,14 +348,14 @@
         <tr>
           <th>Application</th>
           <th>System</th>
-          <th>Latest Result</th>
-          <th>Source Status</th>
-          <th>Source Type</th>
-          <th>Source Reference</th>
-          <th>Missing Source Fields</th>
-          <th>Breakdown Present</th>
-          <th>Estimation-Ready</th>
-          <th>Rich</th>
+          <th title="Timestamp of the latest collected result used for this current-state row.">Latest Result</th>
+          <th title="Whether top-level source provenance is tracked for the latest result.">Tracked</th>
+          <th title="Top-level provenance type from source_info.">Type</th>
+          <th title="Short provenance reference shown from source_info.">Reference</th>
+          <th title="Source fields still missing from the latest result, if any.">Missing Fields</th>
+          <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
+          <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
+          <th title="Whether the latest result reaches the rich quality level.">Rich</th>
           <th>Warnings</th>
         </tr>
       </thead>
