@@ -19,8 +19,70 @@
 
 {% include "_pagination.html" %}
 
-<div class="table-wrap">
-<table id="resultsTable" border="1">
+<style>
+  .estimated-table-note {
+    margin: 0 0 12px;
+    color: #52606d;
+    line-height: 1.55;
+    font-size: 14px;
+  }
+  .estimated-table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 72vh;
+    border-radius: 14px;
+  }
+  .estimated-table {
+    min-width: 1780px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .estimated-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    box-shadow: inset 0 -1px 0 #d8e3e8;
+    background: #eef6f8;
+  }
+  .estimated-table thead tr:nth-child(2) th {
+    top: 38px;
+    z-index: 4;
+  }
+  .estimated-table td:nth-child(1),
+  .estimated-table th:nth-child(1),
+  .estimated-table td:nth-child(2),
+  .estimated-table th:nth-child(2),
+  .estimated-table td:nth-child(3),
+  .estimated-table th:nth-child(3) {
+    position: sticky;
+    background: #f9fcfd;
+    z-index: 2;
+  }
+  .estimated-table thead th:nth-child(1),
+  .estimated-table thead th:nth-child(2),
+  .estimated-table thead th:nth-child(3) {
+    background: #eef6f8;
+    z-index: 5;
+  }
+  .estimated-table td:nth-child(1),
+  .estimated-table th:nth-child(1) { left: 0; min-width: 92px; }
+  .estimated-table td:nth-child(2),
+  .estimated-table th:nth-child(2) { left: 92px; min-width: 120px; }
+  .estimated-table td:nth-child(3),
+  .estimated-table th:nth-child(3) { left: 212px; min-width: 100px; box-shadow: 10px 0 18px -18px rgba(15, 23, 42, 0.28); }
+  .estimated-table td {
+    vertical-align: top;
+    max-width: none;
+  }
+  .estimated-link-cell {
+    white-space: nowrap;
+  }
+</style>
+
+<p class="estimated-table-note">Focus on system pairs, applied packages, and ratio at the list level, then open <code>detail</code> when you need breakdowns or fallback/applicability context.</p>
+
+<div class="estimated-table-wrap">
+<table id="resultsTable" class="estimated-table" border="1">
   <thead>
     <tr>
       <th rowspan="2">Timestamp</th>
@@ -137,7 +199,7 @@
       <td title="{{ applied_title }}">{{ applied_short }}{% if r.method_class or r.detail_level %}<div style="font-size: 10px; line-height: 1.25; color: #6b7280;">{{ r.method_class }}{% if r.detail_level %} / {{ r.detail_level }}{% endif %}</div>{% endif %}</td>
       <td style="font-family: monospace; font-size: 0.9em;" title="{{ r.estimate_uuid }}">{{ r.estimate_uuid[:8] if r.estimate_uuid else '' }}</td>
       <td style="text-align: right;" title="{{ r.performance_ratio }}">{{ ratio }}</td>
-      <td>
+      <td class="estimated-link-cell">
         <a href="{{ url_for('estimated.estimated_detail', filename=r.json_link) }}">detail</a>
         |
         <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>

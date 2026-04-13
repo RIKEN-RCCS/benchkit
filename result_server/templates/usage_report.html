@@ -137,6 +137,10 @@
       color: #0f766e;
       font-weight: 600;
     }
+    .usage-search-box {
+      min-width: 280px;
+      flex: 1 1 320px;
+    }
   </style>
 
   <!-- 期間タイプ切り替えボタン -->
@@ -170,6 +174,14 @@
       {% endfor %}
     </select>
     {% endif %}
+
+    <input
+      id="usageSearchInput"
+      class="usage-search-box"
+      type="text"
+      placeholder="Filter application/system coverage and current-state tables"
+      oninput="applyUsageSearch()"
+    >
   </div>
 
   {% if result.apps %}
@@ -382,4 +394,19 @@
   <p style="color: #666; font-size: 14px;">No collected result-quality data is available yet.</p>
   {% endif %}
 </section>
+
+<script>
+function applyUsageSearch() {
+  const input = document.getElementById('usageSearchInput');
+  const needle = (input?.value || '').toLowerCase().trim();
+  const targets = ['.coverage-table tbody tr', '.quality-table tbody tr'];
+
+  targets.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((row) => {
+      const rowText = row.innerText.toLowerCase();
+      row.style.display = !needle || rowText.includes(needle) ? '' : 'none';
+    });
+  });
+}
+</script>
 {% endblock %}
