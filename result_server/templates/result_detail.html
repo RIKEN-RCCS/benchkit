@@ -13,6 +13,44 @@
         .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
         .meta-table td { min-width: 200px; }
         .quality-table th { min-width: 200px; width: 200px; }
+        .detail-table-wrap { overflow-x: auto; }
+        .meta-table th,
+        .quality-table th,
+        .scalar-table thead th,
+        .build-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            box-shadow: inset 0 -1px 0 #d8e3e8;
+        }
+        .meta-table td,
+        .quality-table td,
+        .build-table td {
+            white-space: normal;
+            max-width: none;
+            vertical-align: top;
+            line-height: 1.45;
+        }
+        .meta-table td:first-child,
+        .meta-table th:first-child,
+        .quality-table td:first-child,
+        .quality-table th:first-child,
+        .scalar-table td:first-child,
+        .scalar-table th:first-child,
+        .build-table td:first-child,
+        .build-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            background: #f9fcfd;
+            box-shadow: 10px 0 18px -18px rgba(15, 23, 42, 0.28);
+        }
+        .meta-table th:first-child,
+        .quality-table th:first-child,
+        .scalar-table th:first-child,
+        .build-table th:first-child {
+            z-index: 3;
+        }
         .chart-container { position: relative; width: 100%; max-width: 900px; height: 400px; margin: 0 auto; }
         .chart-fallback { padding: 20px; text-align: center; color: #999; border: 1px dashed #ddd; border-radius: 4px; }
         .scalar-table { width: auto; }
@@ -40,6 +78,7 @@
 <!-- メタ情報セクション -->
 <div class="section">
     <h2>Meta Information</h2>
+    <div class="detail-table-wrap">
     <table class="meta-table">
         <tr><th>Code</th><td>{{ result.get('code', 'N/A') }}</td></tr>
         <tr><th>System</th><td>{{ result.get('system', 'N/A') }}</td></tr>
@@ -57,11 +96,13 @@
         <tr><th>CPUs per Node</th><td>{{ result.get('cpus_per_node') }}</td></tr>
         {% endif %}
     </table>
+    </div>
 </div>
 
 {% if quality %}
 <div class="section">
     <h2>Quality</h2>
+    <div class="detail-table-wrap">
     <table class="meta-table quality-table">
         <tr>
             <th>Level</th>
@@ -113,6 +154,7 @@
             </td>
         </tr>
     </table>
+    </div>
 </div>
 {% endif %}
 
@@ -135,6 +177,7 @@
 <!-- ベクトル型メトリクス データテーブル -->
 <div class="section">
     <h2>Vector Metrics - Data Table</h2>
+    <div class="detail-table-wrap">
     <table>
         <thead>
             <tr>
@@ -157,6 +200,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 {% endif %}
 
@@ -167,6 +211,7 @@
 {% if scalar_keys | length >= 2 %}
 <div class="section">
     <h2>Scalar Metrics</h2>
+    <div class="detail-table-wrap">
     <table class="scalar-table">
         <thead>
             <tr><th>Metric</th><th>Value</th></tr>
@@ -177,6 +222,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 {% endif %}
 {% endif %}
@@ -186,6 +232,7 @@
 {% set build = result['build'] %}
 <div class="section">
     <h2>Build Information</h2>
+    <div class="detail-table-wrap">
     <table class="build-table">
         <tr><th>Build Tool</th><td>{{ build.get('tool', 'N/A') }}</td></tr>
         {% if build.get('spack') %}
@@ -210,6 +257,7 @@
         {% endif %}
         {% endif %}
     </table>
+    </div>
 </div>
 {% endif %}
 
