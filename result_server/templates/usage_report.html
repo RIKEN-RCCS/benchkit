@@ -9,15 +9,39 @@
   <style>
     .usage-btn { display: inline-block; padding: 7px 14px; font-size: 13px; text-decoration: none; border: 1px solid #b9d7d2; border-radius: 999px; cursor: pointer; background-color: #fff; color: #0f766e; }
     .usage-btn.active { background-color: #0f766e; color: #fff; font-weight: bold; border-color: #0f766e; }
+    .usage-table thead th,
+    .coverage-table thead th,
+    .quality-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      box-shadow: inset 0 -1px 0 #d8e3e8;
+    }
+    .usage-table td,
+    .usage-table th,
+    .quality-table td,
+    .quality-table th {
+      max-width: none;
+    }
     .coverage-table td { text-align: center; white-space: normal; max-width: none; }
+    .usage-table td:first-child,
+    .usage-table th:first-child,
     .coverage-table td:first-child,
     .coverage-table th:first-child {
       text-align: left;
       position: sticky;
       left: 0;
       background: #f9fcfd;
-      z-index: 1;
+      z-index: 2;
+      box-shadow: 10px 0 18px -18px rgba(15, 23, 42, 0.28);
     }
+    .usage-table td:first-child,
+    .usage-table th:first-child {
+      min-width: 180px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .usage-table th { white-space: nowrap; }
     .coverage-status {
       display: inline-flex;
       align-items: center;
@@ -44,6 +68,39 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
+    }
+    .quality-table td {
+      vertical-align: top;
+    }
+    .quality-table td:nth-child(1),
+    .quality-table td:nth-child(2),
+    .quality-table td:nth-child(4),
+    .quality-table td:nth-child(5),
+    .quality-table td:nth-child(8),
+    .quality-table td:nth-child(9),
+    .quality-table td:nth-child(10) {
+      white-space: nowrap;
+    }
+    .quality-table td:nth-child(3) a {
+      white-space: nowrap;
+    }
+    .quality-table td:nth-child(6),
+    .quality-table td:nth-child(7),
+    .quality-table td:nth-child(11) {
+      white-space: normal;
+      min-width: 180px;
+      line-height: 1.45;
+    }
+    .quality-table td:nth-child(11) {
+      min-width: 240px;
+    }
+    .quality-table .quality-ok {
+      color: #0f766e;
+      font-weight: 600;
+    }
+    .quality-table .quality-warn {
+      color: #9a3412;
+      font-weight: 600;
     }
     .diagnostic-grid {
       display: grid;
@@ -118,7 +175,7 @@
   {% if result.apps %}
   <!-- クロス集計テーブル -->
   <div class="table-wrap">
-    <table style="border-collapse: collapse; width: auto; font-size: 12px;">
+    <table class="usage-table" style="border-collapse: separate; border-spacing: 0; width: max-content; font-size: 12px;">
       <thead>
         <!-- 1行目: システム名ヘッダー -->
         <tr>
@@ -286,7 +343,7 @@
   <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing whether top-level source tracking, breakdown output, and estimation-ready fields are present.</p>
   {% if result_quality_rollup.rows %}
   <div class="table-wrap">
-    <table>
+    <table class="quality-table">
       <thead>
         <tr>
           <th>Application</th>
@@ -312,9 +369,9 @@
           <td>{{ row.source_type }}</td>
           <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
           <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
-          <td>{{ 'yes' if row.breakdown_present else 'no' }}</td>
-          <td>{{ 'yes' if row.estimation_ready else 'no' }}</td>
-          <td>{{ 'yes' if row.rich else 'no' }}</td>
+          <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
+          <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
+          <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>
           <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
         </tr>
       {% endfor %}
