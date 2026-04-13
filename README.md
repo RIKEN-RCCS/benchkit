@@ -166,7 +166,7 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 - ナビゲーション: ブラウザタブ風のアクティブ表示、認証時はタブが拡張（Public/All Results/Estimated）
 - CX Portal ホーム: `/` に主要導線、利用可能システム、アプリ開発者向けガイドへの入口を持つ
 - 結果品質サマリ: 結果一覧に quality badge、結果詳細に `Quality` セクションを表示し、`source_info`、`fom_breakdown`、推定入力参照の有無を軽く見られる
-- source tracking current-state: `/results/usage` に、各 app/system の最新 result を基準に `source_status`、`source_type`、`source_reference`、不足している source field を見られる
+- source provenance current-state: `/results/usage` に、各 app/system の最新 result を基準に `source_status`、`source_type`、`source_reference`、不足している source field を見られる
 - 推定結果詳細: `/estimated/detail/<filename>` で current / future の breakdown、requested/applied package、section / overlap 単位の fallback / applicability を見られる
 - 推定結果比較: stable な compare UI は未整備で、現状は一覧と detail を使って読む前提
 - app/system coverage: `/results/usage` に、登録済み system と app の対応状況を `enabled and implemented` / `enabled in list.csv, script support incomplete` / `configured off` / `not listed` で示す matrix がある
