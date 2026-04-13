@@ -117,6 +117,12 @@ As a result, identifiers are currently distributed across multiple places:
 - filenames
 - server-side stored filenames
 
+現行の portal 実装では、`/results/usage` も各 app / system 組について最新に収集された result から lightweight な current-state view を導出している。
+これには result quality と source tracking の可視化が含まれるが、それ自体が新しい authoritative な storage object を導入するわけではない。
+
+In the current portal implementation, `/results/usage` also derives lightweight current-state views from the latest collected result for each application/system pair.
+This includes result quality and source-tracking visibility, but it does not introduce a new authoritative storage object of its own.
+
 ## 4. 現状方式の利点 / Benefits of the Current File-Based Approach
 
 現状方式には少なくとも以下の利点がある。
@@ -127,6 +133,14 @@ As a result, identifiers are currently distributed across multiple places:
 - GitLab / shell-first 運用と相性がよい
 - 小規模から中規模の運用では実装負荷が低い
 
+また、portal はこの方式の上で、次のような lightweight な運用ビューを計算できる。
+
+- 最新 result の quality state
+- 最新 result の source-tracking state
+- app / system ごとの current-state summary
+
+しかもこれは、別の DB-backed な state model を新たに固定しなくても実現できる。
+
 The current approach has at least the following benefits:
 
 - it does not require SQL or a dedicated database
@@ -134,6 +148,14 @@ The current approach has at least the following benefits:
 - people can directly inspect result files
 - it fits well with GitLab and shell-first operations
 - it has low implementation overhead at small to medium scale
+
+It also allows the portal to compute lightweight operational views such as:
+
+- latest-result quality state
+- latest-result source-tracking state
+- app/system current-state summaries
+
+without committing yet to a separate database-backed state model.
 
 ## 5. 設計論点 / Design Questions
 
