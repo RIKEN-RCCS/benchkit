@@ -16,8 +16,15 @@ build_profile_data_summary() {
     return 0
   fi
 
+  local meta_member
+  meta_member=$(tar -tzf "$tgz_file" 2>/dev/null | grep 'meta\.json$' | head -n 1 || true)
+  if [[ -z "$meta_member" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
   local meta_json
-  meta_json=$(tar -xOf "$tgz_file" --wildcards '*/meta.json' 2>/dev/null || true)
+  meta_json=$(tar -xOf "$tgz_file" "$meta_member" 2>/dev/null || true)
   if [[ -z "$meta_json" ]]; then
     printf '%s' ""
     return 0
