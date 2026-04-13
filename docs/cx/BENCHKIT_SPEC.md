@@ -272,7 +272,7 @@ BenchKit のポータル層である。
 - CX Portal のホームを主入口として持つこと
 - 結果一覧
 - 結果詳細
-- 比較表示
+- 比較可能性の保持と、将来の比較表示への備え
 - 推定結果表示
 - 推定結果詳細（current / future breakdown を含む）
 - 利用可能システム表示
@@ -290,7 +290,7 @@ Main roles:
 - a CX Portal home page as the main entry point
 - result listing
 - result detail pages
-- comparison views
+- preservation of comparability and room for future comparison views
 - estimation result views
 - estimation detail views with current/future breakdown visibility
 - available-system views
@@ -443,7 +443,7 @@ BenchKit の典型的な実行フローは以下である。
 4. `build.sh` と `run.sh` が対象 system で実行される
 5. `run.sh` は `bk_emit_result` などを通じて結果行を出力する
 6. `result.sh` が Result JSON を生成する
-7. 結果が result_server へ送られ、一覧・比較・集計される
+7. 結果が result_server へ送られ、一覧・current-state 表示・集計に使われ、将来の比較にも備えて保持される
 
 The typical execution flow in BenchKit is:
 
@@ -453,7 +453,7 @@ The typical execution flow in BenchKit is:
 4. `build.sh` and `run.sh` execute on the target system
 5. `run.sh` emits result lines through helpers such as `bk_emit_result`
 6. `result.sh` generates Result JSON
-7. results are sent to result_server for listing, comparison, and aggregation
+7. results are sent to result_server for listing, current-state presentation, and aggregation, while being preserved for future comparison
 
 ## 9. 拠点接続 / Site Integration
 
