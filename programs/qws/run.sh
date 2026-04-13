@@ -8,7 +8,7 @@ export OMP_NUM_THREADS=$nthreads
 
 source "${PWD}/scripts/bk_functions.sh"
 qws_profiler_tool="fapp"
-qws_profiler_args="-Hevent=pa1"
+qws_profiler_level="single"
 # Load estimation helpers used when emitting section/overlap metadata.
 source "${PWD}/programs/qws/estimate.sh"
 
@@ -50,7 +50,7 @@ case "$system" in
     Fugaku|FugakuCN)
         case "$nodes" in
             1)
-                BK_PROFILER_ARGS="$qws_profiler_args" bk_profiler "$qws_profiler_tool" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+                bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE0 1 >> ../results/result
                 if ! bk_profiler_enabled "$qws_profiler_tool"; then
                     emit_qws_dummy_padata ../results/padata0.tgz
@@ -59,7 +59,7 @@ case "$system" in
                 print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
                 ;;
             2)
-                BK_PROFILER_ARGS="$qws_profiler_args" bk_profiler "$qws_profiler_tool" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7
+                bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
                 if ! bk_profiler_enabled "$qws_profiler_tool"; then
                     emit_qws_dummy_padata ../results/padata0.tgz

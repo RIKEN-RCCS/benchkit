@@ -328,22 +328,50 @@ tar -czf ../results/padata0.tgz ./pa
 ### Fugaku で `fapp` を使う場合
 
 Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、BenchKit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
-`qws` では Fugaku 系 build / run の内部で `fapp` を選び、まず `single` 相当として `-Hevent=pa1` を付けた `bk_profiler fapp ...` を通して raw data と `fapp -A` の summary を `results/padata0.tgz` として保存できます。
+`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive の root に `meta.json` を入れます。BenchKit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
+
+`fapp` では共通 level として次を扱います。
+
+- `single` → `pa1`
+- `simple` → `pa1..pa5`
+- `standard` → `pa1..pa11`
+- `detailed` → `pa1..pa17`
+
+`single` は既定で text summary、`simple/standard/detailed` は既定で text + CSV report を保存します。CSV は `fapp` 固有の report として扱い、ほかの profiler が同じ形式を持つ必要はありません。
 
 ```bash
-# qws は Fugaku 系 build / run の内部で fapp を利用
+# qws は Fugaku 系 build / run の内部で fapp + single を利用
 bash programs/qws/build.sh Fugaku
 bash programs/qws/run.sh Fugaku 1 4 12
 ```
 
 追加オプションが必要なら、以下を併用できます。
 
+- `BK_PROFILER_LEVEL`
+  - `single|simple|standard|detailed` を上書き
+- `BK_PROFILER_REPORT_FORMAT`
+  - `text|csv|both` を上書き
 - `BK_PROFILER_ARGS`
   - `fapp -C` にそのまま渡す追加引数
 - `BK_PROFILER_REPORT_ARGS`
-  - `fapp -A` にそのまま渡す追加引数
+  - `fapp -A` / `fapppx -A` にそのまま渡す追加引数
 - `BK_PROFILER_DIR`
   - raw profile data の出力先ディレクトリ名（既定値: `pa`）
+
+archive の中身は概ね次の形になります。
+
+```text
+bk_profiler_artifact/
+  meta.json
+  raw/
+    rep1/
+    rep2/
+  reports/
+    fapp_A_rep1.txt
+    cpu_pa_rep1.csv
+```
+
+より一般的な profiler helper の設計方針は [Profiler Support Guide](C:/Users/yoshi/benchkit/docs/guides/profiler-support.md) を参照してください。
 
 ---
 
