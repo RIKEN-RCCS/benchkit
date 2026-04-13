@@ -99,6 +99,42 @@
     </div>
 </div>
 
+{% if result.get('profile_data') %}
+<div class="section">
+    <h2>PA Data Summary</h2>
+    <div class="detail-table-wrap">
+    <table class="meta-table">
+        <tr><th>Tool</th><td>{{ result['profile_data'].get('tool', 'N/A') }}</td></tr>
+        <tr><th>Level</th><td>{{ result['profile_data'].get('level', 'N/A') }}</td></tr>
+        <tr><th>Report Format</th><td>{{ result['profile_data'].get('report_format', 'N/A') }}</td></tr>
+        <tr><th>Run Count</th><td>{{ result['profile_data'].get('run_count', 'N/A') }}</td></tr>
+        <tr>
+            <th>Events</th>
+            <td>
+                {% set events = result['profile_data'].get('events', []) %}
+                {% if events %}
+                    {{ events | join(', ') }}
+                {% else %}
+                    none
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Report Kinds</th>
+            <td>
+                {% set kinds = result['profile_data'].get('report_kinds', []) %}
+                {% if kinds %}
+                    {{ kinds | join(', ') }}
+                {% else %}
+                    none
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    </div>
+</div>
+{% endif %}
+
 {% if quality %}
 <div class="section">
     <h2>Quality</h2>

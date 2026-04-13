@@ -50,11 +50,52 @@ EOFSI
   fi
 fi
 
+build_profile_data_block() {
+  local idx="$1"
+  local tgz_file="results/padata${idx}.tgz"
+  local profile_data_block=""
+
+  if [ ! -f "$tgz_file" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local meta_json
+  meta_json=$(tar -xOf "$tgz_file" --wildcards '*/meta.json' 2>/dev/null || true)
+  if [ -z "$meta_json" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local summary_json
+  summary_json=$(echo "$meta_json" | jq -c '
+    {
+      tool: .tool,
+      level: .level,
+      report_format: .report_format,
+      raw_dir: .raw_dir,
+      run_count: ((.runs // []) | length),
+      events: ((.runs // []) | map(.event) | map(select(. != null and . != ""))),
+      report_kinds: ((.runs // []) | map(.reports // []) | add | map(.kind) | unique)
+    }
+  ' 2>/dev/null || true)
+
+  if [ -z "$summary_json" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  profile_data_block=",
+  \"profile_data\": ${summary_json}"
+  printf '%s' "$profile_data_block"
+}
+
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
+  local profile_data_block=""
 
   # Build pipeline_timing block if timing.env exists (only for first result to avoid duplication)
   local timing_block=""
@@ -99,6 +140,8 @@ write_result_json() {
   \"pipeline_id\": $pipeline_id"
   fi
 
+  profile_data_block=$(build_profile_data_block "$idx")
+
   # Build fom_breakdown if sections exist
   if [ -n "$sections_json" ]; then
     # Validate overlap section names
@@ -139,7 +182,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
+  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
 }
 EOF
 

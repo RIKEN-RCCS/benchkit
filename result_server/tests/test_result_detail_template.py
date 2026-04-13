@@ -94,6 +94,14 @@ FULL_RESULT = {
             ],
         },
     },
+    "profile_data": {
+        "tool": "fapp",
+        "level": "single",
+        "report_format": "text",
+        "run_count": 1,
+        "events": ["pa1"],
+        "report_kinds": ["summary_text"],
+    },
 }
 
 FULL_QUALITY = {
@@ -147,6 +155,17 @@ class TestResultDetailTemplate:
         assert "message_size" in html
         # フォールバックメッセージ
         assert "Failed to load chart library" in html
+
+    def test_pa_data_summary_section(self, app):
+        with app.test_request_context():
+            from flask import render_template
+            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+
+        assert "PA Data Summary" in html
+        assert "fapp" in html
+        assert "single" in html
+        assert "summary_text" in html
+        assert "pa1" in html
 
     def test_vector_data_table(self, app):
         """4.3: ベクトル型メトリクスのデータテーブルが正しく表示される"""
