@@ -1,13 +1,12 @@
 {% extends "_results_base.html" %}
+{% from "_detail_tables.html" import render_key_value_table %}
 
 {% block title %}Result Detail{% endblock %}
 {% block page_subtitle %}Inspect metrics, profiler summaries, quality signals, and build details for one collected result.{% endblock %}
 
 {% block content %}
+{% include "_chart_page_styles.html" %}
 <style>
-    .section { margin-bottom: 30px; }
-    .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-    .back-link { margin-bottom: 15px; display: inline-block; }
     .meta-table { width: auto; }
     .quality-table { width: min(100%, 980px); table-layout: fixed; }
     .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
@@ -51,8 +50,7 @@
     .build-table th:first-child {
         z-index: 3;
     }
-    .chart-container { position: relative; width: 100%; max-width: 900px; height: 400px; margin: 0 auto; }
-    .chart-fallback { padding: 20px; text-align: center; color: #999; border: 1px dashed #ddd; border-radius: 4px; }
+    .chart-container { height: 400px; }
     .scalar-table { width: auto; }
     .scalar-table th { text-align: left; min-width: 200px; }
     .build-table { width: auto; }
@@ -71,25 +69,13 @@
 
 <div class="section">
     <h2>Meta Information</h2>
-    <div class="detail-table-wrap">
-    <table class="meta-table">
-        {% for row in meta_rows %}
-        <tr><th>{{ row.label }}</th><td>{{ row.value }}</td></tr>
-        {% endfor %}
-    </table>
-    </div>
+    {{ render_key_value_table(meta_rows, "meta-table") }}
 </div>
 
 {% if profile_rows %}
 <div class="section">
     <h2>PA Data Summary</h2>
-    <div class="detail-table-wrap">
-    <table class="meta-table">
-        {% for row in profile_rows %}
-        <tr><th>{{ row.label }}</th><td>{{ row.value }}</td></tr>
-        {% endfor %}
-    </table>
-    </div>
+    {{ render_key_value_table(profile_rows, "meta-table") }}
 </div>
 {% endif %}
 
@@ -190,26 +176,7 @@
 {% if build_rows %}
 <div class="section">
     <h2>Build Information</h2>
-    <div class="detail-table-wrap">
-    <table class="build-table">
-        {% for row in build_rows %}
-        <tr>
-            <th>{{ row.label }}</th>
-            <td>
-                {% if row.list is defined %}
-                <ul class="packages-list">
-                    {% for item in row.list %}
-                    <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                {{ row.value }}
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
+    {{ render_key_value_table(build_rows, "build-table") }}
 </div>
 {% endif %}
 

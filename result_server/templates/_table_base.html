@@ -1,5 +1,5 @@
 <style>
-    /* ページ全体 */
+    /* Base page styles */
     body {
         margin: 0;
         padding: 0;
@@ -129,7 +129,7 @@
         color: #1f2933;
     }
 
-    /* 共通テーブルスタイル */
+    /* Shared table styles */
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #d8e3e8; padding: 6px 8px; font-size: 12px; }
     th { background-color: #eef6f8; overflow: visible; position: relative; color: #243b53; }
@@ -139,7 +139,7 @@
     .underline-link { text-decoration: underline; color: darkblue; cursor: pointer; }
     .ts-cell { white-space: nowrap; font-size: 11px; }
 
-    /* ツールチップスタイル */
+    /* Tooltip styles */
     .tooltip {
         position: relative;
         cursor: help;
@@ -202,7 +202,7 @@
         opacity: 1;
     }
 
-    /* 左端の列用ツールチップ（右寄せ） */
+    /* Left-edge tooltip alignment */
     .tooltip-left .tooltiptext {
         left: 0;
         margin-left: 0;
@@ -212,7 +212,7 @@
         margin-left: -5px;
     }
 
-    /* 右端の列用ツールチップ（左寄せ） */
+    /* Right-edge tooltip alignment */
     .tooltip-right .tooltiptext {
         right: 0;
         left: auto;
@@ -224,7 +224,7 @@
         margin-left: 0;
     }
 
-    /* OTPモーダル */
+    /* OTP modal */
     .overlay {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;

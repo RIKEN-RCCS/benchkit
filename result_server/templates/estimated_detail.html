@@ -1,4 +1,5 @@
 {% extends "_results_base.html" %}
+{% from "_detail_tables.html" import render_key_value_table %}
 {% from "_estimated_breakdown_card.html" import render_breakdown_card %}
 
 {% block title %}Estimate Detail{% endblock %}
@@ -65,94 +66,37 @@
         .empty-note { color: #6b7280; font-size: 13px; }
     </style>
 
-    {% set estimate_meta = result.get('estimate_metadata', {}) %}
-    {% set current = result.get('current_system', {}) %}
-    {% set future = result.get('future_system', {}) %}
-    {% set measurement = result.get('measurement', {}) %}
-    {% set assumptions = result.get('assumptions', {}) %}
-    {% set confidence = result.get('confidence', {}) %}
-    {% set current_breakdown = current.get('fom_breakdown', {}) %}
-    {% set future_breakdown = future.get('fom_breakdown', {}) %}
-
     <div class="detail-card">
         <h2>Meta Information</h2>
-        <div class="table-wrap">
-        <table class="detail-table">
-            <tr><th>Code</th><td>{{ result.get('code', 'N/A') }}</td></tr>
-            <tr><th>Exp</th><td>{{ result.get('exp', 'N/A') }}</td></tr>
-            <tr><th>Applicability</th><td>{{ result.get('applicability', {}).get('status', 'N/A') }}</td></tr>
-            <tr><th>Requested Package</th><td>{{ estimate_meta.get('requested_estimation_package', 'N/A') }}</td></tr>
-            <tr><th>Applied Package</th><td>{{ estimate_meta.get('estimation_package', 'N/A') }}</td></tr>
-            <tr><th>Method Class</th><td>{{ estimate_meta.get('method_class', 'N/A') }}</td></tr>
-            <tr><th>Detail Level</th><td>{{ estimate_meta.get('detail_level', 'N/A') }}</td></tr>
-            <tr><th>Estimate UUID</th><td class="detail-code">{{ estimate_meta.get('estimation_result_uuid', 'N/A') }}</td></tr>
-            <tr><th>Estimate Timestamp</th><td>{{ estimate_meta.get('estimation_result_timestamp', 'N/A') }}</td></tr>
-            <tr><th>Performance Ratio</th><td>{{ "%.3f"|format(result.get('performance_ratio', 'N/A')|float) if result.get('performance_ratio') not in [None, '', 'N/A', 'null', 'nan'] else result.get('performance_ratio', 'N/A') }}</td></tr>
-        </table>
-        </div>
+        {{ render_key_value_table(meta_rows, "detail-table", "table-wrap") }}
     </div>
 
     <div class="detail-grid">
         <div class="detail-card">
             <h2>Package Resolution</h2>
-            <div class="table-wrap">
-            <table class="detail-table">
-                <tr><th>Current Requested</th><td>{{ estimate_meta.get('current_package', {}).get('requested_estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Current Applied</th><td>{{ estimate_meta.get('current_package', {}).get('estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Future Requested</th><td>{{ estimate_meta.get('future_package', {}).get('requested_estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Future Applied</th><td>{{ estimate_meta.get('future_package', {}).get('estimation_package', 'N/A') }}</td></tr>
-            </table>
-            </div>
+            {{ render_key_value_table(package_rows, "detail-table", "table-wrap") }}
 
             <h3>Measurement</h3>
-            <div class="detail-code">{{ measurement | tojson(indent=2) }}</div>
+            <div class="detail-code">{{ measurement_json | tojson(indent=2) }}</div>
 
             <h3>Confidence</h3>
-            <div class="detail-code">{{ confidence | tojson(indent=2) }}</div>
+            <div class="detail-code">{{ confidence_json | tojson(indent=2) }}</div>
         </div>
 
         <div class="detail-card">
             <h2>Current System</h2>
-            <div class="table-wrap">
-            <table class="detail-table">
-                <tr><th>System</th><td>{{ current.get('system', 'N/A') }}</td></tr>
-                <tr><th>FOM</th><td>{{ current.get('fom', 'N/A') }}</td></tr>
-                <tr><th>Target Nodes</th><td>{{ current.get('target_nodes', 'N/A') }}</td></tr>
-                <tr><th>Scaling Method</th><td>{{ current.get('scaling_method', 'N/A') }}</td></tr>
-                <tr><th>Benchmark System</th><td>{{ current.get('benchmark', {}).get('system', 'N/A') }}</td></tr>
-                <tr><th>Benchmark FOM</th><td>{{ current.get('benchmark', {}).get('fom', 'N/A') }}</td></tr>
-                <tr><th>Benchmark Nodes</th><td>{{ current.get('benchmark', {}).get('nodes', 'N/A') }}</td></tr>
-                <tr><th>Sections</th><td>{{ current_breakdown.get('sections', []) | length }}</td></tr>
-                <tr><th>Overlaps</th><td>{{ current_breakdown.get('overlaps', []) | length }}</td></tr>
-                <tr><th>Model</th><td>{{ current.get('model', {}).get('name', 'N/A') }}</td></tr>
-                <tr><th>Model Type</th><td>{{ current.get('model', {}).get('type', 'N/A') }}</td></tr>
-            </table>
-            </div>
+            {{ render_key_value_table(current_rows, "detail-table", "table-wrap") }}
         </div>
 
         <div class="detail-card">
             <h2>Future System</h2>
-            <div class="table-wrap">
-            <table class="detail-table">
-                <tr><th>System</th><td>{{ future.get('system', 'N/A') }}</td></tr>
-                <tr><th>FOM</th><td>{{ future.get('fom', 'N/A') }}</td></tr>
-                <tr><th>Target Nodes</th><td>{{ future.get('target_nodes', 'N/A') }}</td></tr>
-                <tr><th>Scaling Method</th><td>{{ future.get('scaling_method', 'N/A') }}</td></tr>
-                <tr><th>Benchmark System</th><td>{{ future.get('benchmark', {}).get('system', 'N/A') }}</td></tr>
-                <tr><th>Benchmark FOM</th><td>{{ future.get('benchmark', {}).get('fom', 'N/A') }}</td></tr>
-                <tr><th>Benchmark Nodes</th><td>{{ future.get('benchmark', {}).get('nodes', 'N/A') }}</td></tr>
-                <tr><th>Sections</th><td>{{ future_breakdown.get('sections', []) | length }}</td></tr>
-                <tr><th>Overlaps</th><td>{{ future_breakdown.get('overlaps', []) | length }}</td></tr>
-                <tr><th>Model</th><td>{{ future.get('model', {}).get('name', 'N/A') }}</td></tr>
-                <tr><th>Model Type</th><td>{{ future.get('model', {}).get('type', 'N/A') }}</td></tr>
-            </table>
-            </div>
+            {{ render_key_value_table(future_rows, "detail-table", "table-wrap") }}
         </div>
     </div>
 
     <div class="detail-card">
         <h2>Assumptions</h2>
-        <div class="detail-code">{{ assumptions | tojson(indent=2) }}</div>
+        <div class="detail-code">{{ assumptions_json | tojson(indent=2) }}</div>
     </div>
 
     <div class="detail-grid">

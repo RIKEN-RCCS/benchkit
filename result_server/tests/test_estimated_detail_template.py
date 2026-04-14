@@ -7,6 +7,7 @@ from flask import render_template
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from test_support import build_portal_shell_app
+from utils.estimated_detail_view import build_estimated_detail_context
 
 
 ESTIMATE_RESULT = {
@@ -100,7 +101,11 @@ def app():
 
 def test_estimated_detail_template_renders_sections(app):
     with app.test_request_context("/estimated/detail/estimate.json"):
-        html = render_template("estimated_detail.html", result=ESTIMATE_RESULT, filename="estimate.json")
+        html = render_template(
+            "estimated_detail.html",
+            result=ESTIMATE_RESULT,
+            **build_estimated_detail_context(ESTIMATE_RESULT),
+        )
 
     assert "Estimate Detail" in html
     assert "Package Resolution" in html

@@ -1,0 +1,22 @@
+{% macro render_key_value_table(rows, table_class, wrap_class="detail-table-wrap", list_class="packages-list") -%}
+<div class="{{ wrap_class }}">
+<table class="{{ table_class }}">
+    {% for row in rows %}
+    <tr>
+        <th>{{ row.label }}</th>
+        <td{% if row.value_class is defined %} class="{{ row.value_class }}"{% endif %}>
+            {% if row.list is defined %}
+            <ul class="{{ list_class }}">
+                {% for item in row.list %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            {{ row.value }}
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+{%- endmacro %}

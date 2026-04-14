@@ -4,6 +4,7 @@ from utils.result_file import (
     load_authenticated_result_json,
     serve_authenticated_result_file,
 )
+from utils.estimated_detail_view import build_estimated_detail_context
 
 
 def register_estimated_detail_routes(estimated_bp):
@@ -23,4 +24,5 @@ def register_estimated_detail_routes(estimated_bp):
             message="Authentication required to view estimated data",
             not_found_message="Estimated result file not found",
         )
-        return render_template("estimated_detail.html", result=result, filename=filename)
+        detail_context = build_estimated_detail_context(result)
+        return render_template("estimated_detail.html", result=result, **detail_context)

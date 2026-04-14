@@ -4,11 +4,8 @@
 {% block page_subtitle %}Overlay vector metrics, compare FOM timelines, and sanity-check whether selected runs are from the same system and code.{% endblock %}
 
 {% block content %}
+{% include "_chart_page_styles.html" %}
 <style>
-    .section { margin-bottom: 30px; }
-    .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-    .back-link { margin-bottom: 15px; display: inline-block; }
-    .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
     .compare-note {
         margin: 0 0 16px;
         color: #52606d;
