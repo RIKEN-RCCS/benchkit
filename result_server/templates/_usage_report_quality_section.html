@@ -1,0 +1,44 @@
+<section class="page-card table-card">
+  <h2 class="section-title">Result Quality Coverage</h2>
+  <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing source provenance, breakdown output, and estimation-ready fields.</p>
+  {% if result_quality_rollup.rows %}
+  <div class="table-wrap">
+    <table class="quality-table">
+      <thead>
+        <tr>
+          <th>Application</th>
+          <th>System</th>
+          <th title="Timestamp of the latest collected result used for this current-state row.">Latest Result</th>
+          <th title="Whether top-level source provenance is tracked for the latest result.">Tracked</th>
+          <th title="Top-level provenance type from source_info.">Type</th>
+          <th title="Short provenance reference shown from source_info.">Reference</th>
+          <th title="Source fields still missing from the latest result, if any.">Missing Fields</th>
+          <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
+          <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
+          <th title="Whether the latest result reaches the rich quality level.">Rich</th>
+          <th>Warnings</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in result_quality_rollup.rows %}
+        <tr>
+          <td>{{ row.app }}</td>
+          <td>{{ row.system }}</td>
+          <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
+          <td>{{ row.source_status }}</td>
+          <td>{{ row.source_type }}</td>
+          <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
+          <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
+          <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
+          <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
+          <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>
+          <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="color: #666; font-size: 14px;">No collected result-quality data is available yet.</p>
+  {% endif %}
+</section>

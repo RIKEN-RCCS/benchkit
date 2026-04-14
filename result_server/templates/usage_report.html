@@ -4,8 +4,6 @@
 {% block page_subtitle %}Review <strong>node-hour usage</strong>, registered coverage, configuration checks, and latest result current-state across applications and systems.{% endblock %}
 
 {% block content %}
-<section class="page-card table-card">
-
   <style>
     .usage-btn { display: inline-block; padding: 7px 14px; font-size: 13px; text-decoration: none; border: 1px solid #b9d7d2; border-radius: 999px; cursor: pointer; background-color: #fff; color: #0f766e; }
     .usage-btn.active { background-color: #0f766e; color: #fff; font-weight: bold; border-color: #0f766e; }
@@ -143,270 +141,23 @@
     }
   </style>
 
-  <!-- 期間タイプ切り替えボタン -->
-  <div class="control-row">
-    <span style="font-size: 13px; color: #555;">期間:</span>
-    {% set buttons = [("monthly", "月次"), ("semi_annual", "半期"), ("fiscal_year", "年度")] %}
-    {% for val, label in buttons %}
-    <a href="?period_type={{ val }}&fiscal_year={{ fiscal_year }}"
-       class="usage-btn {% if period_type == val %}active{% endif %}">
-      {{ label }}
-    </a>
-    {% endfor %}
+  {% include "_usage_report_node_hours_section.html" %}
+  {% include "_usage_report_configuration_checks.html" %}
+  {% include "_usage_report_coverage_section.html" %}
+  {% include "_usage_report_quality_section.html" %}
 
-    <!-- 会計年度ドロップダウン -->
-    <span style="font-size: 13px; color: #555; margin-left: 16px;">年度:</span>
-    <select id="fiscalYearSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year=' + this.value"
-            style="padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px;">
-      {% for fy in result.available_fiscal_years %}
-      <option value="{{ fy }}" {% if fy == fiscal_year %}selected{% endif %}>FY{{ fy }}</option>
-      {% endfor %}
-    </select>
+  <script>
+  function applyUsageSearch() {
+    const input = document.getElementById('usageSearchInput');
+    const needle = (input?.value || '').toLowerCase().trim();
+    const targets = ['.coverage-table tbody tr', '.quality-table tbody tr'];
 
-    {% if period_type != 'fiscal_year' %}
-    <!-- 期間フィルタ -->
-    <span style="font-size: 13px; color: #555; margin-left: 16px;">絞り込み:</span>
-    <select id="periodFilterSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year={{ fiscal_year }}&period_filter=' + encodeURIComponent(this.value)"
-            style="padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px;">
-      <option value="" {% if not period_filter %}selected{% endif %}>全期間</option>
-      {% for p in result.periods %}
-      <option value="{{ p }}" {% if period_filter == p %}selected{% endif %}>{{ p }}</option>
-      {% endfor %}
-    </select>
-    {% endif %}
-
-    <input
-      id="usageSearchInput"
-      class="usage-search-box"
-      type="text"
-      placeholder="Filter application/system coverage and current-state tables"
-      oninput="applyUsageSearch()"
-    >
-  </div>
-
-  {% if result.apps %}
-  <!-- クロス集計テーブル -->
-  <div class="table-wrap">
-    <table class="usage-table" style="border-collapse: separate; border-spacing: 0; width: max-content; font-size: 12px;">
-      <thead>
-        <!-- 1行目: システム名ヘッダー -->
-        <tr>
-          <th rowspan="2" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2;"></th>
-          {% for system in result.systems %}
-          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center;">{{ system }}</th>
-          {% endfor %}
-          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center;">合計</th>
-        </tr>
-        <!-- 2行目: 期間ラベルヘッダー -->
-        <tr>
-          {% for system in result.systems %}
-          {% for period in filtered_periods %}
-          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center; white-space: nowrap;">{{ period }}</th>
-          {% endfor %}
-          {% endfor %}
-          {% for period in filtered_periods %}
-          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center; white-space: nowrap;">{{ period }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for app in result.apps %}
-        <tr>
-          <td style="border: 1px solid #ddd; padding: 3px 5px; font-weight: bold; white-space: nowrap;">{{ app }}</td>
-          {% for system in result.systems %}
-          {% for period in filtered_periods %}
-          {% set val = result.table[app][system][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
-          {% endfor %}
-          {% endfor %}
-          {% for period in filtered_periods %}
-          {% set val = result.row_totals[app][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #fafafa; font-weight: bold;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr style="font-weight: bold;">
-          <td style="border: 1px solid #ddd; padding: 3px 5px;">合計</td>
-          {% for system in result.systems %}
-          {% for period in filtered_periods %}
-          {% set val = result.col_totals[system][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #f2f2f2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
-          {% endfor %}
-          {% endfor %}
-          {% for period in filtered_periods %}
-          {% set val = result.grand_totals[period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #e2e2e2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
-          {% endfor %}
-        </tr>
-      </tfoot>
-    </table>
-  </div>
-  {% else %}
-  <p style="color: #666; font-size: 14px;">該当期間のデータがありません</p>
-  {% endif %}
-
-</section>
-
-<section class="page-card table-card">
-  <h2 class="section-title">Configuration Checks</h2>
-  <p class="section-intro">Lightweight checks for registered systems, queue definitions, and application support completeness.</p>
-  <div class="diagnostic-grid">
-    <div class="diagnostic-card">
-      <h3>Registered Systems</h3>
-      <p>{{ site_diagnostics.registered_system_count }} systems are defined in <code>system.csv</code>.</p>
-      {% if site_diagnostics.unused_systems %}
-      <ul class="diagnostic-list">
-        {% for system in site_diagnostics.unused_systems %}
-        <li>{{ system }} has no fully enabled application support yet.</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="diagnostic-empty">All registered systems have at least one fully enabled application.</p>
-      {% endif %}
-    </div>
-    <div class="diagnostic-card">
-      <h3>System Info Coverage</h3>
-      {% if site_diagnostics.missing_system_info %}
-      <ul class="diagnostic-list">
-        {% for system in site_diagnostics.missing_system_info %}
-        <li>{{ system }} is missing a <code>system_info.csv</code> entry.</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="diagnostic-empty">Every registered system has a <code>system_info.csv</code> entry.</p>
-      {% endif %}
-    </div>
-    <div class="diagnostic-card">
-      <h3>Queue Definitions</h3>
-      {% if site_diagnostics.missing_queue_definitions %}
-      <ul class="diagnostic-list">
-        {% for item in site_diagnostics.missing_queue_definitions %}
-        <li>{{ item.system }} references queue <code>{{ item.queue }}</code> without a matching <code>queue.csv</code> definition.</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="diagnostic-empty">All queues referenced by <code>system.csv</code> are defined.</p>
-      {% endif %}
-    </div>
-    <div class="diagnostic-card">
-      <h3>Partial Application Support</h3>
-      <p>{{ site_diagnostics.application_count }} applications are scanned for registered systems.</p>
-      {% if site_diagnostics.partial_support %}
-      <ul class="diagnostic-list">
-        {% for item in site_diagnostics.partial_support %}
-        <li>{{ item.app }} / {{ item.system }} is enabled in <code>list.csv</code>, but script support is incomplete (build: {{ 'yes' if item.build_supported else 'no' }}, run: {{ 'yes' if item.run_supported else 'no' }}).</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="diagnostic-empty">No partial application/system support was detected.</p>
-      {% endif %}
-    </div>
-  </div>
-</section>
-
-<section class="page-card table-card">
-  <h2 class="section-title">Application/System Coverage</h2>
-  <p class="section-intro">Current support matrix based on <code>list.csv</code> plus detected <code>build.sh</code> / <code>run.sh</code> system branches.</p>
-  <div class="coverage-legend">
-    <span><span class="coverage-status coverage-enabled">&#9733;</span> enabled and implemented</span>
-    <span><span class="coverage-status coverage-partial">&#9651;</span> enabled in list.csv, script support incomplete</span>
-    <span><span class="coverage-status coverage-off">&#9675;</span> configured off</span>
-    <span><span class="coverage-status coverage-missing">&mdash;</span> not listed</span>
-  </div>
-  <div class="table-wrap">
-    <table class="coverage-table">
-      <thead>
-        <tr>
-          <th>Application</th>
-          {% for header in coverage_systems %}
-          <th title="{{ header.system }}">{{ header.name }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in app_support_rows %}
-        <tr>
-          <td>{{ row.app }}</td>
-          {% for header in coverage_systems %}
-            {% set item = row.systems.get(header.system, {}) %}
-            {% if item.status == 'enabled' %}
-            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: yes&#10;run.sh: yes"><span class="coverage-status coverage-enabled">&#9733;</span></td>
-            {% elif item.status == 'enabled_partial' %}
-            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-partial">&#9651;</span></td>
-            {% elif item.status == 'configured_off' %}
-            <td title="disabled rows: {{ item.disabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-off">&#9675;</span></td>
-            {% else %}
-            <td title="not listed"><span class="coverage-status coverage-missing">&mdash;</span></td>
-            {% endif %}
-          {% endfor %}
-        </tr>
-      {% else %}
-        <tr><td colspan="{{ 1 + (coverage_systems|length) }}">No application coverage data found.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="page-card table-card">
-  <h2 class="section-title">Result Quality Coverage</h2>
-  <p class="section-intro">Current-state check based on the <strong>latest collected result</strong> for each application/system pair, showing source provenance, breakdown output, and estimation-ready fields.</p>
-  {% if result_quality_rollup.rows %}
-  <div class="table-wrap">
-    <table class="quality-table">
-      <thead>
-        <tr>
-          <th>Application</th>
-          <th>System</th>
-          <th title="Timestamp of the latest collected result used for this current-state row.">Latest Result</th>
-          <th title="Whether top-level source provenance is tracked for the latest result.">Tracked</th>
-          <th title="Top-level provenance type from source_info.">Type</th>
-          <th title="Short provenance reference shown from source_info.">Reference</th>
-          <th title="Source fields still missing from the latest result, if any.">Missing Fields</th>
-          <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
-          <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
-          <th title="Whether the latest result reaches the rich quality level.">Rich</th>
-          <th>Warnings</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in result_quality_rollup.rows %}
-        <tr>
-          <td>{{ row.app }}</td>
-          <td>{{ row.system }}</td>
-          <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
-          <td>{{ row.source_status }}</td>
-          <td>{{ row.source_type }}</td>
-          <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
-          <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
-          <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
-          <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
-          <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>
-          <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p style="color: #666; font-size: 14px;">No collected result-quality data is available yet.</p>
-  {% endif %}
-</section>
-
-<script>
-function applyUsageSearch() {
-  const input = document.getElementById('usageSearchInput');
-  const needle = (input?.value || '').toLowerCase().trim();
-  const targets = ['.coverage-table tbody tr', '.quality-table tbody tr'];
-
-  targets.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((row) => {
-      const rowText = row.innerText.toLowerCase();
-      row.style.display = !needle || rowText.includes(needle) ? '' : 'none';
+    targets.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((row) => {
+        const rowText = row.innerText.toLowerCase();
+        row.style.display = !needle || rowText.includes(needle) ? '' : 'none';
+      });
     });
-  });
-}
-</script>
+  }
+  </script>
 {% endblock %}
