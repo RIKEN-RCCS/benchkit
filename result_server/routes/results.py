@@ -23,6 +23,7 @@ from utils.system_info import get_all_systems_info
 from utils.table_page_utils import build_filtered_redirect_args, render_no_store_template
 from utils.table_query_params import parse_table_query_params
 from utils.user_store import get_user_store
+from utils.usage_query_params import parse_usage_query_params, select_usage_periods
 
 results_bp = Blueprint("results", __name__)
 
@@ -58,7 +59,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     filter_exp = params["filter_exp"]
 
     received_dir = current_app.config["RECEIVED_DIR"]
-    received_padata_dir = current_app.config["RECEIVED_PADATA_DIR"]
+    received_padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", received_dir)
 
     load_kwargs = dict(
         public_only=public_only,
@@ -170,25 +171,14 @@ def result_detail(filename):
 @results_bp.route("/usage", methods=["GET"])
 @admin_required
 def usage_report():
-    valid_period_types = ("monthly", "semi_annual", "fiscal_year")
-    period_type = request.args.get("period_type", "fiscal_year")
-    if period_type not in valid_period_types:
-        period_type = "fiscal_year"
-
     current_fy = get_fiscal_year(datetime.now())
-    try:
-        fiscal_year = int(request.args.get("fiscal_year", current_fy))
-    except (TypeError, ValueError):
-        fiscal_year = current_fy
+    params = parse_usage_query_params(request.args, current_fy)
+    period_type = params["period_type"]
+    fiscal_year = params["fiscal_year"]
+    period_filter = params["period_filter"]
 
     result = aggregate_node_hours(current_app.config["RECEIVED_DIR"], fiscal_year, period_type)
-
-    period_filter = request.args.get("period_filter", "")
-    if period_filter and period_filter in result["periods"]:
-        filtered_periods = [period_filter]
-    else:
-        period_filter = ""
-        filtered_periods = result["periods"]
+    period_filter, filtered_periods = select_usage_periods(result["periods"], period_filter)
 
     systems_info = get_all_systems_info()
     coverage_systems, app_support_rows = load_app_system_support_matrix()

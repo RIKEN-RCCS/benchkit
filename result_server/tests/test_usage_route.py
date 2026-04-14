@@ -174,8 +174,8 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
-        assert "Source Status" in text
-        assert "Source Reference" in text
+        assert "Tracked" in text
+        assert "Reference" in text
         assert "top-level source tracked" in text
 
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
