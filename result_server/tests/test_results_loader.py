@@ -1,61 +1,29 @@
-"""
-results_loader.py のユニットテスト
+"""Tests for result loading, filtering, and summary behavior."""
 
-load_single_result, load_multiple_results, load_results_table の
-新規追加・拡張機能をテストする。
-"""
-
-import os
-import sys
 import json
-import types
-import tempfile
+import os
 import shutil
+import sys
+import tempfile
 import uuid
 from datetime import datetime, timedelta
 
 import pytest
 
-# --- テスト用スタブモジュールの設定 ---
-# otp_manager / otp_redis_manager はSMTP/Redis依存があるため、
-# テスト用のスタブに差し替える
-
-def _setup_stubs():
-    """テスト用のスタブモジュールをsys.modulesに登録"""
-    # redis スタブ
-    if "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
-
-    # otp_manager スタブ
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-
-    # otp_redis_manager スタブ
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-_setup_stubs()
-
-# result_server ディレクトリをパスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs()
 
 from flask import Flask
 from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
 from utils.results_loader import load_results_table, get_filter_options
 
 
-# --- フィクスチャ ---
-
 @pytest.fixture
 def tmp_dir():
-    """テスト用の一時ディレクトリを作成・削除"""
+    """Create a temporary directory for result JSON fixtures."""
     d = tempfile.mkdtemp()
     yield d
     shutil.rmtree(d)
@@ -63,7 +31,7 @@ def tmp_dir():
 
 @pytest.fixture
 def flask_app(tmp_dir):
-    """テスト用のFlaskアプリケーション（url_for用）"""
+    """Create a Flask app so tests can resolve URLs and blueprint routes."""
     app = Flask(__name__)
 
     app.config["RECEIVED_DIR"] = tmp_dir
@@ -76,20 +44,20 @@ def flask_app(tmp_dir):
 
 
 def _write_json(directory, filename, data):
-    """テスト用JSONファイルを書き込む"""
+    """Write a JSON fixture file and return its path."""
     filepath = os.path.join(directory, filename)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
     return filepath
 
 
+
 # ============================================================
-# load_single_result のテスト
-# ============================================================
+# load_result_json behavior
 
 class TestLoadSingleResult:
     def test_load_existing_file(self, tmp_dir):
-        """存在するJSONファイルを正しく読み込める"""
+        """Test case."""
         data = {"code": "test-app", "system": "TestSys", "FOM": 42.0}
         _write_json(tmp_dir, "result.json", data)
 
@@ -100,12 +68,12 @@ class TestLoadSingleResult:
         assert result["FOM"] == 42.0
 
     def test_load_nonexistent_file(self, tmp_dir):
-        """存在しないファイルの場合 None を返す"""
+        """Test case."""
         result = load_result_json("nonexistent.json", tmp_dir)
         assert result is None
 
     def test_load_invalid_json(self, tmp_dir):
-        """不正なJSONファイルの場合 None を返す"""
+        """Test case."""
         filepath = os.path.join(tmp_dir, "bad.json")
         with open(filepath, "w") as f:
             f.write("not valid json {{{")
@@ -114,7 +82,7 @@ class TestLoadSingleResult:
         assert result is None
 
     def test_preserves_all_meta_fields(self, tmp_dir):
-        """メタ情報フィールドが全て保持される"""
+        """Test case."""
         data = {
             "code": "benchpark-osu",
             "system": "RC_GH200",
@@ -133,7 +101,7 @@ class TestLoadSingleResult:
             assert result[key] == data[key]
 
     def test_preserves_metrics_vector(self, tmp_dir):
-        """metrics.vector フィールドが保持される"""
+        """Test case."""
         data = {
             "code": "test",
             "metrics": {
@@ -153,12 +121,11 @@ class TestLoadSingleResult:
 
 
 # ============================================================
-# load_multiple_results のテスト
-# ============================================================
+# load_result_json_batch behavior
 
 class TestLoadMultipleResults:
     def test_sorts_by_timestamp_ascending(self, tmp_dir):
-        """タイムスタンプ昇順でソートされる"""
+        """Test case."""
         _write_json(tmp_dir, "result_20250115_120000_aaa.json", {"code": "c"})
         _write_json(tmp_dir, "result_20250101_080000_bbb.json", {"code": "a"})
         _write_json(tmp_dir, "result_20250110_100000_ccc.json", {"code": "b"})
@@ -176,7 +143,7 @@ class TestLoadMultipleResults:
         assert results[2]["timestamp"] == "2025-01-15 12:00:00"
 
     def test_extracts_timestamp_from_filename(self, tmp_dir):
-        """ファイル名からタイムスタンプを正しく抽出する"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250601_143022_{uid}.json"
         _write_json(tmp_dir, filename, {"code": "test"})
@@ -187,7 +154,7 @@ class TestLoadMultipleResults:
         assert results[0]["filename"] == filename
 
     def test_skips_nonexistent_files(self, tmp_dir):
-        """存在しないファイルはスキップされる"""
+        """Test case."""
         _write_json(tmp_dir, "result_20250101_000000_x.json", {"code": "ok"})
 
         results = load_result_json_batch(
@@ -197,7 +164,7 @@ class TestLoadMultipleResults:
         assert len(results) == 1
 
     def test_return_format(self, tmp_dir):
-        """戻り値の形式が正しい"""
+        """Test case."""
         _write_json(tmp_dir, "result_20250101_000000_x.json", {"code": "test", "FOM": 1.0})
 
         results = load_result_json_batch(["result_20250101_000000_x.json"], tmp_dir)
@@ -210,7 +177,7 @@ class TestLoadMultipleResults:
         assert r["data"]["code"] == "test"
 
     def test_unknown_timestamp_for_no_pattern(self, tmp_dir):
-        """タイムスタンプパターンがないファイル名は 'Unknown' になる"""
+        """Test case."""
         _write_json(tmp_dir, "some_result.json", {"code": "test"})
 
         results = load_result_json_batch(["some_result.json"], tmp_dir)
@@ -218,18 +185,17 @@ class TestLoadMultipleResults:
         assert results[0]["timestamp"] == "Unknown"
 
     def test_empty_filenames(self, tmp_dir):
-        """空のファイル名リストは空リストを返す"""
+        """Test case."""
         results = load_result_json_batch([], tmp_dir)
         assert results == []
 
 
 # ============================================================
-# load_results_table 拡張のテスト
-# ============================================================
+# load_results_table behavior
 
 class TestLoadResultsTableExtension:
     def test_has_vector_true_when_metrics_vector_exists(self, flask_app, tmp_dir):
-        """metrics.vector がある場合 has_vector=True"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250101_000000_{uid}.json"
         data = {
@@ -252,7 +218,7 @@ class TestLoadResultsTableExtension:
         assert rows[0]["filename"] == filename
 
     def test_has_vector_false_when_no_metrics(self, flask_app, tmp_dir):
-        """metrics フィールドがない場合 has_vector=False"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250101_000000_{uid}.json"
         data = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}
@@ -267,7 +233,7 @@ class TestLoadResultsTableExtension:
         assert rows[0]["filename"] == filename
 
     def test_has_vector_false_when_only_scalar(self, flask_app, tmp_dir):
-        """metrics.scalar のみの場合 has_vector=False"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250101_000000_{uid}.json"
         data = {
@@ -284,7 +250,7 @@ class TestLoadResultsTableExtension:
         assert rows[0]["detail_link"] == f"/results/detail/{filename}"
 
     def test_existing_columns_unchanged(self, flask_app, tmp_dir):
-        """既存のカラムリストが変更されていない"""
+        """Test case."""
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid}.json",
                      {"code": "t", "system": "s"})
@@ -310,7 +276,7 @@ class TestLoadResultsTableExtension:
         assert columns == expected_columns
 
     def test_existing_row_fields_preserved(self, flask_app, tmp_dir):
-        """既存のrowフィールドが保持されている"""
+        """Test case."""
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
             "code": "mycode", "system": "mysys", "Exp": "myexp",
@@ -417,12 +383,11 @@ class TestSummarizeResultQuality:
 
 
 # ============================================================
-# Pipeline Timing フィールドのテスト
-# ============================================================
+# Pipeline timing extraction
 
 class TestPipelineTimingFields:
     def test_row_with_pipeline_timing_fields(self, flask_app, tmp_dir):
-        """pipeline_timing, execution_mode, ci_trigger を含むJSONから正しく行データが構築される"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
@@ -455,7 +420,7 @@ class TestPipelineTimingFields:
         assert row["pipeline_id"] == "17026"
 
     def test_row_without_pipeline_timing_fields(self, flask_app, tmp_dir):
-        """新フィールドなしの既存JSONでもエラーなく行データが構築され、フォールバック値が返る"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {"code": "qws", "system": "Fugaku", "Exp": "test", "FOM": 42.0}
@@ -476,7 +441,7 @@ class TestPipelineTimingFields:
         assert row["pipeline_id"] == "-"
 
     def test_row_with_partial_pipeline_timing(self, flask_app, tmp_dir):
-        """pipeline_timingの一部フィールドが欠損している場合のフォールバック"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
@@ -495,7 +460,7 @@ class TestPipelineTimingFields:
         assert row["run_time"] == "-"
 
     def test_row_with_invalid_pipeline_timing_type(self, flask_app, tmp_dir):
-        """pipeline_timingが不正な型（文字列等）の場合はフォールバック"""
+        """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
@@ -515,12 +480,11 @@ class TestPipelineTimingFields:
 
 
 # ============================================================
-# カスケードフィルタのテスト
-# ============================================================
+# Section
 
 class TestCascadeFilter:
     def test_filter_code_filters_exps(self, tmp_dir):
-        """filter_code指定時にそのCodeのExpのみ返される"""
+        """Test case."""
         uid1 = str(uuid.uuid4())
         uid2 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
@@ -533,7 +497,7 @@ class TestCascadeFilter:
         assert "CASE1" not in opts["exps"]
 
     def test_filter_code_none_returns_all_exps(self, tmp_dir):
-        """filter_code=Noneの場合は全Expが返される"""
+        """Test case."""
         uid1 = str(uuid.uuid4())
         uid2 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
@@ -546,7 +510,7 @@ class TestCascadeFilter:
         assert "CASE1" in opts["exps"]
 
     def test_filter_code_nonexistent_returns_empty_exps(self, tmp_dir):
-        """存在しないCodeを指定した場合はExpsが空"""
+        """Test case."""
         uid1 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
                      {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})

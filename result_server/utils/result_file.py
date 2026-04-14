@@ -75,6 +75,12 @@ def serve_permitted_result_file(filename: str, permission_dir: str, data_dir: st
     return load_result_file(filename, data_dir or permission_dir)
 
 
+def serve_authenticated_result_file(filename: str, data_dir: str, *, message: str):
+    """Require authentication and then serve a file from the given directory."""
+    require_authenticated_session(message)
+    return serve_permitted_result_file(filename, data_dir)
+
+
 def load_permitted_result_json(
     filename: str,
     permission_dir: str,
@@ -90,6 +96,22 @@ def load_permitted_result_json(
     if result is None:
         abort(404, not_found_message)
     return result
+
+
+def load_authenticated_result_json(
+    filename: str,
+    data_dir: str,
+    *,
+    message: str,
+    not_found_message: str,
+):
+    """Require authentication and then load JSON content from the given directory."""
+    require_authenticated_session(message)
+    return load_permitted_result_json(
+        filename,
+        data_dir,
+        not_found_message=not_found_message,
+    )
 
 
 def _read_confidential_from_json(json_file: str, save_dir: str):

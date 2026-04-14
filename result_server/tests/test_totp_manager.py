@@ -1,4 +1,4 @@
-"""totp_managerモジュールのプロパティベーステスト"""
+"""Property-based tests for the TOTP manager."""
 
 import base64
 
@@ -9,19 +9,18 @@ from hypothesis import strategies as st
 from utils.totp_manager import generate_secret, verify_code
 
 
-# Feature: totp-authentication, Property 1: TOTP検証ラウンドトリップ
-# 任意の生成された秘密鍵に対して、pyotp.TOTP(secret).now()で生成したコードが
-# verify_code()で検証成功することを確認する。
+# Feature: totp-authentication
+# Property: a TOTP generated from a freshly issued secret should verify.
 # Validates: Requirements 1.1, 1.4, 1.5
 @settings(max_examples=100)
 @given(st.integers(min_value=0, max_value=99))
 def test_property1_totp_verify_roundtrip(_iteration):
-    """生成された秘密鍵で作成したTOTPコードは、verify_codeで検証成功する。"""
+    """A generated secret should produce a code accepted by verify_code()."""
     secret = generate_secret()
 
-    # 秘密鍵が有効なBase32文字列であることを確認
+    # Confirm that the generated secret is valid Base32 text.
     base64.b32decode(secret)
 
-    # 現在時刻のTOTPコードを生成し、verify_codeで検証
+    # Generate a current TOTP code and verify it with the helper.
     code = pyotp.TOTP(secret).now()
     assert verify_code(secret, code) is True

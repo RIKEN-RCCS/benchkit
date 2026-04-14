@@ -1,37 +1,19 @@
-"""
-ページネーション機能のユニットテスト
+"""Tests for pagination behavior in result and estimated tables."""
 
-paginate_list(), ルートのクエリパラメータ処理、フィルタ+ページネーション連携、
-既存機能との互換性をテストする。
-"""
-
-import os
-import sys
 import json
-import types
-import tempfile
+import os
 import shutil
+import sys
+import tempfile
 import uuid
 
 import pytest
 
-# --- テスト用スタブモジュールの設定 ---
-def _setup_stubs():
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-_setup_stubs()
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs(include_redis=False)
 
 from flask import Flask
 from routes.home import register_home_routes
@@ -41,7 +23,12 @@ from utils.results_loader import (
 )
 
 
-# --- フィクスチャ ---
+class _StubUserStore:
+    def get_affiliations(self, email):
+        if email == "user@example.com":
+            return ["dev"]
+        return []
+
 
 @pytest.fixture
 def tmp_dir():
@@ -50,22 +37,16 @@ def tmp_dir():
     shutil.rmtree(d)
 
 
+
 @pytest.fixture
 def flask_app(tmp_dir):
-    import fakeredis
-    from utils.user_store import UserStore
-
     template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
     app = Flask(__name__, template_folder=template_dir)
     app.config["RECEIVED_DIR"] = tmp_dir
     app.config["ESTIMATED_DIR"] = tmp_dir
     app.config["SECRET_KEY"] = "test-secret"
     app.config["TESTING"] = True
-
-    r_conn = fakeredis.FakeRedis(decode_responses=True)
-    app.config["REDIS_CONN"] = r_conn
-    app.config["REDIS_PREFIX"] = "test:"
-    app.config["USER_STORE"] = UserStore(r_conn, "test:")
+    app.config["USER_STORE"] = _StubUserStore()
 
     register_home_routes(app)
 
@@ -91,7 +72,7 @@ def _write_json(directory, filename, data):
 
 
 def _make_result_files(tmp_dir, count, code="test-app", system="TestSys", exp="exp1"):
-    """指定数のテスト用JSONファイルを生成"""
+    """Test case."""
     filenames = []
     for i in range(count):
         uid = str(uuid.uuid4())
@@ -104,12 +85,11 @@ def _make_result_files(tmp_dir, count, code="test-app", system="TestSys", exp="e
 
 
 # ============================================================
-# paginate_list() のテスト
-# ============================================================
+# paginate_list() behavior
 
 class TestPaginateList:
     def test_default_first_page(self):
-        """デフォルトパラメータで最初のページを返す"""
+        """Test case."""
         items = list(range(250))
         result, info = paginate_list(items, page=1, per_page=100)
         assert result == list(range(100))
@@ -119,21 +99,21 @@ class TestPaginateList:
         assert info["total_pages"] == 3
 
     def test_second_page(self):
-        """2ページ目を正しく返す"""
+        """Test case."""
         items = list(range(250))
         result, info = paginate_list(items, page=2, per_page=100)
         assert result == list(range(100, 200))
         assert info["page"] == 2
 
     def test_last_page_partial(self):
-        """最終ページが端数の場合"""
+        """Test case."""
         items = list(range(250))
         result, info = paginate_list(items, page=3, per_page=100)
         assert result == list(range(200, 250))
         assert len(result) == 50
 
     def test_empty_list_returns_total_pages_1(self):
-        """空リストの場合 total_pages=1"""
+        """Test case."""
         result, info = paginate_list([], page=1, per_page=100)
         assert result == []
         assert info["total"] == 0
@@ -141,47 +121,47 @@ class TestPaginateList:
         assert info["page"] == 1
 
     def test_clamp_page_below_1(self):
-        """page < 1 の場合は 1 にクランプ"""
+        """Test case."""
         items = list(range(50))
         result, info = paginate_list(items, page=0, per_page=100)
         assert info["page"] == 1
 
     def test_clamp_page_negative(self):
-        """負のページ番号は 1 にクランプ"""
+        """Test case."""
         items = list(range(50))
         result, info = paginate_list(items, page=-5, per_page=100)
         assert info["page"] == 1
 
     def test_clamp_page_above_total(self):
-        """total_pages を超えるページは total_pages にクランプ"""
+        """Test case."""
         items = list(range(50))
         result, info = paginate_list(items, page=999, per_page=100)
-        assert info["page"] == 1  # 50件 / 100 = 1ページ
+        assert info["page"] == 1  # 50 items with per_page=100 yields a single page.
         assert info["total_pages"] == 1
 
     def test_exact_page_boundary(self):
-        """件数がper_pageの倍数の場合"""
+        """Test case."""
         items = list(range(200))
         result, info = paginate_list(items, page=2, per_page=100)
         assert info["total_pages"] == 2
         assert result == list(range(100, 200))
 
     def test_per_page_50(self):
-        """per_page=50 で正しく分割"""
+        """Test case."""
         items = list(range(120))
         result, info = paginate_list(items, page=1, per_page=50)
         assert len(result) == 50
         assert info["total_pages"] == 3  # ceil(120/50) = 3
 
     def test_per_page_200(self):
-        """per_page=200 で正しく分割"""
+        """Test case."""
         items = list(range(500))
         result, info = paginate_list(items, page=1, per_page=200)
         assert len(result) == 200
         assert info["total_pages"] == 3  # ceil(500/200) = 3
 
     def test_single_item(self):
-        """1件のみの場合"""
+        """Test case."""
         result, info = paginate_list(["a"], page=1, per_page=100)
         assert result == ["a"]
         assert info["total"] == 1
@@ -189,33 +169,32 @@ class TestPaginateList:
 
 
 # ============================================================
-# per_page バリデーションのテスト
-# ============================================================
+# per_page validation
 
 class TestPerPageValidation:
     def test_invalid_per_page_defaults_to_100(self, flask_app, tmp_dir):
-        """不正な per_page 値はデフォルト100にフォールバック"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?per_page=75")
             assert resp.status_code == 200
 
     def test_per_page_50_accepted(self, flask_app, tmp_dir):
-        """per_page=50 は有効"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?per_page=50")
             assert resp.status_code == 200
 
     def test_per_page_200_accepted(self, flask_app, tmp_dir):
-        """per_page=200 は有効"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?per_page=200")
             assert resp.status_code == 200
 
     def test_per_page_string_defaults(self, flask_app, tmp_dir):
-        """文字列の per_page はデフォルトにフォールバック"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?per_page=abc")
@@ -223,33 +202,32 @@ class TestPerPageValidation:
 
 
 # ============================================================
-# ページ範囲外リダイレクトのテスト
-# ============================================================
+# Section
 
 class TestPageRedirect:
     def test_page_too_high_redirects(self, flask_app, tmp_dir):
-        """存在しないページ番号はリダイレクトされる"""
-        _make_result_files(tmp_dir, 5)  # 5件 → 1ページ
+        """Test case."""
+        _make_result_files(tmp_dir, 5)  # Five items with per_page=100 still fit on one page.
         with flask_app.test_client() as client:
             resp = client.get("/results/?page=999")
             assert resp.status_code == 302
 
     def test_page_zero_redirects(self, flask_app, tmp_dir):
-        """page=0 はリダイレクトされる"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?page=0")
             assert resp.status_code == 302
 
     def test_page_negative_redirects(self, flask_app, tmp_dir):
-        """負のページ番号はリダイレクトされる"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?page=-1")
             assert resp.status_code == 302
 
     def test_redirect_preserves_filters(self, flask_app, tmp_dir):
-        """リダイレクト時にフィルタパラメータが保持される"""
+        """Test case."""
         _make_result_files(tmp_dir, 5, system="SysA")
         with flask_app.test_client() as client:
             resp = client.get("/results/?page=999&system=SysA&per_page=50")
@@ -259,7 +237,7 @@ class TestPageRedirect:
             assert "per_page=50" in location
 
     def test_valid_page_no_redirect(self, flask_app, tmp_dir):
-        """有効なページ番号はリダイレクトされない"""
+        """Test case."""
         _make_result_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             resp = client.get("/results/?page=1")
@@ -267,12 +245,11 @@ class TestPageRedirect:
 
 
 # ============================================================
-# フィルタ + ページネーション連携のテスト
-# ============================================================
+# Section
 
 class TestFilterPagination:
     def test_filter_reduces_total(self, flask_app, tmp_dir):
-        """フィルタ適用で件数が減る"""
+        """Test case."""
         _make_result_files(tmp_dir, 3, system="SysA")
         _make_result_files(tmp_dir, 2, system="SysB")
 
@@ -284,7 +261,7 @@ class TestFilterPagination:
         assert info["total"] == 3
 
     def test_filter_no_match_returns_empty(self, flask_app, tmp_dir):
-        """フィルタに一致しない場合は空"""
+        """Test case."""
         _make_result_files(tmp_dir, 5, system="SysA")
 
         with flask_app.test_request_context():
@@ -297,7 +274,7 @@ class TestFilterPagination:
         assert info["total_pages"] == 1
 
     def test_filter_with_pagination(self, flask_app, tmp_dir):
-        """フィルタ + ページネーションの組み合わせ"""
+        """Test case."""
         _make_result_files(tmp_dir, 120, system="SysA")
         _make_result_files(tmp_dir, 30, system="SysB")
 
@@ -311,7 +288,7 @@ class TestFilterPagination:
         assert len(rows) == 50
 
     def test_code_filter(self, flask_app, tmp_dir):
-        """CODE フィルタが動作する"""
+        """Test case."""
         _make_result_files(tmp_dir, 3, code="app-a")
         _make_result_files(tmp_dir, 2, code="app-b")
 
@@ -323,7 +300,7 @@ class TestFilterPagination:
         assert info["total"] == 3
 
     def test_exp_filter(self, flask_app, tmp_dir):
-        """Exp フィルタが動作する"""
+        """Test case."""
         _make_result_files(tmp_dir, 4, exp="exp1")
         _make_result_files(tmp_dir, 1, exp="exp2")
 
@@ -335,7 +312,7 @@ class TestFilterPagination:
         assert info["total"] == 1
 
     def test_multiple_filters(self, flask_app, tmp_dir):
-        """複数フィルタの組み合わせ"""
+        """Test case."""
         _make_result_files(tmp_dir, 3, system="SysA", code="app-a")
         _make_result_files(tmp_dir, 2, system="SysA", code="app-b")
         _make_result_files(tmp_dir, 1, system="SysB", code="app-a")
@@ -349,12 +326,11 @@ class TestFilterPagination:
 
 
 # ============================================================
-# get_filter_options のテスト
-# ============================================================
+# get_filter_options behavior
 
 class TestFilterOptions:
     def test_returns_unique_sorted_values(self, tmp_dir):
-        """ユニークかつソート済みの値を返す"""
+        """Test case."""
         _make_result_files(tmp_dir, 2, system="Zeta", code="app-b")
         _make_result_files(tmp_dir, 1, system="Alpha", code="app-a")
 
@@ -363,12 +339,12 @@ class TestFilterOptions:
         assert opts["codes"] == ["app-a", "app-b"]
 
     def test_empty_directory(self, tmp_dir):
-        """空ディレクトリの場合"""
+        """Test case."""
         opts = get_filter_options(tmp_dir, public_only=True)
         assert opts == {"systems": [], "codes": [], "exps": []}
 
     def test_estimated_filter_options(self, tmp_dir):
-        """推定結果のフィルタオプション"""
+        """Test case."""
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid}.json", {
             "code": "app-x", "exp": "exp1",
@@ -382,8 +358,7 @@ class TestFilterOptions:
 
 
 # ============================================================
-# 推定結果ページネーションのテスト
-# ============================================================
+# Section
 
 class TestEstimatedPagination:
     def _make_estimated_files(self, tmp_dir, count, system="SysA"):
@@ -405,7 +380,7 @@ class TestEstimatedPagination:
             })
 
     def test_estimated_pagination(self, flask_app, tmp_dir):
-        """推定結果のページネーション"""
+        """Test case."""
         self._make_estimated_files(tmp_dir, 120)
 
         with flask_app.test_request_context():
@@ -417,7 +392,7 @@ class TestEstimatedPagination:
         assert len(rows) == 50
 
     def test_estimated_filter(self, flask_app, tmp_dir):
-        """推定結果のフィルタ"""
+        """Test case."""
         self._make_estimated_files(tmp_dir, 3, system="SysA")
         self._make_estimated_files(tmp_dir, 2, system="SysB")
 
@@ -428,7 +403,7 @@ class TestEstimatedPagination:
         assert info["total"] == 2
 
     def test_estimated_route_redirect(self, flask_app, tmp_dir):
-        """推定結果ルートのページ範囲外リダイレクト"""
+        """Test case."""
         self._make_estimated_files(tmp_dir, 5)
         with flask_app.test_client() as client:
             with client.session_transaction() as sess:
@@ -439,8 +414,7 @@ class TestEstimatedPagination:
 
 
 # ============================================================
-# 既存機能の互換性テスト
-# ============================================================
+# Section
 
 class TestEstimatedAuth:
     def test_estimated_route_hides_table_when_unauthenticated(self, flask_app, tmp_dir):
@@ -470,7 +444,7 @@ class TestEstimatedAuth:
 
 class TestExistingFeatureCompatibility:
     def test_load_results_table_returns_3_tuple(self, flask_app, tmp_dir):
-        """load_results_table が (rows, columns, pagination_info) を返す"""
+        """Test case."""
         _make_result_files(tmp_dir, 1)
         with flask_app.test_request_context():
             result = load_results_table(tmp_dir, public_only=True)
@@ -482,7 +456,7 @@ class TestExistingFeatureCompatibility:
         assert isinstance(pagination_info, dict)
 
     def test_pagination_info_has_required_keys(self, flask_app, tmp_dir):
-        """pagination_info に必須キーが含まれる"""
+        """Test case."""
         _make_result_files(tmp_dir, 1)
         with flask_app.test_request_context():
             _, _, info = load_results_table(tmp_dir, public_only=True)
@@ -490,7 +464,7 @@ class TestExistingFeatureCompatibility:
             assert key in info
 
     def test_compare_route_still_works(self, flask_app, tmp_dir):
-        """Compare ルートが引き続き動作する"""
+        """Test case."""
         uid1 = str(uuid.uuid4())
         uid2 = str(uuid.uuid4())
         f1 = f"result_20250101_000000_{uid1}.json"
@@ -503,7 +477,7 @@ class TestExistingFeatureCompatibility:
             assert resp.status_code == 200
 
     def test_no_filter_reads_only_page_files(self, flask_app, tmp_dir):
-        """フィルタなし時は対象ページのJSONのみ読み込む（件数確認）"""
+        """Test case."""
         _make_result_files(tmp_dir, 150)
         with flask_app.test_request_context():
             rows, _, info = load_results_table(

@@ -1,6 +1,4 @@
-"""
-node_hours.py のユニットテスト
-"""
+"""Unit tests for node-hour helpers."""
 
 import os
 import sys

@@ -9,10 +9,6 @@ from utils.result_file import (
 from utils.result_records import summarize_result_quality
 
 
-def serve_confidential_file(filename, dir_path):
-    return serve_permitted_result_file(filename, dir_path)
-
-
 def register_results_detail_routes(results_bp):
     @results_bp.route("/compare", methods=["GET"])
     def result_compare():
@@ -44,4 +40,4 @@ def register_results_detail_routes(results_bp):
                 current_app.config["RECEIVED_DIR"],
                 current_app.config["RECEIVED_PADATA_DIR"],
             )
-        return serve_confidential_file(filename, current_app.config["RECEIVED_DIR"])
+        return serve_permitted_result_file(filename, current_app.config["RECEIVED_DIR"])

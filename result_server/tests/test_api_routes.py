@@ -1,55 +1,33 @@
-"""
-API routes のユニットテスト
+"""Tests for ingest and legacy write API routes."""
 
-新パス (/api/ingest/*) と互換ルート (/write-api, /write-est, /upload-tgz) の
-動作確認、APIキー認証、deprecatedログ出力を検証する。
-"""
-
-import os
-import sys
-import json
-import types
-import tempfile
-import shutil
-import logging
 import io
+import json
+import logging
+import os
+import shutil
+import sys
 import tarfile
+import tempfile
 
 import pytest
 
-# --- テスト用スタブモジュールの設定 ---
-def _setup_stubs():
-    if "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
-
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-_setup_stubs()
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs()
 
 from flask import Flask
 from routes.api import api_bp
-from routes.results import results_bp
 from routes.estimated import estimated_bp
+from routes.results import results_bp
 
 API_KEY = "test-api-key-12345"
 
 
 @pytest.fixture
 def tmp_dirs():
-    """テスト用の一時ディレクトリ（received, estimated）"""
+    """Create temporary directories used by the API tests."""
     received = tempfile.mkdtemp()
     received_padata = tempfile.mkdtemp()
     received_estimation_inputs = tempfile.mkdtemp()
@@ -63,10 +41,10 @@ def tmp_dirs():
 
 @pytest.fixture
 def app(tmp_dirs):
-    """テスト用Flaskアプリ"""
+    """Build a Flask app configured for API route tests."""
     received, received_padata, received_estimation_inputs, estimated = tmp_dirs
 
-    # APIキーを環境変数に設定
+    # Override the expected API key for this test app.
     import routes.api as api_mod
     original_key = api_mod.EXPECTED_API_KEY
     api_mod.EXPECTED_API_KEY = API_KEY
@@ -93,12 +71,12 @@ def client(app):
 
 
 # ============================================================
-# 新パス: /api/ingest/result
+# /api/ingest/result
 # ============================================================
 
 class TestIngestResult:
     def test_post_valid_json(self, client, tmp_dirs):
-        """正常なJSON POSTで200が返る"""
+        """Test case."""
         data = {"code": "test", "FOM": 42.0}
         resp = client.post("/api/ingest/result",
                            data=json.dumps(data),
@@ -111,7 +89,7 @@ class TestIngestResult:
         assert "timestamp" in body
         assert "json_file" in body
 
-        # ファイルが作成されたことを確認
+        # The uploaded payload should be saved to the configured received directory.
         received = tmp_dirs[0]
         files = os.listdir(received)
         assert len(files) == 1
@@ -124,14 +102,14 @@ class TestIngestResult:
         assert saved["_server_timestamp"] == body["timestamp"]
 
     def test_missing_api_key_returns_401(self, client):
-        """APIキーなしで401が返る"""
+        """Test case."""
         resp = client.post("/api/ingest/result",
                            data=b'{"code":"test"}',
                            headers={"Content-Type": "application/json"})
         assert resp.status_code == 401
 
     def test_wrong_api_key_returns_401(self, client):
-        """不正なAPIキーで401が返る"""
+        """Test case."""
         resp = client.post("/api/ingest/result",
                            data=b'{"code":"test"}',
                            headers={"X-API-Key": "wrong-key",
@@ -140,12 +118,12 @@ class TestIngestResult:
 
 
 # ============================================================
-# 新パス: /api/ingest/estimate
+# /api/ingest/estimate
 # ============================================================
 
 class TestIngestEstimate:
     def test_post_valid_json(self, client, tmp_dirs):
-        """正常なJSON POSTで200が返る"""
+        """Test case."""
         data = {"code": "est-test", "performance_ratio": 1.5}
         resp = client.post("/api/ingest/estimate",
                            data=json.dumps(data),
@@ -155,7 +133,7 @@ class TestIngestEstimate:
         body = resp.get_json()
         assert body["status"] == "ok"
 
-        # estimated_dirにファイルが作成される
+        # The uploaded estimate should be written to the configured estimate directory.
         estimated = tmp_dirs[3]
         files = os.listdir(estimated)
         assert len(files) == 1
@@ -174,12 +152,12 @@ class TestIngestEstimate:
 
 
 # ============================================================
-# 新パス: /api/ingest/padata
+# /api/ingest/padata
 # ============================================================
 
 class TestIngestPadata:
     def test_upload_tgz_file(self, client, tmp_dirs):
-        """正常なtgzアップロードで200が返る"""
+        """Test case."""
         import io
         data = {
             "id": "12345678-1234-1234-1234-123456789abc",
@@ -198,7 +176,7 @@ class TestIngestPadata:
         assert saved_files == ["padata_20250101_120000_12345678-1234-1234-1234-123456789abc.tgz"]
 
     def test_missing_uuid_returns_400(self, client):
-        """UUIDなしで400が返る"""
+        """Test case."""
         import io
         data = {
             "timestamp": "20250101_120000",
@@ -211,7 +189,7 @@ class TestIngestPadata:
         assert resp.status_code == 400
 
     def test_missing_file_returns_400(self, client):
-        """ファイルなしで400が返る"""
+        """Test case."""
         data = {
             "id": "12345678-1234-1234-1234-123456789abc",
             "timestamp": "20250101_120000",
@@ -230,12 +208,12 @@ class TestIngestPadata:
 
 
 # ============================================================
-# 互換ルート (deprecated)
+# Deprecated compatibility routes
 # ============================================================
 
 class TestCompatRoutes:
     def test_write_api_compat(self, client, tmp_dirs):
-        """/write-api が ingest_result と同じ動作をする"""
+        """Test case."""
         data = {"code": "compat-test"}
         resp = client.post("/write-api",
                            data=json.dumps(data),
@@ -247,7 +225,7 @@ class TestCompatRoutes:
         assert "json_file" in body
 
     def test_write_est_compat(self, client, tmp_dirs):
-        """/write-est が ingest_estimate と同じ動作をする"""
+        """Test case."""
         data = {"code": "compat-est"}
         resp = client.post("/write-est",
                            data=json.dumps(data),
@@ -258,7 +236,7 @@ class TestCompatRoutes:
         assert body["status"] == "ok"
 
     def test_upload_tgz_compat(self, client, tmp_dirs):
-        """/upload-tgz が ingest_padata と同じ動作をする"""
+        """Test case."""
         import io
         data = {
             "id": "12345678-1234-1234-1234-123456789abc",
@@ -274,7 +252,7 @@ class TestCompatRoutes:
         assert body["status"] == "uploaded"
 
     def test_deprecated_log_on_write_api(self, app, client):
-        """互換ルートアクセス時にdeprecatedログが出力される"""
+        """Test case."""
         with _capture_logs(app.logger) as logs:
             client.post("/write-api",
                         data=b'{"x":1}',
@@ -284,12 +262,11 @@ class TestCompatRoutes:
 
 
 # ============================================================
-# /estimated/ プレフィックス確認
-# ============================================================
+# /estimated/ route registration
 
 class TestEstimatedPrefix:
     def test_estimated_route_accessible(self, app):
-        """/estimated/ でアクセス可能"""
+        """Test case."""
         rules = [rule.rule for rule in app.url_map.iter_rules()]
         assert any("/estimated/" in r for r in rules)
 
@@ -452,14 +429,14 @@ class TestEstimationInputs:
 
 
 # ============================================================
-# ヘルパー
+# Section
 # ============================================================
 
 from contextlib import contextmanager
 
 @contextmanager
 def _capture_logs(logger):
-    """ログメッセージをキャプチャするコンテキストマネージャ"""
+    """Test case."""
     messages = []
     handler = logging.Handler()
     handler.emit = lambda record: messages.append(record.getMessage())
