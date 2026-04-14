@@ -1,33 +1,34 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Compare Results</title>
-    {% include "_table_base.html" %}
-    <style>
-        .section { margin-bottom: 30px; }
-        .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .back-link { margin-bottom: 15px; display: inline-block; }
-        .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
-        .compare-note {
-            margin: 0 0 16px;
-            color: #52606d;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}Compare Results{% endblock %}
+{% block page_subtitle %}Overlay vector metrics, compare FOM timelines, and sanity-check whether selected runs are from the same system and code.{% endblock %}
+
+{% block content %}
+<style>
+    .section { margin-bottom: 30px; }
+    .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+    .back-link { margin-bottom: 15px; display: inline-block; }
+    .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
+    .compare-note {
+        margin: 0 0 16px;
+        color: #52606d;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    .compare-warning {
+        color: #c00;
+        background: #fff3f3;
+        padding: 8px 12px;
+        border: 1px solid #fcc;
+        border-radius: 4px;
+    }
+</style>
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-<h1>Compare Results</h1>
-
 {% if results %}
 {% if mixed %}
-<p style="color: #c00; background: #fff3f3; padding: 8px 12px; border: 1px solid #fcc; border-radius: 4px;">
+<p class="compare-warning">
     Warning: Selected results have different system/code combinations. Comparison may not be meaningful.
 </p>
 {% endif %}
@@ -132,6 +133,4 @@ if (fomCanvas) {
 }
 </script>
 {% endif %}
-
-</body>
-</html>
+{% endblock %}
