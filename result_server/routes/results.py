@@ -6,22 +6,21 @@ from flask import (
     current_app,
     render_template,
     request,
-    session,
 )
 
 from routes.admin import admin_required
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.node_hours import aggregate_node_hours, get_fiscal_year
-from utils.result_compare_view import build_result_compare_context
+from utils.result_compare_view import load_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
-    check_file_permission,
     load_permitted_result_json,
     serve_permitted_result_file,
 )
 from utils.result_quality_rollup import build_result_quality_rollup
-from utils.result_records import load_result_json_batch, summarize_result_quality
+from utils.result_records import summarize_result_quality
 from utils.results_loader import DEFAULT_PER_PAGE, get_filter_options, load_results_table
+from utils.session_user_context import get_session_user_context
 from utils.site_diagnostics import build_site_diagnostics
 from utils.system_info import get_all_systems_info
 from utils.table_page_utils import (
@@ -30,7 +29,6 @@ from utils.table_page_utils import (
     render_no_store_template,
 )
 from utils.table_query_params import parse_table_query_params
-from utils.user_store import get_user_store
 from utils.usage_query_params import parse_usage_query_params, select_usage_periods
 
 results_bp = Blueprint("results", __name__)
@@ -81,15 +79,19 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     template_extra = {}
 
     if not public_only:
-        authenticated = session.get("authenticated", False)
-        if not authenticated:
+        user_context = get_session_user_context()
+        if not user_context["authenticated"]:
             return _render_confidential_auth_required()
-        email = session.get("user_email")
-        store = get_user_store()
-        affiliations = store.get_affiliations(email) if email else []
-        load_kwargs.update(session_email=email, authenticated=authenticated, affiliations=affiliations)
-        filter_kwargs.update(authenticated=authenticated, affiliations=affiliations)
-        template_extra["authenticated"] = authenticated
+        load_kwargs.update(
+            session_email=user_context["email"],
+            authenticated=user_context["authenticated"],
+            affiliations=user_context["affiliations"],
+        )
+        filter_kwargs.update(
+            authenticated=user_context["authenticated"],
+            affiliations=user_context["affiliations"],
+        )
+        template_extra["authenticated"] = user_context["authenticated"]
 
     rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
 
@@ -147,22 +149,8 @@ def result_compare():
     if len(filenames) < 2:
         abort(400, "Select 2 or more results to compare")
 
-    for filename in filenames:
-        check_file_permission(filename, current_app.config["RECEIVED_DIR"])
-
-    results = load_result_json_batch(filenames, current_app.config["RECEIVED_DIR"])
-
-    mixed = False
-    if results:
-        first_system = results[0]["data"].get("system")
-        first_code = results[0]["data"].get("code")
-        for row in results[1:]:
-            if row["data"].get("system") != first_system or row["data"].get("code") != first_code:
-                mixed = True
-                break
-
-    compare_context = build_result_compare_context(results)
-    return render_template("result_compare.html", mixed=mixed, **compare_context)
+    compare_context = load_result_compare_context(filenames, current_app.config["RECEIVED_DIR"])
+    return render_template("result_compare.html", **compare_context)
 
 
 @results_bp.route("/detail/<filename>")

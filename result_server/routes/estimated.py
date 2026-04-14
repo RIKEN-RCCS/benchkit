@@ -2,7 +2,6 @@ from flask import (
     Blueprint,
     current_app,
     request,
-    session,
 )
 
 from utils.result_file import (
@@ -16,6 +15,7 @@ from utils.results_loader import (
     get_filter_options,
     load_estimated_results_table,
 )
+from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
 from utils.table_page_utils import (
     build_table_page_context,
@@ -23,7 +23,6 @@ from utils.table_page_utils import (
     render_no_store_template,
 )
 from utils.table_query_params import parse_table_query_params
-from utils.user_store import get_user_store
 
 estimated_bp = Blueprint("estimated", __name__)
 
@@ -96,13 +95,9 @@ def _build_estimated_results_context(
 
 @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
 def estimated_results():
-    authenticated = session.get("authenticated", False)
-    if not authenticated:
+    user_context = get_session_user_context()
+    if not user_context["authenticated"]:
         return _render_estimated_auth_required()
-
-    email = session.get("user_email")
-    store = get_user_store()
-    affiliations = store.get_affiliations(email) if email else []
 
     params = parse_table_query_params(request.args)
     page = params["page"]
@@ -114,9 +109,9 @@ def estimated_results():
     estimated_dir = current_app.config["ESTIMATED_DIR"]
     page_context = _build_estimated_results_context(
         estimated_dir=estimated_dir,
-        email=email,
-        authenticated=authenticated,
-        affiliations=affiliations,
+        email=user_context["email"],
+        authenticated=user_context["authenticated"],
+        affiliations=user_context["affiliations"],
         page=page,
         per_page=per_page,
         filter_system=filter_system,

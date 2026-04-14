@@ -1,32 +1,25 @@
-"""Redisベースのユーザーストア
-
-ユーザーCRUDと招待トークン管理を提供する。
-Redisキー構造:
-  {prefix}:users                     → Set型: 登録済みメールアドレスの集合
-  {prefix}:user:{email}:totp_secret  → String型: Base32エンコードされたTOTP秘密鍵
-  {prefix}:user:{email}:affiliations → List型: 所属グループのリスト
-  {prefix}:invitation:{token}        → Hash型: {email, affiliations} (TTL: 24時間)
-"""
+"""Redis-backed user and invitation storage helpers."""
 
 import secrets
 from typing import Dict, List, Optional
 
 from flask import current_app
 
-INVITATION_TTL = 86400  # 24時間
+INVITATION_TTL = 86400  # 24 hours
 
 
 class UserStore:
     def __init__(self, redis_conn, key_prefix: str = ""):
         """
         Args:
-            redis_conn: Redisクライアント接続
-            key_prefix: 環境ごとのキープレフィックス（"main:" or "dev:"）
+            redis_conn: Redis client instance.
+            key_prefix: Prefix used to separate environments, for example
+                ``main:`` or ``dev:``.
         """
         self.r = redis_conn
         self.prefix = key_prefix
 
-    # --- キーヘルパー ---
+    # --- Key helpers ---
 
     def _key(self, *parts: str) -> str:
         return f"{self.prefix}{''.join(parts)}"
@@ -43,16 +36,17 @@ class UserStore:
     def _invitation_key(self, token: str) -> str:
         return self._key(f"invitation:{token}")
 
-    # --- ユーザー管理 ---
+    # --- User operations ---
 
     def create_user(
         self, email: str, totp_secret: str, affiliations: List[str]
     ) -> None:
-        """ユーザーを登録する。usersセットへの追加、秘密鍵・所属情報の保存。"""
+        """Create a user with a TOTP secret and affiliations."""
         pipe = self.r.pipeline()
         pipe.sadd(self._users_key(), email)
         pipe.set(self._secret_key(email), totp_secret)
-        # 所属情報: 既存リストを削除してから新規追加
+
+        # Replace the affiliation list instead of appending duplicates.
         aff_key = self._affiliations_key(email)
         pipe.delete(aff_key)
         for aff in affiliations:
@@ -60,10 +54,12 @@ class UserStore:
         pipe.execute()
 
     def get_user(self, email: str) -> Optional[Dict]:
-        """ユーザー情報を取得する。
+        """
+        Return the stored user record.
 
         Returns:
-            {"email": str, "totp_secret": str, "affiliations": list} or None
+            ``{"email": str, "totp_secret": str, "affiliations": list}``
+            or ``None`` when the user does not exist.
         """
         if not self.user_exists(email):
             return None
@@ -76,7 +72,7 @@ class UserStore:
         }
 
     def delete_user(self, email: str) -> bool:
-        """ユーザーを削除する。全関連キーを削除。"""
+        """Delete a user and its related keys."""
         if not self.user_exists(email):
             return False
         pipe = self.r.pipeline()
@@ -87,7 +83,7 @@ class UserStore:
         return True
 
     def list_users(self) -> List[Dict]:
-        """全ユーザーの一覧を返す。"""
+        """Return every user record in sorted order."""
         emails = self.r.smembers(self._users_key())
         users = []
         for email in sorted(emails):
@@ -97,7 +93,7 @@ class UserStore:
         return users
 
     def update_affiliations(self, email: str, affiliations: List[str]) -> bool:
-        """ユーザーの所属情報を更新する。"""
+        """Replace a user's affiliations."""
         if not self.user_exists(email):
             return False
         aff_key = self._affiliations_key(email)
@@ -109,31 +105,32 @@ class UserStore:
         return True
 
     def user_exists(self, email: str) -> bool:
-        """ユーザーが登録済みか確認する。"""
+        """Return whether a user exists."""
         return self.r.sismember(self._users_key(), email)
 
     def get_affiliations(self, email: str) -> List[str]:
-        """ユーザーの所属情報を取得する。"""
+        """Return the stored affiliations for a user."""
         return self.r.lrange(self._affiliations_key(email), 0, -1)
 
     def clear_totp_secret(self, email: str) -> bool:
-        """ユーザーのTOTP秘密鍵を削除する（再登録用）。"""
+        """Delete the TOTP secret for an existing user."""
         if not self.user_exists(email):
             return False
         self.r.delete(self._secret_key(email))
         return True
 
     def has_totp_secret(self, email: str) -> bool:
-        """ユーザーがTOTP秘密鍵を持っているか確認する。"""
+        """Return whether the user currently has a TOTP secret."""
         return bool(self.r.exists(self._secret_key(email)))
 
-    # --- 招待トークン管理 ---
+    # --- Invitation operations ---
 
     def create_invitation(self, email: str, affiliations: List[str]) -> str:
-        """招待トークンを生成してRedisに保存する。
+        """
+        Create and persist an invitation token in Redis.
 
         Returns:
-            招待トークン文字列
+            The generated invitation token.
         """
         token = secrets.token_urlsafe(32)
         key = self._invitation_key(token)
@@ -148,10 +145,12 @@ class UserStore:
         return token
 
     def get_invitation(self, token: str) -> Optional[Dict]:
-        """招待トークンの情報を取得する。
+        """
+        Return the stored invitation payload.
 
         Returns:
-            {"email": str, "affiliations": list} or None（無効/期限切れ）
+            ``{"email": str, "affiliations": list}`` or ``None`` when
+            the invitation does not exist or has expired.
         """
         data = self.r.hgetall(self._invitation_key(token))
         if not data:
@@ -165,10 +164,10 @@ class UserStore:
         return {"email": data["email"], "affiliations": affiliations}
 
     def delete_invitation(self, token: str) -> None:
-        """招待トークンを削除する。"""
+        """Delete an invitation token."""
         self.r.delete(self._invitation_key(token))
 
 
 def get_user_store() -> UserStore:
-    """現在のアプリコンテキストからUserStoreインスタンスを取得する。"""
+    """Return the configured application UserStore instance."""
     return current_app.config["USER_STORE"]

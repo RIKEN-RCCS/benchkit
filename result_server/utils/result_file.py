@@ -6,7 +6,7 @@ import re
 
 from flask import Response, abort, send_from_directory, session
 
-from utils.user_store import get_user_store
+from utils.session_user_context import get_session_user_context
 
 
 def load_result_file(filename: str, save_dir: str):
@@ -56,10 +56,9 @@ def check_file_permission(filename: str, dir_path: str) -> None:
     if not tags:
         return
 
-    authenticated = session.get("authenticated", False)
-    email = session.get("user_email")
-    store = get_user_store()
-    affiliations = store.get_affiliations(email) if email else []
+    user_context = get_session_user_context()
+    authenticated = user_context["authenticated"]
+    affiliations = user_context["affiliations"]
     if not authenticated or not (set(tags) & set(affiliations)):
         abort(403, "You do not have permission to access this file")
 
