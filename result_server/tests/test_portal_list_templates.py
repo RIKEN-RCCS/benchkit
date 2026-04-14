@@ -94,6 +94,7 @@ def test_results_template_renders_table_note():
                     ("FOM", "fom"),
                     ("Exp", "exp"),
                     ("Profiler / PA", "profile_summary"),
+                    ("CI", "ci_summary"),
                     ("JSON", "json_link"),
                 ],
             rows=[
@@ -154,7 +155,9 @@ def test_results_template_renders_table_note():
     assert "Compare" in html
     assert "fapp / detailed" in html
     assert "Profiler / PA" in html
+    assert "CI" in html
     assert "padata" in html
+    assert "#10" in html
 
 
 def test_estimated_results_template_renders_table_note():

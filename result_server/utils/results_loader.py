@@ -427,8 +427,7 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("T/P", "nthreads"),
         ("Profiler / PA", "profile_summary"),
         ("JSON", "json_link"),
-        ("Trigger", "ci_trigger"),
-        ("Pipeline", "pipeline_id"),
+        ("CI", "ci_summary"),
     ]
 
     has_filters = _has_active_filters(filter_system, filter_code, filter_exp)

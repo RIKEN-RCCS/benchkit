@@ -28,7 +28,7 @@
     <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "CI", "Branch/Hash"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -66,13 +66,9 @@
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Profiler tool, level, report summary, and PA data download access</span>
                   </span>
-                {% elif col_name == "Trigger" %}
+                {% elif col_name == "CI" %}
                   <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">CI pipeline trigger source (schedule, push, web, etc.)</span>
-                  </span>
-                {% elif col_name == "Pipeline" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">GitLab CI pipeline ID</span>
+                    <span class="tooltiptext">CI trigger source and pipeline ID</span>
                   </span>
                 {% elif col_name == "Branch/Hash" %}
                   <span class="tooltip">{{ col_name }}
@@ -102,7 +98,7 @@
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "CI", "Branch/Hash"] %}
               {% if col_name == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
@@ -181,14 +177,12 @@
                     <td class="profile-cell">
                         {% if row.profile_summary_meta.has_profile_data %}
                             <span class="tooltip">
-                                <span class="profile-headline-row">
-                                    <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
-                                    {% if row.data_link %}
-                                    <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
-                                    {% endif %}
-                                </span>
+                                <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
                                 {% if row.profile_summary_meta.subline %}
                                 <span class="profile-subline">{{ row.profile_summary_meta.subline }}</span>
+                                {% endif %}
+                                {% if row.data_link %}
+                                <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
                                 {% endif %}
                                 <span class="tooltiptext">
                                     {{ row.profile_summary_meta.headline }}
@@ -204,6 +198,11 @@
                             -
                         {% endif %}
                     </td>
+                {% elif key == "ci_summary" %}
+                    <td class="ci-cell" title="{{ row.ci_trigger }} / {{ row.pipeline_id }}">
+                        <span class="ci-trigger">{{ row.ci_trigger }}</span>
+                        <span class="ci-pipeline">#{{ row.pipeline_id }}</span>
+                    </td>
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
@@ -215,7 +214,7 @@
                     {% else %}
                         <td class="code-cell" title="{{ row.code }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
                     {% endif %}
-                {% elif key in ["fom_version", "exp", "ci_trigger", "pipeline_id", "source_hash"] %}
+                {% elif key in ["fom_version", "exp", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% elif key == "fom" %}
                     <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
@@ -277,14 +276,8 @@
     color: #1f4f99;
 }
 .profile-cell {
-    min-width: 190px;
+    min-width: 136px;
     white-space: normal;
-}
-.profile-headline-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
 }
 .profile-headline {
     display: block;
@@ -299,13 +292,27 @@
     line-height: 1.35;
 }
 .profile-data-link {
-    flex-shrink: 0;
+    display: inline-block;
+    margin-top: 0.18rem;
     font-size: 0.82em;
     font-weight: 600;
     white-space: nowrap;
 }
 .profile-data-link-only {
     display: inline-block;
+}
+.ci-cell {
+    min-width: 88px;
+    white-space: normal;
+    line-height: 1.25;
+}
+.ci-trigger,
+.ci-pipeline {
+    display: block;
+}
+.ci-pipeline {
+    color: #607282;
+    font-size: 0.82em;
 }
 </style>
 

@@ -304,8 +304,7 @@ class TestLoadResultsTableExtension:
             ("T/P", "nthreads"),
             ("Profiler / PA", "profile_summary"),
             ("JSON", "json_link"),
-            ("Trigger", "ci_trigger"),
-            ("Pipeline", "pipeline_id"),
+            ("CI", "ci_summary"),
         ]
         assert columns == expected_columns
 
