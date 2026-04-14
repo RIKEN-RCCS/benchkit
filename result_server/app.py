@@ -2,113 +2,110 @@ import os
 import sys
 from datetime import timedelta
 
-# Retrieve the API key from environment variable (needed in receive.py)
+from flask import Flask, current_app, render_template
+from flask_session import Session
+
+from routes.api import api_bp
+from routes.estimated import estimated_bp
+from routes.home import register_home_routes
+from routes.results import results_bp
+
+
 EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
 
-# Exit if the API key is not set
 if not EXPECTED_API_KEY:
     print("ERROR: RESULT_SERVER_KEY is not set.", file=sys.stderr)
     sys.exit(1)
 
-# Import Flask and route blueprints
-from flask import Flask, render_template, current_app
-from flask_session import Session
-from routes.api import api_bp
-from routes.home import register_home_routes
-from routes.results import results_bp
-from routes.estimated import estimated_bp
 
-# -----------------------------------------
-# Create Flask application
-# -----------------------------------------
-def create_app(prefix="", base_dir=None):
-
-    """
-    prefix: URL prefix (""=For main, "/dev"=For develop)
-    base_dir: For main : main, For develop: dev1)
-    """
-    if base_dir is None:
-        raise ValueError("base_dir must be specified")
-
-    # Create the Flask app and specify the templates folder
-    app = Flask(__name__, template_folder="templates")
-
-    # --- Secret Key ---
-    secret_key = os.environ.get("FLASK_SECRET_KEY")
-    if not secret_key:
-        raise RuntimeError("FLASK_SECRET_KEY must be set in production")
-    app.secret_key = secret_key
-
-    # --- セッションCookieのセキュリティ設定 ---
+def _configure_session(app, base_dir):
+    """Configure secure filesystem-backed sessions."""
     app.config.update(
-        SESSION_TYPE='filesystem',
+        SESSION_TYPE="filesystem",
         SESSION_FILE_DIR=os.path.join(base_dir, "flask_session"),
         SESSION_PERMANENT=True,
         SESSION_USE_SIGNER=True,
-        SESSION_COOKIE_SECURE=True,       # HTTPS必須
-        SESSION_COOKIE_HTTPONLY=True,     # JSからのアクセス禁止
-        SESSION_COOKIE_SAMESITE="Strict", # もしくは "Lax"
-        PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),  # セッション寿命を短めに
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Strict",
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
     )
     Session(app)
 
 
-    # Redis 接続
+def _configure_redis(app, prefix):
+    """Attach Redis connection settings and the key prefix to app config."""
     import redis
+
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    r_conn = redis.from_url(redis_url, decode_responses=True)
+    app.config["REDIS_CONN"] = redis.from_url(redis_url, decode_responses=True)
+    app.config["REDIS_PREFIX"] = "dev:" if prefix == "/dev" else "main:"
+    app.config["SESSION_COOKIE_NAME"] = "session_dev" if prefix == "/dev" else "session_main"
 
-    # 環境ごとの prefix
-    if prefix == "/dev":
-        app.config["SESSION_COOKIE_NAME"] = "session_dev"
-        key_prefix = "dev:"
-    else:
-        app.config["SESSION_COOKIE_NAME"] = "session_main"
-        key_prefix = "main:"
 
-    # Redis接続とプレフィックスをconfigに保存
-    app.config["REDIS_CONN"] = r_conn
-    app.config["REDIS_PREFIX"] = key_prefix
-
-    # UserStore 初期化
+def _configure_user_store(app):
+    """Create and attach the shared UserStore instance."""
     from utils.user_store import UserStore
-    user_store = UserStore(r_conn, key_prefix)
-    app.config["USER_STORE"] = user_store
 
-    # TOTP イシュアー名（認証アプリでの表示名）
-    # 環境変数 TOTP_ISSUER で基本名を設定（未設定時は "BenchKit"）
+    app.config["USER_STORE"] = UserStore(app.config["REDIS_CONN"], app.config["REDIS_PREFIX"])
+
+
+def _configure_totp_issuer(app, prefix):
+    """Set the issuer label shown by authenticator apps."""
     base_issuer = os.environ.get("TOTP_ISSUER", "BenchKit")
     app.config["TOTP_ISSUER"] = f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
 
-    # make dir: received, received_padata, received_estimation_inputs & estimated_results
-    received_dir = os.path.join(base_dir, "received")
-    received_padata_dir = os.path.join(base_dir, "received_padata")
-    received_estimation_inputs_dir = os.path.join(base_dir, "received_estimation_inputs")
-    estimated_dir = os.path.join(base_dir, "estimated_results")
-    os.makedirs(received_dir, exist_ok=True)
-    os.makedirs(received_padata_dir, exist_ok=True)
-    os.makedirs(received_estimation_inputs_dir, exist_ok=True)
-    os.makedirs(estimated_dir, exist_ok=True)
 
-    app.config["RECEIVED_DIR"] = received_dir
-    app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
-    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
-    app.config["ESTIMATED_DIR"] = estimated_dir
+def _configure_result_directories(app, base_dir):
+    """Create and register the runtime data directories."""
+    dir_map = {
+        "RECEIVED_DIR": os.path.join(base_dir, "received"),
+        "RECEIVED_PADATA_DIR": os.path.join(base_dir, "received_padata"),
+        "RECEIVED_ESTIMATION_INPUTS_DIR": os.path.join(base_dir, "received_estimation_inputs"),
+        "ESTIMATED_DIR": os.path.join(base_dir, "estimated_results"),
+    }
+    for path in dir_map.values():
+        os.makedirs(path, exist_ok=True)
+    app.config.update(dir_map)
 
-    register_home_routes(app, prefix=prefix)
 
-    # Register route blueprints
-    from routes.auth import auth_bp
+def _register_portal_blueprints(app, prefix):
+    """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp
+    from routes.auth import auth_bp
+
     app.register_blueprint(api_bp, url_prefix=prefix)
     app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
     app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
     app.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
     app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
 
+
+def create_app(prefix="", base_dir=None):
+    """Create a configured Flask application for the main or dev portal."""
+    if base_dir is None:
+        raise ValueError("base_dir must be specified")
+
+    app = Flask(__name__, template_folder="templates")
+
+    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    if not secret_key:
+        raise RuntimeError("FLASK_SECRET_KEY must be set in production")
+    app.secret_key = secret_key
+
+    _configure_session(app, base_dir)
+    _configure_redis(app, prefix)
+    _configure_user_store(app)
+    _configure_totp_issuer(app, prefix)
+    _configure_result_directories(app, base_dir)
+
+    register_home_routes(app, prefix=prefix)
+    _register_portal_blueprints(app, prefix)
+
     @app.route(f"{prefix}/systemlist")
     def systemlist():
         from utils.system_info import get_all_systems_info, summarize_systems_info
+
         systems_info = get_all_systems_info()
         return render_template(
             "systemlist.html",
@@ -119,24 +116,15 @@ def create_app(prefix="", base_dir=None):
     return app
 
 
-# -----------------------------------------
-# Create main, dev application
-# -----------------------------------------
 BASE_PATH = os.getenv("BASE_PATH")
 if not BASE_PATH:
     sys.stderr.write("ERROR: BASE_PATH environment variable is not set.\n")
     sys.exit(1)
 
 
-# Main
 app = create_app(prefix="", base_dir=os.path.join(BASE_PATH, "main"))
-
-# Develop
 app_dev = create_app(prefix="/dev", base_dir=os.path.join(BASE_PATH, "dev1"))
 
-# -----------------------------------------
-# Development server startup (only when running python app.py directly)
-# Ignored when running with Gunicorn
-# -----------------------------------------
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8800)
