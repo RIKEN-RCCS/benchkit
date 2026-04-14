@@ -55,69 +55,7 @@
 
 <p class="estimated-table-note">Focus on system pairs, applied packages, and ratio at the list level, then open <code>detail</code> when you need breakdowns or fallback/applicability context.</p>
 
-<div class="estimated-table-wrap">
-{% set leading_columns = columns | selectattr("section", "equalto", "leading") | list %}
-{% set trailing_columns = columns | selectattr("section", "equalto", "trailing") | list %}
-{% set system_a_columns = columns | selectattr("group", "equalto", "System A") | list %}
-{% set system_b_columns = columns | selectattr("group", "equalto", "System B") | list %}
-<table id="resultsTable" class="estimated-table" border="1">
-  <thead>
-    <tr>
-      {% for column in leading_columns %}
-      <th rowspan="2">{{ column.label }}</th>
-      {% endfor %}
-      {% if system_a_columns %}
-      <th colspan="{{ system_a_columns|length }}">System A</th>
-      {% endif %}
-      {% if system_b_columns %}
-      <th colspan="{{ system_b_columns|length }}">System B</th>
-      {% endif %}
-      {% for column in trailing_columns %}
-      <th rowspan="2">{{ column.label }}</th>
-      {% endfor %}
-    </tr>
-    <tr>
-      {% for column in system_a_columns %}
-      <th>{{ column.label }}</th>
-      {% endfor %}
-      {% for column in system_b_columns %}
-      <th>{{ column.label }}</th>
-      {% endfor %}
-    </tr>
-  </thead>
-  <tbody>
-    {% for r in rows %}
-    <tr>
-      {% for column in columns %}
-      {% set key = column.key %}
-      {% set title_value = r[column.title_key] if column.title_key is defined else None %}
-      {% set align_style = "text-align: " ~ column.align ~ ";" if column.align is defined else "" %}
-      {% if key == "timestamp" %}
-      <td class="ts-cell">{{ r.timestamp_date }}<br>{{ r.timestamp_time }}</td>
-      {% elif key == "json_link" %}
-      <td class="{{ column.cell_class if column.cell_class is defined else '' }}">
-        <a href="{{ url_for('estimated.estimated_detail', filename=r.json_link) }}">detail</a>
-        |
-        <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>
-      </td>
-      {% else %}
-      <td
-        {% if column.cell_class is defined %}class="{{ column.cell_class }}"{% endif %}
-        {% if title_value not in [None, ""] %}title="{{ title_value }}"{% endif %}
-        {% if align_style %}style="{{ align_style }}"{% endif %}
-      >
-        {{ r[key] }}
-        {% if column.meta_key is defined and r[column.meta_key] %}
-        <div class="estimated-meta-note">{{ r[column.meta_key] }}</div>
-        {% endif %}
-      </td>
-      {% endif %}
-      {% endfor %}
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
+{% include "_estimated_results_table.html" %}
 
 {% include "_pagination.html" %}
 

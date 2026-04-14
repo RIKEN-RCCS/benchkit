@@ -1,0 +1,43 @@
+{% set leading_columns = columns | selectattr("section", "equalto", "leading") | list %}
+{% set trailing_columns = columns | selectattr("section", "equalto", "trailing") | list %}
+{% set system_a_columns = columns | selectattr("group", "equalto", "System A") | list %}
+{% set system_b_columns = columns | selectattr("group", "equalto", "System B") | list %}
+<div class="estimated-table-wrap">
+<table id="resultsTable" class="estimated-table" border="1">
+  <thead>
+    <tr>
+      {% for column in leading_columns %}
+      <th rowspan="2">{{ column.label }}</th>
+      {% endfor %}
+      {% if system_a_columns %}
+      <th colspan="{{ system_a_columns|length }}">System A</th>
+      {% endif %}
+      {% if system_b_columns %}
+      <th colspan="{{ system_b_columns|length }}">System B</th>
+      {% endif %}
+      {% for column in trailing_columns %}
+      <th rowspan="2">{{ column.label }}</th>
+      {% endfor %}
+    </tr>
+    <tr>
+      {% for column in system_a_columns %}
+      <th>{{ column.label }}</th>
+      {% endfor %}
+      {% for column in system_b_columns %}
+      <th>{{ column.label }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      {% for column in columns %}
+      {% with row=row, column=column %}
+      {% include "_estimated_results_table_cell.html" %}
+      {% endwith %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
