@@ -1,4 +1,9 @@
-from utils.result_records import format_numeric_value, split_display_timestamp
+from utils.result_records import (
+    build_multiline_title,
+    format_numeric_value,
+    short_identifier,
+    split_display_timestamp,
+)
 
 SCALING_SHORT_NAMES = {
     "instrumented-app-sections-dummy": "instr-app-sec",
@@ -48,7 +53,7 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
         "requested_current_estimation_package": requested_current,
         "requested_future_estimation_package": requested_future,
         "estimate_uuid": estimate_uuid,
-        "estimate_uuid_short": _short_identifier(estimate_uuid),
+        "estimate_uuid_short": short_identifier(estimate_uuid),
         "performance_ratio": result_data.get("performance_ratio", ""),
         "performance_ratio_display": format_numeric_value(result_data.get("performance_ratio", "")),
         "json_link": filename,
@@ -132,7 +137,7 @@ def _format_package_short_name(value):
 
 
 def _build_requested_package_title(requested_package, requested_current, requested_future):
-    return _build_multiline_title(
+    return build_multiline_title(
         requested_package,
         [
             ("current-side", requested_current),
@@ -142,7 +147,7 @@ def _build_requested_package_title(requested_package, requested_current, request
 
 
 def _build_applied_package_title(applied_package, method_class, detail_level, current_package, future_package):
-    return _build_multiline_title(
+    return build_multiline_title(
         applied_package,
         [
             ("class", method_class),
@@ -156,15 +161,3 @@ def _build_applied_package_title(applied_package, method_class, detail_level, cu
 def _build_applied_package_meta_line(method_class, detail_level):
     meta_parts = [part for part in (method_class, detail_level) if part]
     return " / ".join(meta_parts)
-
-
-def _build_multiline_title(base, labeled_values):
-    lines = [base] if base else []
-    for label, value in labeled_values:
-        if value:
-            lines.append(f"{label}: {value}")
-    return "\n".join(lines)
-
-
-def _short_identifier(value, length=8):
-    return value[:length] if value else ""

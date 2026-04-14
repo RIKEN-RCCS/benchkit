@@ -205,3 +205,15 @@ def split_display_timestamp(value):
     if " " not in value:
         return value, ""
     return value.split(" ", 1)
+
+
+def short_identifier(value, length=8):
+    return value[:length] if value else ""
+
+
+def build_multiline_title(base, labeled_values):
+    lines = [base] if base else []
+    for label, value in labeled_values:
+        if value:
+            lines.append(f"{label}: {value}")
+    return "\n".join(lines)
