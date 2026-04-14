@@ -5,7 +5,6 @@ import sys
 import tempfile
 import types
 
-import fakeredis
 import pytest
 from flask import Flask
 
@@ -37,7 +36,13 @@ from routes.estimated import estimated_bp
 from routes.auth import auth_bp
 from routes.admin import admin_bp
 from routes.results import results_bp
-from utils.user_store import UserStore
+
+
+class _StubUserStore:
+    def get_affiliations(self, email):
+        if email == "user@example.com":
+            return ["dev"]
+        return []
 
 
 @pytest.fixture
@@ -60,13 +65,7 @@ def app(tmp_dirs):
     app.config["SECRET_KEY"] = "test-secret"
     app.config["TESTING"] = True
 
-    r_conn = fakeredis.FakeRedis(decode_responses=True)
-    app.config["REDIS_CONN"] = r_conn
-    app.config["REDIS_PREFIX"] = "test:"
-    store = UserStore(r_conn, "test:")
-    app.config["USER_STORE"] = store
-
-    store.create_user("user@example.com", "SECRET", ["dev"])
+    app.config["USER_STORE"] = _StubUserStore()
 
     register_home_routes(app)
     app.register_blueprint(results_bp, url_prefix="/results")

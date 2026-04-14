@@ -9,19 +9,16 @@ from flask import (
 )
 
 from routes.admin import admin_required
-from utils.app_support_matrix import load_app_system_support_matrix
-from utils.node_hours import aggregate_node_hours, get_fiscal_year
+from utils.node_hours import get_fiscal_year
 from utils.result_compare_view import load_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
     load_permitted_result_json,
     serve_permitted_result_file,
 )
-from utils.result_quality_rollup import build_result_quality_rollup
 from utils.result_records import summarize_result_quality
 from utils.results_loader import DEFAULT_PER_PAGE, get_filter_options, load_results_table
 from utils.session_user_context import get_session_user_context
-from utils.site_diagnostics import build_site_diagnostics
 from utils.system_info import get_all_systems_info
 from utils.table_page_utils import (
     build_table_page_context,
@@ -29,7 +26,7 @@ from utils.table_page_utils import (
     render_no_store_template,
 )
 from utils.table_query_params import parse_table_query_params
-from utils.usage_query_params import parse_usage_query_params, select_usage_periods
+from utils.usage_report_view import build_usage_report_context
 
 results_bp = Blueprint("results", __name__)
 
@@ -168,36 +165,12 @@ def result_detail(filename):
 @results_bp.route("/usage", methods=["GET"])
 @admin_required
 def usage_report():
-    current_fy = get_fiscal_year(datetime.now())
-    params = parse_usage_query_params(request.args, current_fy)
-    period_type = params["period_type"]
-    fiscal_year = params["fiscal_year"]
-    period_filter = params["period_filter"]
-
-    result = aggregate_node_hours(current_app.config["RECEIVED_DIR"], fiscal_year, period_type)
-    period_filter, filtered_periods = select_usage_periods(result["periods"], period_filter)
-
-    systems_info = get_all_systems_info()
-    coverage_systems, app_support_rows = load_app_system_support_matrix()
-    coverage_headers = [
-        {"system": system, "name": systems_info.get(system, {}).get("name", system)}
-        for system in coverage_systems
-    ]
-    site_diagnostics = build_site_diagnostics()
-    result_quality_rollup = build_result_quality_rollup(current_app.config["RECEIVED_DIR"])
-
-    return render_template(
-        "usage_report.html",
-        result=result,
-        period_type=period_type,
-        fiscal_year=fiscal_year,
-        period_filter=period_filter,
-        filtered_periods=filtered_periods,
-        coverage_systems=coverage_headers,
-        app_support_rows=app_support_rows,
-        site_diagnostics=site_diagnostics,
-        result_quality_rollup=result_quality_rollup,
+    usage_context = build_usage_report_context(
+        current_app.config["RECEIVED_DIR"],
+        request.args,
+        get_fiscal_year(datetime.now()),
     )
+    return render_template("usage_report.html", **usage_context)
 
 
 @results_bp.route("/<filename>")

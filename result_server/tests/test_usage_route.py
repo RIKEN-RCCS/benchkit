@@ -1,15 +1,12 @@
-"""
-/results/usage ルートと Usage ナビゲーションのテスト
-"""
+"""Route tests for /results/usage and related usage navigation."""
 
 import json
 import os
+import shutil
 import sys
 import tempfile
-import shutil
 import types
 
-import fakeredis
 import pytest
 from flask import Flask
 
@@ -36,12 +33,20 @@ _setup_stubs()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from routes.admin import admin_bp
+from routes.auth import auth_bp
+from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
-from routes.estimated import estimated_bp
-from routes.auth import auth_bp
-from routes.admin import admin_bp
-from utils.user_store import UserStore
+
+
+class _StubUserStore:
+    def get_affiliations(self, email):
+        if email == "admin@example.com":
+            return ["admin"]
+        if email == "user@example.com":
+            return ["dev"]
+        return []
 
 
 @pytest.fixture
@@ -63,16 +68,8 @@ def app(tmp_dirs):
     app.config["ESTIMATED_DIR"] = estimated
     app.config["SECRET_KEY"] = "test-secret"
     app.config["TESTING"] = True
-
-    r_conn = fakeredis.FakeRedis(decode_responses=True)
-    app.config["REDIS_CONN"] = r_conn
-    app.config["REDIS_PREFIX"] = "test:"
-    store = UserStore(r_conn, "test:")
-    app.config["USER_STORE"] = store
+    app.config["USER_STORE"] = _StubUserStore()
     app.config["TOTP_ISSUER"] = "BenchKit-Test"
-
-    store.create_user("admin@example.com", "SECRET", ["admin"])
-    store.create_user("user@example.com", "SECRET", ["dev"])
 
     register_home_routes(app)
 
@@ -183,37 +180,54 @@ class TestUsageRoute:
 
         captured = {}
 
-        def fake_aggregate(directory, fiscal_year, period_type):
+        def fake_build_usage_report_context(directory, args, current_fiscal_year):
             captured["directory"] = directory
-            captured["fiscal_year"] = fiscal_year
-            captured["period_type"] = period_type
+            captured["args"] = args
+            captured["current_fiscal_year"] = current_fiscal_year
             return {
-                "apps": [],
-                "systems": [],
-                "periods": ["FY2025"],
-                "table": {},
-                "row_totals": {},
-                "col_totals": {},
-                "grand_totals": {},
-                "available_fiscal_years": [2025],
+                "result": {
+                    "apps": [],
+                    "systems": [],
+                    "periods": ["FY2025"],
+                    "table": {},
+                    "row_totals": {},
+                    "col_totals": {},
+                    "grand_totals": {},
+                    "available_fiscal_years": [2025],
+                },
+                "period_type": "fiscal_year",
+                "fiscal_year": 2025,
+                "period_filter": "",
+                "filtered_periods": ["FY2025"],
+                "coverage_systems": [],
+                "app_support_rows": [],
+                "site_diagnostics": {
+                    "registered_system_count": 0,
+                    "unused_systems": [],
+                    "missing_system_info": [],
+                    "missing_queue_definitions": [],
+                    "application_count": 0,
+                    "partial_support": [],
+                },
+                "result_quality_rollup": {"rows": []},
             }
 
         import routes.results as results_mod
 
-        monkeypatch.setattr(results_mod, "aggregate_node_hours", fake_aggregate)
+        monkeypatch.setattr(results_mod, "build_usage_report_context", fake_build_usage_report_context)
         monkeypatch.setattr(results_mod, "get_fiscal_year", lambda dt: 2025)
 
         resp = client.get("/results/usage")
         assert resp.status_code == 200
         assert captured["directory"] == app.config["RECEIVED_DIR"]
-        assert captured["fiscal_year"] == 2025
-        assert captured["period_type"] == "fiscal_year"
+        assert captured["current_fiscal_year"] == 2025
+        assert captured["args"].get("period_type") is None
 
     def test_usage_page_shows_no_data_message(self, client):
         _login_session(client, "admin@example.com", ["admin"])
         resp = client.get("/results/usage")
         assert resp.status_code == 200
-        assert "該当期間のデータがありません" in resp.get_data(as_text=True)
+        assert "No usage data is available for the selected periods." in resp.get_data(as_text=True)
 
     def test_admin_navigation_shows_usage_link(self, client, tmp_dirs):
         received, _ = tmp_dirs

@@ -286,7 +286,7 @@ def test_usage_report_template_renders_search_box():
             result_quality_rollup={"rows": []},
         )
 
-    assert "Filter application/system coverage and current-state tables" in html
+    assert "Filter coverage and current-state tables" in html
     assert "applyUsageSearch" in html
 
 
