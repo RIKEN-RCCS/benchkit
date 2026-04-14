@@ -1,24 +1,25 @@
-from flask import current_app, render_template, request
+from flask import current_app, request
 
-from utils.results_loader import DEFAULT_PER_PAGE, get_filter_options, load_results_table
+from utils.results_loader import RESULT_FIELD_MAP, load_results_table
 from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
+from utils.table_filters import get_filter_options
+from utils.table_pagination import DEFAULT_PER_PAGE
 from utils.table_page_utils import (
-    build_auth_required_table_page_context,
     build_table_page_context_from_params,
-    build_table_page_redirect_from_params,
-    render_no_store_template,
+    render_auth_required_table_page,
+    render_table_page_response,
 )
 from utils.table_query_params import parse_table_query_params
 
 
 def _render_confidential_auth_required():
-    auth_required_context = build_auth_required_table_page_context(
+    return render_auth_required_table_page(
+        "results_confidential.html",
         per_page=DEFAULT_PER_PAGE,
         systems_info=get_all_systems_info(),
         authenticated=False,
     )
-    return render_no_store_template("results_confidential.html", **auth_required_context)
 
 
 def _render_results_list(public_only, template_name, redirect_endpoint):
@@ -56,14 +57,12 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
 
     rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
 
-    if params["page"] != pagination_info["page"]:
-        return build_table_page_redirect_from_params(
-            redirect_endpoint,
-            pagination_info["page"],
-            params,
-        )
-
-    filter_options = get_filter_options(received_dir, filter_code=params["filter_code"], **filter_kwargs)
+    filter_options = get_filter_options(
+        received_dir,
+        field_map=RESULT_FIELD_MAP,
+        filter_code=params["filter_code"],
+        **filter_kwargs,
+    )
     render_context = build_table_page_context_from_params(
         rows=rows,
         columns=columns,
@@ -73,9 +72,13 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         systems_info=get_all_systems_info(),
         **template_extra,
     )
-    if not public_only:
-        return render_no_store_template(template_name, **render_context)
-    return render_template(template_name, **render_context)
+    return render_table_page_response(
+        template_name,
+        page_context=render_context,
+        no_store=not public_only,
+        redirect_endpoint=redirect_endpoint,
+        params=params,
+    )
 
 
 def register_results_list_routes(results_bp):

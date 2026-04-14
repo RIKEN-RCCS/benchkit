@@ -1,33 +1,28 @@
 from flask import current_app, request
 
 from utils.results_loader import (
-    DEFAULT_PER_PAGE,
     ESTIMATED_FIELD_MAP,
-    get_filter_options,
     load_estimated_results_table,
 )
 from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
+from utils.table_filters import get_filter_options
+from utils.table_pagination import DEFAULT_PER_PAGE
 from utils.table_page_utils import (
-    build_auth_required_table_page_context,
     build_table_page_context_from_params,
-    build_table_page_redirect_from_params,
-    render_no_store_template,
+    render_auth_required_table_page,
+    render_table_page_response,
 )
 from utils.table_query_params import parse_table_query_params
 
 
-def _render_estimated_results_page(**context):
-    return render_no_store_template("estimated_results.html", **context)
-
-
 def _render_estimated_auth_required():
-    auth_required_context = build_auth_required_table_page_context(
+    return render_auth_required_table_page(
+        "estimated_results.html",
         per_page=DEFAULT_PER_PAGE,
         authenticated=False,
         systems_info=get_all_systems_info(),
     )
-    return _render_estimated_results_page(**auth_required_context)
 
 
 def _build_estimated_results_context(
@@ -99,12 +94,10 @@ def register_estimated_list_routes(estimated_bp):
             filter_exp=params["filter_exp"],
         )
 
-        pagination_info = page_context["pagination"]
-        if params["page"] != pagination_info["page"]:
-            return build_table_page_redirect_from_params(
-                "estimated.estimated_results",
-                pagination_info["page"],
-                params,
-            )
-
-        return _render_estimated_results_page(**page_context)
+        return render_table_page_response(
+            "estimated_results.html",
+            page_context=page_context,
+            no_store=True,
+            redirect_endpoint="estimated.estimated_results",
+            params=params,
+        )

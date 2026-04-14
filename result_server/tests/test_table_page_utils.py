@@ -13,22 +13,13 @@ from utils.table_page_utils import (
     build_table_page_context_from_params,
     build_table_page_redirect,
     build_table_page_redirect_from_params,
+    render_auth_required_table_page,
     render_no_store_template,
+    render_table_page_response,
 )
 
 
-def test_build_filtered_redirect_args_omits_missing_filters():
-    args = build_filtered_redirect_args(2, 50, "Fugaku", None, "CASE0")
-
-    assert args == {
-        "page": 2,
-        "per_page": 50,
-        "system": "Fugaku",
-        "exp": "CASE0",
-    }
-
-
-def test_render_no_store_template_sets_cache_headers():
+def _build_template_test_app():
     app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"))
     app.config["SECRET_KEY"] = "test-secret"
 
@@ -73,6 +64,23 @@ def test_render_no_store_template_sets_cache_headers():
     app.register_blueprint(estimated_bp, url_prefix="/estimated")
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
+
+    return app
+
+
+def test_build_filtered_redirect_args_omits_missing_filters():
+    args = build_filtered_redirect_args(2, 50, "Fugaku", None, "CASE0")
+
+    assert args == {
+        "page": 2,
+        "per_page": 50,
+        "system": "Fugaku",
+        "exp": "CASE0",
+    }
+
+
+def test_render_no_store_template_sets_cache_headers():
+    app = _build_template_test_app()
 
     with app.test_request_context("/estimated"):
         response = render_no_store_template("estimated_results.html", authenticated=False, rows=[], columns=[], systems_info={}, pagination={"page": 1, "per_page": 100, "total": 0, "total_pages": 1}, filter_options={"systems": [], "codes": [], "exps": []}, current_system=None, current_code=None, current_exp=None, current_per_page=100)
@@ -132,6 +140,21 @@ def test_build_auth_required_table_page_context_builds_empty_page():
     assert context["authenticated"] is False
 
 
+def test_render_auth_required_table_page_renders_no_store_response():
+    app = _build_template_test_app()
+
+    with app.test_request_context("/estimated"):
+        response = render_auth_required_table_page(
+            "estimated_results.html",
+            per_page=100,
+            systems_info={},
+            authenticated=False,
+        )
+
+    assert response.status_code == 200
+    assert "no-store" in response.headers["Cache-Control"]
+
+
 def test_build_table_page_redirect_uses_filtered_args():
     app = Flask(__name__)
 
@@ -170,3 +193,35 @@ def test_build_table_page_redirect_from_params_uses_param_map():
 
     assert response.status_code == 302
     assert response.location.endswith("/results/?page=4&per_page=10&system=Fugaku&exp=CASE0")
+
+
+def test_render_table_page_response_redirects_when_page_changes():
+    app = Flask(__name__)
+
+    results_bp = Blueprint("results", __name__)
+
+    @results_bp.route("/")
+    def results():
+        return ""
+
+    app.register_blueprint(results_bp, url_prefix="/results")
+
+    with app.test_request_context("/results"):
+        response = render_table_page_response(
+            "results.html",
+            page_context={
+                "rows": [],
+                "columns": [],
+                "pagination": {"page": 2, "per_page": 50, "total": 10, "total_pages": 1},
+                "filter_options": {"systems": [], "codes": [], "exps": []},
+                "current_system": None,
+                "current_code": None,
+                "current_exp": None,
+                "current_per_page": 50,
+            },
+            redirect_endpoint="results.results",
+            params={"page": 1, "per_page": 50, "filter_system": None, "filter_code": None, "filter_exp": None},
+        )
+
+    assert response.status_code == 302
+    assert response.location.endswith("/results/?page=2&per_page=50")

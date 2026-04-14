@@ -18,7 +18,8 @@ install_portal_test_stubs()
 
 from flask import Flask
 from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
-from utils.results_loader import load_results_table, get_filter_options
+from utils.results_loader import load_results_table
+from utils.table_filters import get_filter_options
 
 
 @pytest.fixture

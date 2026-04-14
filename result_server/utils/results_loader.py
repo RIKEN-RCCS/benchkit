@@ -1,5 +1,4 @@
 import os
-from math import ceil
 
 from utils.result_file import get_file_confidential_tags
 from utils.estimated_table_rows import build_estimated_table_columns, build_estimated_table_row
@@ -10,10 +9,8 @@ from utils.result_records import (
     load_visible_result_json,
 )
 from utils.result_table_rows import build_result_table_row
-
-
-ALLOWED_PER_PAGE = (50, 100, 200)
-DEFAULT_PER_PAGE = 100
+from utils.table_filters import filters_are_active, matches_table_filters
+from utils.table_pagination import DEFAULT_PER_PAGE, normalize_per_page, paginate_list
 
 RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
 ESTIMATED_FIELD_MAP = {"system": "current_system.system", "code": "code", "exp": "exp"}
@@ -48,8 +45,7 @@ def load_results_table(
     filter_exp=None,
     padata_directory=None,
 ):
-    if per_page not in ALLOWED_PER_PAGE:
-        per_page = DEFAULT_PER_PAGE
+    per_page = normalize_per_page(per_page)
 
     affiliations = affiliations if affiliations is not None else []
     files = os.listdir(directory)
@@ -59,9 +55,9 @@ def load_results_table(
 
     columns = RESULT_TABLE_COLUMNS
 
-    filters_are_active = _filters_are_active(filter_system, filter_code, filter_exp)
+    has_filters = filters_are_active(filter_system, filter_code, filter_exp)
 
-    if not filters_are_active:
+    if not has_filters:
         visible_filenames = [
             filename
             for filename in json_filenames
@@ -95,7 +91,13 @@ def load_results_table(
         )
         if result_data is None:
             continue
-        if not _matches_table_filters(result_data, filter_system, filter_code, filter_exp, field_map=RESULT_FIELD_MAP):
+        if not matches_table_filters(
+            result_data,
+            filter_system,
+            filter_code,
+            filter_exp,
+            field_map=RESULT_FIELD_MAP,
+        ):
             continue
         rows.append(build_result_table_row(filename, result_data, padata_filenames))
 
@@ -115,13 +117,12 @@ def load_estimated_results_table(
     filter_code=None,
     filter_exp=None,
 ):
-    if per_page not in ALLOWED_PER_PAGE:
-        per_page = DEFAULT_PER_PAGE
+    per_page = normalize_per_page(per_page)
 
     affiliations = affiliations if affiliations is not None else []
     files = os.listdir(directory)
     json_filenames = sorted([filename for filename in files if filename.endswith(".json")], reverse=True)
-    filters_are_active = _filters_are_active(filter_system, filter_code, filter_exp)
+    has_filters = filters_are_active(filter_system, filter_code, filter_exp)
 
     rows = []
     for filename in json_filenames:
@@ -135,7 +136,7 @@ def load_estimated_results_table(
         if result_data is None:
             continue
 
-        if filters_are_active and not _matches_table_filters(
+        if has_filters and not matches_table_filters(
             result_data,
             filter_system,
             filter_code,
@@ -160,81 +161,6 @@ def load_estimated_results_table(
     paginated_rows, pagination_info = paginate_list(rows, page, per_page)
     return paginated_rows, columns, pagination_info
 
-
-def get_filter_options(
-    directory,
-    public_only=True,
-    authenticated=False,
-    affiliations=None,
-    field_map=None,
-    filter_code=None,
-):
-    if field_map is None:
-        field_map = RESULT_FIELD_MAP
-
-    affiliations = affiliations if affiliations is not None else []
-    systems = set()
-    codes = set()
-    experiments = set()
-
-    try:
-        files = os.listdir(directory)
-    except OSError:
-        return {"systems": [], "codes": [], "exps": []}
-
-    for filename in [name for name in files if name.endswith(".json")]:
-        result_data = load_visible_result_json(
-            filename,
-            directory,
-            affiliations,
-            public_only,
-            authenticated,
-        )
-        if result_data is None:
-            continue
-
-        system = _get_nested_field(result_data, field_map["system"])
-        if system and system != "N/A":
-            systems.add(system)
-
-        code = _get_nested_field(result_data, field_map["code"])
-        if code and code != "N/A":
-            codes.add(code)
-
-        exp = _get_nested_field(result_data, field_map["exp"])
-        if exp and exp != "N/A":
-            if not filter_code or _get_nested_field(result_data, field_map["code"]) == filter_code:
-                experiments.add(exp)
-
-    return {
-        "systems": sorted(systems),
-        "codes": sorted(codes),
-        "exps": sorted(experiments),
-    }
-
-
-def paginate_list(items, page, per_page):
-    total = len(items)
-    total_pages = max(1, ceil(total / per_page)) if total > 0 else 1
-
-    if page < 1:
-        page = 1
-    elif page > total_pages:
-        page = total_pages
-
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_items = items[start:end]
-
-    pagination_info = {
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "total_pages": total_pages,
-    }
-    return paginated_items, pagination_info
-
-
 def _is_result_filename_visible(filename, directory, affiliations, public_only, authenticated):
     tags = get_file_confidential_tags(filename, directory)
     if public_only and tags:
@@ -244,32 +170,4 @@ def _is_result_filename_visible(filename, directory, affiliations, public_only, 
     if tags and "admin" not in affiliations:
         if not affiliations or not (set(tags) & set(affiliations)):
             return False
-    return True
-
-
-def _filters_are_active(filter_system, filter_code, filter_exp):
-    return any(value is not None for value in (filter_system, filter_code, filter_exp))
-
-
-def _get_nested_field(data, field_path):
-    keys = field_path.split(".")
-    value = data
-    for key in keys:
-        if isinstance(value, dict):
-            value = value.get(key)
-        else:
-            return None
-    return value
-
-
-def _matches_table_filters(data, filter_system, filter_code, filter_exp, field_map=None):
-    if field_map is None:
-        field_map = RESULT_FIELD_MAP
-
-    if filter_system is not None and _get_nested_field(data, field_map["system"]) != filter_system:
-        return False
-    if filter_code is not None and _get_nested_field(data, field_map["code"]) != filter_code:
-        return False
-    if filter_exp is not None and _get_nested_field(data, field_map["exp"]) != filter_exp:
-        return False
     return True

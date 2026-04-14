@@ -87,6 +87,15 @@ def build_auth_required_table_page_context(*, per_page, systems_info=None, **ext
     )
 
 
+def render_auth_required_table_page(template_name, *, per_page, systems_info=None, **extra_context):
+    context = build_auth_required_table_page_context(
+        per_page=per_page,
+        systems_info=systems_info,
+        **extra_context,
+    )
+    return render_no_store_template(template_name, **context)
+
+
 def build_table_page_redirect(endpoint, page, per_page, filter_system, filter_code, filter_exp):
     redirect_args = build_filtered_redirect_args(page, per_page, filter_system, filter_code, filter_exp)
     return redirect(url_for(endpoint, **redirect_args))
@@ -101,3 +110,25 @@ def build_table_page_redirect_from_params(endpoint, page, params):
         params["filter_code"],
         params["filter_exp"],
     )
+
+
+def render_table_page_response(
+    template_name,
+    *,
+    page_context,
+    no_store=False,
+    redirect_endpoint=None,
+    params=None,
+):
+    if redirect_endpoint is not None and params is not None:
+        pagination = page_context["pagination"]
+        if params["page"] != pagination["page"]:
+            return build_table_page_redirect_from_params(
+                redirect_endpoint,
+                pagination["page"],
+                params,
+            )
+
+    if no_store:
+        return render_no_store_template(template_name, **page_context)
+    return render_template(template_name, **page_context)

@@ -17,9 +17,11 @@ install_portal_test_stubs(include_redis=False)
 
 from flask import Flask
 from routes.home import register_home_routes
+from utils.table_filters import get_filter_options
+from utils.table_pagination import paginate_list
 from utils.results_loader import (
-    paginate_list, load_results_table, load_estimated_results_table,
-    get_filter_options, ESTIMATED_FIELD_MAP,
+    load_results_table, load_estimated_results_table,
+    ESTIMATED_FIELD_MAP,
 )
 
 
