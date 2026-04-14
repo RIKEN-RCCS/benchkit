@@ -82,10 +82,10 @@ FULL_QUALITY = {
 }
 
 
-def _render_result_detail(result, quality, filename="test.json"):
+def _render_result_detail(result, quality):
     from flask import render_template
 
-    detail_context = build_result_detail_context(result, quality, filename)
+    detail_context = build_result_detail_context(result, quality)
     return render_template("result_detail.html", result=result, quality=quality, **detail_context)
 
 

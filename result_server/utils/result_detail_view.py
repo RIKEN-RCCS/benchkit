@@ -1,15 +1,13 @@
 from utils.result_records import format_numeric_value
 
 
-def build_result_detail_context(result, quality, filename):
+def build_result_detail_context(result, quality):
     profile_data = result.get("profile_data") or {}
     build_data = result.get("build") or {}
     vector_metrics = (result.get("metrics") or {}).get("vector")
     scalar_metrics = (result.get("metrics") or {}).get("scalar") or {}
 
     return {
-        "filename": filename,
-        "title_exp": result.get("Exp", "Unknown"),
         "meta_rows": _build_meta_rows(result),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": _build_quality_rows(quality),
