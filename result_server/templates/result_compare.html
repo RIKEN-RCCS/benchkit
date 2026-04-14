@@ -9,6 +9,12 @@
         .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
         .back-link { margin-bottom: 15px; display: inline-block; }
         .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
+        .compare-note {
+            margin: 0 0 16px;
+            color: #52606d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
@@ -25,17 +31,10 @@
     Warning: Selected results have different system/code combinations. Comparison may not be meaningful.
 </p>
 {% endif %}
-<p>{{ results[0]['data'].get('system', '') }} / {{ results[0]['data'].get('code', '') }} — Comparing {{ results | length }} results</p>
 
-<!-- ベクトル型メトリクス重ね合わせグラフ -->
-{% set has_any_vector = [] %}
-{% for r in results %}
-  {% if r['data'].get('metrics', {}).get('vector') %}
-    {% if has_any_vector.append(1) %}{% endif %}
-  {% endif %}
-{% endfor %}
+<p class="compare-note">{{ headline }}</p>
 
-{% if has_any_vector %}
+{% if has_vector_metrics %}
 <div class="section">
     <h2>Vector Metrics - Overlay Graph</h2>
     <div class="chart-container">
@@ -44,7 +43,6 @@
 </div>
 {% endif %}
 
-<!-- FOM時系列グラフ -->
 <div class="section">
     <h2>FOM Timeline</h2>
     <div class="chart-container">
@@ -81,7 +79,10 @@ if (vectorCanvas) {
                 data: rows.map(function(row) { return {x: row[0], y: row[i]}; }),
                 borderColor: color,
                 backgroundColor: color.replace('1)', '0.1)'),
-                showLine: true, fill: false, tension: 0.1, pointRadius: 2
+                showLine: true,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 2
             });
             colorIdx++;
         }
@@ -114,7 +115,9 @@ if (fomCanvas) {
                 data: fomValues,
                 borderColor: 'rgba(54, 162, 235, 1)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                fill: true, tension: 0.1, pointRadius: 5
+                fill: true,
+                tension: 0.1,
+                pointRadius: 5
             }]
         },
         options: {

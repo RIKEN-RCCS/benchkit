@@ -14,6 +14,7 @@ from flask import (
 from routes.admin import admin_required
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.node_hours import aggregate_node_hours, get_fiscal_year
+from utils.result_compare_view import build_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import check_file_permission, load_result_file
 from utils.result_quality_rollup import build_result_quality_rollup
@@ -156,7 +157,8 @@ def result_compare():
                 mixed = True
                 break
 
-    return render_template("result_compare.html", results=results, mixed=mixed)
+    compare_context = build_result_compare_context(results)
+    return render_template("result_compare.html", mixed=mixed, **compare_context)
 
 
 @results_bp.route("/detail/<filename>")

@@ -288,3 +288,31 @@ def test_usage_report_template_renders_search_box():
 
     assert "Filter application/system coverage and current-state tables" in html
     assert "applyUsageSearch" in html
+
+
+def test_result_compare_template_renders_headline():
+    app = _make_app()
+    with app.test_request_context("/results/compare"):
+        from flask import render_template
+
+        html = render_template(
+            "result_compare.html",
+            results=[
+                {
+                    "filename": "result0.json",
+                    "timestamp": "2026-04-13 12:00:00",
+                    "data": {"system": "Fugaku", "code": "qws", "FOM": 1.2},
+                },
+                {
+                    "filename": "result1.json",
+                    "timestamp": "2026-04-13 13:00:00",
+                    "data": {"system": "Fugaku", "code": "qws", "FOM": 1.1},
+                },
+            ],
+            mixed=False,
+            headline="Fugaku / qws - Comparing 2 results",
+            has_vector_metrics=False,
+        )
+
+    assert "Fugaku / qws - Comparing 2 results" in html
+    assert "FOM Timeline" in html
