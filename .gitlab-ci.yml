@@ -8,7 +8,7 @@
 #
 # Files that automatically skip CI:
 # - README.md, ADD_APP.md (documentation)
-# - result_server/templates/*.html (web templates)
+# - result_server/**/* (portal/server code and templates)
 # - .kiro/**/* (Kiro configuration)
 # - .vscode/**/* (VSCode settings)
 #
@@ -96,7 +96,7 @@ generate_matrix:
       when: always
     - changes:
         - "*.md"
-        - "result_server/templates/*.html"
+        - "result_server/**/*"
         - ".kiro/**/*"
         - ".vscode/**/*"
       when: never
@@ -133,7 +133,7 @@ trigger_child_pipeline:
       when: always
     - changes:
         - "*.md"
-        - "result_server/templates/*.html"
+        - "result_server/**/*"
         - ".kiro/**/*"
         - ".vscode/**/*"
       when: never
