@@ -60,12 +60,15 @@ def load_results_table(
         visible_filenames = [
             filename
             for filename in json_filenames
-            if _is_result_filename_visible(
-                filename,
-                directory,
-                affiliations,
-                public_only,
-                authenticated,
+            for tags in [get_file_confidential_tags(filename, directory)]
+            if (
+                (not public_only or not tags)
+                and (not tags or authenticated)
+                and (
+                    not tags
+                    or "admin" in affiliations
+                    or (affiliations and (set(tags) & set(affiliations)))
+                )
             )
         ]
 
@@ -158,14 +161,3 @@ def load_estimated_results_table(
 
     paginated_rows, pagination_info = paginate_list(rows, page, per_page)
     return paginated_rows, columns, pagination_info
-
-def _is_result_filename_visible(filename, directory, affiliations, public_only, authenticated):
-    tags = get_file_confidential_tags(filename, directory)
-    if public_only and tags:
-        return False
-    if tags and not authenticated:
-        return False
-    if tags and "admin" not in affiliations:
-        if not affiliations or not (set(tags) & set(affiliations)):
-            return False
-    return True

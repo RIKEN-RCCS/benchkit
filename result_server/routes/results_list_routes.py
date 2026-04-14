@@ -13,20 +13,12 @@ from utils.table_page_utils import (
 from utils.table_query_params import parse_table_query_params
 
 
-def _render_confidential_auth_required():
-    return render_auth_required_table_page(
-        "results_confidential.html",
-        per_page=DEFAULT_PER_PAGE,
-        systems_info=get_all_systems_info(),
-        authenticated=False,
-    )
-
-
 def _render_results_list(public_only, template_name, redirect_endpoint):
     params = parse_table_query_params(request.args)
 
     received_dir = current_app.config["RECEIVED_DIR"]
     received_padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", received_dir)
+    systems_info = get_all_systems_info()
 
     load_kwargs = dict(
         public_only=public_only,
@@ -43,7 +35,12 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     if not public_only:
         user_context = get_session_user_context()
         if not user_context["authenticated"]:
-            return _render_confidential_auth_required()
+            return render_auth_required_table_page(
+                "results_confidential.html",
+                per_page=DEFAULT_PER_PAGE,
+                systems_info=systems_info,
+                authenticated=False,
+            )
         load_kwargs.update(
             authenticated=user_context["authenticated"],
             affiliations=user_context["affiliations"],
@@ -68,7 +65,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         pagination=pagination_info,
         filter_options=filter_options,
         params=params,
-        systems_info=get_all_systems_info(),
+        systems_info=systems_info,
         **template_extra,
     )
     return render_table_page_response(
