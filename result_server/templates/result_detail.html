@@ -121,7 +121,7 @@
             <div class="chart-fallback">JavaScript is required to display the graph.</div>
         </noscript>
     </div>
-    <div id="chartFallback" class="chart-fallback" style="display: none;">
+    <div id="chartFallback" class="chart-fallback" hidden>
         Failed to load chart library. Please refer to the data table below.
     </div>
 </div>
@@ -181,13 +181,13 @@
 {% endif %}
 
 {% if vector_metrics %}
-<div id="vectorData" style="display:none;" data-vector='{{ vector_metrics | tojson }}'></div>
+<div id="vectorData" class="hidden-config" data-vector='{{ vector_metrics | tojson }}'></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
-        onerror="document.getElementById('chartFallback').style.display = 'block'; document.getElementById('vectorChart').style.display = 'none';"></script>
+        onerror="document.getElementById('chartFallback').hidden = false; document.getElementById('vectorChart').style.display = 'none';"></script>
 <script>
 (function() {
     if (typeof Chart === 'undefined') {
-        document.getElementById('chartFallback').style.display = 'block';
+        document.getElementById('chartFallback').hidden = false;
         document.getElementById('vectorChart').style.display = 'none';
         return;
     }

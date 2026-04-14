@@ -18,135 +18,6 @@
     line-height: 1.55;
     font-size: 14px;
 }
-</style>
-
-<p class="results-table-note">Filter first, check the profiler and PA summary when available, and then select visible rows if you want to open compare.</p>
-
-<div class="results-table-wrap">
-<table id="resultsTable" class="results-table">
-    <thead>
-    <!-- Row 1: Column names -->
-    <tr>
-        {% for column in columns %}
-           <th>
-             {% if column.tooltip %}
-               <span class="tooltip{% if column.tooltip_class %} {{ column.tooltip_class }}{% endif %}">{{ column.label }}
-                 <span class="tooltiptext">{{ column.tooltip }}</span>
-               </span>
-             {% else %}
-               {{ column.label }}
-             {% endif %}
-           </th>
-           {% if column.label == "FOM" %}
-           <th style="text-align: center; vertical-align: middle;">
-               <span class="tooltip">
-                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
-                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
-               </span>
-               <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
-           </th>
-           {% endif %}
-        {% endfor %}
-        <th>
-            <span class="tooltip tooltip-right">Detail
-                <span class="tooltiptext">Link to detail page</span>
-            </span>
-        </th>
-    </tr>
-    <!-- Row 2: Filters and compare controls -->
-    <tr style="background-color: #f9f9f9;">
-        {% for column in columns %}
-              {% if column.label == "SYSTEM" %}
-              <th style="padding: 4px;">
-                  <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.systems %}
-                          <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% elif column.label == "CODE" %}
-              <th style="padding: 4px;">
-                  <select id="filterCode" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.codes %}
-                          <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% elif column.label == "Exp" %}
-              <th style="padding: 4px;">
-                  <select id="filterExp" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.exps %}
-                          <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% else %}
-              <th></th>
-              {% endif %}
-           {% if column.label == "FOM" %}
-           <th style="text-align: center; padding: 4px;">
-               <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
-               <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
-           </th>
-           {% endif %}
-        {% endfor %}
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for row in rows %}
-        <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
-            {% for column in columns %}
-                {% set key = column.key %}
-                {% if key == "json_link" %}
-                    <td>
-                        {% if row.json_link %}
-                            <a href="{{ row.json_link }}">json</a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                {% elif key == "system" %}
-                    {% include "_results_table_cell_system.html" %}
-                {% elif key in ["nodes", "numproc_node", "nthreads"] %}
-                    <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
-                {% elif key == "profile_summary" %}
-                    {% include "_results_table_cell_profile.html" %}
-                {% elif key == "ci_summary" %}
-                    {% include "_results_table_cell_ci.html" %}
-                {% elif key == "timestamp" %}
-                    {% set ts_parts = row[key].split(' ') %}
-                    <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
-                {% elif key == "code" %}
-                    {% include "_results_table_cell_code.html" %}
-                {% elif key in ["fom_version", "exp", "source_hash"] %}
-                    <td title="{{ row[key] }}">{{ row[key] }}</td>
-                {% elif key == "fom" %}
-                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
-                {% endif %}
-                {% if key == "fom" %}
-                <td style="text-align: center;">
-                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
-                </td>
-                {% endif %}
-            {% endfor %}
-            <td>
-                {% if row.detail_link %}
-                    <a href="{{ row.detail_link }}">Detail</a>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
-</div>
-
-<style>
 .code-cell {
     white-space: normal;
     max-width: 220px;
@@ -217,12 +88,136 @@
 }
 </style>
 
+<p class="results-table-note">Filter first, check the profiler and PA summary when available, and then select visible rows if you want to open compare.</p>
+
+<div class="results-table-wrap">
+<table id="resultsTable" class="results-table">
+    <thead>
+    <tr>
+        {% for column in columns %}
+           <th>
+             {% if column.tooltip %}
+               <span class="tooltip{% if column.tooltip_class %} {{ column.tooltip_class }}{% endif %}">{{ column.label }}
+                 <span class="tooltiptext">{{ column.tooltip }}</span>
+               </span>
+             {% else %}
+               {{ column.label }}
+             {% endif %}
+           </th>
+           {% if column.label == "FOM" %}
+           <th class="table-control-cell">
+               <span class="tooltip">
+                   <button id="compareBtn" class="tiny-button" disabled onclick="navigateToCompare()">Compare</button>
+                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
+               </span>
+               <span id="compareHint" class="tiny-hint"></span>
+           </th>
+           {% endif %}
+        {% endfor %}
+        <th>
+            <span class="tooltip tooltip-right">Detail
+                <span class="tooltiptext">Link to detail page</span>
+            </span>
+        </th>
+    </tr>
+    <tr class="table-filter-row">
+        {% for column in columns %}
+              {% if column.label == "SYSTEM" %}
+              <th class="table-filter-cell">
+                  <select id="filterSystem" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.systems %}
+                          <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif column.label == "CODE" %}
+              <th class="table-filter-cell">
+                  <select id="filterCode" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.codes %}
+                          <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif column.label == "Exp" %}
+              <th class="table-filter-cell">
+                  <select id="filterExp" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.exps %}
+                          <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% else %}
+              <th></th>
+              {% endif %}
+           {% if column.label == "FOM" %}
+           <th class="table-control-cell table-filter-cell">
+               <button id="selectAllVisibleBtn" class="tiny-button" onclick="selectAllVisible()">All</button>
+               <button id="deselectAllBtn" class="tiny-button" onclick="deselectAll()">Clear</button>
+           </th>
+           {% endif %}
+        {% endfor %}
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
+            {% for column in columns %}
+                {% set key = column.key %}
+                {% if key == "json_link" %}
+                    <td>
+                        {% if row.json_link %}
+                            <a href="{{ row.json_link }}">json</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                {% elif key == "system" %}
+                    {% include "_results_table_cell_system.html" %}
+                {% elif key in ["nodes", "numproc_node", "nthreads"] %}
+                    <td{% if row[key] == "N/A" %} class="na-warning"{% endif %}>{{ row[key] }}</td>
+                {% elif key == "profile_summary" %}
+                    {% include "_results_table_cell_profile.html" %}
+                {% elif key == "ci_summary" %}
+                    {% include "_results_table_cell_ci.html" %}
+                {% elif key == "timestamp" %}
+                    {% set ts_parts = row[key].split(' ') %}
+                    <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
+                {% elif key == "code" %}
+                    {% include "_results_table_cell_code.html" %}
+                {% elif key in ["fom_version", "exp", "source_hash"] %}
+                    <td title="{{ row[key] }}">{{ row[key] }}</td>
+                {% elif key == "fom" %}
+                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
+                {% endif %}
+                {% if key == "fom" %}
+                <td class="center-cell">
+                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
+                </td>
+                {% endif %}
+            {% endfor %}
+            <td>
+                {% if row.detail_link %}
+                    <a href="{{ row.detail_link }}">Detail</a>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
 {% include "_pagination.html" %}
 
 <div id="resultsConfig"
      data-per-page="{{ current_per_page }}"
      data-compare-url="{{ url_for('results.result_compare') }}"
-     style="display:none;"></div>
+     class="hidden-config"></div>
 <script>
 (function() {
     var config = document.getElementById('resultsConfig');
