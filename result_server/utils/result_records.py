@@ -217,3 +217,9 @@ def build_multiline_title(base, labeled_values):
         if value:
             lines.append(f"{label}: {value}")
     return "\n".join(lines)
+
+
+def build_compare_headline(system, code, count):
+    if not system and not code:
+        return f"Comparing {count} results"
+    return f"{system or '-'} / {code or '-'} - Comparing {count} results"

@@ -1,28 +1,21 @@
 from utils.result_file import check_file_permission
-from utils.result_records import load_result_json_batch
+from utils.result_records import build_compare_headline, load_result_json_batch
 
 
 def build_result_compare_context(results):
-    has_vector_metrics = any(
-        (row.get("data") or {}).get("metrics", {}).get("vector")
-        for row in results
-    )
-
-    mixed = False
-    if results:
-        first = results[0].get("data", {})
-        first_system = first.get("system")
-        first_code = first.get("code")
-        mixed = any(
-            (row.get("data") or {}).get("system") != first_system
-            or (row.get("data") or {}).get("code") != first_code
-            for row in results[1:]
-        )
+    rows = [row.get("data") or {} for row in results]
+    has_vector_metrics = any(row.get("metrics", {}).get("vector") for row in rows)
 
     headline = ""
-    if results:
-        first = results[0].get("data", {})
-        headline = f"{first.get('system', '')} / {first.get('code', '')} - Comparing {len(results)} results"
+    mixed = False
+    if rows:
+        first_system = rows[0].get("system")
+        first_code = rows[0].get("code")
+        mixed = any(
+            row.get("system") != first_system or row.get("code") != first_code
+            for row in rows[1:]
+        )
+        headline = build_compare_headline(first_system, first_code, len(results))
 
     return {
         "results": results,
