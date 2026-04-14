@@ -24,53 +24,6 @@ def _render_estimated_auth_required():
         systems_info=get_all_systems_info(),
     )
 
-
-def _build_estimated_results_context(
-    estimated_dir,
-    authenticated,
-    affiliations,
-    page,
-    per_page,
-    filter_system,
-    filter_code,
-    filter_exp,
-):
-    rows, columns, pagination_info = load_estimated_results_table(
-        estimated_dir,
-        public_only=(not authenticated),
-        authenticated=authenticated,
-        affiliations=affiliations,
-        page=page,
-        per_page=per_page,
-        filter_system=filter_system,
-        filter_code=filter_code,
-        filter_exp=filter_exp,
-    )
-
-    filter_options = get_filter_options(
-        estimated_dir,
-        public_only=(not authenticated),
-        authenticated=authenticated,
-        affiliations=affiliations,
-        field_map=ESTIMATED_FIELD_MAP,
-    )
-
-    return build_table_page_context_from_params(
-        rows=rows,
-        columns=columns,
-        pagination=pagination_info,
-        filter_options=filter_options,
-        params={
-            "filter_system": filter_system,
-            "filter_code": filter_code,
-            "filter_exp": filter_exp,
-            "per_page": per_page,
-        },
-        authenticated=authenticated,
-        systems_info=get_all_systems_info(),
-    )
-
-
 def register_estimated_list_routes(estimated_bp):
     @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
     def estimated_results():
@@ -80,15 +33,32 @@ def register_estimated_list_routes(estimated_bp):
 
         params = parse_table_query_params(request.args)
         estimated_dir = current_app.config["ESTIMATED_DIR"]
-        page_context = _build_estimated_results_context(
-            estimated_dir=estimated_dir,
-            authenticated=user_context["authenticated"],
+        rows, columns, pagination_info = load_estimated_results_table(
+            estimated_dir,
+            public_only=False,
+            authenticated=True,
             affiliations=user_context["affiliations"],
             page=params["page"],
             per_page=params["per_page"],
             filter_system=params["filter_system"],
             filter_code=params["filter_code"],
             filter_exp=params["filter_exp"],
+        )
+        filter_options = get_filter_options(
+            estimated_dir,
+            public_only=False,
+            authenticated=True,
+            affiliations=user_context["affiliations"],
+            field_map=ESTIMATED_FIELD_MAP,
+        )
+        page_context = build_table_page_context_from_params(
+            rows=rows,
+            columns=columns,
+            pagination=pagination_info,
+            filter_options=filter_options,
+            params=params,
+            authenticated=True,
+            systems_info=get_all_systems_info(),
         )
 
         return render_table_page_response(
