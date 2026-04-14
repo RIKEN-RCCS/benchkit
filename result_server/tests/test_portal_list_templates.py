@@ -88,14 +88,14 @@ def test_results_template_renders_table_note():
         html = render_template(
             "results.html",
                 columns=[
-                    ("Timestamp", "timestamp"),
-                    ("SYSTEM", "system"),
-                    ("CODE", "code"),
-                    ("FOM", "fom"),
-                    ("Exp", "exp"),
-                    ("Profiler / PA", "profile_summary"),
-                    ("CI", "ci_summary"),
-                    ("JSON", "json_link"),
+                    {"label": "Timestamp", "key": "timestamp", "tooltip": "Date and time when benchmark execution completed and results were automatically submitted to server", "tooltip_class": "tooltip-left"},
+                    {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
+                    {"label": "CODE", "key": "code"},
+                    {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section"},
+                    {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
+                    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+                    {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
+                    {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
                 ],
             rows=[
                 {

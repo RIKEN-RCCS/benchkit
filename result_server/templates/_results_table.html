@@ -27,59 +27,17 @@
     <thead>
     <!-- Row 1: Column names -->
     <tr>
-        {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "CI", "Branch/Hash"] %}
-              <th>
-                {% if col_name == "Timestamp" %}
-                  <span class="tooltip tooltip-left">{{ col_name }}
-                    <span class="tooltiptext">Date and time when benchmark execution completed and results were automatically submitted to server</span>
-                  </span>
-                {% elif col_name == "SYSTEM" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Computing system name</span>
-                  </span>
-                {% elif col_name == "FOM" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section</span>
-                  </span>
-                {% elif col_name == "Exp" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Experimental conditions (filtered by CODE)</span>
-                  </span>
-                {% elif col_name == "P/N" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Number of processes per node</span>
-                  </span>
-                {% elif col_name == "T/P" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Number of threads per process</span>
-                  </span>
-                {% elif col_name == "JSON" %}
-                  <span class="tooltip tooltip-right">{{ col_name }}
-                    <span class="tooltiptext">Detailed benchmark results in JSON format</span>
-                  </span>
-                {% elif col_name == "FOM version" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries</span>
-                  </span>
-                {% elif col_name == "Profiler / PA" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Profiler tool, level, report summary, and PA data download access</span>
-                  </span>
-                {% elif col_name == "CI" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">CI trigger source and pipeline ID</span>
-                  </span>
-                {% elif col_name == "Branch/Hash" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Source code branch name and short commit hash (git) or short md5sum (file archive)</span>
-                  </span>
-                {% else %}
-                  {{ col_name }}
-                {% endif %}
-              </th>
-           {% endif %}
-           {% if col_name == "FOM" %}
+        {% for column in columns %}
+           <th>
+             {% if column.tooltip %}
+               <span class="tooltip{% if column.tooltip_class %} {{ column.tooltip_class }}{% endif %}">{{ column.label }}
+                 <span class="tooltiptext">{{ column.tooltip }}</span>
+               </span>
+             {% else %}
+               {{ column.label }}
+             {% endif %}
+           </th>
+           {% if column.label == "FOM" %}
            <th style="text-align: center; vertical-align: middle;">
                <span class="tooltip">
                    <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
@@ -97,9 +55,8 @@
     </tr>
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
-        {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "CI", "Branch/Hash"] %}
-              {% if col_name == "SYSTEM" %}
+        {% for column in columns %}
+              {% if column.label == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
                       <option value="">All</option>
@@ -108,7 +65,7 @@
                       {% endfor %}
                   </select>
               </th>
-              {% elif col_name == "CODE" %}
+              {% elif column.label == "CODE" %}
               <th style="padding: 4px;">
                   <select id="filterCode" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
                       <option value="">All</option>
@@ -117,7 +74,7 @@
                       {% endfor %}
                   </select>
               </th>
-              {% elif col_name == "Exp" %}
+              {% elif column.label == "Exp" %}
               <th style="padding: 4px;">
                   <select id="filterExp" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
                       <option value="">All</option>
@@ -129,8 +86,7 @@
               {% else %}
               <th></th>
               {% endif %}
-           {% endif %}
-           {% if col_name == "FOM" %}
+           {% if column.label == "FOM" %}
            <th style="text-align: center; padding: 4px;">
                <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
                <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
@@ -143,7 +99,8 @@
     <tbody>
     {% for row in rows %}
         <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
-            {% for _, key in columns %}
+            {% for column in columns %}
+                {% set key = column.key %}
                 {% if key == "json_link" %}
                     <td>
                         {% if row.json_link %}

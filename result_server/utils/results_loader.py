@@ -12,6 +12,22 @@ DEFAULT_PER_PAGE = 100
 RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
 ESTIMATED_FIELD_MAP = {"system": "current_system.system", "code": "code", "exp": "exp"}
 
+RESULT_TABLE_COLUMNS = [
+    {"label": "Timestamp", "key": "timestamp", "tooltip": "Date and time when benchmark execution completed and results were automatically submitted to server", "tooltip_class": "tooltip-left"},
+    {"label": "CODE", "key": "code"},
+    {"label": "Branch/Hash", "key": "source_hash", "tooltip": "Source code branch name and short commit hash (git) or short md5sum (file archive)"},
+    {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
+    {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section"},
+    {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
+    {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
+    {"label": "Nodes", "key": "nodes"},
+    {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
+    {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
+    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+    {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
+    {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
+]
+
 
 def load_results_table(
     directory,
@@ -35,21 +51,7 @@ def load_results_table(
     padata_dir = padata_directory or directory
     padata_filenames = [filename for filename in os.listdir(padata_dir) if filename.endswith(".tgz")]
 
-    columns = [
-        ("Timestamp", "timestamp"),
-        ("CODE", "code"),
-        ("Branch/Hash", "source_hash"),
-        ("Exp", "exp"),
-        ("FOM", "fom"),
-        ("FOM version", "fom_version"),
-        ("SYSTEM", "system"),
-        ("Nodes", "nodes"),
-        ("P/N", "numproc_node"),
-        ("T/P", "nthreads"),
-        ("Profiler / PA", "profile_summary"),
-        ("JSON", "json_link"),
-        ("CI", "ci_summary"),
-    ]
+    columns = RESULT_TABLE_COLUMNS
 
     filters_are_active = _filters_are_active(filter_system, filter_code, filter_exp)
 
