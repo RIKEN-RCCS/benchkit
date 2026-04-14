@@ -48,6 +48,56 @@ def build_table_page_context(
     return context
 
 
+def build_table_page_context_from_params(
+    *,
+    rows,
+    columns,
+    pagination,
+    filter_options,
+    params,
+    systems_info=None,
+    **extra_context,
+):
+    return build_table_page_context(
+        rows=rows,
+        columns=columns,
+        pagination=pagination,
+        filter_options=filter_options,
+        current_system=params["filter_system"],
+        current_code=params["filter_code"],
+        current_exp=params["filter_exp"],
+        current_per_page=params["per_page"],
+        systems_info=systems_info,
+        **extra_context,
+    )
+
+
+def build_auth_required_table_page_context(*, per_page, systems_info=None, **extra_context):
+    return build_table_page_context(
+        rows=[],
+        columns=[],
+        pagination={"page": 1, "per_page": per_page, "total": 0, "total_pages": 1},
+        filter_options={"systems": [], "codes": [], "exps": []},
+        current_system=None,
+        current_code=None,
+        current_exp=None,
+        current_per_page=per_page,
+        systems_info=systems_info,
+        **extra_context,
+    )
+
+
 def build_table_page_redirect(endpoint, page, per_page, filter_system, filter_code, filter_exp):
     redirect_args = build_filtered_redirect_args(page, per_page, filter_system, filter_code, filter_exp)
     return redirect(url_for(endpoint, **redirect_args))
+
+
+def build_table_page_redirect_from_params(endpoint, page, params):
+    return build_table_page_redirect(
+        endpoint,
+        page,
+        params["per_page"],
+        params["filter_system"],
+        params["filter_code"],
+        params["filter_exp"],
+    )

@@ -7,9 +7,12 @@ from flask import Blueprint, Flask
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils.table_page_utils import (
+    build_auth_required_table_page_context,
     build_filtered_redirect_args,
     build_table_page_context,
+    build_table_page_context_from_params,
     build_table_page_redirect,
+    build_table_page_redirect_from_params,
     render_no_store_template,
 )
 
@@ -99,6 +102,36 @@ def test_build_table_page_context_keeps_common_keys():
     assert context["authenticated"] is True
 
 
+def test_build_table_page_context_from_params_maps_filters():
+    context = build_table_page_context_from_params(
+        rows=[{"filename": "result0.json"}],
+        columns=[{"key": "system", "label": "System"}],
+        pagination={"page": 2, "per_page": 50, "total": 3, "total_pages": 1},
+        filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
+        params={"filter_system": "Fugaku", "filter_code": "qws", "filter_exp": "CASE0", "per_page": 50},
+        systems_info={"Fugaku": {"name": "Fugaku"}},
+        authenticated=True,
+    )
+
+    assert context["current_system"] == "Fugaku"
+    assert context["current_code"] == "qws"
+    assert context["current_exp"] == "CASE0"
+    assert context["current_per_page"] == 50
+
+
+def test_build_auth_required_table_page_context_builds_empty_page():
+    context = build_auth_required_table_page_context(
+        per_page=100,
+        systems_info={"Fugaku": {"name": "Fugaku"}},
+        authenticated=False,
+    )
+
+    assert context["rows"] == []
+    assert context["columns"] == []
+    assert context["pagination"]["per_page"] == 100
+    assert context["authenticated"] is False
+
+
 def test_build_table_page_redirect_uses_filtered_args():
     app = Flask(__name__)
 
@@ -115,3 +148,25 @@ def test_build_table_page_redirect_uses_filtered_args():
 
     assert response.status_code == 302
     assert response.location.endswith("/results/?page=3&per_page=20&system=Fugaku&code=qws")
+
+
+def test_build_table_page_redirect_from_params_uses_param_map():
+    app = Flask(__name__)
+
+    results_bp = Blueprint("results", __name__)
+
+    @results_bp.route("/")
+    def results():
+        return ""
+
+    app.register_blueprint(results_bp, url_prefix="/results")
+
+    with app.test_request_context("/results"):
+        response = build_table_page_redirect_from_params(
+            "results.results",
+            4,
+            {"per_page": 10, "filter_system": "Fugaku", "filter_code": None, "filter_exp": "CASE0"},
+        )
+
+    assert response.status_code == 302
+    assert response.location.endswith("/results/?page=4&per_page=10&system=Fugaku&exp=CASE0")

@@ -3,33 +3,14 @@ import os
 import shutil
 import sys
 import tempfile
-import types
 
 import pytest
 from flask import Flask
 
-
-def _setup_stubs():
-    if "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
-
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-
-_setup_stubs()
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs()
 
 from routes.home import register_home_routes
 from routes.estimated import estimated_bp

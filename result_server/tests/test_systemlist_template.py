@@ -1,16 +1,10 @@
 import os
 import sys
-import types
-
-
-def _setup_stubs():
-    if "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
-
-
-_setup_stubs()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs(include_otp=False)
 
 from flask import Flask, Blueprint
 

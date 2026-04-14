@@ -3,30 +3,14 @@ import os
 import shutil
 import sys
 import tempfile
-import types
 import uuid
 
 import pytest
 
-
-def _setup_stubs():
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-
-_setup_stubs()
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import install_portal_test_stubs
+
+install_portal_test_stubs(include_redis=False)
 
 from flask import Flask
 from utils.estimated_table_rows import build_estimated_table_columns
