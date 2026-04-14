@@ -178,9 +178,6 @@
                         {% if row.profile_summary_meta.has_profile_data %}
                             <span class="tooltip">
                                 <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
-                                {% if row.profile_summary_meta.subline %}
-                                <span class="profile-subline">{{ row.profile_summary_meta.subline }}</span>
-                                {% endif %}
                                 {% if row.data_link %}
                                 <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
                                 {% endif %}
@@ -276,19 +273,12 @@
     color: #1f4f99;
 }
 .profile-cell {
-    min-width: 136px;
+    min-width: 120px;
     white-space: normal;
 }
 .profile-headline {
     display: block;
     font-weight: 600;
-    line-height: 1.35;
-}
-.profile-subline {
-    display: block;
-    margin-top: 0.15rem;
-    color: #607282;
-    font-size: 0.82em;
     line-height: 1.35;
 }
 .profile-data-link {
