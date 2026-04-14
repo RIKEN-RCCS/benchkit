@@ -1,5 +1,16 @@
 from utils.result_records import format_numeric_value, split_display_timestamp
 
+SCALING_SHORT_NAMES = {
+    "instrumented-app-sections-dummy": "instr-app-sec",
+    "scale-mock": "scale-mock",
+}
+
+PACKAGE_SHORT_NAMES = {
+    "instrumented_app_sections_dummy": "instr_app_sec",
+    "lightweight_fom_scaling": "weakscaling",
+    "weakscaling": "weakscaling",
+}
+
 
 def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallback_timestamp=None):
     current = result_data.get("current_system", {})
@@ -37,7 +48,7 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
         "requested_current_estimation_package": requested_current,
         "requested_future_estimation_package": requested_future,
         "estimate_uuid": estimate_uuid,
-        "estimate_uuid_short": estimate_uuid[:8] if estimate_uuid else "",
+        "estimate_uuid_short": _short_identifier(estimate_uuid),
         "performance_ratio": result_data.get("performance_ratio", ""),
         "performance_ratio_display": format_numeric_value(result_data.get("performance_ratio", "")),
         "json_link": filename,
@@ -113,43 +124,47 @@ def _build_estimated_system_columns(group_label, key_prefix):
 
 
 def _format_scaling_short_name(value):
-    if value == "instrumented-app-sections-dummy":
-        return "instr-app-sec"
-    if value == "scale-mock":
-        return "scale-mock"
-    return value
+    return SCALING_SHORT_NAMES.get(value, value)
 
 
 def _format_package_short_name(value):
-    if value == "instrumented_app_sections_dummy":
-        return "instr_app_sec"
-    if value in ("lightweight_fom_scaling", "weakscaling"):
-        return "weakscaling"
-    return value
+    return PACKAGE_SHORT_NAMES.get(value, value)
 
 
 def _build_requested_package_title(requested_package, requested_current, requested_future):
-    title = requested_package or ""
-    if requested_current:
-        title += "\ncurrent-side: " + requested_current
-    if requested_future:
-        title += "\nfuture-side: " + requested_future
-    return title
+    return _build_multiline_title(
+        requested_package,
+        [
+            ("current-side", requested_current),
+            ("future-side", requested_future),
+        ],
+    )
 
 
 def _build_applied_package_title(applied_package, method_class, detail_level, current_package, future_package):
-    title = applied_package or ""
-    if method_class:
-        title += "\nclass: " + method_class
-    if detail_level:
-        title += "\ndetail: " + detail_level
-    if current_package:
-        title += "\ncurrent-side: " + current_package
-    if future_package:
-        title += "\nfuture-side: " + future_package
-    return title
+    return _build_multiline_title(
+        applied_package,
+        [
+            ("class", method_class),
+            ("detail", detail_level),
+            ("current-side", current_package),
+            ("future-side", future_package),
+        ],
+    )
 
 
 def _build_applied_package_meta_line(method_class, detail_level):
     meta_parts = [part for part in (method_class, detail_level) if part]
     return " / ".join(meta_parts)
+
+
+def _build_multiline_title(base, labeled_values):
+    lines = [base] if base else []
+    for label, value in labeled_values:
+        if value:
+            lines.append(f"{label}: {value}")
+    return "\n".join(lines)
+
+
+def _short_identifier(value, length=8):
+    return value[:length] if value else ""

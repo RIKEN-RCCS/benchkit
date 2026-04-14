@@ -1,112 +1,102 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>TOTP Setup - CX Portal</title>
-    {% include "_table_base.html" %}
-    <style>
-        .setup-shell {
-            max-width: 640px;
-            margin: 0 auto;
-        }
-        .setup-card {
-            padding: 24px;
-        }
-        .setup-lead {
-            margin: 0 0 16px;
-            color: #52606d;
-            line-height: 1.65;
-        }
-        .flash {
-            padding: 12px 14px;
-            margin-bottom: 16px;
-            border-radius: 14px;
-            background-color: #fff8e7;
-            color: #8a5a00;
-            border: 1px solid #f7d38b;
-        }
-        .error-msg {
-            padding: 14px 16px;
-            margin-bottom: 16px;
-            border-radius: 14px;
-            background-color: #fff1f2;
-            color: #912018;
-            border: 1px solid #fecdd3;
-            line-height: 1.55;
-        }
-        .qr-container {
-            text-align: center;
-            margin: 22px 0;
-            padding: 18px;
-            border-radius: 16px;
-            background: #f8fbfd;
-            border: 1px solid #dfe8ee;
-        }
-        .qr-container img { max-width: 240px; }
-        .secret-key {
-            font-family: Consolas, "Courier New", monospace;
-            background: #f7fbfc;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid #dce8ee;
-            word-break: break-all;
-            margin-bottom: 16px;
-        }
-        .setup-field {
-            display: grid;
-            gap: 6px;
-            margin-bottom: 14px;
-        }
-        .setup-field label {
-            font-weight: 600;
-            color: #243b53;
-        }
-        .setup-card input[type="text"] {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            background: #fff;
-            color: #1f2933;
-            font-size: 15px;
-        }
-        .primary-button {
-            padding: 10px 18px;
-            border: 1px solid #0f766e;
-            border-radius: 999px;
-            background: #0f766e;
-            color: #fff;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: 600;
-        }
-        .primary-button:hover {
-            background: #0b5f59;
-        }
-        .setup-step-note {
-            display: inline-flex;
-            align-items: center;
-            margin-bottom: 16px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #eef6ff;
-            color: #1d4ed8;
-            font-size: 12px;
-            font-weight: 600;
-        }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}TOTP Setup{% endblock %}
+{% block page_subtitle %}Complete portal access setup by registering your authenticator app with a one-time invitation link.{% endblock %}
 
-<div class="portal-page setup-shell">
-<section class="page-hero">
-    <span class="page-eyebrow">CX Portal</span>
-    <h1 class="page-title">TOTP Setup</h1>
-    <p class="page-subtitle">Complete portal access setup by registering your authenticator app with a one-time invitation link.</p>
-</section>
+{% block content %}
+<style>
+    .setup-shell {
+        max-width: 640px;
+        margin: 0 auto;
+    }
+    .setup-card {
+        padding: 24px;
+    }
+    .setup-lead {
+        margin: 0 0 16px;
+        color: #52606d;
+        line-height: 1.65;
+    }
+    .flash {
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        border-radius: 14px;
+        background-color: #fff8e7;
+        color: #8a5a00;
+        border: 1px solid #f7d38b;
+    }
+    .error-msg {
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        border-radius: 14px;
+        background-color: #fff1f2;
+        color: #912018;
+        border: 1px solid #fecdd3;
+        line-height: 1.55;
+    }
+    .qr-container {
+        text-align: center;
+        margin: 22px 0;
+        padding: 18px;
+        border-radius: 16px;
+        background: #f8fbfd;
+        border: 1px solid #dfe8ee;
+    }
+    .qr-container img { max-width: 240px; }
+    .secret-key {
+        font-family: Consolas, "Courier New", monospace;
+        background: #f7fbfc;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #dce8ee;
+        word-break: break-all;
+        margin-bottom: 16px;
+    }
+    .setup-field {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+    .setup-field label {
+        font-weight: 600;
+        color: #243b53;
+    }
+    .setup-card input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #fff;
+        color: #1f2933;
+        font-size: 15px;
+    }
+    .primary-button {
+        padding: 10px 18px;
+        border: 1px solid #0f766e;
+        border-radius: 999px;
+        background: #0f766e;
+        color: #fff;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    .primary-button:hover {
+        background: #0b5f59;
+    }
+    .setup-step-note {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: 16px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #eef6ff;
+        color: #1d4ed8;
+        font-size: 12px;
+        font-weight: 600;
+    }
+</style>
 
+<div class="setup-shell">
 <section class="page-card setup-card">
 
 {% with messages = get_flashed_messages() %}
@@ -141,6 +131,4 @@
 {% endif %}
 </section>
 </div>
-
-</body>
-</html>
+{% endblock %}
