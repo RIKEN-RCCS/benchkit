@@ -1,16 +1,4 @@
-"""
-統合データ受信API Blueprint
-
-新パス:
-  POST /api/ingest/result   - 結果JSON受信
-  POST /api/ingest/estimate - 推定結果JSON受信
-  POST /api/ingest/padata   - PA Data (tgz) 受信
-
-互換ルート (deprecated):
-  POST /write-api   → ingest_result
-  POST /write-est   → ingest_estimate
-  POST /upload-tgz  → ingest_padata
-"""
+"""Unified ingestion and query API routes for portal data."""
 
 from flask import Blueprint, request, abort, current_app, jsonify, send_file
 import os
@@ -28,18 +16,18 @@ EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
 
 
 # ==========================================
-# 共通ユーティリティ
+# Shared utilities
 # ==========================================
 
 def require_api_key():
-    """APIキー認証"""
+    """Validate the request API key."""
     api_key = request.headers.get("X-API-Key")
     if api_key != EXPECTED_API_KEY:
         abort(401, description="Invalid API Key")
 
 
 def save_json_file(data, prefix, out_dir, given_uuid=None):
-    """JSONデータをファイルに保存（アトミック書き込み）"""
+    """Persist a JSON payload using atomic file replacement."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = given_uuid or str(uuid.uuid4())
     filename = f"{prefix}_{timestamp}_{unique_id}.json"
@@ -86,7 +74,7 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
 
 
 def is_valid_uuid(value):
-    """UUID形式の検証"""
+    """Return whether the given string is a valid UUID."""
     try:
         uuid.UUID(value)
         return True
@@ -95,7 +83,7 @@ def is_valid_uuid(value):
 
 
 def _load_json_by_uuid(directory, field_path, uuid_value):
-    """指定ディレクトリから UUID に一致する JSON を探して返す。"""
+    """Return the first JSON payload whose target field matches the UUID."""
     json_files = sorted(
         [f for f in os.listdir(directory) if f.endswith(".json")],
         reverse=True,
@@ -119,7 +107,7 @@ def _load_json_by_uuid(directory, field_path, uuid_value):
         if current == uuid_value:
             return data
 
-        # 互換用: ファイル名中のUUIDにもフォールバック
+        # Compatibility fallback: also match UUIDs embedded in filenames.
         if uuid_value in json_file:
             return data
 
@@ -159,12 +147,12 @@ def _safe_extract_tar_bytes(file_storage, target_dir):
 
 
 # ==========================================
-# 新パス: /api/ingest/*
+# Ingestion routes: /api/ingest/*
 # ==========================================
 
 @api_bp.route("/api/ingest/result", methods=["POST"])
 def ingest_result():
-    """結果JSON受信"""
+    """Receive and persist a collected result JSON payload."""
     require_api_key()
     data = request.data
     return save_json_file(
@@ -176,7 +164,7 @@ def ingest_result():
 
 @api_bp.route("/api/ingest/estimate", methods=["POST"])
 def ingest_estimate():
-    """推定結果JSON受信"""
+    """Receive and persist an estimated-result JSON payload."""
     require_api_key()
     data = request.data
     return save_json_file(
@@ -189,7 +177,7 @@ def ingest_estimate():
 
 @api_bp.route("/api/ingest/padata", methods=["POST"])
 def ingest_padata():
-    """PA Data (tgz) 受信"""
+    """Receive and store a PA Data archive."""
     api_key = request.headers.get("X-API-Key")
     if api_key != EXPECTED_API_KEY:
         abort(401, description="Invalid API Key")
@@ -397,7 +385,7 @@ def query_estimation_inputs():
 
 @api_bp.route("/api/query/estimate", methods=["GET"])
 def query_estimate():
-    """UUID で単一 Estimate JSON を返す。"""
+    """Return one estimate JSON document identified by UUID."""
     require_api_key()
 
     uuid_value = request.args.get("uuid")
@@ -416,22 +404,22 @@ def query_estimate():
 
 
 # ==========================================
-# 互換ルート (deprecated)
+# Compatibility routes (deprecated)
 # ==========================================
 
 @api_bp.route("/write-api", methods=["POST"])
 def compat_write_api():
-    current_app.logger.warning("Deprecated: /write-api → use /api/ingest/result")
+    current_app.logger.warning("Deprecated: /write-api -> use /api/ingest/result")
     return ingest_result()
 
 
 @api_bp.route("/write-est", methods=["POST"])
 def compat_write_est():
-    current_app.logger.warning("Deprecated: /write-est → use /api/ingest/estimate")
+    current_app.logger.warning("Deprecated: /write-est -> use /api/ingest/estimate")
     return ingest_estimate()
 
 
 @api_bp.route("/upload-tgz", methods=["POST"])
 def compat_upload_tgz():
-    current_app.logger.warning("Deprecated: /upload-tgz → use /api/ingest/padata")
+    current_app.logger.warning("Deprecated: /upload-tgz -> use /api/ingest/padata")
     return ingest_padata()

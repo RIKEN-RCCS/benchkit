@@ -1,4 +1,4 @@
-<!-- 共通ナビゲーション -->
+<!-- Shared navigation -->
 <style>
 .nav-bar {
     display: flex;
@@ -84,33 +84,32 @@
 .nav-dropdown-menu a:hover { background-color: #f0f0f0; }
 .nav-dropdown-menu hr { margin: 4px 0; border: none; border-top: 1px solid #eee; }
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
-.nav-user-label { color: #555; padding: 10px 14px; white-space: nowrap; }
 </style>
 
 <nav class="nav-bar">
     <div class="nav-left">
-        <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">🏠 Home</a>
-        <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">🖥️ Systems</a>
+        <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">Home</a>
+        <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">Systems</a>
 
         {% if session.get('authenticated') %}
-        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Public</a>
-        <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">🔒 All Results</a>
-        <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">🔐 Estimated</a>
+        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">Public</a>
+        <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">All Results</a>
+        <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">Estimated</a>
         {% if 'admin' in session.get('user_affiliations', []) %}
-        <a href="{{ url_for('results.usage_report') }}" class="nav-link {% if request.endpoint == 'results.usage_report' %}active{% endif %}">📈 Usage</a>
+        <a href="{{ url_for('results.usage_report') }}" class="nav-link {% if request.endpoint == 'results.usage_report' %}active{% endif %}">Usage</a>
         {% endif %}
         {% else %}
-        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">📊 Results</a>
+        <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">Results</a>
         {% endif %}
     </div>
 
     <div class="nav-right">
         {% if session.get('authenticated') %}
         <div class="nav-dropdown">
-            <button class="nav-dropdown-btn">👤 {{ session.get('user_email') }} ▾</button>
+            <button class="nav-dropdown-btn">{{ session.get('user_email') }} ▾</button>
             <div class="nav-dropdown-menu right">
                 {% if 'admin' in session.get('user_affiliations', []) %}
-                <a href="{{ url_for('admin.users') }}">⚙️ Admin</a>
+                <a href="{{ url_for('admin.users') }}">Admin</a>
                 <hr>
                 {% endif %}
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
