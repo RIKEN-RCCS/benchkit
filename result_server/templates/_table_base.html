@@ -178,6 +178,30 @@
         opacity: 1;
     }
 
+    body.tooltip-floating-enabled .tooltip .tooltiptext {
+        display: none !important;
+    }
+
+    .tooltip-floating-layer {
+        position: fixed;
+        z-index: 10000;
+        max-width: min(320px, calc(100vw - 24px));
+        padding: 10px;
+        border-radius: 6px;
+        background: #333;
+        color: #fff;
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 120ms ease;
+    }
+
+    .tooltip-floating-layer.is-visible {
+        opacity: 1;
+    }
+
     /* 左端の列用ツールチップ（右寄せ） */
     .tooltip-left .tooltiptext {
         left: 0;
@@ -235,4 +259,104 @@ function filterTable() {
         row.style.display = match ? "" : "none";
     });
 }
+
+(function() {
+    var floatingTooltip = null;
+    var activeTooltip = null;
+    var margin = 12;
+
+    function ensureFloatingTooltip() {
+        if (floatingTooltip) return floatingTooltip;
+        floatingTooltip = document.createElement('div');
+        floatingTooltip.className = 'tooltip-floating-layer';
+        document.body.appendChild(floatingTooltip);
+        document.body.classList.add('tooltip-floating-enabled');
+        return floatingTooltip;
+    }
+
+    function getTooltipTextElement(target) {
+        return target ? target.querySelector('.tooltiptext') : null;
+    }
+
+    function positionFloatingTooltip(target, layer) {
+        var rect = target.getBoundingClientRect();
+        var layerRect = layer.getBoundingClientRect();
+        var top = rect.top - layerRect.height - 10;
+        var left;
+
+        if (target.classList.contains('tooltip-left')) {
+            left = rect.left;
+        } else if (target.classList.contains('tooltip-right')) {
+            left = rect.right - layerRect.width;
+        } else {
+            left = rect.left + (rect.width / 2) - (layerRect.width / 2);
+        }
+
+        left = Math.max(margin, Math.min(left, window.innerWidth - layerRect.width - margin));
+        if (top < margin) {
+            top = rect.bottom + 10;
+        }
+        top = Math.max(margin, Math.min(top, window.innerHeight - layerRect.height - margin));
+
+        layer.style.left = left + 'px';
+        layer.style.top = top + 'px';
+    }
+
+    function showFloatingTooltip(target) {
+        var textEl = getTooltipTextElement(target);
+        if (!textEl) return;
+
+        var layer = ensureFloatingTooltip();
+        activeTooltip = target;
+        layer.innerHTML = textEl.innerHTML;
+        layer.classList.add('is-visible');
+        positionFloatingTooltip(target, layer);
+    }
+
+    function hideFloatingTooltip(target) {
+        if (!floatingTooltip) return;
+        if (target && activeTooltip !== target) return;
+        activeTooltip = null;
+        floatingTooltip.classList.remove('is-visible');
+        floatingTooltip.innerHTML = '';
+    }
+
+    document.addEventListener('mouseover', function(event) {
+        var target = event.target.closest('.tooltip');
+        if (!target) return;
+        showFloatingTooltip(target);
+    });
+
+    document.addEventListener('mouseout', function(event) {
+        var target = event.target.closest('.tooltip');
+        if (!target) return;
+        var related = event.relatedTarget && event.relatedTarget.closest ? event.relatedTarget.closest('.tooltip') : null;
+        if (related === target) return;
+        hideFloatingTooltip(target);
+    });
+
+    document.addEventListener('focusin', function(event) {
+        var target = event.target.closest('.tooltip');
+        if (!target) return;
+        showFloatingTooltip(target);
+    });
+
+    document.addEventListener('focusout', function(event) {
+        var target = event.target.closest('.tooltip');
+        if (!target) return;
+        hideFloatingTooltip(target);
+    });
+
+    window.addEventListener('scroll', function() {
+        if (activeTooltip && floatingTooltip && floatingTooltip.classList.contains('is-visible')) {
+            positionFloatingTooltip(activeTooltip, floatingTooltip);
+        }
+    }, true);
+
+    window.addEventListener('resize', function() {
+        if (activeTooltip && floatingTooltip && floatingTooltip.classList.contains('is-visible')) {
+            positionFloatingTooltip(activeTooltip, floatingTooltip);
+        }
+    });
+})();
 </script>
