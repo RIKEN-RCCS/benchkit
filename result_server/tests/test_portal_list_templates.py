@@ -251,7 +251,7 @@ def test_estimated_results_template_renders_table_note():
             filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
         )
 
-    assert "Focus on system pairs, applied packages, and ratio" in html
+    assert "Scan system pairs, applied packages, and ratio here" in html
     assert "estimated-table-wrap" in html
     assert "detail" in html
 

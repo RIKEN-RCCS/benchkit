@@ -16,32 +16,12 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
     current_package = estimate_meta.get("current_package", {}).get("estimation_package", "")
     future_package = estimate_meta.get("future_package", {}).get("estimation_package", "")
 
-    return {
+    row = {
         "timestamp": timestamp,
         "timestamp_date": _get_timestamp_date(timestamp),
         "timestamp_time": _get_timestamp_time(timestamp),
         "code": result_data.get("code", ""),
         "exp": result_data.get("exp", ""),
-        "systemA_system": current.get("system", ""),
-        "systemA_fom": current.get("fom", ""),
-        "systemA_fom_display": _format_numeric_display(current.get("fom", "")),
-        "systemA_target_nodes": current.get("target_nodes", ""),
-        "systemA_scaling_method": current.get("scaling_method", ""),
-        "systemA_scaling_title": current.get("scaling_method", ""),
-        "systemA_bench_system": current.get("benchmark", {}).get("system", ""),
-        "systemA_bench_fom": current.get("benchmark", {}).get("fom", ""),
-        "systemA_bench_fom_display": _format_numeric_display(current.get("benchmark", {}).get("fom", "")),
-        "systemA_bench_nodes": current.get("benchmark", {}).get("nodes", ""),
-        "systemB_system": future.get("system", ""),
-        "systemB_fom": future.get("fom", ""),
-        "systemB_fom_display": _format_numeric_display(future.get("fom", "")),
-        "systemB_target_nodes": future.get("target_nodes", ""),
-        "systemB_scaling_method": future.get("scaling_method", ""),
-        "systemB_scaling_title": future.get("scaling_method", ""),
-        "systemB_bench_system": future.get("benchmark", {}).get("system", ""),
-        "systemB_bench_fom": future.get("benchmark", {}).get("fom", ""),
-        "systemB_bench_fom_display": _format_numeric_display(future.get("benchmark", {}).get("fom", "")),
-        "systemB_bench_nodes": future.get("benchmark", {}).get("nodes", ""),
         "applicability_status": applicability.get("status", ""),
         "requested_estimation_package": requested_package,
         "estimation_package": applied_package,
@@ -74,6 +54,9 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
         ),
         "applied_package_meta_line": _build_applied_package_meta_line(method_class, detail_level),
     }
+    row.update(_build_estimated_system_fields("systemA", current))
+    row.update(_build_estimated_system_fields("systemB", future))
+    return row
 
 
 def build_estimated_table_columns():
@@ -81,26 +64,46 @@ def build_estimated_table_columns():
         {"label": "Timestamp", "key": "timestamp", "section": "leading"},
         {"label": "CODE", "key": "code", "section": "leading"},
         {"label": "Exp", "key": "exp", "section": "leading"},
-        {"label": "System", "key": "systemA_system", "group": "System A"},
-        {"label": "FOM", "key": "systemA_fom_display", "group": "System A", "title_key": "systemA_fom", "align": "right"},
-        {"label": "Target Nodes", "key": "systemA_target_nodes", "group": "System A"},
-        {"label": "Scaling Method", "key": "systemA_scaling_short", "group": "System A", "title_key": "systemA_scaling_title"},
-        {"label": "Bench System", "key": "systemA_bench_system", "group": "System A"},
-        {"label": "Bench FOM", "key": "systemA_bench_fom_display", "group": "System A", "title_key": "systemA_bench_fom", "align": "right"},
-        {"label": "Bench Nodes", "key": "systemA_bench_nodes", "group": "System A"},
-        {"label": "System", "key": "systemB_system", "group": "System B"},
-        {"label": "FOM", "key": "systemB_fom_display", "group": "System B", "title_key": "systemB_fom", "align": "right"},
-        {"label": "Target Nodes", "key": "systemB_target_nodes", "group": "System B"},
-        {"label": "Scaling Method", "key": "systemB_scaling_short", "group": "System B", "title_key": "systemB_scaling_title"},
-        {"label": "Bench System", "key": "systemB_bench_system", "group": "System B"},
-        {"label": "Bench FOM", "key": "systemB_bench_fom_display", "group": "System B", "title_key": "systemB_bench_fom", "align": "right"},
-        {"label": "Bench Nodes", "key": "systemB_bench_nodes", "group": "System B"},
+        *_build_estimated_system_columns("System A", "systemA"),
+        *_build_estimated_system_columns("System B", "systemB"),
         {"label": "Applicability", "key": "applicability_status", "section": "trailing"},
-        {"label": "Requested Package", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
-        {"label": "Applied Package", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
-        {"label": "Estimate UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
+        {"label": "Req. Pkg", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
+        {"label": "Applied Pkg", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
+        {"label": "UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
         {"label": "Ratio", "key": "performance_ratio_display", "section": "trailing", "title_key": "performance_ratio", "align": "right"},
         {"label": "JSON", "key": "json_link", "section": "trailing", "cell_class": "estimated-link-cell"},
+    ]
+
+
+def _build_estimated_system_fields(prefix, system_data):
+    benchmark = system_data.get("benchmark", {})
+    fom = system_data.get("fom", "")
+    benchmark_fom = benchmark.get("fom", "")
+    scaling_method = system_data.get("scaling_method", "")
+    return {
+        f"{prefix}_system": system_data.get("system", ""),
+        f"{prefix}_fom": fom,
+        f"{prefix}_fom_display": _format_numeric_display(fom),
+        f"{prefix}_target_nodes": system_data.get("target_nodes", ""),
+        f"{prefix}_scaling_method": scaling_method,
+        f"{prefix}_scaling_title": scaling_method,
+        f"{prefix}_bench_system": benchmark.get("system", ""),
+        f"{prefix}_bench_fom": benchmark_fom,
+        f"{prefix}_bench_fom_display": _format_numeric_display(benchmark_fom),
+        f"{prefix}_bench_nodes": benchmark.get("nodes", ""),
+        f"{prefix}_scaling_short": _format_scaling_short_name(scaling_method),
+    }
+
+
+def _build_estimated_system_columns(group_label, key_prefix):
+    return [
+        {"label": "System", "key": f"{key_prefix}_system", "group": group_label},
+        {"label": "FOM", "key": f"{key_prefix}_fom_display", "group": group_label, "title_key": f"{key_prefix}_fom", "align": "right"},
+        {"label": "Nodes", "key": f"{key_prefix}_target_nodes", "group": group_label},
+        {"label": "Scaling", "key": f"{key_prefix}_scaling_short", "group": group_label, "title_key": f"{key_prefix}_scaling_title"},
+        {"label": "Bench", "key": f"{key_prefix}_bench_system", "group": group_label},
+        {"label": "Bench FOM", "key": f"{key_prefix}_bench_fom_display", "group": group_label, "title_key": f"{key_prefix}_bench_fom", "align": "right"},
+        {"label": "Bench Nodes", "key": f"{key_prefix}_bench_nodes", "group": group_label},
     ]
 
 

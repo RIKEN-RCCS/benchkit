@@ -1,7 +1,7 @@
 {% extends "_results_base.html" %}
 
 {% block title %}Estimated Results{% endblock %}
-{% block page_subtitle %}Review projected performance and open detail for breakdowns or applicability. Estimated data requires authentication.{% endblock %}
+{% block page_subtitle %}Review projected performance and open detail when you need breakdowns or applicability. Estimated data requires authentication.{% endblock %}
 
 {% block auth_warning %}
 {% if not authenticated %}
@@ -32,7 +32,7 @@
     border-radius: 14px;
   }
   .estimated-table {
-    min-width: 1780px;
+    min-width: 1640px;
     border-collapse: collapse;
   }
   .estimated-table td {
@@ -53,7 +53,7 @@
   }
 </style>
 
-<p class="estimated-table-note">Focus on system pairs, applied packages, and ratio at the list level, then open <code>detail</code> when you need breakdowns or fallback/applicability context.</p>
+<p class="estimated-table-note">Scan system pairs, applied packages, and ratio here, then open <code>detail</code> for breakdown or fallback context.</p>
 
 {% include "_estimated_results_table.html" %}
 

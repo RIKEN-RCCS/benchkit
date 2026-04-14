@@ -29,6 +29,7 @@ _setup_stubs()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import Flask
+from utils.estimated_table_rows import build_estimated_table_columns
 from utils.results_loader import load_estimated_results_table
 
 
@@ -106,3 +107,14 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
     assert rows[0]["current_estimation_package"] == "weakscaling"
     assert rows[0]["future_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["applicability_status"] == "fallback"
+
+
+def test_estimated_columns_use_compact_labels():
+    columns = build_estimated_table_columns()
+    labels = {column["key"]: column["label"] for column in columns}
+
+    assert labels["systemA_target_nodes"] == "Nodes"
+    assert labels["systemA_scaling_short"] == "Scaling"
+    assert labels["requested_package_short"] == "Req. Pkg"
+    assert labels["applied_package_short"] == "Applied Pkg"
+    assert labels["estimate_uuid_short"] == "UUID"
