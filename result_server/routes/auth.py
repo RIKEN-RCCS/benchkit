@@ -25,11 +25,6 @@ from utils.user_store import get_user_store
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
-def _get_redis():
-    """Return the Redis connection and key prefix from app config."""
-    return current_app.config.get("REDIS_CONN"), current_app.config.get("REDIS_PREFIX", "")
-
-
 def _render_login_totp_step(email):
     return render_template("auth_login.html", step="totp", email=email)
 
@@ -69,7 +64,8 @@ def login():
             return redirect(url_for("auth.login"))
 
         # Enforce rate limiting when Redis-backed tracking is available.
-        redis_conn, prefix = _get_redis()
+        redis_conn = current_app.config.get("REDIS_CONN")
+        prefix = current_app.config.get("REDIS_PREFIX", "")
         if redis_conn:
             is_locked, remaining = check_rate_limit(redis_conn, prefix, email)
             if is_locked:

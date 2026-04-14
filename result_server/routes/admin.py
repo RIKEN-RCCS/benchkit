@@ -25,17 +25,11 @@ def _add_no_store_headers(response):
     return response
 
 
-def _get_users_with_totp_status():
-    """Return the user list with an additional has_totp flag per user."""
-    store = get_user_store()
-    users = store.list_users()
-    for user in users:
-        user["has_totp"] = store.has_totp_secret(user["email"])
-    return store, users
-
-
 def _render_users_page(invitation_url=None):
-    _, all_users = _get_users_with_totp_status()
+    store = get_user_store()
+    all_users = store.list_users()
+    for user in all_users:
+        user["has_totp"] = store.has_totp_secret(user["email"])
     return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
 
 
