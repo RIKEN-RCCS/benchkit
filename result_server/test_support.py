@@ -148,6 +148,31 @@ def build_results_route_app(
     return app
 
 
+def build_api_route_app(
+    *,
+    received_dir,
+    received_padata_dir,
+    received_estimation_inputs_dir,
+    estimated_dir,
+):
+    """Build a Flask app with the API, results, and estimated blueprints for API tests."""
+    app = Flask(__name__)
+    app.config["RECEIVED_DIR"] = received_dir
+    app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
+    app.config["ESTIMATED_DIR"] = estimated_dir
+    app.config["TESTING"] = True
+
+    from routes.api import api_bp
+    from routes.estimated import estimated_bp
+    from routes.results import results_bp
+
+    app.register_blueprint(api_bp)
+    app.register_blueprint(results_bp, url_prefix="/results")
+    app.register_blueprint(estimated_bp, url_prefix="/estimated")
+    return app
+
+
 class StaticAffiliationUserStore:
     """Return fixed affiliations for test users."""
 

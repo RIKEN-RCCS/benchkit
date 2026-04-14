@@ -2,10 +2,11 @@ import os
 import sys
 
 import pytest
-from flask import Flask, Blueprint, render_template
+from flask import render_template
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import build_portal_shell_app
 
 
 ESTIMATE_RESULT = {
@@ -92,58 +93,9 @@ ESTIMATE_RESULT = {
 
 @pytest.fixture
 def app():
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-
-    @app.route("/estimated/")
-    def estimated_results():
-        return "estimated"
-
-    @app.route("/")
-    def home():
-        return "home"
-
-    @app.route("/systemlist")
-    def systemlist():
-        return "systems"
-
-    results_bp = Blueprint("results", __name__)
-    estimated_bp = Blueprint("estimated", __name__)
-    admin_bp = Blueprint("admin", __name__)
-    auth_bp = Blueprint("auth", __name__)
-
-    @results_bp.route("/")
-    def results():
-        return "results"
-
-    @results_bp.route("/confidential")
-    def results_confidential():
-        return "results confidential"
-
-    @results_bp.route("/usage")
-    def usage_report():
-        return "usage"
-
-    @estimated_bp.route("/", endpoint="estimated_results")
-    def estimated_results_bp():
-        return "estimated"
-
-    @admin_bp.route("/")
-    def admin_users():
-        return "admin"
-
-    @auth_bp.route("/login")
-    def login():
-        return "login"
-
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-
-    yield app
+    yield build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
 
 
 def test_estimated_detail_template_renders_sections(app):

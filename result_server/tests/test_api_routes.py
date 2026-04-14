@@ -13,14 +13,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from test_support import install_portal_test_stubs
+from test_support import build_api_route_app, install_portal_test_stubs
 
 install_portal_test_stubs()
-
-from flask import Flask
-from routes.api import api_bp
-from routes.estimated import estimated_bp
-from routes.results import results_bp
 
 API_KEY = "test-api-key-12345"
 
@@ -49,16 +44,12 @@ def app(tmp_dirs):
     original_key = api_mod.EXPECTED_API_KEY
     api_mod.EXPECTED_API_KEY = API_KEY
 
-    app = Flask(__name__)
-    app.config["RECEIVED_DIR"] = received
-    app.config["RECEIVED_PADATA_DIR"] = received_padata
-    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs
-    app.config["ESTIMATED_DIR"] = estimated
-    app.config["TESTING"] = True
-
-    app.register_blueprint(api_bp)
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
+    app = build_api_route_app(
+        received_dir=received,
+        received_padata_dir=received_padata,
+        received_estimation_inputs_dir=received_estimation_inputs,
+        estimated_dir=estimated,
+    )
 
     yield app
 
