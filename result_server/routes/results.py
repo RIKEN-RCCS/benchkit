@@ -4,11 +4,9 @@ from flask import (
     Blueprint,
     abort,
     current_app,
-    redirect,
     render_template,
     request,
     session,
-    url_for,
 )
 
 from routes.admin import admin_required
@@ -22,7 +20,11 @@ from utils.result_records import load_result_json, load_result_json_batch, summa
 from utils.results_loader import DEFAULT_PER_PAGE, get_filter_options, load_results_table
 from utils.site_diagnostics import build_site_diagnostics
 from utils.system_info import get_all_systems_info
-from utils.table_page_utils import build_filtered_redirect_args, render_no_store_template
+from utils.table_page_utils import (
+    build_table_page_context,
+    build_table_page_redirect,
+    render_no_store_template,
+)
 from utils.table_query_params import parse_table_query_params
 from utils.user_store import get_user_store
 from utils.usage_query_params import parse_usage_query_params, select_usage_periods
@@ -32,19 +34,19 @@ results_bp = Blueprint("results", __name__)
 
 def _render_confidential_auth_required():
     systems_info = get_all_systems_info()
-    return render_no_store_template(
-        "results_confidential.html",
+    auth_required_context = build_table_page_context(
         rows=[],
         columns=[],
-        systems_info=systems_info,
         pagination={"page": 1, "per_page": DEFAULT_PER_PAGE, "total": 0, "total_pages": 1},
         filter_options={"systems": [], "codes": [], "exps": []},
         current_system=None,
         current_code=None,
         current_exp=None,
         current_per_page=DEFAULT_PER_PAGE,
+        systems_info=systems_info,
         authenticated=False,
     )
+    return render_no_store_template("results_confidential.html", **auth_required_context)
 
 
 def serve_confidential_file(filename, dir_path):
@@ -89,27 +91,26 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
 
     if page != pagination_info["page"]:
-        redirect_args = build_filtered_redirect_args(
+        return build_table_page_redirect(
+            redirect_endpoint,
             pagination_info["page"],
             per_page,
             filter_system,
             filter_code,
             filter_exp,
         )
-        return redirect(url_for(redirect_endpoint, **redirect_args))
 
     filter_options = get_filter_options(received_dir, filter_code=filter_code, **filter_kwargs)
-    systems_info = get_all_systems_info()
-    render_context = dict(
+    render_context = build_table_page_context(
         rows=rows,
         columns=columns,
-        systems_info=systems_info,
         pagination=pagination_info,
         filter_options=filter_options,
         current_system=filter_system,
         current_code=filter_code,
         current_exp=filter_exp,
         current_per_page=per_page,
+        systems_info=get_all_systems_info(),
         **template_extra,
     )
     if not public_only:

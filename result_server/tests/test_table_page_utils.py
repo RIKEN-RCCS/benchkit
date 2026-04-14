@@ -6,7 +6,12 @@ from flask import Blueprint, Flask
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from utils.table_page_utils import build_filtered_redirect_args, render_no_store_template
+from utils.table_page_utils import (
+    build_filtered_redirect_args,
+    build_table_page_context,
+    build_table_page_redirect,
+    render_no_store_template,
+)
 
 
 def test_build_filtered_redirect_args_omits_missing_filters():
@@ -71,3 +76,42 @@ def test_render_no_store_template_sets_cache_headers():
 
     assert "no-store" in response.headers["Cache-Control"]
     assert response.headers["Pragma"] == "no-cache"
+
+
+def test_build_table_page_context_keeps_common_keys():
+    context = build_table_page_context(
+        rows=[{"filename": "result0.json"}],
+        columns=[{"key": "system", "label": "System"}],
+        pagination={"page": 2, "per_page": 50, "total": 3, "total_pages": 1},
+        filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
+        current_system="Fugaku",
+        current_code="qws",
+        current_exp="CASE0",
+        current_per_page=50,
+        systems_info={"Fugaku": {"name": "Fugaku"}},
+        authenticated=True,
+    )
+
+    assert context["rows"] == [{"filename": "result0.json"}]
+    assert context["columns"][0]["key"] == "system"
+    assert context["pagination"]["page"] == 2
+    assert context["systems_info"]["Fugaku"]["name"] == "Fugaku"
+    assert context["authenticated"] is True
+
+
+def test_build_table_page_redirect_uses_filtered_args():
+    app = Flask(__name__)
+
+    results_bp = Blueprint("results", __name__)
+
+    @results_bp.route("/")
+    def results():
+        return ""
+
+    app.register_blueprint(results_bp, url_prefix="/results")
+
+    with app.test_request_context("/results"):
+        response = build_table_page_redirect("results.results", 3, 20, "Fugaku", "qws", None)
+
+    assert response.status_code == 302
+    assert response.location.endswith("/results/?page=3&per_page=20&system=Fugaku&code=qws")

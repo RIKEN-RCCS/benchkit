@@ -3,9 +3,7 @@ from flask import (
     abort,
     current_app,
     request,
-    redirect,
     session,
-    url_for,
 )
 
 from utils.result_file import check_file_permission, load_result_file
@@ -17,7 +15,11 @@ from utils.results_loader import (
     load_estimated_results_table,
 )
 from utils.system_info import get_all_systems_info
-from utils.table_page_utils import build_filtered_redirect_args, render_no_store_template
+from utils.table_page_utils import (
+    build_table_page_context,
+    build_table_page_redirect,
+    render_no_store_template,
+)
 from utils.table_query_params import parse_table_query_params
 from utils.user_store import get_user_store
 
@@ -29,18 +31,19 @@ def _render_estimated_results_page(**context):
 
 
 def _render_estimated_auth_required():
-    return _render_estimated_results_page(
+    auth_required_context = build_table_page_context(
         rows=[],
         columns=[],
-        authenticated=False,
-        systems_info=get_all_systems_info(),
         pagination={"page": 1, "per_page": DEFAULT_PER_PAGE, "total": 0, "total_pages": 1},
         filter_options={"systems": [], "codes": [], "exps": []},
         current_system=None,
         current_code=None,
         current_exp=None,
         current_per_page=DEFAULT_PER_PAGE,
+        authenticated=False,
+        systems_info=get_all_systems_info(),
     )
+    return _render_estimated_results_page(**auth_required_context)
 
 
 def _build_estimated_results_context(
@@ -75,22 +78,18 @@ def _build_estimated_results_context(
         field_map=ESTIMATED_FIELD_MAP,
     )
 
-    return {
-        "rows": rows,
-        "columns": columns,
-        "authenticated": authenticated,
-        "systems_info": get_all_systems_info(),
-        "pagination": pagination_info,
-        "filter_options": filter_options,
-        "current_system": filter_system,
-        "current_code": filter_code,
-        "current_exp": filter_exp,
-        "current_per_page": per_page,
-    }
-
-
-def _build_estimated_results_redirect_args(page, per_page, filter_system, filter_code, filter_exp):
-    return build_filtered_redirect_args(page, per_page, filter_system, filter_code, filter_exp)
+    return build_table_page_context(
+        rows=rows,
+        columns=columns,
+        pagination=pagination_info,
+        filter_options=filter_options,
+        current_system=filter_system,
+        current_code=filter_code,
+        current_exp=filter_exp,
+        current_per_page=per_page,
+        authenticated=authenticated,
+        systems_info=get_all_systems_info(),
+    )
 
 
 @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
@@ -125,14 +124,14 @@ def estimated_results():
 
     pagination_info = page_context["pagination"]
     if page != pagination_info["page"]:
-        redirect_args = _build_estimated_results_redirect_args(
+        return build_table_page_redirect(
+            "estimated.estimated_results",
             pagination_info["page"],
             per_page,
             filter_system,
             filter_code,
             filter_exp,
         )
-        return redirect(url_for("estimated.estimated_results", **redirect_args))
 
     return _render_estimated_results_page(**page_context)
 
