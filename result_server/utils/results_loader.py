@@ -35,7 +35,6 @@ RESULT_TABLE_COLUMNS = [
 def load_results_table(
     directory,
     public_only=True,
-    session_email=None,
     authenticated=False,
     affiliations=None,
     page=1,
@@ -108,7 +107,6 @@ def load_results_table(
 def load_estimated_results_table(
     directory,
     public_only=True,
-    session_email=None,
     authenticated=False,
     affiliations=None,
     page=1,

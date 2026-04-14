@@ -27,7 +27,6 @@ def _render_estimated_auth_required():
 
 def _build_estimated_results_context(
     estimated_dir,
-    email,
     authenticated,
     affiliations,
     page,
@@ -39,7 +38,6 @@ def _build_estimated_results_context(
     rows, columns, pagination_info = load_estimated_results_table(
         estimated_dir,
         public_only=(not authenticated),
-        session_email=email,
         authenticated=authenticated,
         affiliations=affiliations,
         page=page,
@@ -84,7 +82,6 @@ def register_estimated_list_routes(estimated_bp):
         estimated_dir = current_app.config["ESTIMATED_DIR"]
         page_context = _build_estimated_results_context(
             estimated_dir=estimated_dir,
-            email=user_context["email"],
             authenticated=user_context["authenticated"],
             affiliations=user_context["affiliations"],
             page=params["page"],

@@ -45,7 +45,6 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         if not user_context["authenticated"]:
             return _render_confidential_auth_required()
         load_kwargs.update(
-            session_email=user_context["email"],
             authenticated=user_context["authenticated"],
             affiliations=user_context["affiliations"],
         )
