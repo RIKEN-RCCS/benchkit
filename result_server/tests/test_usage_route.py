@@ -212,10 +212,10 @@ class TestUsageRoute:
                 "result_quality_rollup": {"rows": []},
             }
 
-        import routes.results as results_mod
+        import routes.results_usage_routes as usage_routes_mod
 
-        monkeypatch.setattr(results_mod, "build_usage_report_context", fake_build_usage_report_context)
-        monkeypatch.setattr(results_mod, "get_fiscal_year", lambda dt: 2025)
+        monkeypatch.setattr(usage_routes_mod, "build_usage_report_context", fake_build_usage_report_context)
+        monkeypatch.setattr(usage_routes_mod, "get_fiscal_year", lambda dt: 2025)
 
         resp = client.get("/results/usage")
         assert resp.status_code == 200
