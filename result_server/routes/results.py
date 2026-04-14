@@ -14,6 +14,7 @@ from flask import (
 from routes.admin import admin_required
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.node_hours import aggregate_node_hours, get_fiscal_year
+from utils.result_detail_view import build_result_detail_context
 from utils.result_file import check_file_permission, load_result_file
 from utils.result_quality_rollup import build_result_quality_rollup
 from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
@@ -165,7 +166,8 @@ def result_detail(filename):
     if result is None:
         abort(404, "Result file not found")
     quality = summarize_result_quality(result)
-    return render_template("result_detail.html", result=result, filename=filename, quality=quality)
+    detail_context = build_result_detail_context(result, quality, filename)
+    return render_template("result_detail.html", result=result, quality=quality, **detail_context)
 
 
 @results_bp.route("/usage", methods=["GET"])

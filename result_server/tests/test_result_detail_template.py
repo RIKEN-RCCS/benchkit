@@ -1,14 +1,10 @@
-"""
-result_detail.html テンプレートのレンダリングテスト
-
-テンプレートが各種データ構造で正しくレンダリングされることを検証する。
-"""
+"""Rendering tests for result_detail.html."""
 
 import os
 import sys
 import types
 
-# --- テスト用スタブモジュールの設定 ---
+
 def _setup_stubs():
     if "redis" not in sys.modules:
         sys.modules["redis"] = types.ModuleType("redis")
@@ -24,17 +20,19 @@ def _setup_stubs():
     otp_redis_mod.invalidate_otp = lambda email: None
     sys.modules["utils.otp_redis_manager"] = otp_redis_mod
 
+
 _setup_stubs()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from flask import Flask
+from routes.admin import admin_bp
+from routes.auth import auth_bp
+from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
-from routes.estimated import estimated_bp
-from routes.auth import auth_bp
-from routes.admin import admin_bp
+from utils.result_detail_view import build_result_detail_context
 
 
 @pytest.fixture
@@ -51,7 +49,6 @@ def app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
 
-    # ナビゲーションテンプレートが url_for('systemlist') を参照するためダミールートを登録
     @app.route("/systemlist")
     def systemlist():
         return ""
@@ -59,7 +56,6 @@ def app():
     return app
 
 
-# 全フィールドを持つ完全なテストデータ
 FULL_RESULT = {
     "code": "benchpark-osu-micro-benchmarks",
     "system": "RC_GH200",
@@ -123,43 +119,40 @@ FULL_QUALITY = {
 }
 
 
-class TestResultDetailTemplate:
-    """result_detail.html テンプレートのレンダリングテスト"""
+def _render_result_detail(result, quality, filename="test.json"):
+    from flask import render_template
 
+    detail_context = build_result_detail_context(result, quality, filename)
+    return render_template("result_detail.html", result=result, quality=quality, **detail_context)
+
+
+class TestResultDetailTemplate:
     def test_meta_info_section(self, app):
-        """4.1: メタ情報セクションが正しくレンダリングされる"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "benchpark-osu-micro-benchmarks" in html
         assert "RC_GH200" in html
         assert "osu_bibw" in html
-        assert "6.47" in html
+        assert "6.470" in html
         assert "MB/s" in html
         assert "CPUs per Node" in html
-        # 戻りリンク（url_forで生成されるため、results blueprintのルートURL）
         assert "Back to Results" in html
-        # ナビゲーション
         assert "Results" in html
 
     def test_vector_chart_section(self, app):
-        """4.2: ベクトル型メトリクスのグラフセクションが表示される"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "vectorChart" in html
         assert "cdn.jsdelivr.net/npm/chart.js" in html
         assert "logarithmic" in html
         assert "message_size" in html
-        # フォールバックメッセージ
         assert "Failed to load chart library" in html
 
     def test_pa_data_summary_section(self, app):
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "PA Data Summary" in html
         assert "fapp" in html
@@ -170,49 +163,40 @@ class TestResultDetailTemplate:
         assert "pa1" in html
 
     def test_vector_data_table(self, app):
-        """4.3: ベクトル型メトリクスのデータテーブルが正しく表示される"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
-        # カラムヘッダー
         assert "Bandwidth" in html
         assert "P50 Tail Bandwidth" in html
-        # X軸は整数表示
         assert ">1<" in html or ">1</td>" in html
         assert ">4194304<" in html or ">4194304</td>" in html
-        # メトリクス値は小数点以下2桁
         assert "6.47" in html
         assert "25089.47" in html
 
     def test_scalar_metrics_shown_when_multiple_keys(self, app):
-        """4.4: スカラーメトリクスが2つ以上のキーで表示される"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "Scalar Metrics" in html
         assert "other_metric" in html
         assert "1.23" in html
 
     def test_scalar_metrics_hidden_when_fom_only(self, app):
-        """4.4: スカラーメトリクスがFOMのみの場合は非表示"""
         result = {
-            "code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0,
+            "code": "test",
+            "system": "sys",
+            "Exp": "exp",
+            "FOM": 1.0,
             "metrics": {"scalar": {"FOM": 1.0}},
         }
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(result, FULL_QUALITY)
 
-        # h2タグ内のセクション見出しが表示されないことを確認
         assert "<h2>Scalar Metrics</h2>" not in html
 
     def test_build_info_section(self, app):
-        """4.5: ビルド情報セクションが正しく表示される"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "Build Information" in html
         assert "spack" in html
@@ -222,44 +206,39 @@ class TestResultDetailTemplate:
         assert "4.1.7" in html
 
     def test_build_info_hidden_when_no_build(self, app):
-        """4.5: buildフィールドがない場合はビルド情報非表示"""
         result = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(result, FULL_QUALITY)
 
         assert "<h2>Build Information</h2>" not in html
         assert "implicit default (s)" in html
 
     def test_no_vector_section_when_no_metrics(self, app):
-        """4.2: metricsがない場合はグラフセクション非表示"""
         result = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(result, FULL_QUALITY)
 
         assert "vectorChart" not in html
         assert "cdn.jsdelivr.net/npm/chart.js" not in html
 
     def test_build_tool_only_no_spack(self, app):
-        """4.5: build.spackがない場合はツール名のみ表示"""
         result = {
-            "code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0,
+            "code": "test",
+            "system": "sys",
+            "Exp": "exp",
+            "FOM": 1.0,
             "build": {"tool": "cmake"},
         }
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=result, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(result, FULL_QUALITY)
 
         assert "Build Information" in html
         assert "cmake" in html
         assert "Compiler" not in html
 
     def test_quality_section(self, app):
-        """Quality セクションが表示される"""
         with app.test_request_context():
-            from flask import render_template
-            html = render_template("result_detail.html", result=FULL_RESULT, quality=FULL_QUALITY, filename="test.json")
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "<h2>Quality</h2>" in html
         assert "Rich" in html
