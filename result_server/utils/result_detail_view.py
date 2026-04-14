@@ -1,3 +1,6 @@
+from utils.result_records import format_numeric_value
+
+
 def build_result_detail_context(result, quality, filename):
     profile_data = result.get("profile_data") or {}
     build_data = result.get("build") or {}
@@ -21,7 +24,7 @@ def _build_meta_rows(result):
         {"label": "Code", "value": result.get("code", "N/A")},
         {"label": "System", "value": result.get("system", "N/A")},
         {"label": "Exp", "value": result.get("Exp", "N/A")},
-        {"label": "FOM", "value": _format_numeric_value(result.get("FOM", "N/A"))},
+        {"label": "FOM", "value": format_numeric_value(result.get("FOM", "N/A"))},
         {"label": "FOM Unit", "value": result.get("FOM_unit") or "implicit default (s)"},
         {"label": "Node Count", "value": result.get("node_count", "N/A")},
     ]
@@ -131,12 +134,3 @@ def _build_build_rows(build_data):
             "list": [f"{pkg.get('name', '')} {pkg.get('version', '')}".strip() for pkg in packages],
         })
     return rows
-
-
-def _format_numeric_value(value):
-    if value in (None, "", "N/A", "null", "nan"):
-        return value
-    try:
-        return f"{float(value):.3f}"
-    except (TypeError, ValueError):
-        return value

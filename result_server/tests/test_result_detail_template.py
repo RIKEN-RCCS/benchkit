@@ -4,39 +4,19 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from test_support import install_portal_test_stubs
+from test_support import build_portal_shell_app, install_portal_test_stubs
 
 install_portal_test_stubs()
 
 import pytest
-from flask import Flask
-from routes.admin import admin_bp
-from routes.auth import auth_bp
-from routes.estimated import estimated_bp
-from routes.home import register_home_routes
-from routes.results import results_bp
 from utils.result_detail_view import build_result_detail_context
 
 
 @pytest.fixture
 def app():
-    app = Flask(
-        __name__,
-        template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    return build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
-    app.config["TESTING"] = True
-    app.config["SECRET_KEY"] = "test-secret"
-    register_home_routes(app)
-    app.register_blueprint(results_bp, url_prefix="/")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(admin_bp)
-
-    @app.route("/systemlist")
-    def systemlist():
-        return ""
-
-    return app
 
 
 FULL_RESULT = {

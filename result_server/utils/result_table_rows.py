@@ -1,14 +1,15 @@
-import re
-from datetime import datetime
-
 from flask import url_for
 
-from utils.result_records import summarize_result_quality
+from utils.result_records import (
+    extract_result_uuid,
+    format_result_timestamp,
+    summarize_result_quality,
+)
 
 
 def build_result_table_row(json_filename, result_data, padata_filenames):
     """Build a single row for the public/confidential results index table."""
-    timestamp = _format_timestamp(json_filename)
+    timestamp = format_result_timestamp(json_filename)
     matched_padata = _find_matching_padata_archive(json_filename, result_data, padata_filenames)
     pipeline_timing = result_data.get("pipeline_timing", {})
     source_info = result_data.get("source_info")
@@ -71,33 +72,8 @@ def _normalize_pipeline_timing(pipeline_timing, key):
 def _has_vector_metrics(result_data):
     metrics = result_data.get("metrics", {})
     return isinstance(metrics, dict) and "vector" in metrics
-
-
-def _format_timestamp(json_filename):
-    match = re.search(r"\d{8}_\d{6}", json_filename)
-    if not match:
-        return "Unknown"
-
-    try:
-        ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
-    except Exception:
-        return "Unknown"
-    return ts.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _extract_result_uuid(json_filename, result_data):
-    uuid_match = re.search(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        json_filename,
-        re.IGNORECASE,
-    )
-    if uuid_match:
-        return uuid_match.group(0)
-    return result_data.get("_server_uuid")
-
-
 def _find_matching_padata_archive(json_filename, result_data, padata_filenames):
-    result_uuid = _extract_result_uuid(json_filename, result_data)
+    result_uuid = extract_result_uuid(json_filename) or result_data.get("_server_uuid")
     if not result_uuid:
         return None
     return next((filename for filename in padata_filenames if result_uuid in filename), None)

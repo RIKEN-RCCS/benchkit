@@ -1,3 +1,6 @@
+from utils.result_records import format_numeric_value, split_display_timestamp
+
+
 def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallback_timestamp=None):
     current = result_data.get("current_system", {})
     future = result_data.get("future_system", {})
@@ -16,10 +19,12 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
     current_package = estimate_meta.get("current_package", {}).get("estimation_package", "")
     future_package = estimate_meta.get("future_package", {}).get("estimation_package", "")
 
+    timestamp_date, timestamp_time = split_display_timestamp(timestamp)
+
     row = {
         "timestamp": timestamp,
-        "timestamp_date": _get_timestamp_date(timestamp),
-        "timestamp_time": _get_timestamp_time(timestamp),
+        "timestamp_date": timestamp_date,
+        "timestamp_time": timestamp_time,
         "code": result_data.get("code", ""),
         "exp": result_data.get("exp", ""),
         "applicability_status": applicability.get("status", ""),
@@ -34,7 +39,7 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
         "estimate_uuid": estimate_uuid,
         "estimate_uuid_short": estimate_uuid[:8] if estimate_uuid else "",
         "performance_ratio": result_data.get("performance_ratio", ""),
-        "performance_ratio_display": _format_numeric_display(result_data.get("performance_ratio", "")),
+        "performance_ratio_display": format_numeric_value(result_data.get("performance_ratio", "")),
         "json_link": filename,
         "requested_package_short": _format_package_short_name(requested_package),
         "applied_package_short": _format_package_short_name(applied_package),
@@ -83,13 +88,13 @@ def _build_estimated_system_fields(prefix, system_data):
     return {
         f"{prefix}_system": system_data.get("system", ""),
         f"{prefix}_fom": fom,
-        f"{prefix}_fom_display": _format_numeric_display(fom),
+        f"{prefix}_fom_display": format_numeric_value(fom),
         f"{prefix}_target_nodes": system_data.get("target_nodes", ""),
         f"{prefix}_scaling_method": scaling_method,
         f"{prefix}_scaling_title": scaling_method,
         f"{prefix}_bench_system": benchmark.get("system", ""),
         f"{prefix}_bench_fom": benchmark_fom,
-        f"{prefix}_bench_fom_display": _format_numeric_display(benchmark_fom),
+        f"{prefix}_bench_fom_display": format_numeric_value(benchmark_fom),
         f"{prefix}_bench_nodes": benchmark.get("nodes", ""),
         f"{prefix}_scaling_short": _format_scaling_short_name(scaling_method),
     }
@@ -148,25 +153,3 @@ def _build_applied_package_title(applied_package, method_class, detail_level, cu
 def _build_applied_package_meta_line(method_class, detail_level):
     meta_parts = [part for part in (method_class, detail_level) if part]
     return " / ".join(meta_parts)
-
-
-def _format_numeric_display(value):
-    if value in (None, "", "N/A", "null", "nan"):
-        return value
-
-    try:
-        return f"{float(value):.3f}"
-    except (TypeError, ValueError):
-        return value
-
-
-def _get_timestamp_date(value):
-    if not value:
-        return ""
-    return value.split(" ")[0]
-
-
-def _get_timestamp_time(value):
-    if not value or " " not in value:
-        return ""
-    return value.split(" ", 1)[1]

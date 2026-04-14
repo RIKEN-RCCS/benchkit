@@ -188,3 +188,20 @@ def extract_result_uuid(filename):
         re.IGNORECASE,
     )
     return uuid_match.group(0) if uuid_match else None
+
+
+def format_numeric_value(value):
+    if value in (None, "", "N/A", "null", "nan"):
+        return value
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return value
+
+
+def split_display_timestamp(value):
+    if not value:
+        return "", ""
+    if " " not in value:
+        return value, ""
+    return value.split(" ", 1)
