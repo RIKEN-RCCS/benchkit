@@ -15,21 +15,17 @@ from utils.table_page_utils import (
 )
 from utils.table_query_params import parse_table_query_params
 
-
-def _render_estimated_auth_required():
-    return render_auth_required_table_page(
-        "estimated_results.html",
-        per_page=DEFAULT_PER_PAGE,
-        authenticated=False,
-        systems_info=get_all_systems_info(),
-    )
-
 def register_estimated_list_routes(estimated_bp):
     @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
     def estimated_results():
         user_context = get_session_user_context()
         if not user_context["authenticated"]:
-            return _render_estimated_auth_required()
+            return render_auth_required_table_page(
+                "estimated_results.html",
+                per_page=DEFAULT_PER_PAGE,
+                authenticated=False,
+                systems_info=get_all_systems_info(),
+            )
 
         params = parse_table_query_params(request.args)
         estimated_dir = current_app.config["ESTIMATED_DIR"]

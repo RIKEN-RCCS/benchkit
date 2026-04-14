@@ -36,19 +36,17 @@ def load_result_compare_context(filenames, directory):
 
 def _build_compare_chart_context(rows, has_vector_metrics):
     first_result = rows[0] if rows else {}
-    vector_axis = _find_vector_axis(rows) if has_vector_metrics else {}
+    vector_axis = {}
+    if has_vector_metrics:
+        for row in rows:
+            vector = (row.get("metrics") or {}).get("vector") or {}
+            x_axis = vector.get("x_axis") or {}
+            if x_axis.get("name") or x_axis.get("unit"):
+                vector_axis = x_axis
+                break
     vector_axis_label = build_axis_label(vector_axis.get("name"), vector_axis.get("unit"))
     fom_unit = first_result.get("FOM_unit") or ""
     return {
         "vector_axis_label": vector_axis_label,
         "fom_unit": fom_unit,
     }
-
-
-def _find_vector_axis(rows):
-    for row in rows:
-        vector = (row.get("metrics") or {}).get("vector") or {}
-        x_axis = vector.get("x_axis") or {}
-        if x_axis.get("name") or x_axis.get("unit"):
-            return x_axis
-    return {}
