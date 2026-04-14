@@ -153,64 +153,18 @@
                         {% endif %}
                     </td>
                 {% elif key == "system" %}
-                    <td style="overflow: visible; position: relative;">
-                        <span class="tooltip">{{ row[key] }}
-                            <span class="tooltiptext">
-                                {% set sys_info = systems_info.get(row[key]) %}
-                                {% if sys_info %}
-                                    <strong>{{ sys_info.name }}</strong><br>
-                                    CPU: {{ sys_info.cpu_name }}<br>
-                                    CPU/node: {{ sys_info.cpu_per_node }}<br>
-                                    CPU Cores: {{ sys_info.cpu_cores }}<br>
-                                    {% if sys_info.gpu_name != '-' %}GPU: {{ sys_info.gpu_name }}<br>
-                                    GPU/node: {{ sys_info.gpu_per_node }}<br>{% endif %}
-                                    Memory: {{ sys_info.memory }}
-                                {% else %}
-                                    {{ row[key] }} system details
-                                {% endif %}
-                            </span>
-                        </span>
-                    </td>
+                    {% include "_results_table_cell_system.html" %}
                 {% elif key in ["nodes", "numproc_node", "nthreads"] %}
                     <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
                 {% elif key == "profile_summary" %}
-                    <td class="profile-cell">
-                        {% if row.profile_summary_meta.has_profile_data %}
-                            <span class="tooltip">
-                                <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
-                                {% if row.data_link %}
-                                <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
-                                {% endif %}
-                                <span class="tooltiptext">
-                                    {{ row.profile_summary_meta.headline }}
-                                    {% if row.profile_summary_meta.subline %}<br>{{ row.profile_summary_meta.subline }}{% endif %}
-                                    {% if row.data_link %}<br>archive: available{% endif %}
-                                    {% if row.profile_summary_meta.events %}<br>events: {{ row.profile_summary_meta.events | join(', ') }}{% endif %}
-                                    {% if row.profile_summary_meta.report_kinds %}<br>reports: {{ row.profile_summary_meta.report_kinds | join(', ') }}{% endif %}
-                                </span>
-                            </span>
-                        {% elif row.data_link %}
-                            <a class="profile-data-link profile-data-link-only" href="{{ row.data_link }}">padata</a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+                    {% include "_results_table_cell_profile.html" %}
                 {% elif key == "ci_summary" %}
-                    <td class="ci-cell" title="{{ row.ci_trigger }} / {{ row.pipeline_id }}">
-                        <span class="ci-trigger">{{ row.ci_trigger }}</span>
-                        <span class="ci-pipeline">#{{ row.pipeline_id }}</span>
-                    </td>
+                    {% include "_results_table_cell_ci.html" %}
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
                 {% elif key == "code" %}
-                    {% if row.source_info and row.source_info.source_type == "git" %}
-                        <td class="code-cell"><a class="code-link" href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% elif row.source_info and row.source_info.source_type == "file" %}
-                        <td class="code-cell" title="{{ row.source_info.file_path }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% else %}
-                        <td class="code-cell" title="{{ row.code }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% endif %}
+                    {% include "_results_table_cell_code.html" %}
                 {% elif key in ["fom_version", "exp", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% elif key == "fom" %}
