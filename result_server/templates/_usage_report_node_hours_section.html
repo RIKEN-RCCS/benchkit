@@ -6,61 +6,61 @@
 
   {% if result.apps %}
   <div class="table-wrap">
-    <table class="usage-table" style="border-collapse: separate; border-spacing: 0; width: max-content; font-size: 12px;">
+    <table class="usage-table usage-node-hours-table">
       <thead>
         <tr>
-          <th rowspan="2" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2;"></th>
+          <th rowspan="2" class="usage-node-hours-head"></th>
           {% for system in result.systems %}
-          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center;">{{ system }}</th>
+          <th colspan="{{ filtered_periods|length }}" class="usage-node-hours-head">{{ system }}</th>
           {% endfor %}
-          <th colspan="{{ filtered_periods|length }}" style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center;">Total</th>
+          <th colspan="{{ filtered_periods|length }}" class="usage-node-hours-total-head">Total</th>
         </tr>
         <tr>
           {% for system in result.systems %}
           {% for period in filtered_periods %}
-          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #f2f2f2; text-align: center; white-space: nowrap;">{{ period }}</th>
+          <th class="usage-node-hours-head usage-node-hours-period">{{ period }}</th>
           {% endfor %}
           {% endfor %}
           {% for period in filtered_periods %}
-          <th style="border: 1px solid #ddd; padding: 3px 5px; background-color: #e2e2e2; text-align: center; white-space: nowrap;">{{ period }}</th>
+          <th class="usage-node-hours-total-head usage-node-hours-period">{{ period }}</th>
           {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for app in result.apps %}
         <tr>
-          <td style="border: 1px solid #ddd; padding: 3px 5px; font-weight: bold; white-space: nowrap;">{{ app }}</td>
+          <td class="usage-node-hours-app">{{ app }}</td>
           {% for system in result.systems %}
           {% for period in filtered_periods %}
           {% set val = result.table[app][system][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          <td class="usage-node-hours-value">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
           {% endfor %}
           {% for period in filtered_periods %}
           {% set val = result.row_totals[app][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #fafafa; font-weight: bold;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          <td class="usage-node-hours-total">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
         </tr>
         {% endfor %}
       </tbody>
       <tfoot>
-        <tr style="font-weight: bold;">
-          <td style="border: 1px solid #ddd; padding: 3px 5px;">Total</td>
+        <tr class="usage-node-hours-footer">
+          <td class="usage-node-hours-app">Total</td>
           {% for system in result.systems %}
           {% for period in filtered_periods %}
           {% set val = result.col_totals[system][period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #f2f2f2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          <td class="usage-node-hours-value">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
           {% endfor %}
           {% for period in filtered_periods %}
           {% set val = result.grand_totals[period] %}
-          <td style="border: 1px solid #ddd; padding: 3px 5px; text-align: right; background-color: #e2e2e2;">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          <td class="usage-node-hours-grand-total">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
           {% endfor %}
         </tr>
       </tfoot>
     </table>
   </div>
   {% else %}
-  <p style="color: #666; font-size: 14px;">No usage data is available for the selected periods.</p>
+  <p class="muted-empty">No usage data is available for the selected periods.</p>
   {% endif %}
 </section>

@@ -59,7 +59,7 @@
 
 {% include "_pagination.html" %}
 
-<div id="estimatedConfig" data-per-page="{{ current_per_page }}" style="display:none;"></div>
+<div id="estimatedConfig" data-per-page="{{ current_per_page }}" hidden></div>
 <script>
 function applyServerFilter() {
     var perPage = document.getElementById('estimatedConfig').getAttribute('data-per-page');
