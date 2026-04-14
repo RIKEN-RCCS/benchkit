@@ -20,7 +20,7 @@
 }
 </style>
 
-<p class="results-table-note">Use the server-side filters to narrow the table first, check the profiler summary when PA data is available, and then select visible rows if you want to open the compare view.</p>
+<p class="results-table-note">Filter first, check the profiler and PA summary when available, and then select visible rows if you want to open compare.</p>
 
 <div class="results-table-wrap">
 <table id="resultsTable" class="results-table">
@@ -28,7 +28,7 @@
     <!-- Row 1: Column names -->
     <tr>
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "Trigger", "Pipeline", "Branch/Hash"] %}
               <th>
                 {% if col_name == "Timestamp" %}
                   <span class="tooltip tooltip-left">{{ col_name }}
@@ -62,13 +62,9 @@
                   <span class="tooltip">{{ col_name }}
                     <span class="tooltiptext">Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries</span>
                   </span>
-                {% elif col_name == "PA Data" %}
-                  <span class="tooltip tooltip-right">{{ col_name }}
-                    <span class="tooltiptext">Performance Analysis data archive (detailed profiling data)</span>
-                  </span>
-                {% elif col_name == "Profiler" %}
+                {% elif col_name == "Profiler / PA" %}
                   <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Profiler tool, level, and report summary extracted from uploaded PA metadata</span>
+                    <span class="tooltiptext">Profiler tool, level, report summary, and PA data download access</span>
                   </span>
                 {% elif col_name == "Trigger" %}
                   <span class="tooltip">{{ col_name }}
@@ -106,7 +102,7 @@
     <!-- Row 2: Filters and compare controls -->
     <tr style="background-color: #f9f9f9;">
         {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
+           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "Profiler / PA", "JSON", "Trigger", "Pipeline", "Branch/Hash"] %}
               {% if col_name == "SYSTEM" %}
               <th style="padding: 4px;">
                   <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
@@ -152,12 +148,10 @@
     {% for row in rows %}
         <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
             {% for _, key in columns %}
-                {% if key in ["json_link", "data_link"] %}
+                {% if key == "json_link" %}
                     <td>
-                        {% if row[key] %}
-                            <a href="{{ row[key] }}">
-                                {{ "json" if key == "json_link" else "data" }}
-                            </a>
+                        {% if row.json_link %}
+                            <a href="{{ row.json_link }}">json</a>
                         {% else %}
                             -
                         {% endif %}
@@ -187,17 +181,25 @@
                     <td class="profile-cell">
                         {% if row.profile_summary_meta.has_profile_data %}
                             <span class="tooltip">
-                                <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
+                                <span class="profile-headline-row">
+                                    <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
+                                    {% if row.data_link %}
+                                    <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
+                                    {% endif %}
+                                </span>
                                 {% if row.profile_summary_meta.subline %}
                                 <span class="profile-subline">{{ row.profile_summary_meta.subline }}</span>
                                 {% endif %}
                                 <span class="tooltiptext">
                                     {{ row.profile_summary_meta.headline }}
                                     {% if row.profile_summary_meta.subline %}<br>{{ row.profile_summary_meta.subline }}{% endif %}
+                                    {% if row.data_link %}<br>archive: available{% endif %}
                                     {% if row.profile_summary_meta.events %}<br>events: {{ row.profile_summary_meta.events | join(', ') }}{% endif %}
                                     {% if row.profile_summary_meta.report_kinds %}<br>reports: {{ row.profile_summary_meta.report_kinds | join(', ') }}{% endif %}
                                 </span>
                             </span>
+                        {% elif row.data_link %}
+                            <a class="profile-data-link profile-data-link-only" href="{{ row.data_link }}">padata</a>
                         {% else %}
                             -
                         {% endif %}
@@ -275,8 +277,14 @@
     color: #1f4f99;
 }
 .profile-cell {
-    min-width: 150px;
+    min-width: 190px;
     white-space: normal;
+}
+.profile-headline-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
 }
 .profile-headline {
     display: block;
@@ -289,6 +297,15 @@
     color: #607282;
     font-size: 0.82em;
     line-height: 1.35;
+}
+.profile-data-link {
+    flex-shrink: 0;
+    font-size: 0.82em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.profile-data-link-only {
+    display: inline-block;
 }
 </style>
 

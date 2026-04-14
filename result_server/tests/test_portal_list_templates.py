@@ -93,7 +93,7 @@ def test_results_template_renders_table_note():
                     ("CODE", "code"),
                     ("FOM", "fom"),
                     ("Exp", "exp"),
-                    ("Profiler", "profile_summary"),
+                    ("Profiler / PA", "profile_summary"),
                     ("JSON", "json_link"),
                 ],
             rows=[
@@ -104,7 +104,7 @@ def test_results_template_renders_table_note():
                     "fom": 1.234,
                     "exp": "CASE0",
                     "json_link": "/results/result0.json",
-                    "data_link": None,
+                    "data_link": "/results/padata0.tgz",
                     "filename": "result0.json",
                     "detail_link": "/results/detail/result0.json",
                     "source_info": None,
@@ -149,11 +149,12 @@ def test_results_template_renders_table_note():
             },
         )
 
-    assert "check the profiler summary when PA data is available" in html
+    assert "check the profiler and PA summary when available" in html
     assert "results-table-wrap" in html
     assert "Compare" in html
     assert "fapp / detailed" in html
-    assert "Profiler" in html
+    assert "Profiler / PA" in html
+    assert "padata" in html
 
 
 def test_estimated_results_template_renders_table_note():

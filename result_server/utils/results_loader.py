@@ -425,9 +425,8 @@ def load_results_table(directory, public_only=True, session_email=None, authenti
         ("Nodes", "nodes"),
         ("P/N", "numproc_node"),
         ("T/P", "nthreads"),
-        ("Profiler", "profile_summary"),
+        ("Profiler / PA", "profile_summary"),
         ("JSON", "json_link"),
-        ("PA Data", "data_link"),
         ("Trigger", "ci_trigger"),
         ("Pipeline", "pipeline_id"),
     ]
