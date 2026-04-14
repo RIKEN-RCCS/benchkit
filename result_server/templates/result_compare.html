@@ -4,22 +4,7 @@
 {% block page_subtitle %}Overlay vector metrics, compare FOM timelines, and sanity-check whether selected runs are from the same system and code.{% endblock %}
 
 {% block content %}
-{% include "_chart_page_styles.html" %}
-<style>
-    .compare-note {
-        margin: 0 0 16px;
-        color: #52606d;
-        font-size: 14px;
-        line-height: 1.5;
-    }
-    .compare-warning {
-        color: #c00;
-        background: #fff3f3;
-        padding: 8px 12px;
-        border: 1px solid #fcc;
-        border-radius: 4px;
-    }
-</style>
+{% include "_compare_page_styles.html" %}
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
@@ -51,9 +36,11 @@
 
 {% if results %}
 <div id="resultsJsonData" class="hidden-config" data-results='{{ results | tojson }}'></div>
+<div id="compareConfigData" class="hidden-config" data-config='{{ compare_chart | tojson }}'></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 var resultsData = JSON.parse(document.getElementById('resultsJsonData').getAttribute('data-results'));
+var compareConfig = JSON.parse(document.getElementById('compareConfigData').getAttribute('data-config'));
 
 var palette = [
     'rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)',
@@ -92,7 +79,7 @@ if (vectorCanvas) {
             responsive: true,
             plugins: { legend: { position: 'top' } },
             scales: {
-                x: { type: 'logarithmic', title: { display: true, text: 'message_size (bytes)' } },
+                x: { type: 'logarithmic', title: { display: true, text: compareConfig.vector_axis_label || 'X Axis' } },
                 y: { title: { display: true, text: 'Value' } }
             }
         }
@@ -103,7 +90,7 @@ var fomCanvas = document.getElementById('fomTimelineChart');
 if (fomCanvas) {
     var fomLabels = resultsData.map(function(r) { return r.timestamp; });
     var fomValues = resultsData.map(function(r) { return r.data.FOM; });
-    var fomUnit = resultsData[0].data.FOM_unit || '';
+    var fomUnit = compareConfig.fom_unit || '';
     new Chart(fomCanvas.getContext('2d'), {
         type: 'line',
         data: {

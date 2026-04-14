@@ -239,3 +239,9 @@ def build_compare_headline(system, code, count):
     if not system and not code:
         return f"Comparing {count} results"
     return f"{system or '-'} / {code or '-'} - Comparing {count} results"
+
+
+def build_axis_label(name, unit):
+    if name and unit:
+        return f"{name} ({unit})"
+    return name or unit or ""

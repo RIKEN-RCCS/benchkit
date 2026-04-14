@@ -247,7 +247,9 @@ def test_result_compare_template_renders_headline():
             mixed=False,
             headline="Fugaku / qws - Comparing 2 results",
             has_vector_metrics=False,
+            compare_chart={"vector_axis_label": "", "fom_unit": "s"},
         )
 
     assert "Fugaku / qws - Comparing 2 results" in html
     assert "FOM Timeline" in html
+    assert "compareConfigData" in html

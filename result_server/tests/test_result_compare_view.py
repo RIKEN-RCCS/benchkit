@@ -31,3 +31,27 @@ def test_build_result_compare_context_marks_mixed_rows():
     )
 
     assert context["mixed"] is True
+
+
+def test_build_result_compare_context_uses_vector_axis_metadata():
+    context = build_result_compare_context(
+        [
+            {
+                "data": {
+                    "system": "Fugaku",
+                    "code": "qws",
+                    "FOM_unit": "s",
+                    "metrics": {
+                        "vector": {
+                            "x_axis": {"name": "message_size", "unit": "bytes"},
+                            "table": {"columns": ["message_size", "Bandwidth"], "rows": [[1, 2.0]]},
+                        }
+                    },
+                }
+            }
+        ]
+    )
+
+    assert context["has_vector_metrics"] is True
+    assert context["compare_chart"]["vector_axis_label"] == "message_size (bytes)"
+    assert context["compare_chart"]["fom_unit"] == "s"
