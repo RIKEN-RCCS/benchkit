@@ -47,7 +47,8 @@ _setup_stubs()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import Flask
-from utils.results_loader import load_single_result, load_multiple_results, load_results_table, get_filter_options, summarize_result_quality
+from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
+from utils.results_loader import load_results_table, get_filter_options
 
 
 # --- フィクスチャ ---
@@ -92,7 +93,7 @@ class TestLoadSingleResult:
         data = {"code": "test-app", "system": "TestSys", "FOM": 42.0}
         _write_json(tmp_dir, "result.json", data)
 
-        result = load_single_result("result.json", save_dir=tmp_dir)
+        result = load_result_json("result.json", tmp_dir)
         assert result is not None
         assert result["code"] == "test-app"
         assert result["system"] == "TestSys"
@@ -100,7 +101,7 @@ class TestLoadSingleResult:
 
     def test_load_nonexistent_file(self, tmp_dir):
         """存在しないファイルの場合 None を返す"""
-        result = load_single_result("nonexistent.json", save_dir=tmp_dir)
+        result = load_result_json("nonexistent.json", tmp_dir)
         assert result is None
 
     def test_load_invalid_json(self, tmp_dir):
@@ -109,7 +110,7 @@ class TestLoadSingleResult:
         with open(filepath, "w") as f:
             f.write("not valid json {{{")
 
-        result = load_single_result("bad.json", save_dir=tmp_dir)
+        result = load_result_json("bad.json", tmp_dir)
         assert result is None
 
     def test_preserves_all_meta_fields(self, tmp_dir):
@@ -125,7 +126,7 @@ class TestLoadSingleResult:
         }
         _write_json(tmp_dir, "meta.json", data)
 
-        result = load_single_result("meta.json", save_dir=tmp_dir)
+        result = load_result_json("meta.json", tmp_dir)
         assert result is not None
         for key in ["code", "system", "Exp", "FOM", "FOM_unit", "node_count", "cpus_per_node"]:
             assert key in result
@@ -144,7 +145,7 @@ class TestLoadSingleResult:
         }
         _write_json(tmp_dir, "vector.json", data)
 
-        result = load_single_result("vector.json", save_dir=tmp_dir)
+        result = load_result_json("vector.json", tmp_dir)
         assert result is not None
         assert "metrics" in result
         assert "vector" in result["metrics"]
@@ -167,7 +168,7 @@ class TestLoadMultipleResults:
             "result_20250101_080000_bbb.json",
             "result_20250110_100000_ccc.json",
         ]
-        results = load_multiple_results(filenames, save_dir=tmp_dir)
+        results = load_result_json_batch(filenames, tmp_dir)
 
         assert len(results) == 3
         assert results[0]["timestamp"] == "2025-01-01 08:00:00"
@@ -180,7 +181,7 @@ class TestLoadMultipleResults:
         filename = f"result_20250601_143022_{uid}.json"
         _write_json(tmp_dir, filename, {"code": "test"})
 
-        results = load_multiple_results([filename], save_dir=tmp_dir)
+        results = load_result_json_batch([filename], tmp_dir)
         assert len(results) == 1
         assert results[0]["timestamp"] == "2025-06-01 14:30:22"
         assert results[0]["filename"] == filename
@@ -189,9 +190,9 @@ class TestLoadMultipleResults:
         """存在しないファイルはスキップされる"""
         _write_json(tmp_dir, "result_20250101_000000_x.json", {"code": "ok"})
 
-        results = load_multiple_results(
+        results = load_result_json_batch(
             ["result_20250101_000000_x.json", "nonexistent.json"],
-            save_dir=tmp_dir,
+            directory=tmp_dir,
         )
         assert len(results) == 1
 
@@ -199,7 +200,7 @@ class TestLoadMultipleResults:
         """戻り値の形式が正しい"""
         _write_json(tmp_dir, "result_20250101_000000_x.json", {"code": "test", "FOM": 1.0})
 
-        results = load_multiple_results(["result_20250101_000000_x.json"], save_dir=tmp_dir)
+        results = load_result_json_batch(["result_20250101_000000_x.json"], tmp_dir)
         assert len(results) == 1
         r = results[0]
         assert "filename" in r
@@ -212,13 +213,13 @@ class TestLoadMultipleResults:
         """タイムスタンプパターンがないファイル名は 'Unknown' になる"""
         _write_json(tmp_dir, "some_result.json", {"code": "test"})
 
-        results = load_multiple_results(["some_result.json"], save_dir=tmp_dir)
+        results = load_result_json_batch(["some_result.json"], tmp_dir)
         assert len(results) == 1
         assert results[0]["timestamp"] == "Unknown"
 
     def test_empty_filenames(self, tmp_dir):
         """空のファイル名リストは空リストを返す"""
-        results = load_multiple_results([], save_dir=tmp_dir)
+        results = load_result_json_batch([], tmp_dir)
         assert results == []
 
 

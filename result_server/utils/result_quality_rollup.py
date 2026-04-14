@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 from utils.node_hours import extract_timestamp_from_filename
-from utils.results_loader import summarize_result_quality
+from utils.result_records import summarize_result_quality
 
 
 def _format_timestamp(filename: str, filepath: str) -> tuple[object, str]:

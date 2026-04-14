@@ -2,7 +2,8 @@ from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app, make_response
 )
-from utils.results_loader import load_estimated_results_table, get_filter_options, ESTIMATED_FIELD_MAP, load_single_result
+from utils.result_records import load_result_json
+from utils.results_loader import load_estimated_results_table, get_filter_options, ESTIMATED_FIELD_MAP
 from routes.results import extract_query_params
 from utils.user_store import get_user_store
 from utils.result_file import load_result_file, check_file_permission
@@ -106,7 +107,7 @@ def estimated_detail(filename):
         abort(403, "Authentication required to view estimated data")
     estimated_dir = current_app.config["ESTIMATED_DIR"]
     check_file_permission(filename, estimated_dir)
-    result = load_single_result(filename, estimated_dir)
+    result = load_result_json(filename, estimated_dir)
     if result is None:
         abort(404, "Estimated result file not found")
     return render_template("estimated_detail.html", result=result, filename=filename)

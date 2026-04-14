@@ -4,7 +4,8 @@ from flask import (
     Blueprint, render_template, request, session,
     redirect, url_for, flash, abort, current_app, make_response
 )
-from utils.results_loader import load_results_table, load_single_result, load_multiple_results, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE, summarize_result_quality
+from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
+from utils.results_loader import load_results_table, get_filter_options, ALLOWED_PER_PAGE, DEFAULT_PER_PAGE
 from utils.user_store import get_user_store
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.site_diagnostics import build_site_diagnostics
@@ -179,7 +180,7 @@ def result_compare():
     for filename in filenames:
         check_file_permission(filename, current_app.config["RECEIVED_DIR"])
 
-    results = load_multiple_results(filenames, save_dir=current_app.config["RECEIVED_DIR"])
+    results = load_result_json_batch(filenames, current_app.config["RECEIVED_DIR"])
 
     mixed = False
     if results:
@@ -201,7 +202,7 @@ def result_compare():
 def result_detail(filename):
     """個別結果の詳細ページ（グラフ、データテーブル、ビルド情報）"""
     check_file_permission(filename, current_app.config["RECEIVED_DIR"])
-    result = load_single_result(filename, save_dir=current_app.config["RECEIVED_DIR"])
+    result = load_result_json(filename, current_app.config["RECEIVED_DIR"])
     if result is None:
         abort(404, "Result file not found")
     quality = summarize_result_quality(result)
