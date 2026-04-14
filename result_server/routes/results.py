@@ -14,9 +14,13 @@ from utils.app_support_matrix import load_app_system_support_matrix
 from utils.node_hours import aggregate_node_hours, get_fiscal_year
 from utils.result_compare_view import build_result_compare_context
 from utils.result_detail_view import build_result_detail_context
-from utils.result_file import check_file_permission, load_result_file
+from utils.result_file import (
+    check_file_permission,
+    load_permitted_result_json,
+    serve_permitted_result_file,
+)
 from utils.result_quality_rollup import build_result_quality_rollup
-from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
+from utils.result_records import load_result_json_batch, summarize_result_quality
 from utils.results_loader import DEFAULT_PER_PAGE, get_filter_options, load_results_table
 from utils.site_diagnostics import build_site_diagnostics
 from utils.system_info import get_all_systems_info
@@ -50,8 +54,7 @@ def _render_confidential_auth_required():
 
 
 def serve_confidential_file(filename, dir_path):
-    check_file_permission(filename, dir_path)
-    return load_result_file(filename, dir_path)
+    return serve_permitted_result_file(filename, dir_path)
 
 
 def _render_results_list(public_only, template_name, redirect_endpoint):
@@ -164,10 +167,11 @@ def result_compare():
 
 @results_bp.route("/detail/<filename>")
 def result_detail(filename):
-    check_file_permission(filename, current_app.config["RECEIVED_DIR"])
-    result = load_result_json(filename, current_app.config["RECEIVED_DIR"])
-    if result is None:
-        abort(404, "Result file not found")
+    result = load_permitted_result_json(
+        filename,
+        current_app.config["RECEIVED_DIR"],
+        not_found_message="Result file not found",
+    )
     quality = summarize_result_quality(result)
     detail_context = build_result_detail_context(result, quality, filename)
     return render_template("result_detail.html", result=result, quality=quality, **detail_context)
@@ -211,6 +215,9 @@ def usage_report():
 @results_bp.route("/<filename>")
 def show_result(filename):
     if filename.endswith(".tgz"):
-        check_file_permission(filename, current_app.config["RECEIVED_DIR"])
-        return load_result_file(filename, current_app.config["RECEIVED_PADATA_DIR"])
+        return serve_permitted_result_file(
+            filename,
+            current_app.config["RECEIVED_DIR"],
+            current_app.config["RECEIVED_PADATA_DIR"],
+        )
     return serve_confidential_file(filename, current_app.config["RECEIVED_DIR"])

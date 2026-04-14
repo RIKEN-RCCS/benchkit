@@ -1,13 +1,15 @@
 from flask import (
     Blueprint,
-    abort,
     current_app,
     request,
     session,
 )
 
-from utils.result_file import check_file_permission, load_result_file
-from utils.result_records import load_result_json
+from utils.result_file import (
+    load_permitted_result_json,
+    require_authenticated_session,
+    serve_permitted_result_file,
+)
 from utils.results_loader import (
     DEFAULT_PER_PAGE,
     ESTIMATED_FIELD_MAP,
@@ -138,22 +140,20 @@ def estimated_results():
 
 @estimated_bp.route("/<filename>")
 def show_estimated_result(filename):
-    if not session.get("authenticated", False):
-        abort(403, "Authentication required to view estimated data")
+    require_authenticated_session("Authentication required to view estimated data")
     estimated_dir = current_app.config["ESTIMATED_DIR"]
-    check_file_permission(filename, estimated_dir)
-    return load_result_file(filename, estimated_dir)
+    return serve_permitted_result_file(filename, estimated_dir)
 
 
 @estimated_bp.route("/detail/<filename>")
 def estimated_detail(filename):
-    if not session.get("authenticated", False):
-        abort(403, "Authentication required to view estimated data")
+    require_authenticated_session("Authentication required to view estimated data")
     estimated_dir = current_app.config["ESTIMATED_DIR"]
-    check_file_permission(filename, estimated_dir)
-    result = load_result_json(filename, estimated_dir)
-    if result is None:
-        abort(404, "Estimated result file not found")
+    result = load_permitted_result_json(
+        filename,
+        estimated_dir,
+        not_found_message="Estimated result file not found",
+    )
     from flask import render_template
 
     return render_template("estimated_detail.html", result=result, filename=filename)
