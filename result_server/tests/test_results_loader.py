@@ -12,11 +12,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from test_support import install_portal_test_stubs
+from test_support import build_results_route_app, install_portal_test_stubs
 
 install_portal_test_stubs()
 
-from flask import Flask
 from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
 from utils.results_loader import load_results_table
 from utils.table_filters import get_filter_options
@@ -33,15 +32,11 @@ def tmp_dir():
 @pytest.fixture
 def flask_app(tmp_dir):
     """Create a Flask app so tests can resolve URLs and blueprint routes."""
-    app = Flask(__name__)
-
-    app.config["RECEIVED_DIR"] = tmp_dir
-    app.config["ESTIMATED_DIR"] = tmp_dir
-
-    from routes.results import results_bp
-    app.register_blueprint(results_bp, url_prefix="/results")
-
-    yield app
+    yield build_results_route_app(
+        received_dir=tmp_dir,
+        estimated_dir=tmp_dir,
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
 
 
 def _write_json(directory, filename, data):

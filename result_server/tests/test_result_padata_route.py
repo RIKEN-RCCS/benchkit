@@ -5,14 +5,11 @@ import sys
 import tempfile
 
 import pytest
-from flask import Flask
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from test_support import install_portal_test_stubs
+from test_support import build_results_route_app, install_portal_test_stubs
 
 install_portal_test_stubs()
-
-from routes.results import results_bp
 
 
 @pytest.fixture
@@ -27,13 +24,10 @@ def tmp_dirs():
 @pytest.fixture
 def app(tmp_dirs):
     received, received_padata = tmp_dirs
-    app = Flask(__name__)
-    app.secret_key = "test-secret"
-    app.config["RECEIVED_DIR"] = received
-    app.config["RECEIVED_PADATA_DIR"] = received_padata
-    app.config["TESTING"] = True
-    app.register_blueprint(results_bp, url_prefix="/results")
-    return app
+    return build_results_route_app(
+        received_dir=received,
+        received_padata_dir=received_padata,
+    )
 
 
 @pytest.fixture

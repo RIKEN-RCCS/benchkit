@@ -5,18 +5,11 @@ import pytest
 from flask import Flask
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from test_support import install_portal_test_stubs
+from test_support import StaticAffiliationUserStore, install_portal_test_stubs
 
 install_portal_test_stubs(include_redis=False)
 
 from utils.session_user_context import get_session_user_context
-
-
-class _StubUserStore:
-    def get_affiliations(self, email):
-        if email == "user@example.com":
-            return ["dev"]
-        return []
 
 
 @pytest.fixture
@@ -24,7 +17,7 @@ def app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "test-secret"
     app.config["TESTING"] = True
-    app.config["USER_STORE"] = _StubUserStore()
+    app.config["USER_STORE"] = StaticAffiliationUserStore({"user@example.com": ["dev"]})
 
     return app
 

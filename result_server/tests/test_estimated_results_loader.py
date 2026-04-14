@@ -8,11 +8,10 @@ import uuid
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from test_support import install_portal_test_stubs
+from test_support import build_portal_route_app, install_portal_test_stubs
 
 install_portal_test_stubs(include_redis=False)
 
-from flask import Flask
 from utils.estimated_table_rows import build_estimated_table_columns
 from utils.results_loader import load_estimated_results_table
 
@@ -26,14 +25,12 @@ def tmp_dir():
 
 @pytest.fixture
 def flask_app(tmp_dir):
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["RECEIVED_DIR"] = tmp_dir
-    app.config["ESTIMATED_DIR"] = tmp_dir
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-
-    yield app
+    yield build_portal_route_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        received_dir=tmp_dir,
+        estimated_dir=tmp_dir,
+        include_admin=False,
+    )
 
 
 def _write_json(directory, filename, data):

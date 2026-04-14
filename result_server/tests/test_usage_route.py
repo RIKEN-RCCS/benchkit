@@ -7,27 +7,15 @@ import sys
 import tempfile
 
 import pytest
-from flask import Flask
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from test_support import install_portal_test_stubs
+from test_support import (
+    StaticAffiliationUserStore,
+    build_portal_route_app,
+    install_portal_test_stubs,
+)
 
 install_portal_test_stubs()
-
-from routes.admin import admin_bp
-from routes.auth import auth_bp
-from routes.estimated import estimated_bp
-from routes.home import register_home_routes
-from routes.results import results_bp
-
-
-class _StubUserStore:
-    def get_affiliations(self, email):
-        if email == "admin@example.com":
-            return ["admin"]
-        if email == "user@example.com":
-            return ["dev"]
-        return []
 
 
 @pytest.fixture
@@ -42,28 +30,18 @@ def tmp_dirs():
 @pytest.fixture
 def app(tmp_dirs):
     received, estimated = tmp_dirs
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
-
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["RECEIVED_DIR"] = received
-    app.config["ESTIMATED_DIR"] = estimated
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-    app.config["USER_STORE"] = _StubUserStore()
-    app.config["TOTP_ISSUER"] = "BenchKit-Test"
-
-    register_home_routes(app)
-
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
-
-    @app.route("/systemlist")
-    def systemlist():
-        return ""
-
-    yield app
+    yield build_portal_route_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        received_dir=received,
+        estimated_dir=estimated,
+        user_store=StaticAffiliationUserStore(
+            {
+                "admin@example.com": ["admin"],
+                "user@example.com": ["dev"],
+            }
+        ),
+        totp_issuer="BenchKit-Test",
+    )
 
 
 @pytest.fixture
