@@ -42,133 +42,77 @@
   .estimated-link-cell {
     white-space: nowrap;
   }
+  .estimated-code-cell {
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+  .estimated-meta-note {
+    font-size: 10px;
+    line-height: 1.25;
+    color: #6b7280;
+  }
 </style>
 
 <p class="estimated-table-note">Focus on system pairs, applied packages, and ratio at the list level, then open <code>detail</code> when you need breakdowns or fallback/applicability context.</p>
 
 <div class="estimated-table-wrap">
+{% set leading_columns = columns | selectattr("section", "equalto", "leading") | list %}
+{% set trailing_columns = columns | selectattr("section", "equalto", "trailing") | list %}
+{% set system_a_columns = columns | selectattr("group", "equalto", "System A") | list %}
+{% set system_b_columns = columns | selectattr("group", "equalto", "System B") | list %}
 <table id="resultsTable" class="estimated-table" border="1">
   <thead>
     <tr>
-      <th rowspan="2">Timestamp</th>
-      <th rowspan="2">Code</th>
-      <th rowspan="2">Exp</th>
-      <th colspan="7">System A</th>
-      <th colspan="7">System B</th>
-      <th rowspan="2">Applicability</th>
-      <th rowspan="2">Requested Package</th>
-      <th rowspan="2">Applied Package</th>
-      <th rowspan="2">Estimate UUID</th>
-      <th rowspan="2">Ratio</th>
-      <th rowspan="2">JSON</th>
+      {% for column in leading_columns %}
+      <th rowspan="2">{{ column.label }}</th>
+      {% endfor %}
+      {% if system_a_columns %}
+      <th colspan="{{ system_a_columns|length }}">System A</th>
+      {% endif %}
+      {% if system_b_columns %}
+      <th colspan="{{ system_b_columns|length }}">System B</th>
+      {% endif %}
+      {% for column in trailing_columns %}
+      <th rowspan="2">{{ column.label }}</th>
+      {% endfor %}
     </tr>
     <tr>
-      <th>System</th>
-      <th>FOM</th>
-      <th>Target Nodes</th>
-      <th>Scaling Method</th>
-      <th>Bench System</th>
-      <th>Bench FOM</th>
-      <th>Bench Nodes</th>
-      <th>System</th>
-      <th>FOM</th>
-      <th>Target Nodes</th>
-      <th>Scaling Method</th>
-      <th>Bench System</th>
-      <th>Bench FOM</th>
-      <th>Bench Nodes</th>
+      {% for column in system_a_columns %}
+      <th>{{ column.label }}</th>
+      {% endfor %}
+      {% for column in system_b_columns %}
+      <th>{{ column.label }}</th>
+      {% endfor %}
     </tr>
   </thead>
   <tbody>
     {% for r in rows %}
     <tr>
-      {% set ts_parts = r.timestamp.split(' ') %}
-      {% set a_fom = "%.3f"|format(r.systemA_fom|float) if r.systemA_fom not in [None, '', 'N/A', 'null', 'nan'] else r.systemA_fom %}
-      {% set b_fom = "%.3f"|format(r.systemB_fom|float) if r.systemB_fom not in [None, '', 'N/A', 'null', 'nan'] else r.systemB_fom %}
-      {% set ratio = "%.3f"|format(r.performance_ratio|float) if r.performance_ratio not in [None, '', 'N/A', 'null', 'nan'] else r.performance_ratio %}
-      {% set a_scaling_full = r.systemA_scaling_method %}
-      {% set b_scaling_full = r.systemB_scaling_method %}
-      {% set requested_full = r.requested_estimation_package %}
-      {% set applied_full = r.estimation_package %}
-      {% if a_scaling_full == 'instrumented-app-sections-dummy' %}
-        {% set a_scaling_short = 'instr-app-sec' %}
-      {% elif a_scaling_full == 'scale-mock' %}
-        {% set a_scaling_short = 'scale-mock' %}
-      {% else %}
-        {% set a_scaling_short = a_scaling_full %}
-      {% endif %}
-      {% if b_scaling_full == 'instrumented-app-sections-dummy' %}
-        {% set b_scaling_short = 'instr-app-sec' %}
-      {% elif b_scaling_full == 'scale-mock' %}
-        {% set b_scaling_short = 'scale-mock' %}
-      {% else %}
-        {% set b_scaling_short = b_scaling_full %}
-      {% endif %}
-      {% if requested_full == 'instrumented_app_sections_dummy' %}
-        {% set requested_short = 'instr_app_sec' %}
-      {% elif requested_full == 'lightweight_fom_scaling' %}
-        {% set requested_short = 'weakscaling' %}
-      {% elif requested_full == 'weakscaling' %}
-        {% set requested_short = 'weakscaling' %}
-      {% else %}
-        {% set requested_short = requested_full %}
-      {% endif %}
-      {% if applied_full == 'instrumented_app_sections_dummy' %}
-        {% set applied_short = 'instr_app_sec' %}
-      {% elif applied_full == 'lightweight_fom_scaling' %}
-        {% set applied_short = 'weakscaling' %}
-      {% elif applied_full == 'weakscaling' %}
-        {% set applied_short = 'weakscaling' %}
-      {% else %}
-        {% set applied_short = applied_full %}
-      {% endif %}
-      {% set requested_title = requested_full %}
-      {% if r.requested_current_estimation_package %}
-        {% set requested_title = requested_title ~ '\ncurrent-side: ' ~ r.requested_current_estimation_package %}
-      {% endif %}
-      {% if r.requested_future_estimation_package %}
-        {% set requested_title = requested_title ~ '\nfuture-side: ' ~ r.requested_future_estimation_package %}
-      {% endif %}
-      {% set applied_title = applied_full %}
-      {% if r.method_class %}
-        {% set applied_title = applied_title ~ '\nclass: ' ~ r.method_class %}
-      {% endif %}
-      {% if r.detail_level %}
-        {% set applied_title = applied_title ~ '\ndetail: ' ~ r.detail_level %}
-      {% endif %}
-      {% if r.current_estimation_package %}
-        {% set applied_title = applied_title ~ '\ncurrent-side: ' ~ r.current_estimation_package %}
-      {% endif %}
-      {% if r.future_estimation_package %}
-        {% set applied_title = applied_title ~ '\nfuture-side: ' ~ r.future_estimation_package %}
-      {% endif %}
-      <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
-      <td>{{ r.code }}</td>
-      <td>{{ r.exp }}</td>
-      <td>{{ r.systemA_system }}</td>
-      <td style="text-align: right;" title="{{ r.systemA_fom }}">{{ a_fom }}</td>
-      <td>{{ r.systemA_target_nodes }}</td>
-      <td title="{{ a_scaling_full }}">{{ a_scaling_short }}</td>
-      <td>{{ r.systemA_bench_system }}</td>
-      <td style="text-align: right;" title="{{ r.systemA_bench_fom }}">{{ "%.3f"|format(r.systemA_bench_fom|float) if r.systemA_bench_fom not in [None, '', 'N/A', 'null', 'nan'] else r.systemA_bench_fom }}</td>
-      <td>{{ r.systemA_bench_nodes }}</td>
-      <td>{{ r.systemB_system }}</td>
-      <td style="text-align: right;" title="{{ r.systemB_fom }}">{{ b_fom }}</td>
-      <td>{{ r.systemB_target_nodes }}</td>
-      <td title="{{ b_scaling_full }}">{{ b_scaling_short }}</td>
-      <td>{{ r.systemB_bench_system }}</td>
-      <td style="text-align: right;" title="{{ r.systemB_bench_fom }}">{{ "%.3f"|format(r.systemB_bench_fom|float) if r.systemB_bench_fom not in [None, '', 'N/A', 'null', 'nan'] else r.systemB_bench_fom }}</td>
-      <td>{{ r.systemB_bench_nodes }}</td>
-      <td>{{ r.applicability_status }}</td>
-      <td title="{{ requested_title }}">{{ requested_short }}</td>
-      <td title="{{ applied_title }}">{{ applied_short }}{% if r.method_class or r.detail_level %}<div style="font-size: 10px; line-height: 1.25; color: #6b7280;">{{ r.method_class }}{% if r.detail_level %} / {{ r.detail_level }}{% endif %}</div>{% endif %}</td>
-      <td style="font-family: monospace; font-size: 0.9em;" title="{{ r.estimate_uuid }}">{{ r.estimate_uuid[:8] if r.estimate_uuid else '' }}</td>
-      <td style="text-align: right;" title="{{ r.performance_ratio }}">{{ ratio }}</td>
-      <td class="estimated-link-cell">
+      {% for column in columns %}
+      {% set key = column.key %}
+      {% set title_value = r[column.title_key] if column.title_key is defined else None %}
+      {% set align_style = "text-align: " ~ column.align ~ ";" if column.align is defined else "" %}
+      {% if key == "timestamp" %}
+      <td class="ts-cell">{{ r.timestamp_date }}<br>{{ r.timestamp_time }}</td>
+      {% elif key == "json_link" %}
+      <td class="{{ column.cell_class if column.cell_class is defined else '' }}">
         <a href="{{ url_for('estimated.estimated_detail', filename=r.json_link) }}">detail</a>
         |
         <a href="{{ url_for('estimated.show_estimated_result', filename=r.json_link) }}">json</a>
       </td>
+      {% else %}
+      <td
+        {% if column.cell_class is defined %}class="{{ column.cell_class }}"{% endif %}
+        {% if title_value not in [None, ""] %}title="{{ title_value }}"{% endif %}
+        {% if align_style %}style="{{ align_style }}"{% endif %}
+      >
+        {{ r[key] }}
+        {% if column.meta_key is defined and r[column.meta_key] %}
+        <div class="estimated-meta-note">{{ r[column.meta_key] }}</div>
+        {% endif %}
+      </td>
+      {% endif %}
+      {% endfor %}
     </tr>
     {% endfor %}
   </tbody>

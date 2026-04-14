@@ -90,9 +90,17 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
 
     assert info["total"] == 1
     assert rows[0]["timestamp"] == "2026-04-06 12:34:56"
+    assert rows[0]["timestamp_date"] == "2026-04-06"
+    assert rows[0]["timestamp_time"] == "12:34:56"
     assert rows[0]["estimate_uuid"] == "11111111-2222-3333-4444-555555555555"
+    assert rows[0]["estimate_uuid_short"] == "11111111"
     assert rows[0]["requested_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["estimation_package"] == "weakscaling"
+    assert rows[0]["requested_package_short"] == "instr_app_sec"
+    assert rows[0]["applied_package_short"] == "weakscaling"
+    assert rows[0]["systemA_fom_display"] == "1.000"
+    assert rows[0]["systemB_fom_display"] == "2.000"
+    assert rows[0]["performance_ratio_display"] == "2.000"
     assert rows[0]["method_class"] == "minimum"
     assert rows[0]["detail_level"] == "basic"
     assert rows[0]["current_estimation_package"] == "weakscaling"

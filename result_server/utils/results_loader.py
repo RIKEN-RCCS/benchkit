@@ -2,7 +2,13 @@ import os
 from math import ceil
 
 from utils.result_file import get_file_confidential_tags
-from utils.result_records import load_result_json, load_visible_result_json
+from utils.estimated_table_rows import build_estimated_table_columns, build_estimated_table_row
+from utils.result_records import (
+    extract_result_uuid,
+    format_result_timestamp,
+    load_result_json,
+    load_visible_result_json,
+)
 from utils.result_table_rows import build_result_table_row
 
 
@@ -138,71 +144,18 @@ def load_estimated_results_table(
         ):
             continue
 
-        current = result_data.get("current_system", {})
-        future = result_data.get("future_system", {})
-        estimate_meta = result_data.get("estimate_metadata", {})
-        applicability = result_data.get("applicability", {})
+        timestamp = format_result_timestamp(filename)
+        estimate_uuid = extract_result_uuid(filename)
+        rows.append(
+            build_estimated_table_row(
+                filename,
+                result_data,
+                fallback_uuid=estimate_uuid,
+                fallback_timestamp=timestamp,
+            )
+        )
 
-        timestamp = _format_timestamp_from_filename(filename)
-        estimate_uuid = estimate_meta.get("estimation_result_uuid") or _extract_uuid_from_filename(filename)
-
-        rows.append({
-            "timestamp": estimate_meta.get("estimation_result_timestamp") or timestamp,
-            "code": result_data.get("code", ""),
-            "exp": result_data.get("exp", ""),
-            "systemA_system": current.get("system", ""),
-            "systemA_fom": current.get("fom", ""),
-            "systemA_target_nodes": current.get("target_nodes", ""),
-            "systemA_scaling_method": current.get("scaling_method", ""),
-            "systemA_bench_system": current.get("benchmark", {}).get("system", ""),
-            "systemA_bench_fom": current.get("benchmark", {}).get("fom", ""),
-            "systemA_bench_nodes": current.get("benchmark", {}).get("nodes", ""),
-            "systemB_system": future.get("system", ""),
-            "systemB_fom": future.get("fom", ""),
-            "systemB_target_nodes": future.get("target_nodes", ""),
-            "systemB_scaling_method": future.get("scaling_method", ""),
-            "systemB_bench_system": future.get("benchmark", {}).get("system", ""),
-            "systemB_bench_fom": future.get("benchmark", {}).get("fom", ""),
-            "systemB_bench_nodes": future.get("benchmark", {}).get("nodes", ""),
-            "applicability_status": applicability.get("status", ""),
-            "requested_estimation_package": estimate_meta.get("requested_estimation_package", ""),
-            "estimation_package": estimate_meta.get("estimation_package", ""),
-            "method_class": estimate_meta.get("method_class", ""),
-            "detail_level": estimate_meta.get("detail_level", ""),
-            "current_estimation_package": estimate_meta.get("current_package", {}).get("estimation_package", ""),
-            "future_estimation_package": estimate_meta.get("future_package", {}).get("estimation_package", ""),
-            "requested_current_estimation_package": estimate_meta.get("current_package", {}).get("requested_estimation_package", ""),
-            "requested_future_estimation_package": estimate_meta.get("future_package", {}).get("requested_estimation_package", ""),
-            "estimate_uuid": estimate_uuid or "",
-            "performance_ratio": result_data.get("performance_ratio", ""),
-            "json_link": filename,
-        })
-
-    columns = [
-        ("Timestamp", "timestamp"),
-        ("CODE", "code"),
-        ("Exp", "exp"),
-        ("A System", "systemA_system"),
-        ("A FOM", "systemA_fom"),
-        ("A Target Nodes", "systemA_target_nodes"),
-        ("A Scaling Method", "systemA_scaling_method"),
-        ("A Bench System", "systemA_bench_system"),
-        ("A Bench FOM", "systemA_bench_fom"),
-        ("A Bench Nodes", "systemA_bench_nodes"),
-        ("B System", "systemB_system"),
-        ("B FOM", "systemB_fom"),
-        ("B Target Nodes", "systemB_target_nodes"),
-        ("B Scaling Method", "systemB_scaling_method"),
-        ("B Bench System", "systemB_bench_system"),
-        ("B Bench FOM", "systemB_bench_fom"),
-        ("B Bench Nodes", "systemB_bench_nodes"),
-        ("Applicability", "applicability_status"),
-        ("Requested Package", "requested_estimation_package"),
-        ("Applied Package", "estimation_package"),
-        ("Estimate UUID", "estimate_uuid"),
-        ("Performance Ratio", "performance_ratio"),
-        ("JSON", "json_link"),
-    ]
+    columns = build_estimated_table_columns()
 
     paginated_rows, pagination_info = paginate_list(rows, page, per_page)
     return paginated_rows, columns, pagination_info
@@ -320,29 +273,3 @@ def _matches_table_filters(data, filter_system, filter_code, filter_exp, field_m
     if filter_exp is not None and _get_nested_field(data, field_map["exp"]) != filter_exp:
         return False
     return True
-
-
-def _format_timestamp_from_filename(filename):
-    import re
-    from datetime import datetime
-
-    match = re.search(r"\d{8}_\d{6}", filename)
-    if not match:
-        return "Unknown"
-
-    try:
-        ts = datetime.strptime(match.group(), "%Y%m%d_%H%M%S")
-    except Exception:
-        return "Unknown"
-    return ts.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _extract_uuid_from_filename(filename):
-    import re
-
-    uuid_match = re.search(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        filename,
-        re.IGNORECASE,
-    )
-    return uuid_match.group(0) if uuid_match else None

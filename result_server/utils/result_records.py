@@ -51,7 +51,7 @@ def load_result_json_batch(filenames, directory):
 
         results.append({
             "filename": filename,
-            "timestamp": _format_result_timestamp(filename),
+            "timestamp": format_result_timestamp(filename),
             "data": data,
         })
 
@@ -169,7 +169,7 @@ def summarize_result_quality(data):
     }
 
 
-def _format_result_timestamp(filename):
+def format_result_timestamp(filename):
     match = re.search(r"\d{8}_\d{6}", filename)
     if not match:
         return "Unknown"
@@ -179,3 +179,12 @@ def _format_result_timestamp(filename):
     except Exception:
         return "Unknown"
     return ts.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def extract_result_uuid(filename):
+    uuid_match = re.search(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        filename,
+        re.IGNORECASE,
+    )
+    return uuid_match.group(0) if uuid_match else None
