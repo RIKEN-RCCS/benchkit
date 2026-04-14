@@ -1,27 +1,17 @@
 {% extends "_results_base.html" %}
-{% from "_detail_tables.html" import render_key_value_table %}
+{% from "_detail_tables.html" import render_key_value_table, render_titled_key_value_table %}
 
 {% block title %}Result Detail{% endblock %}
 {% block page_subtitle %}Inspect metrics, profiler summaries, quality signals, and build details for one collected result.{% endblock %}
 
 {% block content %}
 {% include "_chart_page_styles.html" %}
+{% include "_detail_page_styles.html" %}
 <style>
-    .meta-table { width: auto; }
     .quality-table { width: min(100%, 980px); table-layout: fixed; }
     .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
     .meta-table td { min-width: 200px; }
     .quality-table th { min-width: 200px; width: 200px; }
-    .detail-table-wrap { overflow-x: auto; }
-    .meta-table th,
-    .quality-table th,
-    .scalar-table thead th,
-    .build-table th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        box-shadow: inset 0 -1px 0 #d8e3e8;
-    }
     .meta-table td,
     .quality-table td,
     .build-table td {
@@ -30,30 +20,8 @@
         vertical-align: top;
         line-height: 1.45;
     }
-    .meta-table td:first-child,
-    .meta-table th:first-child,
-    .quality-table td:first-child,
-    .quality-table th:first-child,
-    .scalar-table td:first-child,
-    .scalar-table th:first-child,
-    .build-table td:first-child,
-    .build-table th:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 1;
-        background: #f9fcfd;
-        box-shadow: 10px 0 18px -18px rgba(15, 23, 42, 0.28);
-    }
-    .meta-table th:first-child,
-    .quality-table th:first-child,
-    .scalar-table th:first-child,
-    .build-table th:first-child {
-        z-index: 3;
-    }
     .chart-container { height: 400px; }
-    .scalar-table { width: auto; }
     .scalar-table th { text-align: left; min-width: 200px; }
-    .build-table { width: auto; }
     .build-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
     .packages-list { margin: 0; padding-left: 20px; }
     .quality-badge { display: inline-block; padding: 0.08rem 0.45rem; border-radius: 999px; font-size: 0.78em; font-weight: 600; }
@@ -67,16 +35,10 @@
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-<div class="section">
-    <h2>Meta Information</h2>
-    {{ render_key_value_table(meta_rows, "meta-table") }}
-</div>
+{{ render_titled_key_value_table("Meta Information", meta_rows, "meta-table") }}
 
 {% if profile_rows %}
-<div class="section">
-    <h2>PA Data Summary</h2>
-    {{ render_key_value_table(profile_rows, "meta-table") }}
-</div>
+{{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}
 {% endif %}
 
 {% if quality_rows %}
@@ -174,10 +136,7 @@
 {% endif %}
 
 {% if build_rows %}
-<div class="section">
-    <h2>Build Information</h2>
-    {{ render_key_value_table(build_rows, "build-table") }}
-</div>
+{{ render_titled_key_value_table("Build Information", build_rows, "build-table") }}
 {% endif %}
 
 {% if vector_metrics %}

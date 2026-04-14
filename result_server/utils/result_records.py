@@ -199,6 +199,22 @@ def format_numeric_value(value):
         return value
 
 
+def build_labeled_value_rows(specs):
+    rows = []
+    for spec in specs:
+        if len(spec) == 2:
+            label, value = spec
+            value_class = None
+        else:
+            label, value, value_class = spec
+
+        row = {"label": label, "value": value}
+        if value_class:
+            row["value_class"] = value_class
+        rows.append(row)
+    return rows
+
+
 def split_display_timestamp(value):
     if not value:
         return "", ""

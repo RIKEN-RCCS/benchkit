@@ -20,3 +20,16 @@
 </table>
 </div>
 {%- endmacro %}
+
+{% macro render_titled_key_value_table(title, rows, table_class, wrap_class="detail-table-wrap", section_class="section", card_class="", list_class="packages-list") -%}
+{% set container_classes = [section_class, card_class] | reject('equalto', '') | join(' ') %}
+<div{% if container_classes %} class="{{ container_classes }}"{% endif %}>
+    <h2>{{ title }}</h2>
+    {{ render_key_value_table(rows, table_class, wrap_class, list_class) }}
+</div>
+{%- endmacro %}
+
+{% macro render_json_block(title, data, body_class="detail-code") -%}
+<h3>{{ title }}</h3>
+<div class="{{ body_class }}">{{ data | tojson(indent=2) }}</div>
+{%- endmacro %}
