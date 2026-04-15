@@ -130,9 +130,6 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | `/api/ingest/result` | POST | 結果JSON受信 |
 | `/api/ingest/estimate` | POST | 推定結果JSON受信 |
 | `/api/ingest/padata` | POST | PA Data (tgz) 受信 |
-| `/write-api` | POST | 互換ルート（deprecated → `/api/ingest/result`） |
-| `/write-est` | POST | 互換ルート（deprecated → `/api/ingest/estimate`） |
-| `/upload-tgz` | POST | 互換ルート（deprecated → `/api/ingest/padata`） |
 
 ### Web ページ
 

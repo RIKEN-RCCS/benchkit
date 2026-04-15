@@ -1,8 +1,7 @@
-"""Tests for ingest and legacy write API routes."""
+"""Tests for ingest and query API routes."""
 
 import io
 import json
-import logging
 import os
 import shutil
 import sys
@@ -197,61 +196,6 @@ class TestIngestPadata:
                            content_type="multipart/form-data")
         assert resp.status_code == 401
 
-
-# ============================================================
-# Deprecated compatibility routes
-# ============================================================
-
-class TestCompatRoutes:
-    def test_write_api_compat(self, client, tmp_dirs):
-        """Test case."""
-        data = {"code": "compat-test"}
-        resp = client.post("/write-api",
-                           data=json.dumps(data),
-                           headers={"X-API-Key": API_KEY,
-                                    "Content-Type": "application/json"})
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert body["status"] == "ok"
-        assert "json_file" in body
-
-    def test_write_est_compat(self, client, tmp_dirs):
-        """Test case."""
-        data = {"code": "compat-est"}
-        resp = client.post("/write-est",
-                           data=json.dumps(data),
-                           headers={"X-API-Key": API_KEY,
-                                    "Content-Type": "application/json"})
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert body["status"] == "ok"
-
-    def test_upload_tgz_compat(self, client, tmp_dirs):
-        """Test case."""
-        import io
-        data = {
-            "id": "12345678-1234-1234-1234-123456789abc",
-            "timestamp": "20250101_120000",
-            "file": (io.BytesIO(b"fake tgz"), "test.tgz"),
-        }
-        resp = client.post("/upload-tgz",
-                           data=data,
-                           headers={"X-API-Key": API_KEY},
-                           content_type="multipart/form-data")
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert body["status"] == "uploaded"
-
-    def test_deprecated_log_on_write_api(self, app, client):
-        """Test case."""
-        with _capture_logs(app.logger) as logs:
-            client.post("/write-api",
-                        data=b'{"x":1}',
-                        headers={"X-API-Key": API_KEY,
-                                 "Content-Type": "application/json"})
-        assert any("Deprecated" in msg for msg in logs)
-
-
 # ============================================================
 # /estimated/ route registration
 
@@ -419,21 +363,3 @@ class TestEstimationInputs:
         assert "compute_solver_papi.tgz" in names
 
 
-# ============================================================
-# Section
-# ============================================================
-
-from contextlib import contextmanager
-
-@contextmanager
-def _capture_logs(logger):
-    """Test case."""
-    messages = []
-    handler = logging.Handler()
-    handler.emit = lambda record: messages.append(record.getMessage())
-    logger.addHandler(handler)
-    logger.setLevel(logging.WARNING)
-    try:
-        yield messages
-    finally:
-        logger.removeHandler(handler)

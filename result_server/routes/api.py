@@ -401,25 +401,3 @@ def query_estimate():
         abort(404, description=f"No estimate found for uuid={uuid_value}")
 
     return jsonify(data), 200
-
-
-# ==========================================
-# Compatibility routes (deprecated)
-# ==========================================
-
-@api_bp.route("/write-api", methods=["POST"])
-def compat_write_api():
-    current_app.logger.warning("Deprecated: /write-api -> use /api/ingest/result")
-    return ingest_result()
-
-
-@api_bp.route("/write-est", methods=["POST"])
-def compat_write_est():
-    current_app.logger.warning("Deprecated: /write-est -> use /api/ingest/estimate")
-    return ingest_estimate()
-
-
-@api_bp.route("/upload-tgz", methods=["POST"])
-def compat_upload_tgz():
-    current_app.logger.warning("Deprecated: /upload-tgz -> use /api/ingest/padata")
-    return ingest_padata()
