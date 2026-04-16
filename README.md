@@ -40,9 +40,14 @@ benchkit/
 │       └── result_converter.py # BenchPark結果変換（Ramble→BenchKit形式）
 ├── result_server/
 │   ├── routes/
-│   │   ├── api.py            # 統合データ受信API（結果/推定/PA Data）
-│   │   ├── results.py        # 結果一覧・詳細・比較・使用量レポートページ
-│   │   ├── estimated.py      # 推定結果ページ
+│   │   ├── api.py            # 統合データ受信API（結果/推定/PA Data/推定入力）
+│   │   ├── results.py        # 結果 Blueprint 登録
+│   │   ├── results_list_routes.py    # 結果一覧ページ
+│   │   ├── results_detail_routes.py  # 結果詳細・比較ページ
+│   │   ├── results_usage_routes.py   # 使用量レポートページ
+│   │   ├── estimated.py      # 推定 Blueprint 登録
+│   │   ├── estimated_list_routes.py  # 推定結果一覧ページ
+│   │   ├── estimated_detail_routes.py # 推定結果詳細ページ
 │   │   ├── auth.py           # TOTP認証（ログイン/セットアップ/ログアウト）
 │   │   └── admin.py          # ユーザー管理（CRUD/招待リンク）
 │   ├── templates/
@@ -130,6 +135,10 @@ Flask ベースの Web アプリケーションで、ベンチマーク結果の
 | `/api/ingest/result` | POST | 結果JSON受信 |
 | `/api/ingest/estimate` | POST | 推定結果JSON受信 |
 | `/api/ingest/padata` | POST | PA Data (tgz) 受信 |
+| `/api/ingest/estimation-inputs` | POST | 推定入力アーカイブ (tgz) 受信・展開 |
+| `/api/query/result` | GET | UUID または system/code/exp で結果JSONを取得 |
+| `/api/query/estimate` | GET | UUID で推定結果JSONを取得 |
+| `/api/query/estimation-inputs` | GET | UUID で推定入力アーカイブを取得 |
 
 ### Web ページ
 
@@ -291,9 +300,11 @@ BenchKit で日常的に触る設定は主に次の 3 つです。
 
 ### 自動スキップ機能
 重いベンチマーク処理を避けるため、以下のファイルのみ変更時は自動スキップ：
-- `README.md`, `docs/guides/add-app.md`, `docs/guides/add-site.md`, `docs/guides/add-estimation.md` （ドキュメント）
-- `result_server/templates/*.html` （Webテンプレート）
+- `*.md` （Markdown ドキュメント全般）
+- `result_server/**/*` （result_server 配下のコード・テンプレート全体）
 - `.kiro/**/*`, `.vscode/**/*` （設定ファイル）
+
+この説明は [`C:\Users\yoshi\benchkit\.gitlab-ci.yml`](/C:/Users/yoshi/benchkit/.gitlab-ci.yml) の `changes` ルールに合わせています。
 
 ### 実行制御オプション
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from typing import Optional
 
 from flask import Response, abort, send_from_directory, session
 
@@ -69,7 +70,7 @@ def require_authenticated_session(message: str) -> None:
         abort(403, message)
 
 
-def serve_permitted_result_file(filename: str, permission_dir: str, data_dir: str | None = None):
+def serve_permitted_result_file(filename: str, permission_dir: str, data_dir: Optional[str] = None):
     """Check permission tags and then serve the requested file."""
     check_file_permission(filename, permission_dir)
     return load_result_file(filename, data_dir or permission_dir)
@@ -84,7 +85,7 @@ def serve_authenticated_result_file(filename: str, data_dir: str, *, message: st
 def load_permitted_result_json(
     filename: str,
     permission_dir: str,
-    data_dir: str | None = None,
+    data_dir: Optional[str] = None,
     *,
     not_found_message: str = "Result file not found",
 ):

@@ -4,6 +4,7 @@ import json
 import os
 import re
 from datetime import datetime
+from typing import Dict, List, Optional, Set
 
 
 def compute_node_hours(data: dict) -> float:
@@ -39,7 +40,7 @@ def compute_node_hours(data: dict) -> float:
     return round(node_count * run_time / 3600, 2)
 
 
-def extract_timestamp_from_filename(filename: str) -> datetime | None:
+def extract_timestamp_from_filename(filename: str) -> Optional[datetime]:
     """
     Extract a `YYYYMMDD_HHMMSS` timestamp from a result filename.
 
@@ -74,7 +75,7 @@ def get_half(dt: datetime) -> str:
     return "second"
 
 
-def _generate_period_labels(fiscal_year: int, period_type: str) -> list[str]:
+def _generate_period_labels(fiscal_year: int, period_type: str) -> List[str]:
     """
     Generate the display labels for the requested aggregation period.
 
@@ -94,7 +95,7 @@ def _generate_period_labels(fiscal_year: int, period_type: str) -> list[str]:
     return [f"FY{fiscal_year}"]
 
 
-def _get_period_key(dt: datetime, period_type: str) -> str | None:
+def _get_period_key(dt: datetime, period_type: str) -> Optional[str]:
     """Map a datetime to the corresponding period label."""
     if period_type == "monthly":
         return f"{dt.year}-{dt.month:02d}"
@@ -118,11 +119,11 @@ def aggregate_node_hours(
     """
     periods = _generate_period_labels(fiscal_year, period_type)
 
-    apps_set: set[str] = set()
-    systems_set: set[str] = set()
-    all_fiscal_years: set[int] = set()
+    apps_set: Set[str] = set()
+    systems_set: Set[str] = set()
+    all_fiscal_years: Set[int] = set()
 
-    table: dict[str, dict[str, dict[str, float]]] = {}
+    table: Dict[str, Dict[str, Dict[str, float]]] = {}
 
     try:
         files = os.listdir(directory)
@@ -182,21 +183,21 @@ def aggregate_node_hours(
                 if period not in table[app][system]:
                     table[app][system][period] = 0.0
 
-    row_totals: dict[str, dict[str, float]] = {}
+    row_totals: Dict[str, Dict[str, float]] = {}
     for app in apps:
         row_totals[app] = {}
         for period in periods:
             total = sum(table[app][system][period] for system in systems)
             row_totals[app][period] = round(total, 2)
 
-    col_totals: dict[str, dict[str, float]] = {}
+    col_totals: Dict[str, Dict[str, float]] = {}
     for system in systems:
         col_totals[system] = {}
         for period in periods:
             total = sum(table[app][system][period] for app in apps)
             col_totals[system][period] = round(total, 2)
 
-    grand_totals: dict[str, float] = {}
+    grand_totals: Dict[str, float] = {}
     for period in periods:
         total = sum(row_totals[app][period] for app in apps)
         grand_totals[period] = round(total, 2)

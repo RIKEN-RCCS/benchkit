@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from typing import Any, Dict, Tuple
 
 from utils.node_hours import extract_timestamp_from_filename
 from utils.result_records import summarize_result_quality
 
 
-def _format_timestamp(filename: str, filepath: str) -> tuple[object, str]:
+def _format_timestamp(filename: str, filepath: str) -> Tuple[Any, str]:
     ts = extract_timestamp_from_filename(filename)
     if ts is not None:
         return ts, ts.strftime("%Y-%m-%d %H:%M:%S")
@@ -18,7 +19,7 @@ def _format_timestamp(filename: str, filepath: str) -> tuple[object, str]:
     return ts, ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _summarize_source_info(data: dict) -> dict:
+def _summarize_source_info(data: Dict[str, Any]) -> Dict[str, Any]:
     source_info = data.get("source_info")
     if not isinstance(source_info, dict) or not source_info:
         return {
