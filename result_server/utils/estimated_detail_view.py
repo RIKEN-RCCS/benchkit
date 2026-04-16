@@ -5,10 +5,12 @@ def build_estimated_detail_context(result):
     estimate_meta = result.get("estimate_metadata", {})
     current = result.get("current_system", {})
     future = result.get("future_system", {})
+    reestimation = result.get("reestimation", {})
 
     return {
         "meta_rows": _build_meta_rows(result, estimate_meta),
         "package_rows": _build_package_rows(estimate_meta),
+        "reestimation_rows": _build_reestimation_rows(reestimation),
         "current_rows": _build_system_rows(current),
         "future_rows": _build_system_rows(future),
         "measurement_json": result.get("measurement", {}),
@@ -77,4 +79,31 @@ def _build_system_rows(system_data):
         ("Overlaps", len(breakdown.get("overlaps", []))),
         ("Model", model.get("name", "N/A")),
         ("Model Type", model.get("type", "N/A")),
+    ])
+
+
+def _build_reestimation_rows(reestimation):
+    if not reestimation:
+        return []
+
+    request = reestimation.get("request", {})
+    source_result = reestimation.get("source_result", {})
+    source_estimate = reestimation.get("source_estimate", {})
+
+    return build_labeled_value_rows([
+        ("Reason", request.get("reason", reestimation.get("reason", "N/A"))),
+        ("Trigger", request.get("trigger", reestimation.get("trigger", "N/A"))),
+        ("Scope", request.get("scope", reestimation.get("scope", "N/A"))),
+        ("Baseline Policy", request.get("baseline_policy", reestimation.get("baseline_policy", "N/A"))),
+        ("Source Result UUID", source_result.get("uuid", reestimation.get("source_result_uuid", "N/A")), "detail-code"),
+        ("Source Result Timestamp", source_result.get("timestamp", reestimation.get("source_result_timestamp", "N/A"))),
+        ("Source Estimate UUID", source_estimate.get("uuid", reestimation.get("source_estimate_result_uuid", "N/A")), "detail-code"),
+        ("Source Estimate Timestamp", source_estimate.get("timestamp", reestimation.get("source_estimate_result_timestamp", "N/A"))),
+        ("Source Requested Package", source_estimate.get("requested_estimation_package", "N/A")),
+        ("Source Applied Package", source_estimate.get("estimation_package", "N/A")),
+        ("Source Method Class", source_estimate.get("method_class", "N/A")),
+        ("Source Detail Level", source_estimate.get("detail_level", "N/A")),
+        ("Source CI Trigger", source_estimate.get("ci_trigger", "N/A")),
+        ("Source Pipeline ID", source_estimate.get("pipeline_id", "N/A"), "detail-code"),
+        ("Source Estimate Job", source_estimate.get("estimate_job", "N/A")),
     ])

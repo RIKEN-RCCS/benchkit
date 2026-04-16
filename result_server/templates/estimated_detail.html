@@ -43,6 +43,9 @@
     <div class="detail-grid">
         <div class="detail-card">
             {{ render_titled_key_value_table("Package Resolution", package_rows, "detail-table", "detail-table-wrap", "", "") }}
+            {% if reestimation_rows %}
+            {{ render_titled_key_value_table("Re-Estimation Context", reestimation_rows, "detail-table", "detail-table-wrap", "", "") }}
+            {% endif %}
             {{ render_json_block("Measurement", measurement_json) }}
             {{ render_json_block("Confidence", confidence_json) }}
         </div>

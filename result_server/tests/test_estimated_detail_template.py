@@ -122,6 +122,37 @@ ESTIMATE_RESULT = {
     "measurement": {"tool": "application-section-timer", "method": "section-timing"},
     "confidence": {"level": "experimental", "score": 0.2},
     "assumptions": {"scaling_assumption": "weak-scaling"},
+    "reestimation": {
+        "reason": "package-update",
+        "trigger": "ci-reestimation",
+        "scope": "both",
+        "baseline_policy": "reuse-recorded-baseline",
+        "request": {
+            "reason": "package-update",
+            "trigger": "ci-reestimation",
+            "scope": "both",
+            "baseline_policy": "reuse-recorded-baseline",
+        },
+        "source_result_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "source_result_timestamp": "2026-04-10 11:11:11",
+        "source_estimate_result_uuid": "99999999-8888-7777-6666-555555555555",
+        "source_estimate_result_timestamp": "2026-04-10 12:00:00",
+        "source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+        },
+        "source_estimate": {
+            "uuid": "99999999-8888-7777-6666-555555555555",
+            "timestamp": "2026-04-10 12:00:00",
+            "requested_estimation_package": "instrumented_app_sections_dummy",
+            "estimation_package": "instrumented_app_sections_dummy",
+            "method_class": "detailed",
+            "detail_level": "intermediate",
+            "ci_trigger": "push",
+            "pipeline_id": 1234,
+            "estimate_job": "qws_MiyabiG_reestimate",
+        },
+    },
 }
 
 
@@ -142,6 +173,7 @@ def test_estimated_detail_template_renders_sections(app):
 
     assert "Estimate Detail" in html
     assert "Package Resolution" in html
+    assert "Re-Estimation Context" in html
     assert "Current System" in html
     assert "Future System" in html
     assert "weakscaling" in html
@@ -158,6 +190,10 @@ def test_estimated_detail_template_renders_sections(app):
     assert "2468" in html
     assert "Estimate Job" in html
     assert "qws_Fugaku_estimate" in html
+    assert "Source Estimate UUID" in html
+    assert "99999999-8888-7777-6666-555555555555" in html
+    assert "Source Estimate Job" in html
+    assert "qws_MiyabiG_reestimate" in html
     assert "fallback" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

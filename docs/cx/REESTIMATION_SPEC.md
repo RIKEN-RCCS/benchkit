@@ -341,6 +341,7 @@ Candidate next steps include:
 - 復元した artifact を使って detailed re-estimation を実行できる
 - 保存済み estimate JSON に `reestimation` ブロックを持てる
 - `reestimation` の既定値として `scope=both` と `baseline_policy=reuse-recorded-baseline` を持てる
+- `reestimation` ブロックは `request` / `source_result` / `source_estimate` のような整理された補助オブジェクトを持てる
 
 ## 11. 再推定入口の整理 / Re-Estimation Entry-Point Policy
 
