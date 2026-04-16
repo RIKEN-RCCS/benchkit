@@ -302,7 +302,6 @@ BenchKit で日常的に触る設定は主に次の 3 つです。
 重いベンチマーク処理を避けるため、以下のファイルのみ変更時は自動スキップ：
 - `*.md` （Markdown ドキュメント全般）
 - `result_server/**/*` （result_server 配下のコード・テンプレート全体）
-- `.kiro/**/*`, `.vscode/**/*` （設定ファイル）
 
 この説明は [`C:\Users\yoshi\benchkit\.gitlab-ci.yml`](/C:/Users/yoshi/benchkit/.gitlab-ci.yml) の `changes` ルールに合わせています。
 
