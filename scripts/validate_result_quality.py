@@ -13,6 +13,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +64,7 @@ def _load_result(path: Path):
     return data, None
 
 
-def _load_policy(path: str | None) -> dict:
+def _load_policy(path: Optional[str]) -> dict:
     policy_path = Path(path) if path else DEFAULT_POLICY_PATH
     if not policy_path.exists():
         return {
@@ -84,7 +85,7 @@ def _load_policy(path: str | None) -> dict:
     return data
 
 
-def _load_redis_app_tier_overrides(redis_url: str | None, redis_key: str) -> dict:
+def _load_redis_app_tier_overrides(redis_url: Optional[str], redis_key: str) -> dict:
     if not redis_url:
         return {}
 
@@ -125,8 +126,8 @@ def _resolve_policy_for_app(policy: dict, app: str) -> dict:
 
 def build_quality_report(
     paths: list[str],
-    policy_path: str | None = None,
-    redis_url: str | None = None,
+    policy_path: Optional[str] = None,
+    redis_url: Optional[str] = None,
     redis_key: str = DEFAULT_REDIS_KEY,
 ) -> dict:
     files = _iter_result_files(paths)
@@ -256,7 +257,7 @@ def _should_fail(report: dict, fail_on: str) -> bool:
     return False
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Validate BenchKit result JSON quality.")
     parser.add_argument(
         "paths",

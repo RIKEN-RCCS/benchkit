@@ -58,8 +58,8 @@ Continuous estimation has now moved beyond a mere entry point: a common estimati
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
 As of the current repository survey, BenchKit has six benchmark applications with `build.sh`/`run.sh`, but only `qws` has an `estimate.sh`.
-The result portal also already has a meaningful test base (`result_server/tests`: 26, `scripts/tests`: 3), yet the repository still lacks a repo-local Python dependency manifest and a fixed lightweight verification path for portal-only changes.
-The main GitLab pipeline intentionally skips heavy benchmark execution when changes are limited to `result_server/**/*`, which is appropriate, but it also means portal regressions are easier to miss unless a dedicated lightweight CI path is added.
+The result portal also already has a meaningful test base (`result_server/tests`: 27, `scripts/tests`: 3), and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint, and a lightweight GitHub Actions verification path for portal-oriented changes.
+The main GitLab pipeline still intentionally skips heavy benchmark execution when changes are limited to `result_server/**/*`, which is appropriate, so the dedicated lightweight path should continue to be kept in sync as portal- or validator-side files evolve.
 
 ## 2.1 現時点で明示しておく設計負債 / Explicit Design Debts to Keep Visible
 
@@ -97,7 +97,7 @@ This section keeps those visible so they are not forgotten later.
 - app/system coverage evaluation:
   the current coverage matrix uses `list.csv` plus structured shell-branch detection in `build.sh` / `run.sh`, but it still stops short of a full execution-contract checker.
 - result portal verification path:
-  the portal already has a meaningful test base, but the repo still lacks a fixed repo-local Python environment definition, a standard test entrypoint, and a lightweight CI path dedicated to portal-only changes.
+  the portal now has a fixed repo-local Python dependency manifest, a standard test entrypoint, and a lightweight CI path for portal-oriented changes, but the path filter coverage must continue to track validator scripts, policy files, and nearby operational entrypoints as the surface area expands.
 
 ### 5.2.1 結果 quality validator の段階導入 / Phased Introduction of Result Quality Validation
 
