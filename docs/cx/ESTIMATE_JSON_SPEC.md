@@ -195,6 +195,8 @@ Estimate JSON may include the following extension fields:
 - `confidence`
 - `notes`
 
+In addition, BenchKit may retain result-compatible CI provenance at the top level, such as `execution_mode`, `ci_trigger`, `pipeline_id`, and `estimate_job`, so that the estimate can be traced back to the CI pipeline that produced it.
+
 ### 6.1 estimate_metadata
 
 推定処理そのものの識別情報を保持する。

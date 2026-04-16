@@ -42,6 +42,10 @@ def _build_meta_rows(result, estimate_meta):
         ("Current Source Timestamp", current_source_result.get("timestamp", "N/A")),
         ("Future Source UUID", future_source_result.get("uuid", "N/A"), "detail-code"),
         ("Future Source Timestamp", future_source_result.get("timestamp", "N/A")),
+        ("Execution Mode", result.get("execution_mode", "N/A")),
+        ("CI Trigger", result.get("ci_trigger", "N/A")),
+        ("Pipeline ID", result.get("pipeline_id", "N/A"), "detail-code"),
+        ("Estimate Job", result.get("estimate_job", "N/A")),
         ("Performance Ratio", format_numeric_value(result.get("performance_ratio", "N/A"))),
     ])
 

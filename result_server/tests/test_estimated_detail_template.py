@@ -14,6 +14,10 @@ ESTIMATE_RESULT = {
     "code": "qws",
     "exp": "CASE0",
     "performance_ratio": 0.104,
+    "execution_mode": "cross",
+    "ci_trigger": "push",
+    "pipeline_id": 2468,
+    "estimate_job": "qws_Fugaku_estimate",
     "applicability": {"status": "applicable"},
     "estimate_metadata": {
         "requested_estimation_package": "instrumented_app_sections_dummy",
@@ -148,6 +152,12 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Current Source UUID" in html
     assert "Future Source UUID" in html
     assert "ffffffff-1111-2222-3333-444444444444" in html
+    assert "CI Trigger" in html
+    assert "push" in html
+    assert "Pipeline ID" in html
+    assert "2468" in html
+    assert "Estimate Job" in html
+    assert "qws_Fugaku_estimate" in html
     assert "fallback" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

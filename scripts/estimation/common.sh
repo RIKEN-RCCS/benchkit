@@ -37,6 +37,10 @@ est_future_target_nodes=""
 est_future_scaling_method=""
 est_current_model_json=""
 est_future_model_json=""
+est_execution_mode=""
+est_ci_trigger=""
+est_pipeline_id=""
+est_estimate_job=""
 
 # Benchmark sub-object variables for current_system
 est_current_bench_system=""
@@ -372,6 +376,10 @@ read_values() {
   est_system=$(jq -r '.system' "$json_file")
   est_node_count=$(jq -r '.node_count' "$json_file")
   est_numproc_node=$(jq -r '.numproc_node // empty' "$json_file")
+  est_execution_mode=$(jq -r '.execution_mode // empty' "$json_file")
+  est_ci_trigger="${PARENT_PIPELINE_SOURCE:-${CI_PIPELINE_SOURCE:-}}"
+  est_pipeline_id="${CI_PIPELINE_ID:-}"
+  est_estimate_job="${CI_JOB_NAME:-}"
 
   # Read server-assigned uuid and timestamp (written back by send_results.sh)
   est_uuid=$(jq -r '._server_uuid // empty' "$json_file")
@@ -945,6 +953,30 @@ print_json() {
   \"reestimation\": $est_reestimation_json"
   fi
 
+  local execution_mode_block=""
+  if [[ -n "$est_execution_mode" ]]; then
+    execution_mode_block=",
+  \"execution_mode\": \"$est_execution_mode\""
+  fi
+
+  local ci_trigger_block=""
+  if [[ -n "$est_ci_trigger" ]]; then
+    ci_trigger_block=",
+  \"ci_trigger\": \"$est_ci_trigger\""
+  fi
+
+  local pipeline_id_block=""
+  if [[ -n "$est_pipeline_id" ]]; then
+    pipeline_id_block=",
+  \"pipeline_id\": $est_pipeline_id"
+  fi
+
+  local estimate_job_block=""
+  if [[ -n "$est_estimate_job" ]]; then
+    estimate_job_block=",
+  \"estimate_job\": \"$est_estimate_job\""
+  fi
+
   cat <<EOF
 {
   "code": "$est_code",
@@ -977,7 +1009,7 @@ print_json() {
       "uuid": "$est_future_bench_uuid"
     }${future_breakdown_block}${future_model_block}
   },
-  "performance_ratio": $ratio${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}${reestimation_block}
+  "performance_ratio": $ratio${execution_mode_block}${ci_trigger_block}${pipeline_id_block}${estimate_job_block}${estimate_metadata_block}${measurement_block}${assumptions_block}${input_artifacts_block}${model_block}${applicability_block}${confidence_block}${notes_block}${reestimation_block}
 }
 EOF
 }
