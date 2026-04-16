@@ -20,6 +20,17 @@ ESTIMATE_RESULT = {
         "estimation_package": "instrumented_app_sections_dummy",
         "method_class": "detailed",
         "detail_level": "intermediate",
+        "source_result_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "source_result_timestamp": "2026-04-10 11:11:11",
+        "source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "Fugaku",
+            "node_count": "1",
+            "numproc_node": "4",
+        },
         "estimation_result_uuid": "11111111-2222-3333-4444-555555555555",
         "estimation_result_timestamp": "2026-04-10 12:34:56",
         "current_package": {
@@ -113,6 +124,9 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Future System" in html
     assert "weakscaling" in html
     assert "instrumented_app_sections_dummy" in html
+    assert "Source Result UUID" in html
+    assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in html
+    assert "Source Result Timestamp" in html
     assert "fallback" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

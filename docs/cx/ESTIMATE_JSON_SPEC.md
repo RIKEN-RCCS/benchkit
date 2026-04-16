@@ -208,6 +208,8 @@ Estimate JSON may include the following extension fields:
 - `method_class`
 - `detail_level`
 - `source_result_uuid`
+- `source_result_timestamp`
+- `source_result`
 - `estimation_package`
 - `estimation_package_version`
 - `requested_estimation_package`
@@ -225,6 +227,16 @@ Estimate JSON may include the following extension fields:
     "method_class": "detailed",
     "detail_level": "intermediate",
     "source_result_uuid": "00000000-0000-0000-0000-000000000000",
+    "source_result_timestamp": "2026-04-03 12:34:56",
+    "source_result": {
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "timestamp": "2026-04-03 12:34:56",
+      "code": "qws",
+      "exp": "CASE0",
+      "system": "Fugaku",
+      "node_count": "1",
+      "numproc_node": "4"
+    },
     "estimation_package": "instrumented_app_sections_dummy",
     "estimation_package_version": "0.1",
     "requested_estimation_package": "instrumented_app_sections_dummy",
@@ -247,10 +259,14 @@ Estimate JSON may include the following extension fields:
 
 この項目は、推定処理そのものに関する識別情報を保持する。
 `source_result_uuid` は推定入力として用いたベンチマーク結果を識別する。
+`source_result_timestamp` はその benchmark result の保存時刻を保持する。
+`source_result` は compare / re-estimation / provenance 表示のために、元 result の最小識別情報をまとめて保持する任意の補助オブジェクトである。
 `estimation_result_uuid` および `estimation_result_timestamp` は、保存対象としての推定結果そのものの出自情報を識別する。
 
 This field stores identifiers for the estimation process itself.
 `source_result_uuid` identifies the benchmark result used as estimation input.
+`source_result_timestamp` retains the stored timestamp of that benchmark result.
+`source_result` is an optional helper object that keeps the minimum identifying context of the source result for compare, re-estimation, and provenance display.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 `estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。
 `requested_estimation_package` と `requested_estimation_package_version` は、フォールバック前に最初に要求された推定パッケージを表す。

@@ -34,6 +34,8 @@ if [[ -z "$resolved_result_uuid" ]]; then
   echo "ERROR: source_result_uuid not found in estimate ${estimate_result_uuid}" >&2
   exit 1
 fi
+resolved_result_timestamp="$(jq -r '.estimate_metadata.source_result_timestamp // .estimate_metadata.source_result.timestamp // empty' results/source_estimate.json)"
+resolved_source_estimate_timestamp="$(jq -r '.estimate_metadata.estimation_result_timestamp // empty' results/source_estimate.json)"
 echo "Resolved source result UUID: $resolved_result_uuid"
 
 echo "Fetching result for UUID: $resolved_result_uuid"
@@ -48,7 +50,9 @@ reestimation_scope="${reestimation_scope:-both}"
 reestimation_baseline_policy="${reestimation_baseline_policy:-reuse-recorded-baseline}"
 jq -cn \
   --arg source_result_uuid "$resolved_result_uuid" \
+  --arg source_result_timestamp "$resolved_result_timestamp" \
   --arg source_estimate_result_uuid "$resolved_source_estimate_uuid" \
+  --arg source_estimate_result_timestamp "$resolved_source_estimate_timestamp" \
   --arg reason "$reestimation_reason" \
   --arg trigger "$reestimation_trigger" \
   --arg scope "$reestimation_scope" \
@@ -60,8 +64,11 @@ jq -cn \
     scope: $scope,
     baseline_policy: $baseline_policy
   }
+  + (if $source_result_timestamp != "" then {source_result_timestamp: $source_result_timestamp} else {} end)
   + (if $source_estimate_result_uuid != "" then {source_estimate_result_uuid: $source_estimate_result_uuid} else {} end)
+  + (if $source_estimate_result_timestamp != "" then {source_estimate_result_timestamp: $source_estimate_result_timestamp} else {} end)
   + (if $source_estimate_result_uuid != "" then {previous_estimation_result_uuid: $source_estimate_result_uuid} else {} end)
+  + (if $source_estimate_result_timestamp != "" then {previous_estimation_result_timestamp: $source_estimate_result_timestamp} else {} end)
   ' > results/reestimation_context.json
 echo "Wrote re-estimation context to results/reestimation_context.json"
 

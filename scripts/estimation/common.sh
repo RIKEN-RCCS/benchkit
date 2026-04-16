@@ -67,6 +67,12 @@ est_estimation_timestamp=""
 est_method_class=""
 est_detail_level=""
 est_source_result_uuid=""
+est_source_result_timestamp=""
+est_source_result_code=""
+est_source_result_exp=""
+est_source_result_system=""
+est_source_result_node_count=""
+est_source_result_numproc_node=""
 est_estimation_package=""
 est_estimation_package_version=""
 est_requested_estimation_package=""
@@ -408,6 +414,12 @@ read_values() {
   # for the estimation result. Package-aware estimation scripts may override
   # this explicitly when needed.
   est_source_result_uuid="$est_uuid"
+  est_source_result_timestamp="$est_timestamp"
+  est_source_result_code="$est_code"
+  est_source_result_exp="$est_exp"
+  est_source_result_system="$est_system"
+  est_source_result_node_count="$est_node_count"
+  est_source_result_numproc_node="$est_numproc_node"
 
   load_reestimation_context
 }
@@ -726,7 +738,7 @@ print_json() {
   fi
 
   local estimate_metadata_block=""
-  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_estimation_package" || -n "$est_estimation_package_version" || -n "$est_requested_estimation_package" || -n "$est_requested_estimation_package_version" || -n "$est_current_estimation_package" || -n "$est_requested_current_estimation_package" || -n "$est_future_estimation_package" || -n "$est_requested_future_estimation_package" ]]; then
+  if [[ -n "$est_estimation_id" || -n "$est_estimation_timestamp" || -n "$est_method_class" || -n "$est_detail_level" || -n "$est_source_result_uuid" || -n "$est_source_result_timestamp" || -n "$est_source_result_code" || -n "$est_source_result_exp" || -n "$est_source_result_system" || -n "$est_source_result_node_count" || -n "$est_source_result_numproc_node" || -n "$est_estimation_package" || -n "$est_estimation_package_version" || -n "$est_requested_estimation_package" || -n "$est_requested_estimation_package_version" || -n "$est_current_estimation_package" || -n "$est_requested_current_estimation_package" || -n "$est_future_estimation_package" || -n "$est_requested_future_estimation_package" ]]; then
     local estimate_metadata_json=""
     estimate_metadata_json=$(jq -cn \
       --arg estimation_id "$est_estimation_id" \
@@ -734,6 +746,12 @@ print_json() {
       --arg method_class "$est_method_class" \
       --arg detail_level "$est_detail_level" \
       --arg source_result_uuid "$est_source_result_uuid" \
+      --arg source_result_timestamp "$est_source_result_timestamp" \
+      --arg source_result_code "$est_source_result_code" \
+      --arg source_result_exp "$est_source_result_exp" \
+      --arg source_result_system "$est_source_result_system" \
+      --arg source_result_node_count "$est_source_result_node_count" \
+      --arg source_result_numproc_node "$est_source_result_numproc_node" \
       --arg estimation_package "$est_estimation_package" \
       --arg estimation_package_version "$est_estimation_package_version" \
       --arg requested_estimation_package "$est_requested_estimation_package" \
@@ -752,6 +770,17 @@ print_json() {
       + (if $method_class != "" then {method_class: $method_class} else {} end)
       + (if $detail_level != "" then {detail_level: $detail_level} else {} end)
       + (if $source_result_uuid != "" then {source_result_uuid: $source_result_uuid} else {} end)
+      + (if $source_result_timestamp != "" then {source_result_timestamp: $source_result_timestamp} else {} end)
+      + (if $source_result_uuid != "" or $source_result_timestamp != "" or $source_result_code != "" or $source_result_exp != "" or $source_result_system != "" or $source_result_node_count != "" or $source_result_numproc_node != "" then {
+          source_result:
+            ((if $source_result_uuid != "" then {uuid: $source_result_uuid} else {} end)
+            + (if $source_result_timestamp != "" then {timestamp: $source_result_timestamp} else {} end)
+            + (if $source_result_code != "" then {code: $source_result_code} else {} end)
+            + (if $source_result_exp != "" then {exp: $source_result_exp} else {} end)
+            + (if $source_result_system != "" then {system: $source_result_system} else {} end)
+            + (if $source_result_node_count != "" then {node_count: $source_result_node_count} else {} end)
+            + (if $source_result_numproc_node != "" then {numproc_node: $source_result_numproc_node} else {} end))
+        } else {} end)
       + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
       + (if $estimation_package_version != "" then {estimation_package_version: $estimation_package_version} else {} end)
       + (if $requested_estimation_package != "" then {requested_estimation_package: $requested_estimation_package} else {} end)
