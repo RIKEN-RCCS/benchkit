@@ -213,3 +213,49 @@ Typical requirements include:
 - optional profiler tools depending on system support
 
 For local portal work, see the route, template, and utility layout under `result_server/`.
+
+### Result Portal Local Test Workflow
+
+For the lightweight `result_server` verification path:
+
+- install dependencies with `python -m pip install -r requirements-result-server.txt`
+- run the portal test suite with `python scripts/test_result_server.py`
+- CI coverage for portal-only changes is provided by `.github/workflows/result-server-tests.yml`
+
+### Result Quality Validation
+
+BenchKit currently keeps result-quality validation visibility-first.
+
+- run `python scripts/validate_result_quality.py <result-dir-or-json>`
+- use `--format json` for machine-readable output
+- use `--fail-on warning` or `--fail-on candidate` only when you explicitly want non-zero exit behavior
+
+This validator is intended as a lightweight pre-CI gate and a future stepping stone toward stricter result validation.
+
+Internally, the validator can also read `config/result_quality_policy.json` to assign app-specific tiers such as `strict`, `standard`, and `relaxed`.
+This policy is currently intended for internal operation, and it does not need to be reflected in public UI or external contracts.
+
+If you want to manage tier overrides locally without editing the JSON file, the validator can also read a Redis hash.
+
+- set `BK_RESULT_QUALITY_REDIS_URL=redis://localhost:6379/0`
+- optionally set `BK_RESULT_QUALITY_REDIS_KEY=benchkit:result_quality:app_tiers`
+- store entries such as `qws -> strict` or `genesis -> relaxed` in that hash
+
+Redis overrides are merged on top of `config/result_quality_policy.json` and are intended for internal/local control only.
+
+### Result Upload Hook
+
+`scripts/result_server/send_results.sh` can invoke the validator before upload.
+
+- set `BK_RESULT_QUALITY_VALIDATE=true` to enable the pre-upload validator
+- leave `BK_RESULT_QUALITY_FAIL_ON=none` for report-only execution
+- use `BK_RESULT_QUALITY_FAIL_ON=warning` or `BK_RESULT_QUALITY_FAIL_ON=candidate` only when you intentionally want upload-time failure behavior
+- use `BK_RESULT_QUALITY_FAIL_ON=policy` only for internal experiments with app-specific quality tiers
+
+Recommended rollout:
+
+- phase 1: `BK_RESULT_QUALITY_VALIDATE=true`, `BK_RESULT_QUALITY_FAIL_ON=none`
+- phase 2: keep CI/report-only, but review repeated validator candidates in usage reports
+- phase 3: promote a small subset of stable rules to `candidate`-based failure
+
+If you experiment with app-specific tiers, prefer starting with `--fail-on policy` only in private or staging-like internal workflows.
