@@ -18,7 +18,11 @@ ESTIMATE_RESULT = {
     "ci_trigger": "push",
     "pipeline_id": 2468,
     "estimate_job": "qws_Fugaku_estimate",
-    "applicability": {"status": "applicable"},
+    "applicability": {
+        "status": "partially_applicable",
+        "missing_inputs": ["section_package_unsupported:half"],
+        "required_actions": ["collect-section-specific-package-inputs"],
+    },
     "estimate_metadata": {
         "requested_estimation_package": "instrumented_app_sections_dummy",
         "estimation_package": "instrumented_app_sections_dummy",
@@ -172,10 +176,13 @@ def test_estimated_detail_template_renders_sections(app):
         )
 
     assert "Estimate Detail" in html
+    assert "Applicability Summary" in html
     assert "Package Resolution" in html
     assert "Re-Estimation Context" in html
     assert "Current System" in html
     assert "Future System" in html
+    assert "Estimate succeeded, but part of the breakdown used fallback handling." in html
+    assert "required action: collect-section-specific-package-inputs" in html
     assert "weakscaling" in html
     assert "instrumented_app_sections_dummy" in html
     assert "Source Result UUID" in html
@@ -195,5 +202,7 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Source Estimate Job" in html
     assert "qws_MiyabiG_reestimate" in html
     assert "fallback" in html
+    assert "Missing Inputs" in html
+    assert "Required Actions" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

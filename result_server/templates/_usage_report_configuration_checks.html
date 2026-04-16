@@ -52,5 +52,43 @@
       <p class="diagnostic-empty">No partial application/system support was detected.</p>
       {% endif %}
     </div>
+    <div class="diagnostic-card">
+      <h3>Application Entry Points</h3>
+      <p>{{ site_diagnostics.application_directory_count | default(site_diagnostics.application_count) }} application directories were scanned under <code>programs/</code>.</p>
+      {% if site_diagnostics.apps_missing_files | default([]) %}
+      <ul class="diagnostic-list">
+        {% for item in site_diagnostics.apps_missing_files %}
+        <li>{{ item.app }} is missing {{ item.missing_files | join(', ') }}.</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="diagnostic-empty">All scanned application directories have <code>list.csv</code>, <code>build.sh</code>, and <code>run.sh</code>.</p>
+      {% endif %}
+    </div>
+    <div class="diagnostic-card">
+      <h3>Estimate Entry Points</h3>
+      <p>{{ site_diagnostics.apps_with_estimate_count | default(0) }} applications currently define <code>estimate.sh</code>.</p>
+      {% if site_diagnostics.apps_without_estimate | default([]) %}
+      <ul class="diagnostic-list">
+        {% for app in site_diagnostics.apps_without_estimate %}
+        <li>{{ app }} does not define <code>estimate.sh</code> yet.</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="diagnostic-empty">All scanned applications define <code>estimate.sh</code>.</p>
+      {% endif %}
+    </div>
+    <div class="diagnostic-card">
+      <h3>List/System Mismatches</h3>
+      {% if site_diagnostics.unknown_listed_systems | default([]) %}
+      <ul class="diagnostic-list">
+        {% for item in site_diagnostics.unknown_listed_systems %}
+        <li>{{ item.app }} references unregistered system <code>{{ item.system }}</code> in <code>list.csv</code> (enabled rows: {{ item.enabled_rows }}, disabled rows: {{ item.disabled_rows }}).</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="diagnostic-empty">All systems referenced by <code>list.csv</code> are registered in <code>system.csv</code>.</p>
+      {% endif %}
+    </div>
   </div>
 </section>

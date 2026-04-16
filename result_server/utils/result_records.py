@@ -62,26 +62,41 @@ def load_result_json_batch(filenames, directory):
 def summarize_result_quality(data):
     """Summarize how estimation-ready and provenance-rich a result JSON is."""
     warnings = []
+    suggested_actions = []
+    validator_candidates = []
 
     fom = data.get("FOM")
     has_fom = fom not in (None, "", "null", "N/A")
+    if not has_fom:
+        warnings.append("FOM is missing")
+        suggested_actions.append("populate FOM in the stored result JSON")
+        validator_candidates.append("FOM present")
 
     source_info = data.get("source_info")
     has_source_info = isinstance(source_info, dict) and bool(source_info)
     source_info_complete = False
+    source_missing_fields = []
     if has_source_info:
         source_type = source_info.get("source_type")
         if source_type == "git":
-            source_info_complete = all(source_info.get(key) for key in ("repo_url", "branch", "commit_hash"))
+            source_missing_fields = [key for key in ("repo_url", "branch", "commit_hash") if not source_info.get(key)]
+            source_info_complete = not source_missing_fields
         elif source_type == "file":
-            source_info_complete = all(source_info.get(key) for key in ("file_path", "md5sum"))
+            source_missing_fields = [key for key in ("file_path", "md5sum") if not source_info.get(key)]
+            source_info_complete = not source_missing_fields
         else:
             warnings.append("source_info has unknown source_type")
+            suggested_actions.append("set source_info.source_type to git or file")
+            validator_candidates.append("recognized source_info.source_type")
     else:
         warnings.append("source_info is missing")
+        suggested_actions.append("populate top-level source_info for provenance tracking")
+        validator_candidates.append("source_info present")
 
     if has_source_info and not source_info_complete:
         warnings.append("source_info is incomplete")
+        suggested_actions.append("fill the missing top-level source_info fields")
+        validator_candidates.append("complete source_info fields")
 
     fom_breakdown = data.get("fom_breakdown")
     sections = []
@@ -95,10 +110,14 @@ def summarize_result_quality(data):
     has_breakdown = bool(sections or overlaps)
     if not has_breakdown:
         warnings.append("fom_breakdown is missing")
+        suggested_actions.append("emit section or overlap breakdown data into fom_breakdown")
+        validator_candidates.append("fom_breakdown present")
 
     section_names = [section.get("name") for section in sections if isinstance(section, dict) and section.get("name")]
     if len(section_names) != len(set(section_names)):
         warnings.append("duplicate section names found")
+        suggested_actions.append("make section names unique inside fom_breakdown.sections")
+        validator_candidates.append("unique section names")
 
     unknown_overlap_refs = 0
     for overlap in overlaps:
@@ -107,6 +126,8 @@ def summarize_result_quality(data):
         members = overlap.get("sections", [])
         if not isinstance(members, list) or not members:
             warnings.append("overlap has no sections")
+            suggested_actions.append("ensure every overlap entry declares at least one section reference")
+            validator_candidates.append("non-empty overlap sections")
             continue
         for member in members:
             if member not in section_names:
@@ -114,6 +135,8 @@ def summarize_result_quality(data):
 
     if unknown_overlap_refs:
         warnings.append("overlap references undefined sections")
+        suggested_actions.append("fix overlap section references so they match defined section names")
+        validator_candidates.append("valid overlap section references")
 
     section_package_count = sum(
         1 for section in sections
@@ -136,6 +159,11 @@ def summarize_result_quality(data):
 
     if has_breakdown and expected_package_items > actual_package_items:
         warnings.append("some breakdown items are missing estimation_package")
+        suggested_actions.append("set estimation_package on every section and overlap item")
+        validator_candidates.append("complete breakdown estimation_package bindings")
+
+    if has_breakdown and artifact_count == 0:
+        suggested_actions.append("attach artifact references for richer estimation provenance")
 
     if provenance_rich:
         level = "rich"
@@ -150,15 +178,21 @@ def summarize_result_quality(data):
         label = "Basic"
         summary = "Core result fields are present, but estimation-related detail is limited."
 
+    suggested_actions = _dedupe_preserve_order(suggested_actions)
+    validator_candidates = _dedupe_preserve_order(validator_candidates)
+
     return {
         "level": level,
         "label": label,
         "summary": summary,
         "warnings": warnings,
+        "suggested_actions": suggested_actions,
+        "validator_candidates": validator_candidates,
         "stats": {
             "has_fom": has_fom,
             "has_source_info": has_source_info,
             "source_info_complete": source_info_complete,
+            "source_missing_fields": source_missing_fields,
             "has_breakdown": has_breakdown,
             "section_count": len(sections),
             "overlap_count": len(overlaps),
@@ -167,6 +201,17 @@ def summarize_result_quality(data):
             "artifact_count": artifact_count,
         },
     }
+
+
+def _dedupe_preserve_order(values):
+    seen = set()
+    result = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def format_result_timestamp(filename):

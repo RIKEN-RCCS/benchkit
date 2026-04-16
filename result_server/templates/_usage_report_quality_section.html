@@ -9,6 +9,7 @@
           <th>Application</th>
           <th>System</th>
           <th title="Timestamp of the latest collected result used for this current-state row.">Latest Result</th>
+          <th title="Overall current-state quality level for the latest result.">Quality</th>
           <th title="Whether top-level source provenance is tracked for the latest result.">Tracked</th>
           <th title="Top-level provenance type from source_info.">Type</th>
           <th title="Short provenance reference shown from source_info.">Reference</th>
@@ -16,6 +17,8 @@
           <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
           <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
           <th title="Whether the latest result reaches the rich quality level.">Rich</th>
+          <th title="First suggested follow-up action derived from the latest result current-state.">Next Action</th>
+          <th title="Potential validator rules that this row is currently violating or approaching.">Validator Candidates</th>
           <th>Warnings</th>
         </tr>
       </thead>
@@ -25,6 +28,7 @@
           <td>{{ row.app }}</td>
           <td>{{ row.system }}</td>
           <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
+          <td><span class="{{ 'quality-ok' if row.quality_level in ('ready', 'rich') else 'quality-warn' }}">{{ row.quality_label }}</span></td>
           <td>{{ row.source_status }}</td>
           <td>{{ row.source_type }}</td>
           <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
@@ -32,7 +36,9 @@
           <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>
-          <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
+          <td title="{{ row.suggested_actions|join(' | ') if row.suggested_actions else 'none' }}">{{ row.next_action }}</td>
+          <td title="{{ row.validator_candidates|join(' | ') if row.validator_candidates else 'none' }}">{{ row.validator_candidates|join(', ') if row.validator_candidates else 'none' }}</td>
+          <td title="{{ row.warnings|join(' | ') if row.warnings else 'none' }}">{{ row.warning_count }}: {{ row.warnings|join(', ') if row.warnings else 'none' }}</td>
         </tr>
       {% endfor %}
       </tbody>

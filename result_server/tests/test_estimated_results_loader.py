@@ -88,6 +88,35 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
     assert rows[0]["current_estimation_package"] == "weakscaling"
     assert rows[0]["future_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["applicability_status"] == "fallback"
+    assert rows[0]["applicability_meta_line"] == ""
+
+
+def test_estimated_rows_surface_applicability_context(flask_app, tmp_dir):
+    uid = str(uuid.uuid4())
+    _write_json(tmp_dir, f"estimate_20250101_000000_{uid}.json", {
+        "code": "est-app",
+        "exp": "exp2",
+        "current_system": {"system": "SysA", "fom": 1.0, "benchmark": {}},
+        "future_system": {"system": "SysB", "fom": 2.0, "benchmark": {}},
+        "performance_ratio": 2.0,
+        "estimate_metadata": {
+            "requested_estimation_package": "instrumented_app_sections_dummy",
+            "estimation_package": "instrumented_app_sections_dummy",
+        },
+        "applicability": {
+            "status": "needs_remeasurement",
+            "missing_inputs": ["fom_breakdown", "section_artifact"],
+            "required_actions": ["provide-section-breakdown-for-weakscaling"],
+        },
+    })
+
+    with flask_app.test_request_context():
+        rows, _, info = load_estimated_results_table(tmp_dir, public_only=True)
+
+    assert info["total"] == 1
+    assert rows[0]["applicability_status"] == "needs_remeasurement"
+    assert rows[0]["applicability_meta_line"] == "action: provide-section-breakdown-for-weakscaling"
+    assert "missing: fom_breakdown, section_artifact" in rows[0]["applicability_title"]
 
 
 def test_estimated_columns_use_compact_labels():
@@ -99,3 +128,5 @@ def test_estimated_columns_use_compact_labels():
     assert labels["requested_package_short"] == "Req. Pkg"
     assert labels["applied_package_short"] == "Applied Pkg"
     assert labels["estimate_uuid_short"] == "UUID"
+    applicability_column = next(column for column in columns if column["key"] == "applicability_status")
+    assert applicability_column["meta_key"] == "applicability_meta_line"

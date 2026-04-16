@@ -333,6 +333,8 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "basic"
         assert "fom_breakdown is missing" in quality["warnings"]
+        assert "populate top-level source_info for provenance tracking" in quality["suggested_actions"]
+        assert "fom_breakdown present" in quality["validator_candidates"]
 
     def test_ready_quality_with_breakdown_and_packages(self):
         quality = summarize_result_quality({
@@ -349,6 +351,7 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "ready"
         assert quality["stats"]["section_package_count"] == 1
+        assert "attach artifact references for richer estimation provenance" in quality["suggested_actions"]
 
     def test_rich_quality_with_source_and_artifacts(self):
         quality = summarize_result_quality({
@@ -376,6 +379,7 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "rich"
         assert quality["stats"]["artifact_count"] == 1
+        assert quality["suggested_actions"] == []
 
 
 # ============================================================

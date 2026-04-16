@@ -65,6 +65,18 @@ def test_build_site_diagnostics(tmp_path):
             ["RC_TEST", "no", "1", "1", "16", "0:10:00"],
         ],
     )
+    (qws_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+
+    genesis_dir = programs_dir / "genesis"
+    genesis_dir.mkdir()
+    (genesis_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
+    _write_csv(
+        genesis_dir / "list.csv",
+        ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
+        [
+            ["UNKNOWN_SYSTEM", "yes", "1", "1", "16", "0:10:00"],
+        ],
+    )
 
     diagnostics = build_site_diagnostics(
         system_csv_path=str(config_dir / "system.csv"),
@@ -74,7 +86,8 @@ def test_build_site_diagnostics(tmp_path):
     )
 
     assert diagnostics["registered_system_count"] == 3
-    assert diagnostics["application_count"] == 1
+    assert diagnostics["application_count"] == 2
+    assert diagnostics["application_directory_count"] == 2
     assert diagnostics["missing_system_info"] == ["RC_TEST"]
     assert diagnostics["missing_queue_definitions"] == [
         {"system": "RC_TEST", "queue": "SLURM_UNKNOWN"}
@@ -87,5 +100,21 @@ def test_build_site_diagnostics(tmp_path):
             "build_supported": True,
             "run_supported": False,
             "enabled_rows": 1,
+        }
+    ]
+    assert diagnostics["apps_missing_files"] == [
+        {
+            "app": "genesis",
+            "missing_files": ["run.sh"],
+        }
+    ]
+    assert diagnostics["apps_with_estimate_count"] == 1
+    assert diagnostics["apps_without_estimate"] == ["genesis"]
+    assert diagnostics["unknown_listed_systems"] == [
+        {
+            "app": "genesis",
+            "system": "UNKNOWN_SYSTEM",
+            "enabled_rows": 1,
+            "disabled_rows": 0,
         }
     ]

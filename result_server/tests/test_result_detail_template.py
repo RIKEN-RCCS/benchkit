@@ -208,3 +208,5 @@ class TestResultDetailTemplate:
         assert "Breakdown" in html
         assert "Estimation Inputs" in html
         assert "top-level source tracked" in html
+        assert "Suggested Actions" in html
+        assert "Validator Candidates" in html

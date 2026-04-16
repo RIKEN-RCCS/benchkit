@@ -117,7 +117,7 @@ def test_estimated_results_template_renders_table_note():
                 {"label": "Bench System", "key": "systemB_bench_system", "group": "System B"},
                 {"label": "Bench FOM", "key": "systemB_bench_fom_display", "group": "System B", "title_key": "systemB_bench_fom", "align": "right"},
                 {"label": "Bench Nodes", "key": "systemB_bench_nodes", "group": "System B"},
-                {"label": "Applicability", "key": "applicability_status", "section": "trailing"},
+                {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line"},
                 {"label": "Requested Package", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
                 {"label": "Applied Package", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
                 {"label": "Estimate UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
@@ -154,6 +154,8 @@ def test_estimated_results_template_renders_table_note():
                     "systemB_bench_fom_display": "5.712",
                     "systemB_bench_nodes": "1",
                     "applicability_status": "applicable",
+                    "applicability_title": "applicable",
+                    "applicability_meta_line": "fallback -> weakscaling",
                     "requested_estimation_package": "instrumented_app_sections_dummy",
                     "estimation_package": "instrumented_app_sections_dummy",
                     "requested_package_short": "instr_app_sec",
@@ -185,6 +187,7 @@ def test_estimated_results_template_renders_table_note():
     assert "Scan system pairs, applied packages, and ratio here" in html
     assert "estimated-table-wrap" in html
     assert "detail" in html
+    assert "fallback -&gt; weakscaling" in html
 
 
 def test_usage_report_template_renders_search_box():
@@ -213,6 +216,11 @@ def test_usage_report_template_renders_search_box():
                 "missing_queue_definitions": [],
                 "application_count": 0,
                 "partial_support": [],
+                "application_directory_count": 1,
+                "apps_missing_files": [{"app": "genesis", "missing_files": ["run.sh"]}],
+                "apps_without_estimate": ["ffb"],
+                "apps_with_estimate_count": 1,
+                "unknown_listed_systems": [{"app": "genesis", "system": "UNKNOWN_SYSTEM", "enabled_rows": 1, "disabled_rows": 0}],
             },
             coverage_systems=[],
             app_support_rows=[],
@@ -221,6 +229,10 @@ def test_usage_report_template_renders_search_box():
 
     assert "Filter coverage and current-state tables" in html
     assert "applyUsageSearch" in html
+    assert "Application Entry Points" in html
+    assert "genesis is missing run.sh." in html
+    assert "ffb does not define" in html
+    assert "UNKNOWN_SYSTEM" in html
 
 
 def test_result_compare_template_renders_headline():
@@ -253,3 +265,70 @@ def test_result_compare_template_renders_headline():
     assert "Fugaku / qws - Comparing 2 results" in html
     assert "FOM Timeline" in html
     assert "compareConfigData" in html
+
+
+def test_usage_report_quality_section_renders_actions_and_validator_candidates():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results/usage"):
+        from flask import render_template
+
+        html = render_template(
+            "usage_report.html",
+            result={
+                "apps": [],
+                "systems": [],
+                "periods": [],
+                "available_fiscal_years": [2025],
+            },
+            filtered_periods=[],
+            period_type="fiscal_year",
+            fiscal_year=2025,
+            period_filter="",
+            site_diagnostics={
+                "registered_system_count": 1,
+                "unused_systems": [],
+                "missing_system_info": [],
+                "missing_queue_definitions": [],
+                "application_count": 0,
+                "partial_support": [],
+                "application_directory_count": 1,
+                "apps_missing_files": [],
+                "apps_without_estimate": [],
+                "apps_with_estimate_count": 1,
+                "unknown_listed_systems": [],
+            },
+            coverage_systems=[],
+            app_support_rows=[],
+            result_quality_rollup={
+                "rows": [
+                    {
+                        "app": "qws",
+                        "system": "Fugaku",
+                        "timestamp": "2026-04-13 12:00:00",
+                        "filename": "result0.json",
+                        "quality_level": "basic",
+                        "quality_label": "Basic",
+                        "source_status": "not tracked",
+                        "source_type": "-",
+                        "source_reference": "-",
+                        "source_missing_fields": ["source_info"],
+                        "breakdown_present": False,
+                        "estimation_ready": False,
+                        "rich": False,
+                        "suggested_actions": ["populate top-level source_info for provenance tracking"],
+                        "next_action": "populate top-level source_info for provenance tracking",
+                        "validator_candidates": ["source_info present", "fom_breakdown present"],
+                        "warnings": ["source_info is missing", "fom_breakdown is missing"],
+                        "warning_count": 2,
+                    }
+                ]
+            },
+        )
+
+    assert "Next Action" in html
+    assert "Validator Candidates" in html
+    assert "populate top-level source_info for provenance tracking" in html
+    assert "source_info present, fom_breakdown present" in html
+    assert "2: source_info is missing, fom_breakdown is missing" in html

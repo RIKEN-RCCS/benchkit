@@ -6,10 +6,17 @@ def build_estimated_detail_context(result):
     current = result.get("current_system", {})
     future = result.get("future_system", {})
     reestimation = result.get("reestimation", {})
+    applicability = result.get("applicability", {})
+    breakdown_fallback_count = _count_breakdown_fallbacks(current) + _count_breakdown_fallbacks(future)
 
     return {
         "meta_rows": _build_meta_rows(result, estimate_meta),
-        "package_rows": _build_package_rows(estimate_meta),
+        "package_rows": _build_package_rows(estimate_meta, applicability),
+        "applicability_summary": _build_applicability_summary(
+            estimate_meta,
+            applicability,
+            breakdown_fallback_count,
+        ),
         "reestimation_rows": _build_reestimation_rows(reestimation),
         "current_rows": _build_system_rows(current),
         "future_rows": _build_system_rows(future),
@@ -52,15 +59,23 @@ def _build_meta_rows(result, estimate_meta):
     ])
 
 
-def _build_package_rows(estimate_meta):
+def _build_package_rows(estimate_meta, applicability):
     current_package = estimate_meta.get("current_package", {})
     future_package = estimate_meta.get("future_package", {})
-    return build_labeled_value_rows([
+    rows = build_labeled_value_rows([
+        ("Top-Level Requested", estimate_meta.get("requested_estimation_package", "N/A")),
+        ("Top-Level Applied", estimate_meta.get("estimation_package", "N/A")),
+        ("Top-Level Fallback", applicability.get("fallback_used", "none")),
         ("Current Requested", current_package.get("requested_estimation_package", "N/A")),
         ("Current Applied", current_package.get("estimation_package", "N/A")),
         ("Future Requested", future_package.get("requested_estimation_package", "N/A")),
         ("Future Applied", future_package.get("estimation_package", "N/A")),
     ])
+
+    _append_list_row(rows, "Missing Inputs", applicability.get("missing_inputs", []))
+    _append_list_row(rows, "Required Actions", applicability.get("required_actions", []))
+    _append_list_row(rows, "Incompatibilities", applicability.get("incompatibilities", []))
+    return rows
 
 
 def _build_system_rows(system_data):
@@ -107,3 +122,103 @@ def _build_reestimation_rows(reestimation):
         ("Source Pipeline ID", source_estimate.get("pipeline_id", "N/A"), "detail-code"),
         ("Source Estimate Job", source_estimate.get("estimate_job", "N/A")),
     ])
+
+
+def _append_list_row(rows, label, values):
+    if not values:
+        return
+    rows.append({"label": label, "list": values})
+
+
+def _count_breakdown_fallbacks(system_data):
+    breakdown = system_data.get("fom_breakdown", {})
+    section_count = sum(1 for item in breakdown.get("sections", []) if item.get("fallback_used"))
+    overlap_count = sum(1 for item in breakdown.get("overlaps", []) if item.get("fallback_used"))
+    return section_count + overlap_count
+
+
+def _build_applicability_summary(estimate_meta, applicability, breakdown_fallback_count):
+    status = applicability.get("status", "N/A")
+    requested = estimate_meta.get("requested_estimation_package", "")
+    applied = estimate_meta.get("estimation_package", "")
+    fallback_used = applicability.get("fallback_used", "")
+    missing_inputs = applicability.get("missing_inputs", [])
+    required_actions = applicability.get("required_actions", [])
+    incompatibilities = applicability.get("incompatibilities", [])
+    highlights = []
+
+    if requested:
+        highlights.append(f"requested package: {requested}")
+    if applied:
+        highlights.append(f"applied package: {applied}")
+    if fallback_used:
+        highlights.append(f"fallback used: {fallback_used}")
+    if breakdown_fallback_count:
+        highlights.append(f"section/overlap fallback entries: {breakdown_fallback_count}")
+    highlights.extend(f"missing input: {item}" for item in missing_inputs)
+    highlights.extend(f"required action: {item}" for item in required_actions)
+    highlights.extend(f"incompatibility: {item}" for item in incompatibilities)
+
+    if status == "applicable":
+        return {
+            "status": status,
+            "tone": "ok",
+            "headline": "Requested package was applied without a top-level fallback.",
+            "body": (
+                "This estimate succeeded as requested. Section- or overlap-level fallback entries can still appear below "
+                "when only part of the breakdown needed a substitute package."
+            ),
+            "highlights": highlights,
+        }
+    if status == "partially_applicable":
+        return {
+            "status": status,
+            "tone": "warn",
+            "headline": "Estimate succeeded, but part of the breakdown used fallback handling.",
+            "body": (
+                "The overall estimate was stored successfully, but at least one section or overlap could not use its "
+                "requested package as-is. Review the breakdown cards for the exact fallback points."
+            ),
+            "highlights": highlights,
+        }
+    if status == "fallback":
+        return {
+            "status": status,
+            "tone": "warn",
+            "headline": "Estimate succeeded after switching the top-level package.",
+            "body": (
+                "The originally requested package did not apply cleanly, so BenchKit stored a successful estimate with "
+                "a different top-level package. Compare requested versus applied packages before reusing this result."
+            ),
+            "highlights": highlights,
+        }
+    if status == "not_applicable":
+        return {
+            "status": status,
+            "tone": "danger",
+            "headline": "Estimate attempt was recorded, but it did not finish as a valid estimate result.",
+            "body": (
+                "This does not necessarily mean the pipeline failed. It means the stored estimate record is mainly a "
+                "diagnostic artifact showing why the requested estimation path could not be completed."
+            ),
+            "highlights": highlights,
+        }
+    if status == "needs_remeasurement":
+        return {
+            "status": status,
+            "tone": "danger",
+            "headline": "Estimate needs additional measurement data before it can be completed.",
+            "body": (
+                "BenchKit stored the attempt, but more input data is required before the requested estimate can be "
+                "considered usable."
+            ),
+            "highlights": highlights,
+        }
+
+    return {
+        "status": status,
+        "tone": "info",
+        "headline": "Applicability state is recorded, but it does not match a standard summary path.",
+        "body": "Use the package resolution and breakdown tables below to interpret the stored estimate context.",
+        "highlights": highlights,
+    }

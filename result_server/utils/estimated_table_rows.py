@@ -66,6 +66,8 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
             requested_current,
             requested_future,
         ),
+        "applicability_title": _build_applicability_title(applicability),
+        "applicability_meta_line": _build_applicability_meta_line(applicability),
         "applied_package_title": _build_applied_package_title(
             applied_package,
             method_class,
@@ -87,7 +89,7 @@ def build_estimated_table_columns():
         {"label": "Exp", "key": "exp", "section": "leading"},
         *_build_estimated_system_columns("System A", "systemA"),
         *_build_estimated_system_columns("System B", "systemB"),
-        {"label": "Applicability", "key": "applicability_status", "section": "trailing"},
+        {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line"},
         {"label": "Req. Pkg", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
         {"label": "Applied Pkg", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
         {"label": "UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
@@ -161,3 +163,28 @@ def _build_applied_package_title(applied_package, method_class, detail_level, cu
 def _build_applied_package_meta_line(method_class, detail_level):
     meta_parts = [part for part in (method_class, detail_level) if part]
     return " / ".join(meta_parts)
+
+
+def _build_applicability_title(applicability):
+    return build_multiline_title(
+        applicability.get("status", ""),
+        [
+            ("fallback", applicability.get("fallback_used", "")),
+            ("missing", ", ".join(applicability.get("missing_inputs", []))),
+            ("actions", ", ".join(applicability.get("required_actions", []))),
+        ],
+    )
+
+
+def _build_applicability_meta_line(applicability):
+    if applicability.get("fallback_used"):
+        return f"fallback -> {applicability['fallback_used']}"
+    if applicability.get("required_actions"):
+        return f"action: {applicability['required_actions'][0]}"
+    if applicability.get("missing_inputs"):
+        first = applicability["missing_inputs"][0]
+        extra = len(applicability["missing_inputs"]) - 1
+        if extra > 0:
+            return f"missing: {first} (+{extra})"
+        return f"missing: {first}"
+    return ""
