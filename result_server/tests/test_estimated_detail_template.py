@@ -31,6 +31,24 @@ ESTIMATE_RESULT = {
             "node_count": "1",
             "numproc_node": "4",
         },
+        "current_source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "Fugaku",
+            "node_count": "1",
+            "numproc_node": "4",
+        },
+        "future_source_result": {
+            "uuid": "ffffffff-1111-2222-3333-444444444444",
+            "timestamp": "2026-04-10 11:22:22",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "MiyabiG",
+            "node_count": "1",
+            "numproc_node": "1",
+        },
         "estimation_result_uuid": "11111111-2222-3333-4444-555555555555",
         "estimation_result_timestamp": "2026-04-10 12:34:56",
         "current_package": {
@@ -127,6 +145,9 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Source Result UUID" in html
     assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in html
     assert "Source Result Timestamp" in html
+    assert "Current Source UUID" in html
+    assert "Future Source UUID" in html
+    assert "ffffffff-1111-2222-3333-444444444444" in html
     assert "fallback" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

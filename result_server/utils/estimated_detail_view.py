@@ -21,6 +21,8 @@ def build_estimated_detail_context(result):
 
 def _build_meta_rows(result, estimate_meta):
     source_result = estimate_meta.get("source_result", {})
+    current_source_result = estimate_meta.get("current_source_result", {})
+    future_source_result = estimate_meta.get("future_source_result", {})
     return build_labeled_value_rows([
         ("Code", result.get("code", "N/A")),
         ("Exp", result.get("exp", "N/A")),
@@ -36,6 +38,10 @@ def _build_meta_rows(result, estimate_meta):
         ("Source Result System", source_result.get("system", "N/A")),
         ("Source Result Exp", source_result.get("exp", "N/A")),
         ("Source Result Nodes", source_result.get("node_count", "N/A")),
+        ("Current Source UUID", current_source_result.get("uuid", "N/A"), "detail-code"),
+        ("Current Source Timestamp", current_source_result.get("timestamp", "N/A")),
+        ("Future Source UUID", future_source_result.get("uuid", "N/A"), "detail-code"),
+        ("Future Source Timestamp", future_source_result.get("timestamp", "N/A")),
         ("Performance Ratio", format_numeric_value(result.get("performance_ratio", "N/A"))),
     ])
 

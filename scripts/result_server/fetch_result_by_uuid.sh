@@ -36,6 +36,8 @@ if [[ -z "$resolved_result_uuid" ]]; then
 fi
 resolved_result_timestamp="$(jq -r '.estimate_metadata.source_result_timestamp // .estimate_metadata.source_result.timestamp // empty' results/source_estimate.json)"
 resolved_source_estimate_timestamp="$(jq -r '.estimate_metadata.estimation_result_timestamp // empty' results/source_estimate.json)"
+resolved_current_source_result="$(jq -c '.estimate_metadata.current_source_result // empty' results/source_estimate.json)"
+resolved_future_source_result="$(jq -c '.estimate_metadata.future_source_result // empty' results/source_estimate.json)"
 echo "Resolved source result UUID: $resolved_result_uuid"
 
 echo "Fetching result for UUID: $resolved_result_uuid"
@@ -53,6 +55,8 @@ jq -cn \
   --arg source_result_timestamp "$resolved_result_timestamp" \
   --arg source_estimate_result_uuid "$resolved_source_estimate_uuid" \
   --arg source_estimate_result_timestamp "$resolved_source_estimate_timestamp" \
+  --argjson current_source_result "${resolved_current_source_result:-null}" \
+  --argjson future_source_result "${resolved_future_source_result:-null}" \
   --arg reason "$reestimation_reason" \
   --arg trigger "$reestimation_trigger" \
   --arg scope "$reestimation_scope" \
@@ -69,6 +73,8 @@ jq -cn \
   + (if $source_estimate_result_timestamp != "" then {source_estimate_result_timestamp: $source_estimate_result_timestamp} else {} end)
   + (if $source_estimate_result_uuid != "" then {previous_estimation_result_uuid: $source_estimate_result_uuid} else {} end)
   + (if $source_estimate_result_timestamp != "" then {previous_estimation_result_timestamp: $source_estimate_result_timestamp} else {} end)
+  + (if $current_source_result != null then {current_source_result: $current_source_result} else {} end)
+  + (if $future_source_result != null then {future_source_result: $future_source_result} else {} end)
   ' > results/reestimation_context.json
 echo "Wrote re-estimation context to results/reestimation_context.json"
 

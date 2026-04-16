@@ -210,6 +210,8 @@ Estimate JSON may include the following extension fields:
 - `source_result_uuid`
 - `source_result_timestamp`
 - `source_result`
+- `current_source_result`
+- `future_source_result`
 - `estimation_package`
 - `estimation_package_version`
 - `requested_estimation_package`
@@ -236,6 +238,24 @@ Estimate JSON may include the following extension fields:
       "system": "Fugaku",
       "node_count": "1",
       "numproc_node": "4"
+    },
+    "current_source_result": {
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "timestamp": "2026-04-03 12:34:56",
+      "code": "qws",
+      "exp": "CASE0",
+      "system": "Fugaku",
+      "node_count": "1",
+      "numproc_node": "4"
+    },
+    "future_source_result": {
+      "uuid": "11111111-1111-1111-1111-111111111111",
+      "timestamp": "2026-04-03 12:34:56",
+      "code": "qws",
+      "exp": "CASE0",
+      "system": "MiyabiG",
+      "node_count": "1",
+      "numproc_node": "1"
     },
     "estimation_package": "instrumented_app_sections_dummy",
     "estimation_package_version": "0.1",
@@ -267,6 +287,7 @@ This field stores identifiers for the estimation process itself.
 `source_result_uuid` identifies the benchmark result used as estimation input.
 `source_result_timestamp` retains the stored timestamp of that benchmark result.
 `source_result` is an optional helper object that keeps the minimum identifying context of the source result for compare, re-estimation, and provenance display.
+`current_source_result` and `future_source_result` are optional side-specific provenance objects that describe which stored result each side's `benchmark` came from.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 `estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。
 `requested_estimation_package` と `requested_estimation_package_version` は、フォールバック前に最初に要求された推定パッケージを表す。
