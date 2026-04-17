@@ -2,6 +2,10 @@
 
 BenchKit is a shell-first benchmarking framework for the CX Framework. It supports build and run workflows for multiple applications and systems, result collection, profiler data handling, estimation workflows, and result portal integration.
 
+## Origin
+
+Repository migration details are documented in [docs/repository-history.md](docs/repository-history.md).
+
 ## Purpose
 
 - Run benchmarks across multiple codes and systems with a shared workflow.
@@ -41,3 +45,7 @@ This includes:
 - CI execution control
 - system-specific execution environments
 - runtime requirements
+
+## License
+
+This project is licensed under the BSD 3-Clause License. See [LICENSE](LICENSE).
