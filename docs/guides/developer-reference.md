@@ -173,22 +173,11 @@ benchkit/
 
 ## CI Execution Control
 
-### GitHub to GitLab Synchronization
-
 BenchKit uses GitHub for source hosting and GitLab CI for benchmark execution.
 
-### Automatic Skip Rules
+The current policy keeps pull requests lightweight. Heavy GitLab benchmark CI is not started automatically for pull requests or protected-branch synchronization; maintainers start it explicitly through GitHub Actions when needed.
 
-To avoid unnecessary benchmark execution, the pipeline skips jobs when changes are limited to:
-
-- `*.md`
-- `result_server/**/*`
-
-These rules are defined in [.gitlab-ci.yml](../../.gitlab-ci.yml).
-
-### Execution Control Options
-
-Commit-message and variable-driven controls remain available for benchmark and BenchPark workflows. Refer to `.gitlab-ci.yml` and `benchpark-bridge/scripts/ci_generator.sh` for the active control points.
+See [CI Execution Control / CI実行制御](../ci.md) for the active workflow policy, manual GitLab CI inputs, protected-branch synchronization behavior, and legacy commit-message controls.
 
 ## System-Specific Execution Environments
 

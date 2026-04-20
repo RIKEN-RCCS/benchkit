@@ -1,0 +1,23 @@
+name: Guard main PR source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  guard-main-pr-source:
+    name: Require upstream develop for main PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Allow only upstream develop to target main
+        run: |
+          if [ "${{ github.head_ref }}" != "develop" ] || \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "Pull requests to main are only allowed from the upstream develop branch."
+            echo "Head repository: ${{ github.event.pull_request.head.repo.full_name }}"
+            echo "Head branch: ${{ github.head_ref }}"
+            exit 1
+          fi
+
+          echo "Pull request source is upstream develop."
