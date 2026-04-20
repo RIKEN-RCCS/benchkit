@@ -1,0 +1,37 @@
+<div class="control-row">
+  <span class="control-label">Period:</span>
+  {% set buttons = [("monthly", "Monthly"), ("semi_annual", "Semi-Annual"), ("fiscal_year", "Fiscal Year")] %}
+  {% for val, label in buttons %}
+  <a href="?period_type={{ val }}&fiscal_year={{ fiscal_year }}"
+     class="usage-btn {% if period_type == val %}active{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+
+  <span class="control-label control-label-spaced">Fiscal Year:</span>
+  <select id="fiscalYearSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year=' + this.value"
+          class="compact-select">
+    {% for fy in result.available_fiscal_years %}
+    <option value="{{ fy }}" {% if fy == fiscal_year %}selected{% endif %}>FY{{ fy }}</option>
+    {% endfor %}
+  </select>
+
+  {% if period_type != 'fiscal_year' %}
+  <span class="control-label control-label-spaced">Filter:</span>
+  <select id="periodFilterSelect" onchange="window.location.href='?period_type={{ period_type }}&fiscal_year={{ fiscal_year }}&period_filter=' + encodeURIComponent(this.value)"
+          class="compact-select">
+    <option value="" {% if not period_filter %}selected{% endif %}>All Periods</option>
+    {% for p in result.periods %}
+    <option value="{{ p }}" {% if period_filter == p %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+
+  <input
+    id="usageSearchInput"
+    class="usage-search-box"
+    type="text"
+    placeholder="Filter coverage and current-state tables"
+    oninput="applyUsageSearch()"
+  >
+</div>

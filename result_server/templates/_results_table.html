@@ -2,197 +2,22 @@
 
 {% include "_pagination.html" %}
 
-<table id="resultsTable">
-    <thead>
-    <!-- Row 1: Column names -->
-    <tr>
-        {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
-              <th>
-                {% if col_name == "Timestamp" %}
-                  <span class="tooltip tooltip-left">{{ col_name }}
-                    <span class="tooltiptext">Date and time when benchmark execution completed and results were automatically submitted to server</span>
-                  </span>
-                {% elif col_name == "SYSTEM" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Computing system name</span>
-                  </span>
-                {% elif col_name == "FOM" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section</span>
-                  </span>
-                {% elif col_name == "Exp" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Experimental conditions (filtered by CODE)</span>
-                  </span>
-                {% elif col_name == "P/N" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Number of processes per node</span>
-                  </span>
-                {% elif col_name == "T/P" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Number of threads per process</span>
-                  </span>
-                {% elif col_name == "JSON" %}
-                  <span class="tooltip tooltip-right">{{ col_name }}
-                    <span class="tooltiptext">Detailed benchmark results in JSON format</span>
-                  </span>
-                {% elif col_name == "FOM version" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries</span>
-                  </span>
-                {% elif col_name == "PA Data" %}
-                  <span class="tooltip tooltip-right">{{ col_name }}
-                    <span class="tooltiptext">Performance Analysis data archive (detailed profiling data)</span>
-                  </span>
-                {% elif col_name == "Trigger" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">CI pipeline trigger source (schedule, push, web, etc.)</span>
-                  </span>
-                {% elif col_name == "Pipeline" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">GitLab CI pipeline ID</span>
-                  </span>
-                {% elif col_name == "Branch/Hash" %}
-                  <span class="tooltip">{{ col_name }}
-                    <span class="tooltiptext">Source code branch name and short commit hash (git) or short md5sum (file archive)</span>
-                  </span>
-                {% else %}
-                  {{ col_name }}
-                {% endif %}
-              </th>
-           {% endif %}
-           {% if col_name == "FOM" %}
-           <th style="text-align: center; vertical-align: middle;">
-               <span class="tooltip">
-                   <button id="compareBtn" disabled onclick="navigateToCompare()" style="font-size: 0.7em; padding: 1px 4px;">Compare</button>
-                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
-               </span>
-               <span id="compareHint" style="color: #888; font-size: 0.65em;"></span>
-           </th>
-           {% endif %}
-        {% endfor %}
-        <th>
-            <span class="tooltip tooltip-right">Detail
-                <span class="tooltiptext">Link to detail page</span>
-            </span>
-        </th>
-    </tr>
-    <!-- Row 2: Filters and compare controls -->
-    <tr style="background-color: #f9f9f9;">
-        {% for col_name, _ in columns %}
-           {% if col_name in ["Timestamp", "SYSTEM", "CODE", "FOM", "FOM version", "Exp", "Nodes", "P/N", "T/P", "JSON", "PA Data", "Trigger", "Pipeline", "Branch/Hash"] %}
-              {% if col_name == "SYSTEM" %}
-              <th style="padding: 4px;">
-                  <select id="filterSystem" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.systems %}
-                          <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% elif col_name == "CODE" %}
-              <th style="padding: 4px;">
-                  <select id="filterCode" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.codes %}
-                          <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% elif col_name == "Exp" %}
-              <th style="padding: 4px;">
-                  <select id="filterExp" onchange="applyServerFilter()" style="width: 100%; font-size: 0.85em;">
-                      <option value="">All</option>
-                      {% for val in filter_options.exps %}
-                          <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
-                      {% endfor %}
-                  </select>
-              </th>
-              {% else %}
-              <th></th>
-              {% endif %}
-           {% endif %}
-           {% if col_name == "FOM" %}
-           <th style="text-align: center; padding: 4px;">
-               <button id="selectAllVisibleBtn" onclick="selectAllVisible()" style="font-size: 0.7em; padding: 1px 4px;">All</button>
-               <button id="deselectAllBtn" onclick="deselectAll()" style="font-size: 0.7em; padding: 1px 4px;">Clear</button>
-           </th>
-           {% endif %}
-        {% endfor %}
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for row in rows %}
-        <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
-            {% for _, key in columns %}
-                {% if key in ["json_link", "data_link"] %}
-                    <td>
-                        {% if row[key] %}
-                            <a href="{{ row[key] }}">
-                                {{ "json" if key == "json_link" else "data" }}
-                            </a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                {% elif key == "system" %}
-                    <td style="overflow: visible; position: relative;">
-                        <span class="tooltip">{{ row[key] }}
-                            <span class="tooltiptext">
-                                {% set sys_info = systems_info.get(row[key]) %}
-                                {% if sys_info %}
-                                    <strong>{{ sys_info.name }}</strong><br>
-                                    CPU: {{ sys_info.cpu_name }}<br>
-                                    CPU/node: {{ sys_info.cpu_per_node }}<br>
-                                    CPU Cores: {{ sys_info.cpu_cores }}<br>
-                                    {% if sys_info.gpu_name != '-' %}GPU: {{ sys_info.gpu_name }}<br>
-                                    GPU/node: {{ sys_info.gpu_per_node }}<br>{% endif %}
-                                    Memory: {{ sys_info.memory }}
-                                {% else %}
-                                    {{ row[key] }} system details
-                                {% endif %}
-                            </span>
-                        </span>
-                    </td>
-                {% elif key in ["nodes", "numproc_node", "nthreads"] %}
-                    <td{% if row[key] == "N/A" %} style="color: red;"{% endif %}>{{ row[key] }}</td>
-                {% elif key == "timestamp" %}
-                    {% set ts_parts = row[key].split(' ') %}
-                    <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
-                {% elif key == "code" %}
-                    {% if row.source_info and row.source_info.source_type == "git" %}
-                        <td class="code-cell"><a class="code-link" href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% elif row.source_info and row.source_info.source_type == "file" %}
-                        <td class="code-cell" title="{{ row.source_info.file_path }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% else %}
-                        <td class="code-cell" title="{{ row.code }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
-                    {% endif %}
-                {% elif key in ["fom_version", "exp", "ci_trigger", "pipeline_id", "source_hash"] %}
-                    <td title="{{ row[key] }}">{{ row[key] }}</td>
-                {% elif key == "fom" %}
-                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
-                {% endif %}
-                {% if key == "fom" %}
-                <td style="text-align: center;">
-                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
-                </td>
-                {% endif %}
-            {% endfor %}
-            <td>
-                {% if row.detail_link %}
-                    <a href="{{ row.detail_link }}">Detail</a>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
-
 <style>
+.results-table-wrap {
+    overflow-x: auto;
+    max-height: 72vh;
+    border-radius: 14px;
+}
+.results-table {
+    min-width: 1340px;
+    border-collapse: collapse;
+}
+.results-table-note {
+    margin: 0 0 12px;
+    color: #52606d;
+    line-height: 1.55;
+    font-size: 14px;
+}
 .code-cell {
     white-space: normal;
     max-width: 220px;
@@ -229,14 +54,170 @@
     background: #e8f1ff;
     color: #1f4f99;
 }
+.profile-cell {
+    min-width: 120px;
+    white-space: normal;
+}
+.profile-headline {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.profile-data-link {
+    display: inline-block;
+    margin-top: 0.18rem;
+    font-size: 0.82em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.profile-data-link-only {
+    display: inline-block;
+}
+.ci-cell {
+    min-width: 88px;
+    white-space: normal;
+    line-height: 1.25;
+}
+.ci-trigger,
+.ci-pipeline {
+    display: block;
+}
+.ci-pipeline {
+    color: #607282;
+    font-size: 0.82em;
+}
 </style>
+
+<p class="results-table-note">Filter first, check the profiler and PA summary when available, and then select visible rows if you want to open compare.</p>
+
+<div class="results-table-wrap">
+<table id="resultsTable" class="results-table">
+    <thead>
+    <tr>
+        {% for column in columns %}
+           <th>
+             {% if column.tooltip %}
+               <span class="tooltip{% if column.tooltip_class %} {{ column.tooltip_class }}{% endif %}">{{ column.label }}
+                 <span class="tooltiptext">{{ column.tooltip }}</span>
+               </span>
+             {% else %}
+               {{ column.label }}
+             {% endif %}
+           </th>
+           {% if column.label == "FOM" %}
+           <th class="table-control-cell">
+               <span class="tooltip">
+                   <button id="compareBtn" class="tiny-button" disabled onclick="navigateToCompare()">Compare</button>
+                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
+               </span>
+               <span id="compareHint" class="tiny-hint"></span>
+           </th>
+           {% endif %}
+        {% endfor %}
+        <th>
+            <span class="tooltip tooltip-right">Detail
+                <span class="tooltiptext">Link to detail page</span>
+            </span>
+        </th>
+    </tr>
+    <tr class="table-filter-row">
+        {% for column in columns %}
+              {% if column.label == "SYSTEM" %}
+              <th class="table-filter-cell">
+                  <select id="filterSystem" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.systems %}
+                          <option value="{{ val }}" {% if current_system == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif column.label == "CODE" %}
+              <th class="table-filter-cell">
+                  <select id="filterCode" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.codes %}
+                          <option value="{{ val }}" {% if current_code == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% elif column.label == "Exp" %}
+              <th class="table-filter-cell">
+                  <select id="filterExp" class="table-filter-select" onchange="applyServerFilter()">
+                      <option value="">All</option>
+                      {% for val in filter_options.exps %}
+                          <option value="{{ val }}" {% if current_exp == val %}selected{% endif %}>{{ val }}</option>
+                      {% endfor %}
+                  </select>
+              </th>
+              {% else %}
+              <th></th>
+              {% endif %}
+           {% if column.label == "FOM" %}
+           <th class="table-control-cell table-filter-cell">
+               <button id="selectAllVisibleBtn" class="tiny-button" onclick="selectAllVisible()">All</button>
+               <button id="deselectAllBtn" class="tiny-button" onclick="deselectAll()">Clear</button>
+           </th>
+           {% endif %}
+        {% endfor %}
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr data-system="{{ row.system }}" data-code="{{ row.code }}" data-exp="{{ row.exp }}">
+            {% for column in columns %}
+                {% set key = column.key %}
+                {% if key == "json_link" %}
+                    <td>
+                        {% if row.json_link %}
+                            <a href="{{ row.json_link }}">json</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                {% elif key == "system" %}
+                    {% include "_results_table_cell_system.html" %}
+                {% elif key in ["nodes", "numproc_node", "nthreads"] %}
+                    <td{% if row[key] == "N/A" %} class="na-warning"{% endif %}>{{ row[key] }}</td>
+                {% elif key == "profile_summary" %}
+                    {% include "_results_table_cell_profile.html" %}
+                {% elif key == "ci_summary" %}
+                    {% include "_results_table_cell_ci.html" %}
+                {% elif key == "timestamp" %}
+                    {% set ts_parts = row[key].split(' ') %}
+                    <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>
+                {% elif key == "code" %}
+                    {% include "_results_table_cell_code.html" %}
+                {% elif key in ["fom_version", "exp", "source_hash"] %}
+                    <td title="{{ row[key] }}">{{ row[key] }}</td>
+                {% elif key == "fom" %}
+                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
+                {% endif %}
+                {% if key == "fom" %}
+                <td class="center-cell">
+                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
+                </td>
+                {% endif %}
+            {% endfor %}
+            <td>
+                {% if row.detail_link %}
+                    <a href="{{ row.detail_link }}">Detail</a>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
 
 {% include "_pagination.html" %}
 
 <div id="resultsConfig"
      data-per-page="{{ current_per_page }}"
      data-compare-url="{{ url_for('results.result_compare') }}"
-     style="display:none;"></div>
+     class="hidden-config"></div>
 <script>
 (function() {
     var config = document.getElementById('resultsConfig');

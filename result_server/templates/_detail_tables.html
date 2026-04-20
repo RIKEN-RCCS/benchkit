@@ -1,0 +1,35 @@
+{% macro render_key_value_table(rows, table_class, wrap_class="detail-table-wrap", list_class="packages-list") -%}
+<div class="{{ wrap_class }}">
+<table class="{{ table_class }}">
+    {% for row in rows %}
+    <tr>
+        <th>{{ row.label }}</th>
+        <td{% if row.value_class is defined %} class="{{ row.value_class }}"{% endif %}>
+            {% if row.list is defined %}
+            <ul class="{{ list_class }}">
+                {% for item in row.list %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            {{ row.value }}
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+{%- endmacro %}
+
+{% macro render_titled_key_value_table(title, rows, table_class, wrap_class="detail-table-wrap", section_class="section", card_class="", list_class="packages-list") -%}
+{% set container_classes = [section_class, card_class] | reject('equalto', '') | join(' ') %}
+<div{% if container_classes %} class="{{ container_classes }}"{% endif %}>
+    <h2>{{ title }}</h2>
+    {{ render_key_value_table(rows, table_class, wrap_class, list_class) }}
+</div>
+{%- endmacro %}
+
+{% macro render_json_block(title, data, body_class="detail-code") -%}
+<h3>{{ title }}</h3>
+<div class="{{ body_class }}">{{ data | tojson(indent=2) }}</div>
+{%- endmacro %}

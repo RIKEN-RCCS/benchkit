@@ -1,41 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Compare Results</title>
-    {% include "_table_base.html" %}
-    <style>
-        .section { margin-bottom: 30px; }
-        .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .back-link { margin-bottom: 15px; display: inline-block; }
-        .chart-container { position: relative; width: 100%; max-width: 900px; margin: 0 auto; }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}Compare Results{% endblock %}
+{% block page_subtitle %}Overlay vector metrics, compare FOM timelines, and sanity-check whether selected runs are from the same system and code.{% endblock %}
+
+{% block content %}
+{% include "_compare_page_styles.html" %}
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-<h1>Compare Results</h1>
-
 {% if results %}
 {% if mixed %}
-<p style="color: #c00; background: #fff3f3; padding: 8px 12px; border: 1px solid #fcc; border-radius: 4px;">
+<p class="compare-warning">
     Warning: Selected results have different system/code combinations. Comparison may not be meaningful.
 </p>
 {% endif %}
-<p>{{ results[0]['data'].get('system', '') }} / {{ results[0]['data'].get('code', '') }} — Comparing {{ results | length }} results</p>
 
-<!-- ベクトル型メトリクス重ね合わせグラフ -->
-{% set has_any_vector = [] %}
-{% for r in results %}
-  {% if r['data'].get('metrics', {}).get('vector') %}
-    {% if has_any_vector.append(1) %}{% endif %}
-  {% endif %}
-{% endfor %}
+<p class="compare-note">{{ headline }}</p>
 
-{% if has_any_vector %}
+{% if has_vector_metrics %}
 <div class="section">
     <h2>Vector Metrics - Overlay Graph</h2>
     <div class="chart-container">
@@ -44,7 +26,6 @@
 </div>
 {% endif %}
 
-<!-- FOM時系列グラフ -->
 <div class="section">
     <h2>FOM Timeline</h2>
     <div class="chart-container">
@@ -54,10 +35,12 @@
 {% endif %}
 
 {% if results %}
-<div id="resultsJsonData" style="display:none;" data-results='{{ results | tojson }}'></div>
+<div id="resultsJsonData" class="hidden-config" data-results='{{ results | tojson }}'></div>
+<div id="compareConfigData" class="hidden-config" data-config='{{ compare_chart | tojson }}'></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 var resultsData = JSON.parse(document.getElementById('resultsJsonData').getAttribute('data-results'));
+var compareConfig = JSON.parse(document.getElementById('compareConfigData').getAttribute('data-config'));
 
 var palette = [
     'rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)',
@@ -81,7 +64,10 @@ if (vectorCanvas) {
                 data: rows.map(function(row) { return {x: row[0], y: row[i]}; }),
                 borderColor: color,
                 backgroundColor: color.replace('1)', '0.1)'),
-                showLine: true, fill: false, tension: 0.1, pointRadius: 2
+                showLine: true,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 2
             });
             colorIdx++;
         }
@@ -93,7 +79,7 @@ if (vectorCanvas) {
             responsive: true,
             plugins: { legend: { position: 'top' } },
             scales: {
-                x: { type: 'logarithmic', title: { display: true, text: 'message_size (bytes)' } },
+                x: { type: 'logarithmic', title: { display: true, text: compareConfig.vector_axis_label || 'X Axis' } },
                 y: { title: { display: true, text: 'Value' } }
             }
         }
@@ -104,7 +90,7 @@ var fomCanvas = document.getElementById('fomTimelineChart');
 if (fomCanvas) {
     var fomLabels = resultsData.map(function(r) { return r.timestamp; });
     var fomValues = resultsData.map(function(r) { return r.data.FOM; });
-    var fomUnit = resultsData[0].data.FOM_unit || '';
+    var fomUnit = compareConfig.fom_unit || '';
     new Chart(fomCanvas.getContext('2d'), {
         type: 'line',
         data: {
@@ -114,7 +100,9 @@ if (fomCanvas) {
                 data: fomValues,
                 borderColor: 'rgba(54, 162, 235, 1)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                fill: true, tension: 0.1, pointRadius: 5
+                fill: true,
+                tension: 0.1,
+                pointRadius: 5
             }]
         },
         options: {
@@ -129,6 +117,4 @@ if (fomCanvas) {
 }
 </script>
 {% endif %}
-
-</body>
-</html>
+{% endblock %}

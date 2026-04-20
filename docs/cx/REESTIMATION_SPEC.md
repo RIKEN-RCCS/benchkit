@@ -151,6 +151,9 @@ Optionally, the following may also be supplied:
 - `scripts/estimation/run.sh` が app ごとの `estimate.sh` を呼び出す
 - `scripts/result_server/send_estimate.sh` が推定結果を結果サーバに送信する
 - Estimate JSON には推定元 benchmark result の UUID を `estimate_metadata.source_result_uuid` として保持できる
+- Estimate JSON には推定元 benchmark result の timestamp を `estimate_metadata.source_result_timestamp` として保持できる
+- Estimate JSON には compare / provenance 用に `estimate_metadata.source_result` の補助オブジェクトを保持できる
+- Estimate JSON には side ごとの benchmark provenance として `estimate_metadata.current_source_result` / `future_source_result` を保持できる
 - Estimate JSON には保存対象としての推定結果自体の UUID / timestamp を `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp` として保持できる
 - `requested_estimation_package` と実際に適用された `estimation_package` を区別できる
 - `applicability` を通じて `applicable`、`partially_applicable`、`fallback`、`not_applicable` を最終状態として保持できる
@@ -160,6 +163,9 @@ In the current implementation, the following already exist:
 - `scripts/estimation/run.sh` to invoke app-specific `estimate.sh`
 - `scripts/result_server/send_estimate.sh` to send estimation results to the result server
 - the ability to retain the source benchmark-result UUID as `estimate_metadata.source_result_uuid`
+- the ability to retain the source benchmark-result timestamp as `estimate_metadata.source_result_timestamp`
+- the ability to retain a helper provenance object as `estimate_metadata.source_result`
+- the ability to retain side-specific benchmark provenance as `estimate_metadata.current_source_result` / `future_source_result`
 - the ability to retain the estimate-result UUID / timestamp as `estimate_metadata.estimation_result_uuid` / `estimation_result_timestamp`
 - a distinction between `requested_estimation_package` and the actually applied `estimation_package`
 - final-state applicability recording through `applicable`, `partially_applicable`, `fallback`, and `not_applicable`
@@ -335,6 +341,7 @@ Candidate next steps include:
 - 復元した artifact を使って detailed re-estimation を実行できる
 - 保存済み estimate JSON に `reestimation` ブロックを持てる
 - `reestimation` の既定値として `scope=both` と `baseline_policy=reuse-recorded-baseline` を持てる
+- `reestimation` ブロックは `request` / `source_result` / `source_estimate` のような整理された補助オブジェクトを持てる
 
 ## 11. 再推定入口の整理 / Re-Estimation Entry-Point Policy
 

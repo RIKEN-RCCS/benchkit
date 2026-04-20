@@ -1,0 +1,52 @@
+{% macro render_applicability_cell(applicability) -%}
+    {% set missing_inputs = applicability.get('missing_inputs', []) %}
+    {% if applicability %}
+    <div class="applicability-status">{{ applicability.get('status', 'N/A') }}</div>
+    {% if missing_inputs %}
+    <div class="applicability-note">{{ missing_inputs | join(', ') }}</div>
+    {% endif %}
+    {% else %}
+    -
+    {% endif %}
+{%- endmacro %}
+
+{% macro render_breakdown_table(heading, items, first_column_label, first_column_key, join_list_values=False) -%}
+    {% if items %}
+    <h3>{{ heading }}</h3>
+    <div class="table-wrap">
+    <table class="breakdown-table">
+        <thead>
+            <tr><th>{{ first_column_label }}</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            {% set first_value = item.get(first_column_key, 'N/A') %}
+            {% if join_list_values and first_value is iterable and first_value is not string %}
+                {% set first_value = first_value | join(', ') %}
+            {% endif %}
+            <tr>
+                <td>{{ first_value }}</td>
+                <td>{{ item.get('time', 'N/A') }}</td>
+                <td>{{ item.get('estimation_package', 'N/A') }}</td>
+                <td>{{ item.get('scaling_method', 'N/A') }}</td>
+                <td><span class="fallback-value">{{ item.get('fallback_used') or '-' }}</span></td>
+                <td>{{ render_applicability_cell(item.get('package_applicability', {})) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+{%- endmacro %}
+
+{% macro render_breakdown_card(title, breakdown, empty_note) -%}
+<div class="detail-card">
+    <h2>{{ title }}</h2>
+    {% if breakdown.get('sections') or breakdown.get('overlaps') %}
+        {{ render_breakdown_table('Sections', breakdown.get('sections', []), 'Name', 'name') }}
+        {{ render_breakdown_table('Overlaps', breakdown.get('overlaps', []), 'Sections', 'sections', True) }}
+    {% else %}
+    <div class="empty-note">{{ empty_note }}</div>
+    {% endif %}
+</div>
+{%- endmacro %}

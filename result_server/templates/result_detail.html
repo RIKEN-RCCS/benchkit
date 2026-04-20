@@ -1,124 +1,80 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Result Detail - {{ result.get('Exp', 'Unknown') }}</title>
-    {% include "_table_base.html" %}
-    <style>
-        .section { margin-bottom: 30px; }
-        .section h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .back-link { margin-bottom: 15px; display: inline-block; }
-        .meta-table { width: auto; }
-        .quality-table { width: min(100%, 980px); table-layout: fixed; }
-        .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
-        .meta-table td { min-width: 200px; }
-        .quality-table th { min-width: 200px; width: 200px; }
-        .chart-container { position: relative; width: 100%; max-width: 900px; height: 400px; margin: 0 auto; }
-        .chart-fallback { padding: 20px; text-align: center; color: #999; border: 1px dashed #ddd; border-radius: 4px; }
-        .scalar-table { width: auto; }
-        .scalar-table th { text-align: left; min-width: 200px; }
-        .build-table { width: auto; }
-        .build-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
-        .packages-list { margin: 0; padding-left: 20px; }
-        .quality-badge { display: inline-block; padding: 0.08rem 0.45rem; border-radius: 999px; font-size: 0.78em; font-weight: 600; }
-        .quality-basic { background: #eef2f7; color: #41566d; }
-        .quality-ready { background: #e7f6ea; color: #1f6b33; }
-        .quality-rich { background: #e8f1ff; color: #1f4f99; }
-        .quality-list { margin: 0; padding-left: 20px; }
-        .quality-level-cell { min-width: 840px; }
-        .quality-summary { display: block; margin-top: 0.35rem; line-height: 1.45; }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
+{% from "_detail_tables.html" import render_key_value_table, render_titled_key_value_table %}
 
-{% include "_navigation.html" %}
+{% block title %}Result Detail{% endblock %}
+{% block page_subtitle %}Inspect metrics, profiler summaries, quality signals, and build details for one collected result.{% endblock %}
+
+{% block content %}
+{% include "_chart_page_styles.html" %}
+{% include "_detail_page_styles.html" %}
+<style>
+    .quality-table { width: min(100%, 980px); table-layout: fixed; }
+    .meta-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
+    .meta-table td { min-width: 200px; }
+    .quality-table th { min-width: 200px; width: 200px; }
+    .meta-table td,
+    .quality-table td,
+    .build-table td {
+        white-space: normal;
+        max-width: none;
+        vertical-align: top;
+        line-height: 1.45;
+    }
+    .chart-container { height: 400px; }
+    .scalar-table th { text-align: left; min-width: 200px; }
+    .build-table th { text-align: left; min-width: 150px; background-color: #f2f2f2; }
+    .packages-list { margin: 0; padding-left: 20px; }
+    .quality-badge { display: inline-block; padding: 0.08rem 0.45rem; border-radius: 999px; font-size: 0.78em; font-weight: 600; }
+    .quality-basic { background: #eef2f7; color: #41566d; }
+    .quality-ready { background: #e7f6ea; color: #1f6b33; }
+    .quality-rich { background: #e8f1ff; color: #1f4f99; }
+    .quality-list { margin: 0; padding-left: 20px; }
+    .quality-level-cell { min-width: 840px; }
+    .quality-summary { display: block; margin-top: 0.35rem; line-height: 1.45; }
+</style>
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-<h1>Result Detail</h1>
+{{ render_titled_key_value_table("Meta Information", meta_rows, "meta-table") }}
 
-<!-- メタ情報セクション -->
-<div class="section">
-    <h2>Meta Information</h2>
-    <table class="meta-table">
-        <tr><th>Code</th><td>{{ result.get('code', 'N/A') }}</td></tr>
-        <tr><th>System</th><td>{{ result.get('system', 'N/A') }}</td></tr>
-        <tr><th>Exp</th><td>{{ result.get('Exp', 'N/A') }}</td></tr>
-        <tr><th>FOM</th><td>{{ "%.3f"|format(result.get('FOM', 'N/A')|float) if result.get('FOM', 'N/A') not in [None, '', 'N/A', 'null', 'nan'] else result.get('FOM', 'N/A') }}</td></tr>
-        <tr><th>FOM Unit</th><td>{{ result.get('FOM_unit') or 'implicit default (s)' }}</td></tr>
-        <tr><th>Node Count</th><td>{{ result.get('node_count', 'N/A') }}</td></tr>
-        {% if result.get('numproc_node') not in [None, '', 'N/A', 'null'] %}
-        <tr><th>Processes per Node</th><td>{{ result.get('numproc_node') }}</td></tr>
-        {% endif %}
-        {% if result.get('nthreads') not in [None, '', 'N/A', 'null'] %}
-        <tr><th>Threads per Process</th><td>{{ result.get('nthreads') }}</td></tr>
-        {% endif %}
-        {% if result.get('cpus_per_node') not in [None, '', 'N/A', 'null'] %}
-        <tr><th>CPUs per Node</th><td>{{ result.get('cpus_per_node') }}</td></tr>
-        {% endif %}
-    </table>
-</div>
+{% if profile_rows %}
+{{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}
+{% endif %}
 
-{% if quality %}
+{% if quality_rows %}
 <div class="section">
     <h2>Quality</h2>
+    <div class="detail-table-wrap">
     <table class="meta-table quality-table">
+        {% for row in quality_rows %}
         <tr>
-            <th>Level</th>
-            <td class="quality-level-cell"><span class="quality-badge quality-{{ quality.level }}">{{ quality.label }}</span><span class="quality-summary">{{ quality.summary }}</span></td>
-        </tr>
-        <tr>
-            <th>Source Info</th>
-            <td>
-                {% if quality.stats.has_source_info %}
-                    top-level source tracked
+            <th>{{ row.label }}</th>
+            <td{% if row.label == 'Level' %} class="quality-level-cell"{% endif %}>
+                {% if row.badge_level is defined %}
+                <span class="quality-badge quality-{{ row.badge_level }}">{{ row.badge_label }}</span>
+                <span class="quality-summary">{{ row.summary }}</span>
+                {% elif row.list is defined %}
+                    {% if row.list|length == 1 and row.list[0] == 'none' %}
+                        none
+                    {% else %}
+                    <ul class="quality-list">
+                        {% for item in row.list %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
                 {% else %}
-                    not tracked
+                {{ row.value }}
                 {% endif %}
             </td>
         </tr>
-        <tr>
-            <th>Breakdown</th>
-            <td>
-                {% if quality.stats.has_breakdown %}
-                    sections={{ quality.stats.section_count }}, overlaps={{ quality.stats.overlap_count }}
-                {% else %}
-                    missing
-                {% endif %}
-            </td>
-        </tr>
-        <tr>
-            <th>Estimation Bindings</th>
-            <td>
-                sections={{ quality.stats.section_package_count }}/{{ quality.stats.section_count }},
-                overlaps={{ quality.stats.overlap_package_count }}/{{ quality.stats.overlap_count }}
-            </td>
-        </tr>
-        <tr>
-            <th>Estimation Inputs</th>
-            <td>{{ quality.stats.artifact_count }} artifact reference(s)</td>
-        </tr>
-        <tr>
-            <th>Warnings</th>
-            <td>
-                {% if quality.warnings %}
-                <ul class="quality-list">
-                    {% for warning in quality.warnings %}
-                    <li>{{ warning }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                    none
-                {% endif %}
-            </td>
-        </tr>
+        {% endfor %}
     </table>
+    </div>
 </div>
 {% endif %}
 
-<!-- ベクトル型メトリクス グラフセクション -->
-{% if result.get('metrics') and result['metrics'].get('vector') %}
-{% set vector = result['metrics']['vector'] %}
+{% if vector_metrics %}
 <div class="section">
     <h2>Vector Metrics - Graph</h2>
     <div class="chart-container">
@@ -127,24 +83,24 @@
             <div class="chart-fallback">JavaScript is required to display the graph.</div>
         </noscript>
     </div>
-    <div id="chartFallback" class="chart-fallback" style="display: none;">
+    <div id="chartFallback" class="chart-fallback" hidden>
         Failed to load chart library. Please refer to the data table below.
     </div>
 </div>
 
-<!-- ベクトル型メトリクス データテーブル -->
 <div class="section">
     <h2>Vector Metrics - Data Table</h2>
+    <div class="detail-table-wrap">
     <table>
         <thead>
             <tr>
-                {% for col in vector['table']['columns'] %}
+                {% for col in vector_metrics['table']['columns'] %}
                 <th>{{ col }}</th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
-            {% for row in vector['table']['rows'] %}
+            {% for row in vector_metrics['table']['rows'] %}
             <tr>
                 {% for val in row %}
                 {% if loop.index0 == 0 %}
@@ -157,71 +113,40 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 {% endif %}
 
-<!-- スカラー型メトリクスセクション -->
-{% if result.get('metrics') and result['metrics'].get('scalar') %}
-{% set scalar = result['metrics']['scalar'] %}
-{% set scalar_keys = scalar.keys() | list %}
-{% if scalar_keys | length >= 2 %}
+{% if scalar_rows %}
 <div class="section">
     <h2>Scalar Metrics</h2>
+    <div class="detail-table-wrap">
     <table class="scalar-table">
         <thead>
             <tr><th>Metric</th><th>Value</th></tr>
         </thead>
         <tbody>
-            {% for key, value in scalar.items() %}
-            <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+            {% for row in scalar_rows %}
+            <tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
             {% endfor %}
         </tbody>
     </table>
-</div>
-{% endif %}
-{% endif %}
-
-<!-- ビルド情報セクション -->
-{% if result.get('build') %}
-{% set build = result['build'] %}
-<div class="section">
-    <h2>Build Information</h2>
-    <table class="build-table">
-        <tr><th>Build Tool</th><td>{{ build.get('tool', 'N/A') }}</td></tr>
-        {% if build.get('spack') %}
-        {% set spack = build['spack'] %}
-        {% if spack.get('compiler') %}
-        <tr><th>Compiler</th><td>{{ spack['compiler'].get('name', '') }} {{ spack['compiler'].get('version', '') }}</td></tr>
-        {% endif %}
-        {% if spack.get('mpi') %}
-        <tr><th>MPI</th><td>{{ spack['mpi'].get('name', '') }} {{ spack['mpi'].get('version', '') }}</td></tr>
-        {% endif %}
-        {% if spack.get('packages') %}
-        <tr>
-            <th>Packages</th>
-            <td>
-                <ul class="packages-list">
-                    {% for pkg in spack['packages'] %}
-                    <li>{{ pkg.get('name', '') }} {{ pkg.get('version', '') }}</li>
-                    {% endfor %}
-                </ul>
-            </td>
-        </tr>
-        {% endif %}
-        {% endif %}
-    </table>
+    </div>
 </div>
 {% endif %}
 
-<!-- Chart.js and graph rendering -->
-{% if result.get('metrics') and result['metrics'].get('vector') %}
-<div id="vectorData" style="display:none;" data-vector='{{ result["metrics"]["vector"] | tojson }}'></div>
+{% if build_rows %}
+{{ render_titled_key_value_table("Build Information", build_rows, "build-table") }}
+{% endif %}
+
+{% if vector_metrics %}
+<div id="vectorData" class="hidden-config" data-vector='{{ vector_metrics | tojson }}'></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
-        onerror="document.getElementById('chartFallback').style.display = 'block'; document.getElementById('vectorChart').style.display = 'none';"></script>
+        onerror="document.getElementById('chartFallback').hidden = false; document.getElementById('vectorChart').style.display = 'none';"></script>
 <script>
 (function() {
     if (typeof Chart === 'undefined') {
-        document.getElementById('chartFallback').style.display = 'block';
+        document.getElementById('chartFallback').hidden = false;
         document.getElementById('vectorChart').style.display = 'none';
         return;
     }
@@ -276,6 +201,4 @@
 })();
 </script>
 {% endif %}
-
-</body>
-</html>
+{% endblock %}

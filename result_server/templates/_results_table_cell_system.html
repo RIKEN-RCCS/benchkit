@@ -1,0 +1,18 @@
+<td class="tooltip-anchor-cell">
+    <span class="tooltip">{{ row.system }}
+        <span class="tooltiptext">
+            {% set sys_info = systems_info.get(row.system) %}
+            {% if sys_info %}
+                <strong>{{ sys_info.name }}</strong><br>
+                CPU: {{ sys_info.cpu_name }}<br>
+                CPU/node: {{ sys_info.cpu_per_node }}<br>
+                CPU Cores: {{ sys_info.cpu_cores }}<br>
+                {% if sys_info.gpu_name != '-' %}GPU: {{ sys_info.gpu_name }}<br>
+                GPU/node: {{ sys_info.gpu_per_node }}<br>{% endif %}
+                Memory: {{ sys_info.memory }}
+            {% else %}
+                {{ row.system }} system details
+            {% endif %}
+        </span>
+    </span>
+</td>

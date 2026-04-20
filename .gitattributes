@@ -1,6 +1,14 @@
 # Default: let Git normalize line endings
 * text=auto
 
+# Common text files should stay LF in the repository
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+
 # Shell scripts must use LF (executed on Linux CI)
 *.sh text eol=lf
 

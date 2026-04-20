@@ -4,30 +4,30 @@
 {% if current_code %}{% set base_params = base_params ~ "&code=" ~ current_code %}{% endif %}
 {% if current_exp %}{% set base_params = base_params ~ "&exp=" ~ current_exp %}{% endif %}
 
-<div class="control-row" style="padding: 8px 0; font-size: 14px;">
-    <span style="color: #555;">Showing {{ pagination.total }} results</span>
+<div class="control-row pagination-row">
+    <span class="pagination-summary">Showing {{ pagination.total }} results</span>
 
-    <span style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+    <span class="pagination-links">
         {% if pagination.page == 1 %}
-            <span class="disabled" style="color: #aaa; padding: 4px 8px;">First</span>
-            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Previous</span>
+            <span class="disabled pagination-disabled">First</span>
+            <span class="disabled pagination-disabled">Previous</span>
         {% else %}
-            <a href="?page=1&per_page={{ current_per_page }}{{ base_params }}" class="soft-button" style="padding: 4px 10px; text-decoration: none;">First</a>
-            <a href="?page={{ pagination.page - 1 }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button" style="padding: 4px 10px; text-decoration: none;">Previous</a>
+            <a href="?page=1&per_page={{ current_per_page }}{{ base_params }}" class="soft-button pagination-link">First</a>
+            <a href="?page={{ pagination.page - 1 }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button pagination-link">Previous</a>
         {% endif %}
 
-        <span style="padding: 4px 8px;">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+        <span class="pagination-status">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
 
         {% if pagination.page == pagination.total_pages %}
-            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Next</span>
-            <span class="disabled" style="color: #aaa; padding: 4px 8px;">Last</span>
+            <span class="disabled pagination-disabled">Next</span>
+            <span class="disabled pagination-disabled">Last</span>
         {% else %}
-            <a href="?page={{ pagination.page + 1 }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button" style="padding: 4px 10px; text-decoration: none;">Next</a>
-            <a href="?page={{ pagination.total_pages }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button" style="padding: 4px 10px; text-decoration: none;">Last</a>
+            <a href="?page={{ pagination.page + 1 }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button pagination-link">Next</a>
+            <a href="?page={{ pagination.total_pages }}&per_page={{ current_per_page }}{{ base_params }}" class="soft-button pagination-link">Last</a>
         {% endif %}
     </span>
 
-    <select onchange="window.location.href='?page=1&per_page='+this.value+'{{ base_params }}'" style="padding: 4px; font-size: 14px;">
+    <select onchange="window.location.href='?page=1&per_page='+this.value+'{{ base_params }}'" class="pagination-per-page">
         {% for size in [50, 100, 200] %}
             <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }} / page</option>
         {% endfor %}

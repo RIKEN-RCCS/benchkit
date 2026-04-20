@@ -8,9 +8,7 @@
 #
 # Files that automatically skip CI:
 # - README.md, ADD_APP.md (documentation)
-# - result_server/templates/*.html (web templates)
-# - .kiro/**/* (Kiro configuration)
-# - .vscode/**/* (VSCode settings)
+# - result_server/**/* (portal/server code and templates)
 #
 # Important Notes:
 # - trigger_child_pipeline depends on generate_matrix, so we use needs: optional: true
@@ -96,9 +94,7 @@ generate_matrix:
       when: always
     - changes:
         - "*.md"
-        - "result_server/templates/*.html"
-        - ".kiro/**/*"
-        - ".vscode/**/*"
+        - "result_server/**/*"
       when: never
     - when: always
 
@@ -133,9 +129,7 @@ trigger_child_pipeline:
       when: always
     - changes:
         - "*.md"
-        - "result_server/templates/*.html"
-        - ".kiro/**/*"
-        - ".vscode/**/*"
+        - "result_server/**/*"
       when: never
     - when: always
 # BenchPark Monitor Jobs

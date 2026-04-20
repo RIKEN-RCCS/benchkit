@@ -1,0 +1,28 @@
+{% set key = column.key %}
+{% set title_value = row[column.title_key] if column.title_key is defined else None %}
+{% set cell_classes = [] %}
+{% if column.cell_class is defined %}
+  {% set _ = cell_classes.append(column.cell_class) %}
+{% endif %}
+{% if column.align is defined and column.align == "right" %}
+  {% set _ = cell_classes.append("estimated-align-right") %}
+{% endif %}
+{% if key == "timestamp" %}
+<td class="ts-cell">{{ row.timestamp_date }}<br>{{ row.timestamp_time }}</td>
+{% elif key == "json_link" %}
+<td class="{{ column.cell_class if column.cell_class is defined else '' }}">
+  <a href="{{ url_for('estimated.estimated_detail', filename=row.json_link) }}">detail</a>
+  |
+  <a href="{{ url_for('estimated.show_estimated_result', filename=row.json_link) }}">json</a>
+</td>
+{% else %}
+<td
+  {% if cell_classes %}class="{{ cell_classes | join(' ') }}"{% endif %}
+  {% if title_value not in [None, ""] %}title="{{ title_value }}"{% endif %}
+>
+  {{ row[key] }}
+  {% if column.meta_key is defined and row[column.meta_key] %}
+  <div class="estimated-meta-note">{{ row[column.meta_key] }}</div>
+  {% endif %}
+</td>
+{% endif %}

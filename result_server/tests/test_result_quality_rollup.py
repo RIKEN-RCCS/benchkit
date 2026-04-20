@@ -27,7 +27,12 @@ def test_build_result_quality_rollup(tmp_path):
             },
             "fom_breakdown": {
                 "sections": [
-                    {"name": "solver", "time": 0.8, "estimation_package": "weakscaling", "artifacts": [{"type": "file_reference", "path": "a.json"}]},
+                    {
+                        "name": "solver",
+                        "time": 0.8,
+                        "estimation_package": "weakscaling",
+                        "artifacts": [{"type": "file_reference", "path": "a.json"}],
+                    },
                 ],
                 "overlaps": [],
             },
@@ -63,12 +68,16 @@ def test_build_result_quality_rollup(tmp_path):
     assert genesis["system"] == "RC_GENOA"
     assert genesis["source_tracked"] is False
     assert genesis["source_status"] == "not tracked"
-    assert genesis["source_type"] == "—"
-    assert genesis["source_reference"] == "—"
+    assert genesis["source_type"] == "-"
+    assert genesis["source_reference"] == "-"
     assert genesis["source_missing_fields"] == ["source_info"]
     assert genesis["breakdown_present"] is False
     assert genesis["estimation_ready"] is False
     assert genesis["rich"] is False
+    assert genesis["quality_label"] == "Basic"
+    assert genesis["warning_count"] >= 2
+    assert genesis["next_action"] == "populate top-level source_info for provenance tracking"
+    assert "source_info present" in genesis["validator_candidates"]
 
     qws = next(row for row in rollup["rows"] if row["app"] == "qws")
     assert qws["system"] == "Fugaku"
@@ -81,3 +90,5 @@ def test_build_result_quality_rollup(tmp_path):
     assert qws["breakdown_present"] is False
     assert qws["estimation_ready"] is False
     assert qws["rich"] is False
+    assert qws["next_action"] == "fill the missing top-level source_info fields"
+    assert "complete source_info fields" in qws["validator_candidates"]

@@ -4,19 +4,17 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Dict, List, Optional, Set
 
 
 def compute_node_hours(data: dict) -> float:
     """
-    単一Result JSONからノード時間を算出する。
+    Compute node-hours from a Result JSON record.
 
-    - cross モード: node_count × run_time / 3600
-    - native モード: node_count × (build_time + run_time) / 3600
-    - node_count/run_time が欠損・非数値の場合は 0.0
-    - native で build_time が欠損・非数値の場合は build_time=0 として算出
-
-    Returns: float（小数点以下2桁に丸め）
+    - `cross`: `node_count * run_time / 3600`
+    - `native`: `node_count * (build_time + run_time) / 3600`
+    - Missing or invalid `node_count` / `run_time` returns `0.0`
+    - Missing or invalid `build_time` in native mode falls back to `0.0`
     """
     try:
         node_count = float(data.get("node_count", None))
@@ -39,16 +37,15 @@ def compute_node_hours(data: dict) -> float:
             build_time = 0.0
         return round(node_count * (build_time + run_time) / 3600, 2)
 
-    # cross モード（デフォルト）
     return round(node_count * run_time / 3600, 2)
 
 
-def extract_timestamp_from_filename(filename: str) -> datetime | None:
+def extract_timestamp_from_filename(filename: str) -> Optional[datetime]:
     """
-    ファイル名から YYYYMMDD_HHMMSS パターンのタイムスタンプを抽出する。
-    既存の results_loader.py と同じ正規表現パターンを使用。
+    Extract a `YYYYMMDD_HHMMSS` timestamp from a result filename.
 
-    Returns: datetime or None
+    This is shared with the results loader so timestamp formatting stays
+    consistent across portal pages.
     """
     match = re.search(r"\d{8}_\d{6}", filename)
     if not match:
@@ -60,69 +57,52 @@ def extract_timestamp_from_filename(filename: str) -> datetime | None:
 
 
 def get_fiscal_year(dt: datetime) -> int:
-    """
-    日付から会計年度を返す。
-    1〜3月 → 前年の会計年度、4〜12月 → その年の会計年度
-    """
+    """Return the Japanese fiscal year for a date."""
     if dt.month <= 3:
         return dt.year - 1
     return dt.year
 
 
 def get_fiscal_month_index(dt: datetime) -> int:
-    """
-    会計年度内の月インデックス（0〜11）を返す。
-    4月=0, 5月=1, ..., 3月=11
-    """
+    """Return the fiscal-month index in the range `0..11`."""
     return (dt.month - 4) % 12
 
 
 def get_half(dt: datetime) -> str:
-    """
-    上期（first）か下期（second）かを返す。
-    4〜9月=first, 10〜3月=second
-    """
+    """Return `first` for April-September, otherwise `second`."""
     if 4 <= dt.month <= 9:
         return "first"
     return "second"
 
 
-def _generate_period_labels(fiscal_year: int, period_type: str) -> list[str]:
+def _generate_period_labels(fiscal_year: int, period_type: str) -> List[str]:
     """
-    期間タイプに応じた期間ラベルリストを生成する。
+    Generate the display labels for the requested aggregation period.
 
-    - monthly: 12個 "YYYY年M月"（4月〜翌3月）
-    - semi_annual: 2個 "上期（4月〜9月）", "下期（10月〜3月）"
-    - fiscal_year: 1個 "FY{year}"
+    - `monthly`: `YYYY-MM`
+    - `semi_annual`: `H1`, `H2`
+    - `fiscal_year`: `FY{year}`
     """
     if period_type == "monthly":
         labels = []
         for i in range(12):
-            month = (4 + i - 1) % 12 + 1  # 4,5,...,12,1,2,3
+            month = (4 + i - 1) % 12 + 1
             year = fiscal_year if month >= 4 else fiscal_year + 1
-            labels.append(f"{year}年{month}月")
+            labels.append(f"{year}-{month:02d}")
         return labels
-    elif period_type == "semi_annual":
-        return ["上期（4月〜9月）", "下期（10月〜3月）"]
-    else:  # fiscal_year
-        return [f"FY{fiscal_year}"]
+    if period_type == "semi_annual":
+        return ["H1", "H2"]
+    return [f"FY{fiscal_year}"]
 
 
-def _get_period_key(dt: datetime, period_type: str) -> str | None:
-    """
-    日付と期間タイプから対応する期間ラベルキーを返す。
-    """
+def _get_period_key(dt: datetime, period_type: str) -> Optional[str]:
+    """Map a datetime to the corresponding period label."""
     if period_type == "monthly":
-        return f"{dt.year}年{dt.month}月"
-    elif period_type == "semi_annual":
-        half = get_half(dt)
-        if half == "first":
-            return "上期（4月〜9月）"
-        else:
-            return "下期（10月〜3月）"
-    else:  # fiscal_year
-        fy = get_fiscal_year(dt)
-        return f"FY{fy}"
+        return f"{dt.year}-{dt.month:02d}"
+    if period_type == "semi_annual":
+        return "H1" if get_half(dt) == "first" else "H2"
+    fy = get_fiscal_year(dt)
+    return f"FY{fy}"
 
 
 def aggregate_node_hours(
@@ -131,44 +111,28 @@ def aggregate_node_hours(
     period_type: str,
 ) -> dict:
     """
-    指定ディレクトリの全JSONファイルを読み込み、ノード時間をクロス集計する。
-    confidentialフィルタなし（admin専用ページのため全データ対象）。
+    Aggregate node-hours from all Result JSON files in a directory.
 
-    Args:
-        directory: JSONファイルのあるディレクトリパス
-        fiscal_year: 対象会計年度
-        period_type: "monthly" | "semi_annual" | "fiscal_year"
-
-    Returns: {
-        "apps": [...],
-        "systems": [...],
-        "periods": [...],
-        "table": {app: {system: {period: float}}},
-        "row_totals": {app: {period: float}},
-        "col_totals": {system: {period: float}},
-        "grand_totals": {period: float},
-        "available_fiscal_years": [2024, 2025, ...],
-    }
+    Confidential filtering is handled by the admin-only route that calls
+    this helper, so this function intentionally aggregates every result
+    present in the directory.
     """
     periods = _generate_period_labels(fiscal_year, period_type)
 
-    # 全JSONファイルを走査
-    apps_set: set[str] = set()
-    systems_set: set[str] = set()
-    all_fiscal_years: set[int] = set()
+    apps_set: Set[str] = set()
+    systems_set: Set[str] = set()
+    all_fiscal_years: Set[int] = set()
 
-    # table[app][system][period] = float
-    table: dict[str, dict[str, dict[str, float]]] = {}
+    table: Dict[str, Dict[str, Dict[str, float]]] = {}
 
     try:
         files = os.listdir(directory)
     except OSError:
         files = []
 
-    json_files = [f for f in files if f.endswith(".json")]
+    json_files = [filename for filename in files if filename.endswith(".json")]
 
     for json_file in json_files:
-        # タイムスタンプ抽出
         ts = extract_timestamp_from_filename(json_file)
         if ts is None:
             continue
@@ -176,16 +140,13 @@ def aggregate_node_hours(
         file_fy = get_fiscal_year(ts)
         all_fiscal_years.add(file_fy)
 
-        # 対象会計年度でなければスキップ
         if file_fy != fiscal_year:
             continue
 
-        # 期間キーを取得
         period_key = _get_period_key(ts, period_type)
         if period_key not in periods:
             continue
 
-        # JSONファイル読み込み
         filepath = os.path.join(directory, json_file)
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -203,18 +164,15 @@ def aggregate_node_hours(
         apps_set.add(app)
         systems_set.add(system)
 
-        # テーブルに加算
         if app not in table:
             table[app] = {}
         if system not in table[app]:
             table[app][system] = {}
         table[app][system][period_key] = table[app][system].get(period_key, 0.0) + node_hours
 
-    # ソート
     apps = sorted(apps_set)
     systems = sorted(systems_set)
 
-    # 全app×system×periodのセルを初期化（存在しないセルは0.0）
     for app in apps:
         if app not in table:
             table[app] = {}
@@ -225,29 +183,25 @@ def aggregate_node_hours(
                 if period not in table[app][system]:
                     table[app][system][period] = 0.0
 
-    # row_totals: 各appの期間別合計（全systemの合計）
-    row_totals: dict[str, dict[str, float]] = {}
+    row_totals: Dict[str, Dict[str, float]] = {}
     for app in apps:
         row_totals[app] = {}
         for period in periods:
             total = sum(table[app][system][period] for system in systems)
             row_totals[app][period] = round(total, 2)
 
-    # col_totals: 各systemの期間別合計（全appの合計）
-    col_totals: dict[str, dict[str, float]] = {}
+    col_totals: Dict[str, Dict[str, float]] = {}
     for system in systems:
         col_totals[system] = {}
         for period in periods:
             total = sum(table[app][system][period] for app in apps)
             col_totals[system][period] = round(total, 2)
 
-    # grand_totals: 期間別の総合計
-    grand_totals: dict[str, float] = {}
+    grand_totals: Dict[str, float] = {}
     for period in periods:
         total = sum(row_totals[app][period] for app in apps)
         grand_totals[period] = round(total, 2)
 
-    # セル値も丸める
     for app in apps:
         for system in systems:
             for period in periods:

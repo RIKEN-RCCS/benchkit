@@ -1,0 +1,21 @@
+<td class="profile-cell">
+    {% if row.profile_summary_meta.has_profile_data %}
+        <span class="tooltip">
+            <span class="profile-headline">{{ row.profile_summary_meta.headline }}</span>
+            {% if row.data_link %}
+            <a class="profile-data-link" href="{{ row.data_link }}">padata</a>
+            {% endif %}
+            <span class="tooltiptext">
+                {{ row.profile_summary_meta.headline }}
+                {% if row.profile_summary_meta.subline %}<br>{{ row.profile_summary_meta.subline }}{% endif %}
+                {% if row.data_link %}<br>archive: available{% endif %}
+                {% if row.profile_summary_meta.events %}<br>events: {{ row.profile_summary_meta.events | join(', ') }}{% endif %}
+                {% if row.profile_summary_meta.report_kinds %}<br>reports: {{ row.profile_summary_meta.report_kinds | join(', ') }}{% endif %}
+            </span>
+        </span>
+    {% elif row.data_link %}
+        <a class="profile-data-link profile-data-link-only" href="{{ row.data_link }}">padata</a>
+    {% else %}
+        -
+    {% endif %}
+</td>

@@ -1,40 +1,51 @@
 #!/usr/bin/env python3
 """
-BenchKit結果サーバ - ローカル開発用起動スクリプト
+BenchKit result server local development launcher.
 
-Redis/OTP/APIキー不要で起動可能。
-テスト用JSONデータを自動生成してresultsを表示確認できる。
+This script starts the portal without Redis, OTP verification, or API key
+dependencies. It can also generate sample JSON data so the results pages can
+be reviewed locally.
 
-使い方:
+Usage:
   cd result_server
   pip install flask flask-session
   python app_dev.py [--port 8800] [--generate-sample]
 """
 
+import argparse
+import json
 import os
 import sys
-import json
 import types
-import argparse
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
 
 
 def setup_dev_environment(base_dir):
-    """開発用の環境変数とディレクトリを設定"""
+    """Configure development environment variables and runtime directories."""
     os.environ.setdefault("RESULT_SERVER_KEY", "dev-api-key")
     os.environ.setdefault("FLASK_SECRET_KEY", "dev-secret-key")
     os.environ.setdefault("BASE_PATH", base_dir)
     os.environ["DEV_MODE"] = "1"
 
-    # 必要なディレクトリを作成
-    for sub in ["main/received", "main/received_padata", "main/received_estimation_inputs", "main/estimated_results", "main/flask_session",
-                 "dev1/received", "dev1/received_padata", "dev1/received_estimation_inputs", "dev1/estimated_results", "dev1/flask_session"]:
+    # Create the directory layout expected by the portal.
+    for sub in [
+        "main/received",
+        "main/received_padata",
+        "main/received_estimation_inputs",
+        "main/estimated_results",
+        "main/flask_session",
+        "dev1/received",
+        "dev1/received_padata",
+        "dev1/received_estimation_inputs",
+        "dev1/estimated_results",
+        "dev1/flask_session",
+    ]:
         os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
 
 
 def _create_stub_totp_manager():
-    """TOTP検証を常に成功させるスタブモジュール"""
+    """Return a stub TOTP module that always validates setup and login."""
     mod = types.ModuleType("utils.totp_manager")
     mod.ISSUER_NAME = "BenchKit"
     mod.generate_secret = lambda: "DEVDEVDEVDEVDEVDEV"
@@ -50,14 +61,18 @@ def _create_stub_totp_manager():
 
 
 class _StubUserStore:
-    """Redis不要のインメモリUserStoreスタブ"""
+    """In-memory UserStore replacement for local development."""
 
     def __init__(self):
         self._users = {}
         self._invitations = {}
 
     def create_user(self, email, totp_secret, affiliations):
-        self._users[email] = {"email": email, "totp_secret": totp_secret, "affiliations": list(affiliations)}
+        self._users[email] = {
+            "email": email,
+            "totp_secret": totp_secret,
+            "affiliations": list(affiliations),
+        }
 
     def get_user(self, email):
         return self._users.get(email)
@@ -78,8 +93,8 @@ class _StubUserStore:
         return email in self._users
 
     def get_affiliations(self, email):
-        u = self._users.get(email)
-        return u["affiliations"] if u else ["dev", "admin"]
+        user = self._users.get(email)
+        return user["affiliations"] if user else ["dev", "admin"]
 
     def clear_totp_secret(self, email):
         if email in self._users:
@@ -88,11 +103,12 @@ class _StubUserStore:
         return False
 
     def has_totp_secret(self, email):
-        u = self._users.get(email)
-        return bool(u and u.get("totp_secret"))
+        user = self._users.get(email)
+        return bool(user and user.get("totp_secret"))
 
     def create_invitation(self, email, affiliations):
         import secrets as _sec
+
         token = _sec.token_urlsafe(32)
         self._invitations[token] = {"email": email, "affiliations": list(affiliations)}
         return token
@@ -105,8 +121,8 @@ class _StubUserStore:
 
 
 def create_dev_app(base_dir):
-    """開発用Flaskアプリを作成 - Redis/OTP/SMTP不要"""
-    # Redis依存モジュールをダミーに差し替え（import前に）
+    """Create a local Flask app without Redis, OTP, or SMTP dependencies."""
+    # Replace optional runtime modules before importing the application routes.
     sys.modules["redis"] = types.ModuleType("redis")
     sys.modules["utils.totp_manager"] = _create_stub_totp_manager()
 
@@ -114,7 +130,7 @@ def create_dev_app(base_dir):
     from flask_session import Session
 
     from routes.home import register_home_routes
-    from utils.system_info import get_all_systems_info
+    from utils.system_info import get_all_systems_info, summarize_systems_info
 
     app = Flask(__name__, template_folder="templates")
 
@@ -126,9 +142,8 @@ def create_dev_app(base_dir):
     )
     Session(app)
 
-    # UserStoreスタブを設定
+    # Register a default local admin user.
     stub_store = _StubUserStore()
-    # デフォルトのadminユーザーを登録
     stub_store.create_user("admin@localhost", "DEVDEVDEVDEVDEVDEV", ["dev", "admin"])
     app.config["USER_STORE"] = stub_store
     app.config["TOTP_ISSUER"] = f"{os.environ.get('TOTP_ISSUER', 'BenchKit')}-Local"
@@ -147,38 +162,45 @@ def create_dev_app(base_dir):
     app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
 
-    # results_loaderはcurrent_app.configから取得するため、モジュール変数の書き換え不要
-
+    # Home routes and loaders pull everything from current_app.config.
     register_home_routes(app)
 
-    # ルートを登録
+    # Register all portal blueprints.
     from routes.results import results_bp
+
     app.register_blueprint(results_bp, url_prefix="/results")
 
     from routes.estimated import estimated_bp
+
     app.register_blueprint(estimated_bp, url_prefix="/estimated")
 
     from routes.auth import auth_bp
+
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
     from routes.admin import admin_bp
+
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
     @app.route("/systemlist")
     def systemlist():
         systems_info = get_all_systems_info()
-        return render_template("systemlist.html", systems_info=systems_info)
+        return render_template(
+            "systemlist.html",
+            systems_info=systems_info,
+            systems_summary=summarize_systems_info(systems_info),
+        )
 
     return app
 
 
 def generate_sample_data(received_dir):
-    """テスト用のサンプルJSONデータを生成"""
+    """Generate sample result JSON files for local portal checks."""
     samples = []
 
     now = datetime.now()
 
-    # 1. OSU Micro-Benchmarks (ベクトル型メトリクス) - 現在
+    # 1. OSU Micro-Benchmarks vector metrics, current result.
     osu_bibw = {
         "code": "benchpark-osu-micro-benchmarks",
         "system": "RC_GH200",
@@ -212,9 +234,9 @@ def generate_sample_data(received_dir):
                         [65536, 22000.00, 22100.00, 22500.00, 22800.00],
                         [1048576, 24800.00, 24900.00, 25000.00, 25050.00],
                         [4194304, 25089.47, 25100.00, 25150.00, 25200.00],
-                    ]
-                }
-            }
+                    ],
+                },
+            },
         },
         "build": {
             "tool": "spack",
@@ -225,14 +247,14 @@ def generate_sample_data(received_dir):
                 "mpi": {"name": "openmpi", "version": "4.1.7"},
                 "packages": [
                     {"name": "gcc", "version": "11.5.0"},
-                    {"name": "openmpi", "version": "4.1.7"}
-                ]
-            }
-        }
+                    {"name": "openmpi", "version": "4.1.7"},
+                ],
+            },
+        },
     }
     samples.append(("osu_bibw", osu_bibw, now))
 
-    # 2. OSU Micro-Benchmarks (ベクトル型) - 7日前（リグレッション比較用）
+    # 2. OSU Micro-Benchmarks vector metrics, 7 days earlier.
     osu_bibw_old = {
         "code": "benchpark-osu-micro-benchmarks",
         "system": "RC_GH200",
@@ -266,9 +288,9 @@ def generate_sample_data(received_dir):
                         [65536, 21200.00, 21300.00, 21700.00, 22000.00],
                         [1048576, 24100.00, 24200.00, 24300.00, 24350.00],
                         [4194304, 24500.00, 24600.00, 24650.00, 24700.00],
-                    ]
-                }
-            }
+                    ],
+                },
+            },
         },
         "build": {
             "tool": "spack",
@@ -279,14 +301,14 @@ def generate_sample_data(received_dir):
                 "mpi": {"name": "openmpi", "version": "4.1.7"},
                 "packages": [
                     {"name": "gcc", "version": "11.5.0"},
-                    {"name": "openmpi", "version": "4.1.7"}
-                ]
-            }
-        }
+                    {"name": "openmpi", "version": "4.1.7"},
+                ],
+            },
+        },
     }
     samples.append(("osu_bibw_old", osu_bibw_old, now - timedelta(days=7)))
 
-    # 3. OSU Micro-Benchmarks (ベクトル型) - 14日前（リグレッション比較用）
+    # 3. OSU Micro-Benchmarks vector metrics, 14 days earlier.
     osu_bibw_older = {
         "code": "benchpark-osu-micro-benchmarks",
         "system": "RC_GH200",
@@ -320,9 +342,9 @@ def generate_sample_data(received_dir):
                         [65536, 20200.00, 20300.00, 20680.00, 20960.00],
                         [1048576, 23200.00, 23300.00, 23400.00, 23450.00],
                         [4194304, 23800.00, 23900.00, 23950.00, 24000.00],
-                    ]
-                }
-            }
+                    ],
+                },
+            },
         },
         "build": {
             "tool": "spack",
@@ -333,14 +355,14 @@ def generate_sample_data(received_dir):
                 "mpi": {"name": "openmpi", "version": "4.1.7"},
                 "packages": [
                     {"name": "gcc", "version": "11.5.0"},
-                    {"name": "openmpi", "version": "4.1.7"}
-                ]
-            }
-        }
+                    {"name": "openmpi", "version": "4.1.7"},
+                ],
+            },
+        },
     }
     samples.append(("osu_bibw_older", osu_bibw_older, now - timedelta(days=14)))
 
-    # 4. OSU Latency (ベクトル型)
+    # 4. OSU Latency vector metrics.
     osu_latency = {
         "code": "benchpark-osu-micro-benchmarks",
         "system": "RC_GH200",
@@ -374,9 +396,9 @@ def generate_sample_data(received_dir):
                         [65536, 25.00, 24.90, 26.00, 28.00],
                         [1048576, 180.00, 179.00, 185.00, 195.00],
                         [4194304, 700.00, 698.00, 720.00, 750.00],
-                    ]
-                }
-            }
+                    ],
+                },
+            },
         },
         "build": {
             "tool": "spack",
@@ -387,14 +409,14 @@ def generate_sample_data(received_dir):
                 "mpi": {"name": "openmpi", "version": "4.1.7"},
                 "packages": [
                     {"name": "gcc", "version": "11.5.0"},
-                    {"name": "openmpi", "version": "4.1.7"}
-                ]
-            }
-        }
+                    {"name": "openmpi", "version": "4.1.7"},
+                ],
+            },
+        },
     }
     samples.append(("osu_latency", osu_latency, now))
 
-    # 5. gpcnet (スカラー型メトリクス)
+    # 5. gpcnet scalar metrics.
     gpcnet_72 = {
         "code": "benchpark-gpcnet",
         "system": "RC_GH200",
@@ -411,13 +433,13 @@ def generate_sample_data(received_dir):
                 "FOM": 1.1,
                 "Avg RR Two-sided Lat": 1.1,
                 "Avg RR Get Lat": 2.1,
-                "Avg Multiple Allreduce": 2.2
+                "Avg Multiple Allreduce": 2.2,
             }
-        }
+        },
     }
     samples.append(("gpcnet_72", gpcnet_72, now))
 
-    # 6. 既存BenchKit形式（スカラーのみ）
+    # 6. Legacy BenchKit-style scalar-only result.
     benchkit_sample = {
         "code": "scale-letkf",
         "system": "Fugaku",
@@ -432,11 +454,11 @@ def generate_sample_data(received_dir):
         "cpu_cores": 48,
         "uname": "Linux",
         "description": None,
-        "confidential": None
+        "confidential": None,
     }
     samples.append(("scale_letkf", benchkit_sample, now))
 
-    # ファイルを生成
+    # Write all generated result files.
     for name, data, timestamp in samples:
         ts = timestamp.strftime("%Y%m%d_%H%M%S")
         uid = str(uuid.uuid4())
@@ -454,17 +476,17 @@ def main():
     parser.add_argument("--generate-sample", action="store_true", help="Generate sample data")
     args = parser.parse_args()
 
-    # 開発用ベースディレクトリ
+    # Development base directory.
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(script_dir, "_dev_data")
 
-    # 環境設定
+    # Configure the local runtime environment.
     setup_dev_environment(base_dir)
 
-    # カレントディレクトリをresult_serverに設定
+    # Run from result_server for local relative paths.
     os.chdir(script_dir)
 
-    # サンプルデータ生成
+    # Generate sample data when requested or when the directory is empty.
     received_dir = os.path.join(base_dir, "main", "received")
     if args.generate_sample or not os.listdir(received_dir):
         print("Generating sample data...")
@@ -476,7 +498,7 @@ def main():
     print(f"  Data dir: {base_dir}")
     print()
 
-    # Flaskアプリを直接作成して起動
+    # Create and launch the Flask app directly.
     app = create_dev_app(base_dir)
     app.run(host="127.0.0.1", port=args.port, debug=True)
 

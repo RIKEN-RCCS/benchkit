@@ -1,0 +1,7 @@
+{% if row.source_info and row.source_info.source_type == "git" %}
+<td class="code-cell"><a class="code-link" href="{{ row.source_info.repo_url }}" target="_blank" title="{{ row.source_info.repo_url }}">{{ row.code }}</a><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+{% elif row.source_info and row.source_info.source_type == "file" %}
+<td class="code-cell" title="{{ row.source_info.file_path }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+{% else %}
+<td class="code-cell" title="{{ row.code }}"><span class="code-link">{{ row.code }}</span><span class="quality-badge quality-{{ row.quality.level }}" title="{{ row.quality.label }}: {{ row.quality.summary }}">{{ row.quality.label }}</span></td>
+{% endif %}

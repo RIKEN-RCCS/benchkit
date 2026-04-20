@@ -617,6 +617,345 @@ bk_run_estimation_data_collection() {
   return 1
 }
 
+# Profiler helpers
+#
+# BenchKit keeps the common wrapper in bk_functions.sh, while each application
+# decides whether to use a profiler and which profiler tool / level to request.
+#
+# Positional arguments:
+#   $1 - profiler tool (empty|none|off|fapp)
+#
+# Supported variables:
+#   BK_PROFILER_LEVEL          optional profiler level override
+#   BK_PROFILER_REPORT_FORMAT  optional report format override
+#   BK_PROFILER_ARGS           optional extra measurement flags
+#   BK_PROFILER_REPORT_ARGS    optional extra postprocess flags
+#   BK_PROFILER_DIR            raw profile output dir (default: pa)
+#   BK_PROFILER_STAGE_DIR      temporary staging dir for archive creation
+bk_get_profiler_tool() {
+  _bk_profiler_tool="${1:-}"
+  case "$_bk_profiler_tool" in
+    ""|none|off)
+      printf '%s\n' ""
+      return 0
+      ;;
+    fapp)
+      printf '%s\n' "$_bk_profiler_tool"
+      return 0
+      ;;
+    *)
+      echo "bk_get_profiler_tool: unsupported profiler '${_bk_profiler_tool}'" >&2
+      return 1
+      ;;
+  esac
+}
+
+bk_profiler_enabled() {
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  [ -n "$_bk_profiler_tool" ]
+}
+
+bk_get_profiler_level() {
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  _bk_profiler_level="${2:-}"
+
+  if [ -z "$_bk_profiler_tool" ]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  if [ -z "$_bk_profiler_level" ]; then
+    case "$_bk_profiler_tool" in
+      fapp)
+        _bk_profiler_level="single"
+        ;;
+    esac
+  fi
+
+  case "$_bk_profiler_tool:${_bk_profiler_level}" in
+    fapp:single|fapp:simple|fapp:standard|fapp:detailed)
+      printf '%s\n' "$_bk_profiler_level"
+      return 0
+      ;;
+    *)
+      echo "bk_get_profiler_level: unsupported level '${_bk_profiler_level}' for tool '${_bk_profiler_tool}'" >&2
+      return 1
+      ;;
+  esac
+}
+
+bk_get_profiler_report_format() {
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  _bk_profiler_level=$(bk_get_profiler_level "$_bk_profiler_tool" "$2") || return 1
+  _bk_profiler_report_format="${3:-}"
+
+  if [ -z "$_bk_profiler_tool" ]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  if [ -z "$_bk_profiler_report_format" ]; then
+    case "$_bk_profiler_tool:${_bk_profiler_level}" in
+      fapp:single)
+        _bk_profiler_report_format="text"
+        ;;
+      fapp:simple|fapp:standard|fapp:detailed)
+        _bk_profiler_report_format="both"
+        ;;
+    esac
+  fi
+
+  case "$_bk_profiler_report_format" in
+    text|csv|both)
+      printf '%s\n' "$_bk_profiler_report_format"
+      return 0
+      ;;
+    *)
+      echo "bk_get_profiler_report_format: unsupported report format '${_bk_profiler_report_format}'" >&2
+      return 1
+      ;;
+  esac
+}
+
+bk_profiler_fapp_level_events() {
+  case "$1" in
+    single)
+      printf '%s\n' "pa1"
+      ;;
+    simple)
+      printf '%s\n' "pa1 pa2 pa3 pa4 pa5"
+      ;;
+    standard)
+      printf '%s\n' "pa1 pa2 pa3 pa4 pa5 pa6 pa7 pa8 pa9 pa10 pa11"
+      ;;
+    detailed)
+      printf '%s\n' "pa1 pa2 pa3 pa4 pa5 pa6 pa7 pa8 pa9 pa10 pa11 pa12 pa13 pa14 pa15 pa16 pa17"
+      ;;
+    *)
+      echo "bk_profiler_fapp_level_events: unsupported level '$1'" >&2
+      return 1
+      ;;
+  esac
+}
+
+bk_profiler_fapp_postprocess_command() {
+  if command -v fapppx >/dev/null 2>&1; then
+    printf '%s\n' "fapppx"
+    return 0
+  fi
+
+  if command -v fapp >/dev/null 2>&1; then
+    printf '%s\n' "fapp"
+    return 0
+  fi
+
+  return 1
+}
+
+bk_profiler_write_meta() {
+  _bk_meta_stage_dir="$1"
+  _bk_meta_tool="$2"
+  _bk_meta_level="$3"
+  _bk_meta_report_format="$4"
+  _bk_meta_run_names="$5"
+  _bk_meta_run_events="$6"
+  _bk_meta_file="${_bk_meta_stage_dir}/meta.json"
+  IFS=',' read -r -a _bk_meta_names <<< "$_bk_meta_run_names"
+  IFS=',' read -r -a _bk_meta_events <<< "$_bk_meta_run_events"
+
+  {
+    printf '{\n'
+    printf '  "tool": "%s",\n' "$_bk_meta_tool"
+    printf '  "level": "%s",\n' "$_bk_meta_level"
+    printf '  "report_format": "%s",\n' "$_bk_meta_report_format"
+    printf '  "raw_dir": "raw",\n'
+    printf '  "runs": [\n'
+    for _bk_meta_idx in "${!_bk_meta_names[@]}"; do
+      _bk_meta_name="${_bk_meta_names[$_bk_meta_idx]}"
+      _bk_meta_event="${_bk_meta_events[$_bk_meta_idx]:-}"
+      _bk_meta_text_path="reports/fapp_A_${_bk_meta_name}.txt"
+      _bk_meta_csv_path="reports/cpu_pa_${_bk_meta_name}.csv"
+      _bk_meta_text_abs="${_bk_meta_stage_dir}/${_bk_meta_text_path}"
+      _bk_meta_csv_abs="${_bk_meta_stage_dir}/${_bk_meta_csv_path}"
+
+      printf '    {\n'
+      printf '      "name": "%s",\n' "$_bk_meta_name"
+      printf '      "event": "%s",\n' "$_bk_meta_event"
+      printf '      "raw_path": "raw/%s",\n' "$_bk_meta_name"
+      printf '      "reports": [\n'
+      _bk_meta_has_report=0
+      if [ -f "$_bk_meta_text_abs" ]; then
+        printf '        {"kind": "summary_text", "path": "%s"}' "$_bk_meta_text_path"
+        _bk_meta_has_report=1
+      fi
+      if [ -f "$_bk_meta_csv_abs" ]; then
+        if [ "$_bk_meta_has_report" -eq 1 ]; then
+          printf ',\n'
+        fi
+        printf '        {"kind": "cpu_pa_csv", "path": "%s"}' "$_bk_meta_csv_path"
+        _bk_meta_has_report=1
+      fi
+      if [ "$_bk_meta_has_report" -eq 1 ]; then
+        printf '\n'
+      fi
+      printf '      ]\n'
+      if [ "$_bk_meta_idx" -lt "$(( ${#_bk_meta_names[@]} - 1 ))" ]; then
+        printf '    },\n'
+      else
+        printf '    }\n'
+      fi
+    done
+    printf '  ]\n'
+    printf '}\n'
+  } > "$_bk_meta_file"
+}
+
+bk_profiler_call_optional_hook() {
+  _bk_hook_name="$1"
+  shift || true
+
+  if declare -F "$_bk_hook_name" >/dev/null 2>&1; then
+    "$_bk_hook_name" "$@"
+  fi
+}
+
+bk_profiler() {
+  if [ $# -lt 2 ]; then
+    echo "bk_profiler: requires a profiler tool and an execution command" >&2
+    return 1
+  fi
+
+  _bk_profiler_tool=$(bk_get_profiler_tool "$1") || return 1
+  shift
+  _bk_profiler_archive="${BK_PROFILER_ARCHIVE:-results/padata.tgz}"
+  _bk_profiler_dir="${BK_PROFILER_DIR:-pa}"
+  _bk_profiler_level="${BK_PROFILER_LEVEL:-}"
+  _bk_profiler_report_format="${BK_PROFILER_REPORT_FORMAT:-}"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --level)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --level requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_level="$1"
+        ;;
+      --report-format)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --report-format requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_report_format="$1"
+        ;;
+      --archive)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --archive requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_archive="$1"
+        ;;
+      --raw-dir)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "bk_profiler: --raw-dir requires a value" >&2
+          return 1
+        fi
+        _bk_profiler_dir="$1"
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  if [ $# -eq 0 ]; then
+    echo "bk_profiler: requires an execution command" >&2
+    return 1
+  fi
+
+  if [ -z "$_bk_profiler_tool" ]; then
+    "$@"
+    return $?
+  fi
+
+  _bk_profiler_level=$(bk_get_profiler_level "$_bk_profiler_tool" "$_bk_profiler_level") || return 1
+  _bk_profiler_report_format=$(bk_get_profiler_report_format "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format") || return 1
+
+  rm -rf "$_bk_profiler_dir"
+  mkdir -p "$_bk_profiler_dir"
+
+  _bk_stage_dir="${BK_PROFILER_STAGE_DIR:-bk_profiler_artifact}"
+  rm -rf "$_bk_stage_dir"
+  mkdir -p "$_bk_stage_dir"
+  mkdir -p "$_bk_stage_dir/raw"
+  mkdir -p "$_bk_stage_dir/reports"
+  _bk_profiler_run_names=""
+  _bk_profiler_run_events=""
+
+  case "$_bk_profiler_tool" in
+    fapp)
+      export FLIB_FASTOMP="${FLIB_FASTOMP:-TRUE}"
+      read -r -a _bk_fapp_events <<< "$(bk_profiler_fapp_level_events "$_bk_profiler_level")"
+      _bk_fapp_run_index=1
+      for _bk_fapp_event in "${_bk_fapp_events[@]}"; do
+        _bk_fapp_rep_name="rep${_bk_fapp_run_index}"
+        _bk_fapp_rep_dir="${_bk_profiler_dir}/${_bk_fapp_rep_name}"
+        mkdir -p "$_bk_fapp_rep_dir"
+        echo "bk_profiler[fapp]: starting ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
+        bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
+        # shellcheck disable=SC2086
+        fapp -C -d "$_bk_fapp_rep_dir" ${BK_PROFILER_ARGS:-} -Hevent="${_bk_fapp_event}" "$@"
+        bk_profiler_call_optional_hook bk_profiler_after_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
+        echo "bk_profiler[fapp]: completed ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
+        cp -R "$_bk_fapp_rep_dir" "$_bk_stage_dir/raw/${_bk_fapp_rep_name}"
+        if [ -n "$_bk_profiler_run_names" ]; then
+          _bk_profiler_run_names="${_bk_profiler_run_names},${_bk_fapp_rep_name}"
+          _bk_profiler_run_events="${_bk_profiler_run_events},${_bk_fapp_event}"
+        else
+          _bk_profiler_run_names="${_bk_fapp_rep_name}"
+          _bk_profiler_run_events="${_bk_fapp_event}"
+        fi
+        _bk_fapp_run_index=$((_bk_fapp_run_index + 1))
+      done
+      ;;
+  esac
+
+  case "$_bk_profiler_tool" in
+    fapp)
+      if _bk_fapp_post_cmd=$(bk_profiler_fapp_postprocess_command); then
+        export FLIB_FASTOMP="${FLIB_FASTOMP:-TRUE}"
+        IFS=',' read -r -a _bk_fapp_run_name_list <<< "$_bk_profiler_run_names"
+        for _bk_fapp_rep_name in "${_bk_fapp_run_name_list[@]}"; do
+          _bk_fapp_rep_dir="${_bk_profiler_dir}/${_bk_fapp_rep_name}"
+          if [ "$_bk_profiler_report_format" = "text" ] || [ "$_bk_profiler_report_format" = "both" ]; then
+            # shellcheck disable=SC2086
+            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${BK_PROFILER_REPORT_ARGS:-} > "$_bk_stage_dir/reports/fapp_A_${_bk_fapp_rep_name}.txt" 2>&1 || true
+          fi
+          if [ "$_bk_profiler_report_format" = "csv" ] || [ "$_bk_profiler_report_format" = "both" ]; then
+            # shellcheck disable=SC2086
+            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${BK_PROFILER_REPORT_ARGS:-} -Icpupa -tcsv -o "$_bk_stage_dir/reports/cpu_pa_${_bk_fapp_rep_name}.csv" >/dev/null 2>&1 || true
+          fi
+        done
+      else
+        echo "fapp/fapppx not found in PATH" > "$_bk_stage_dir/reports/fapp_A_missing.txt"
+      fi
+      ;;
+  esac
+
+  bk_profiler_write_meta "$_bk_stage_dir" "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format" "$_bk_profiler_run_names" "$_bk_profiler_run_events"
+  tar -czf "$_bk_profiler_archive" "$_bk_stage_dir"
+  rm -rf "$_bk_stage_dir"
+}
+
 # bk_emit_overlap - Backward-compatible wrapper for overlap-like section timing.
 #
 # Positional arguments:

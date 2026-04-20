@@ -5,12 +5,94 @@ echo "Sending results to server"
 
 ls results/
 
+run_result_quality_validator() {
+  local fail_on="${BK_RESULT_QUALITY_FAIL_ON:-none}"
+  local python_cmd=""
+
+  if command -v python3 >/dev/null 2>&1; then
+    python_cmd="python3"
+  elif command -v python >/dev/null 2>&1; then
+    python_cmd="python"
+  fi
+
+  if [[ -z "$python_cmd" ]]; then
+    echo "Result-quality validator skipped: Python runtime not found"
+    return 0
+  fi
+
+  echo "Running result-quality validator (fail-on=${fail_on})"
+  "$python_cmd" scripts/validate_result_quality.py results --fail-on "$fail_on"
+}
+
+if [[ "${BK_RESULT_QUALITY_VALIDATE:-false}" == "true" ]]; then
+  run_result_quality_validator
+else
+  echo "Result-quality validator disabled (set BK_RESULT_QUALITY_VALIDATE=true to enable)"
+fi
+
 meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
+
+build_profile_data_summary() {
+  local tgz_file="$1"
+
+  if [[ ! -f "$tgz_file" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local meta_member
+  meta_member=$(tar -tzf "$tgz_file" 2>/dev/null | grep 'meta\.json$' | head -n 1 || true)
+  if [[ -z "$meta_member" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local meta_json
+  meta_json=$(tar -xOf "$tgz_file" "$meta_member" 2>/dev/null || true)
+  if [[ -z "$meta_json" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  echo "$meta_json" | jq -c '
+    {
+      tool: .tool,
+      level: .level,
+      report_format: .report_format,
+      raw_dir: .raw_dir,
+      run_count: ((.runs // []) | length),
+      events: ((.runs // []) | map(.event) | map(select(. != null and . != ""))),
+      report_kinds: ((.runs // []) | map(.reports // []) | add | map(.kind) | unique)
+    }
+  ' 2>/dev/null || true
+}
 
 # Loop over all result*.json files
 for json_file in results/result*.json; do
   [[ ! -f "$json_file" ]] && continue
+
+  # Determine corresponding TGZ name
+  tgz_base="padata"
+
+  if [[ "$json_file" =~ result([0-9]+)\.json$ ]]; then
+    num="${BASH_REMATCH[1]}"
+    tgz_file="results/${tgz_base}${num}.tgz"
+  else
+    tgz_file="results/${tgz_base}.tgz"
+  fi
+
+  echo tgz_file $tgz_file
+
+  profile_data_summary=$(build_profile_data_summary "$tgz_file")
+  if [[ -n "$profile_data_summary" ]]; then
+    tmp_file="${json_file}.tmp"
+    jq --argjson profile_data "$profile_data_summary" \
+      '. + { profile_data: $profile_data }' \
+      "$json_file" > "$tmp_file"
+    mv "$tmp_file" "$json_file"
+    echo "Embedded profile_data summary into $json_file"
+  fi
 
   echo "Processing $json_file"
   cat "$json_file"
@@ -60,18 +142,6 @@ for json_file in results/result*.json; do
     "$meta_file" > "$tmp_meta_file"
   mv "$tmp_meta_file" "$meta_file"
   echo "Updated result metadata manifest: $meta_file"
-
-  # Determine corresponding TGZ name
-  tgz_base="padata"
-
-  if [[ "$json_file" =~ result([0-9]+)\.json$ ]]; then
-    num="${BASH_REMATCH[1]}"
-    tgz_file="results/${tgz_base}${num}.tgz"
-  else
-    tgz_file="results/${tgz_base}.tgz"
-  fi
-
-  echo tgz_file $tgz_file
 
   
   # Upload TGZ if it exists

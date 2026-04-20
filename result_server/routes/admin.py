@@ -1,8 +1,4 @@
-"""管理者Blueprint
-
-ユーザーCRUD操作と招待リンク管理を提供する。
-admin所属を持つ認証済みユーザーのみアクセス可能。
-"""
+"""Admin routes for user management and invitation handling."""
 
 from functools import wraps
 
@@ -29,21 +25,16 @@ def _add_no_store_headers(response):
     return response
 
 
-def _get_users_with_totp_status():
-    """全ユーザーを取得し、各ユーザーに has_totp フラグを付与して返す。"""
+def _render_users_page(invitation_url=None):
     store = get_user_store()
-    users = store.list_users()
-    for u in users:
-        u["has_totp"] = store.has_totp_secret(u["email"])
-    return store, users
+    all_users = store.list_users()
+    for user in all_users:
+        user["has_totp"] = store.has_totp_secret(user["email"])
+    return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
 
 
 def admin_required(f):
-    """admin所属を持つ認証済みユーザーのみアクセスを許可するデコレータ。
-
-    未認証: /auth/login にリダイレクト
-    admin所属なし: 403エラー
-    """
+    """Allow access only to authenticated users with the admin affiliation."""
 
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -60,19 +51,18 @@ def admin_required(f):
 @admin_bp.route("/users", methods=["GET"])
 @admin_required
 def users():
-    """ユーザー一覧ページ。"""
-    _, all_users = _get_users_with_totp_status()
-    return render_template("admin_users.html", users=all_users, invitation_url=None)
+    """Render the user administration page."""
+    return _render_users_page()
 
 
 @admin_bp.route("/users/add", methods=["POST"])
 @admin_required
 def add_user():
-    """ユーザー追加。招待トークン生成、招待URL表示。"""
+    """Create a user invitation and show the generated invitation URL."""
     store = get_user_store()
     email = request.form.get("email", "").strip()
     affiliations_raw = request.form.get("affiliations", "").strip()
-    affiliations = [a.strip() for a in affiliations_raw.split(",") if a.strip()]
+    affiliations = [item.strip() for item in affiliations_raw.split(",") if item.strip()]
 
     if not email:
         flash("Email is required.")
@@ -85,16 +75,14 @@ def add_user():
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
-    _, all_users = _get_users_with_totp_status()
-
     flash(f"Invitation created for {email}.")
-    return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
+    return _render_users_page(invitation_url)
 
 
 @admin_bp.route("/users/<path:email>/delete", methods=["POST"])
 @admin_required
 def delete_user(email):
-    """ユーザー削除。自分自身の削除は禁止。"""
+    """Delete a user unless the current admin targets their own account."""
     if email == session.get("user_email"):
         flash("You cannot delete your own account.")
         return redirect(url_for("admin.users"))
@@ -107,10 +95,10 @@ def delete_user(email):
 @admin_bp.route("/users/<path:email>/affiliations", methods=["POST"])
 @admin_required
 def update_affiliations(email):
-    """所属情報の更新。"""
+    """Update the affiliations stored for a user."""
     store = get_user_store()
     affiliations_raw = request.form.get("affiliations", "").strip()
-    affiliations = [a.strip() for a in affiliations_raw.split(",") if a.strip()]
+    affiliations = [item.strip() for item in affiliations_raw.split(",") if item.strip()]
     store.update_affiliations(email, affiliations)
     flash(f"Affiliations updated for {email}.")
     return redirect(url_for("admin.users"))
@@ -119,20 +107,18 @@ def update_affiliations(email):
 @admin_bp.route("/users/<path:email>/reinvite", methods=["POST"])
 @admin_required
 def reinvite_user(email):
-    """TOTP再登録用招待リンク生成。既存秘密鍵を無効化。"""
+    """Generate a new invitation link after clearing the current TOTP secret."""
     store = get_user_store()
 
     if not store.user_exists(email):
         flash(f"User {email} not found.")
         return redirect(url_for("admin.users"))
 
-    # 既存秘密鍵を無効化
+    # Invalidate the current secret before issuing a new invitation.
     store.clear_totp_secret(email)
     affiliations = store.get_affiliations(email)
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
-    _, all_users = _get_users_with_totp_status()
-
     flash(f"Reinvitation created for {email}.")
-    return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
+    return _render_users_page(invitation_url)

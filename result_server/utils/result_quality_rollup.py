@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from typing import Any, Dict, Tuple
 
 from utils.node_hours import extract_timestamp_from_filename
-from utils.results_loader import summarize_result_quality
+from utils.result_records import summarize_result_quality
 
 
-def _format_timestamp(filename: str, filepath: str) -> tuple[object, str]:
+def _format_timestamp(filename: str, filepath: str) -> Tuple[Any, str]:
     ts = extract_timestamp_from_filename(filename)
     if ts is not None:
         return ts, ts.strftime("%Y-%m-%d %H:%M:%S")
@@ -18,13 +19,13 @@ def _format_timestamp(filename: str, filepath: str) -> tuple[object, str]:
     return ts, ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _summarize_source_info(data: dict) -> dict:
+def _summarize_source_info(data: Dict[str, Any]) -> Dict[str, Any]:
     source_info = data.get("source_info")
     if not isinstance(source_info, dict) or not source_info:
         return {
             "status": "not tracked",
-            "source_type": "—",
-            "reference": "—",
+            "source_type": "-",
+            "reference": "-",
             "missing_fields": ["source_info"],
         }
 
@@ -34,14 +35,22 @@ def _summarize_source_info(data: dict) -> dict:
         branch = source_info.get("branch") or ""
         commit_hash = source_info.get("commit_hash") or ""
         short_hash = commit_hash[:7] if commit_hash else ""
-        reference = f"{branch}@{short_hash}" if branch and short_hash else branch or short_hash or "git metadata incomplete"
+        reference = (
+            f"{branch}@{short_hash}"
+            if branch and short_hash
+            else branch or short_hash or "git metadata incomplete"
+        )
     elif source_type == "file":
         required_fields = ("file_path", "md5sum")
         file_path = source_info.get("file_path") or ""
         md5sum = source_info.get("md5sum") or ""
         short_md5 = md5sum[:8] if md5sum else ""
         basename = os.path.basename(file_path) if file_path else ""
-        reference = f"{basename}@{short_md5}" if basename and short_md5 else basename or short_md5 or "file metadata incomplete"
+        reference = (
+            f"{basename}@{short_md5}"
+            if basename and short_md5
+            else basename or short_md5 or "file metadata incomplete"
+        )
     else:
         required_fields = ()
         reference = "unknown source type"
@@ -106,8 +115,13 @@ def build_result_quality_rollup(directory: str) -> dict:
             "breakdown_present": stats["has_breakdown"],
             "estimation_ready": quality["level"] in ("ready", "rich"),
             "rich": quality["level"] == "rich",
+            "quality_level": quality["level"],
             "quality_label": quality["label"],
             "warnings": quality["warnings"],
+            "warning_count": len(quality["warnings"]),
+            "suggested_actions": quality.get("suggested_actions", []),
+            "next_action": (quality.get("suggested_actions") or ["none"])[0],
+            "validator_candidates": quality.get("validator_candidates", []),
         }
 
     rows = []

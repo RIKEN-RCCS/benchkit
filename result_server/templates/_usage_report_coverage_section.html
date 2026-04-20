@@ -1,0 +1,43 @@
+<section class="page-card table-card">
+  <h2 class="section-title">Application/System Coverage</h2>
+  <p class="section-intro">Support matrix from <code>list.csv</code> plus detected <code>build.sh</code> / <code>run.sh</code> branches.</p>
+  <div class="coverage-legend">
+    <span><span class="coverage-status coverage-enabled">&#9733;</span> enabled and implemented</span>
+    <span><span class="coverage-status coverage-partial">&#9651;</span> enabled in list.csv, script support incomplete</span>
+    <span><span class="coverage-status coverage-off">&#9675;</span> configured off</span>
+    <span><span class="coverage-status coverage-missing">&mdash;</span> not listed</span>
+  </div>
+  <div class="table-wrap">
+    <table class="coverage-table">
+      <thead>
+        <tr>
+          <th>Application</th>
+          {% for header in coverage_systems %}
+          <th title="{{ header.system }}">{{ header.name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in app_support_rows %}
+        <tr>
+          <td>{{ row.app }}</td>
+          {% for header in coverage_systems %}
+            {% set item = row.systems.get(header.system, {}) %}
+            {% if item.status == 'enabled' %}
+            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: yes&#10;run.sh: yes"><span class="coverage-status coverage-enabled">&#9733;</span></td>
+            {% elif item.status == 'enabled_partial' %}
+            <td title="enabled rows: {{ item.enabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-partial">&#9651;</span></td>
+            {% elif item.status == 'configured_off' %}
+            <td title="disabled rows: {{ item.disabled_rows }}&#10;build.sh: {{ 'yes' if item.build_supported else 'no' }}&#10;run.sh: {{ 'yes' if item.run_supported else 'no' }}"><span class="coverage-status coverage-off">&#9675;</span></td>
+            {% else %}
+            <td title="not listed"><span class="coverage-status coverage-missing">&mdash;</span></td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 1 + (coverage_systems|length) }}">No application coverage data found.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,176 @@
+name: GitLab Manual CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Branch, tag, or SHA in this repository to test"
+        required: true
+        default: "develop"
+      code:
+        description: "BenchKit code filter, for example: qws,genesis"
+        required: false
+      system:
+        description: "System filter, for example: FugakuLN,MiyabiG"
+        required: false
+      app:
+        description: "BenchPark app filter, for example: osu-micro-benchmarks"
+        required: false
+      benchpark:
+        description: "Run the BenchPark path together with BenchKit"
+        required: false
+        type: boolean
+        default: false
+      park_only:
+        description: "Run only the BenchPark path"
+        required: false
+        type: boolean
+        default: false
+      park_send:
+        description: "Run the BenchPark send-only path"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: gitlab-manual-ci-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gitlab-manual-ci:
+    name: Run GitLab CI manually
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out target ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_ref }}
+
+      - name: Push target ref to GitLab test branch
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO}" ]; then
+            echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
+            exit 1
+          fi
+
+          branch="github/manual-${GITHUB_RUN_ID}"
+          echo "GITLAB_TEST_BRANCH=${branch}" >> "${GITHUB_ENV}"
+
+          echo "Testing GitHub ref: ${TARGET_REF}"
+          echo "Temporary GitLab branch: ${branch}"
+
+          git config user.name "github-bot"
+          git config user.email "bot@example.com"
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}"
+          git push -o ci.skip gitlab "HEAD:refs/heads/${branch}" --force
+
+      - name: Trigger and wait for GitLab pipeline
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+          CODE_FILTER: ${{ inputs.code }}
+          SYSTEM_FILTER: ${{ inputs.system }}
+          BENCHPARK_APP: ${{ inputs.app }}
+          BENCHPARK: ${{ inputs.benchpark }}
+          PARK_ONLY: ${{ inputs.park_only }}
+          PARK_SEND: ${{ inputs.park_send }}
+        run: |
+          set -euo pipefail
+
+          repo="${GITLAB_REPO#https://}"
+          repo="${repo#http://}"
+          host="${repo%%/*}"
+          project_path="${repo#*/}"
+          project_path="${project_path%.git}"
+
+          project_encoded="$(PROJECT_PATH="${project_path}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
+          api="https://${host}/api/v4/projects/${project_encoded}/pipeline"
+
+          curl_args=(
+            --fail
+            --silent
+            --request POST
+            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
+            --form "ref=${GITLAB_TEST_BRANCH}"
+          )
+
+          var_index=0
+          add_variable() {
+            local key="$1"
+            local value="$2"
+            if [ -n "${value}" ]; then
+              echo "GitLab variable: ${key}=${value}"
+              curl_args+=(--form "variables[${var_index}][key]=${key}")
+              curl_args+=(--form "variables[${var_index}][value]=${value}")
+              var_index=$((var_index + 1))
+            fi
+          }
+
+          add_variable "code" "${CODE_FILTER}"
+          add_variable "system" "${SYSTEM_FILTER}"
+          add_variable "app" "${BENCHPARK_APP}"
+
+          if [ "${BENCHPARK}" = "true" ]; then
+            add_variable "benchpark" "true"
+          fi
+          if [ "${PARK_ONLY}" = "true" ]; then
+            add_variable "park_only" "true"
+          fi
+          if [ "${PARK_SEND}" = "true" ]; then
+            add_variable "park_send" "true"
+          fi
+
+          response="$(curl "${curl_args[@]}" "${api}")"
+          pipeline_id="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["id"])')"
+          pipeline_url="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"]).get("web_url", ""))')"
+
+          echo "GitLab pipeline: ${pipeline_url}"
+          pipeline_api="https://${host}/api/v4/projects/${project_encoded}/pipelines/${pipeline_id}"
+
+          for _ in $(seq 1 180); do
+            response="$(curl --fail --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${pipeline_api}")"
+            status="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["status"])')"
+
+            echo "GitLab pipeline status: ${status}"
+            case "${status}" in
+              success)
+                exit 0
+                ;;
+              failed|canceled|skipped)
+                exit 1
+                ;;
+              manual)
+                echo "GitLab pipeline is waiting for manual action."
+                exit 1
+                ;;
+            esac
+
+            sleep 20
+          done
+
+          echo "Timed out waiting for GitLab pipeline ${pipeline_id}."
+          exit 1
+
+      - name: Delete GitLab test branch
+        if: always()
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GITLAB_TEST_BRANCH:-}" ]; then
+            git remote add gitlab-cleanup "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}" || true
+            git push gitlab-cleanup --delete "${GITLAB_TEST_BRANCH}" || true
+          fi

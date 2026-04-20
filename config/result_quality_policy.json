@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "default_tier": "relaxed",
+  "tiers": {
+    "strict": {
+      "fail_candidates": [
+        "FOM present",
+        "source_info present",
+        "recognized source_info.source_type",
+        "complete source_info fields"
+      ],
+      "fail_warnings": []
+    },
+    "standard": {
+      "fail_candidates": [
+        "FOM present",
+        "recognized source_info.source_type"
+      ],
+      "fail_warnings": []
+    },
+    "relaxed": {
+      "fail_candidates": [],
+      "fail_warnings": []
+    }
+  },
+  "apps": {
+    "qws": "strict",
+    "genesis": "standard",
+    "scale-letkf": "standard"
+  }
+}

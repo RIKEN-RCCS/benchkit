@@ -1,9 +1,10 @@
-name: Sync all branches to GitLab
+name: Sync protected branches to GitLab
 
 on:
   push:
     branches:
-      - '**'   # 全ブランチを対象にする
+      - develop
+      - main
   workflow_dispatch:
 
 jobs:
@@ -12,16 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 全ブランチとタグを取得
+          fetch-depth: 0
 
-      - name: Push all branches and tags to GitLab
+      - name: Push protected branches and tags to GitLab
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
         run: |
+          set -euo pipefail
+
           git config user.name "github-bot"
           git config user.email "bot@example.com"
           git remote add gitlab https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}
-          # 全ブランチ・タグを強制同期
-          git push gitlab --all --force
-          git push gitlab --tags --force
+          git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
+          git push -o ci.skip gitlab refs/remotes/origin/develop:refs/heads/develop refs/remotes/origin/main:refs/heads/main --force
+          git push -o ci.skip gitlab --tags --force

@@ -1,379 +1,340 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>CX Portal</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-            color: #1f2933;
-            background:
-                radial-gradient(circle at top right, rgba(20, 184, 166, 0.16), transparent 28%),
-                linear-gradient(180deg, #f6fbfc 0%, #ffffff 50%, #f7f9fb 100%);
-        }
-        .page {
-            max-width: 1180px;
-            margin: 0 auto;
-            padding: 0 24px 48px;
-        }
-        .hero {
-            display: grid;
-            grid-template-columns: 1.45fr 1fr;
-            gap: 24px;
-            align-items: stretch;
-            margin: 28px 0 26px;
-        }
-        .hero-panel,
-        .summary-panel,
-        .section-panel,
-        .system-card {
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid #d8e3e8;
-            border-radius: 18px;
-            box-shadow: 0 14px 36px rgba(18, 52, 77, 0.08);
-        }
-        .hero-panel {
-            padding: 32px;
-        }
-        .eyebrow {
-            display: inline-block;
-            margin-bottom: 14px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: #dff7f2;
-            color: #0f766e;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-        h1 {
-            margin: 0 0 12px;
-            font-size: clamp(34px, 5vw, 54px);
-            line-height: 1.05;
-            letter-spacing: -0.03em;
-        }
-        .hero-panel p {
-            margin: 0;
-            font-size: 17px;
-            line-height: 1.7;
-            color: #52606d;
-            max-width: 58ch;
-        }
-        .hero-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 24px;
-        }
-        .button-link {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 11px 16px;
-            border-radius: 999px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: transform 120ms ease, box-shadow 120ms ease;
-        }
-        .button-link.primary {
-            background: #0f766e;
-            color: #fff;
-            box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);
-        }
-        .button-link.secondary {
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-        .button-link.locked {
-            background: #f4f4f5;
-            color: #52525b;
-        }
-        .button-link:hover {
-            transform: translateY(-1px);
-        }
-        .summary-panel {
-            padding: 28px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .summary-panel h2,
-        .section-panel h2 {
-            margin: 0 0 12px;
-            font-size: 24px;
-            letter-spacing: -0.02em;
-        }
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-            margin-top: 16px;
-        }
-        .summary-card {
-            padding: 16px;
-            border-radius: 14px;
-            background: #f7fbfc;
-            border: 1px solid #dce8ee;
-        }
-        .summary-value {
-            display: block;
-            font-size: 28px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        .summary-label {
-            display: block;
-            margin-top: 6px;
-            font-size: 13px;
-            color: #52606d;
-        }
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-        .section-panel {
-            padding: 26px;
-        }
-        .panel-intro {
-            margin: 0 0 16px;
-            color: #52606d;
-            line-height: 1.6;
-        }
-        .link-list {
-            display: grid;
-            gap: 12px;
-        }
-        .link-card {
-            display: block;
-            padding: 16px 18px;
-            border-radius: 14px;
-            text-decoration: none;
-            color: inherit;
-            background: #f8fbfd;
-            border: 1px solid #dfe8ee;
-        }
-        .link-card:hover {
-            background: #f0f7fb;
-            border-color: #bfd5e2;
-        }
-        .link-card strong {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 16px;
-        }
-        .link-card span {
-            color: #52606d;
-            line-height: 1.55;
-        }
-        .access-note {
-            display: inline-flex;
-            align-items: center;
-            margin-top: 10px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #fff7ed;
-            color: #9a3412;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-        }
-        .systems-section {
-            margin-top: 24px;
-        }
-        .systems-header {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 14px;
-        }
-        .systems-header h2 {
-            margin: 0;
-            font-size: 28px;
-            letter-spacing: -0.02em;
-        }
-        .systems-header p {
-            margin: 0;
-            color: #52606d;
-        }
-        .system-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-            gap: 16px;
-        }
-        .system-card {
-            padding: 18px;
-        }
-        .system-card h3 {
-            margin: 0 0 12px;
-            font-size: 18px;
-        }
-        .system-meta {
-            display: grid;
-            gap: 7px;
-            font-size: 14px;
-            color: #52606d;
-        }
-        .system-meta strong {
-            color: #1f2933;
-        }
-        .section-footer {
-            margin-top: 16px;
-        }
-        .section-footer a {
-            color: #0f766e;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .section-footer a:hover {
-            text-decoration: underline;
-        }
-        @media (max-width: 900px) {
-            .hero,
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            .hero-panel,
-            .summary-panel,
-            .section-panel {
-                padding: 22px;
-            }
-        }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}CX Portal{% endblock %}
+{% block page_title %}CX Data Flow, Connected Systems, and Portal Access{% endblock %}
+{% block page_subtitle %}This portal is part of the CX Framework, supporting continuous benchmarking, estimation, and feedback for integrated HPC applications.{% endblock %}
 
-<div class="page">
-    <section class="hero">
-        <div class="hero-panel">
-            <span class="eyebrow">CX Portal</span>
-            <h1>CX Data Flow, Connected Systems, and Portal Access</h1>
-            <p>
-                This portal is part of the overall system implementing the CX Framework, supporting
-                continuous benchmarking, continuous estimation, and continuous feedback for HPC
-                applications integrated into this portal.
-            </p>
-            <div class="hero-actions">
-                <a class="button-link primary" href="{{ url_for('results.results') }}">Browse Results</a>
-                <a class="button-link secondary" href="{{ url_for('systemlist') }}">View All Systems</a>
+{% block content %}
+<style>
+    .home-overview-grid {
+        display: grid;
+        grid-template-columns: 1.45fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+    .home-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+    }
+    .home-action-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 11px 16px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    .home-action-link:hover {
+        transform: translateY(-1px);
+    }
+    .home-action-link-primary {
+        background: #0f766e;
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);
+    }
+    .home-action-link-secondary {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    .home-action-link-locked {
+        background: #f4f4f5;
+        color: #52525b;
+    }
+    .home-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+    }
+    .home-summary-card,
+    .home-link-card,
+    .home-system-card {
+        padding: 16px;
+        border-radius: 14px;
+        border: 1px solid #dce8ee;
+        background: #f7fbfc;
+    }
+    .home-summary-value {
+        display: block;
+        font-size: 28px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .home-summary-label {
+        display: block;
+        margin-top: 6px;
+        font-size: 13px;
+        color: #52606d;
+    }
+    .home-content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+    .home-content-grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .home-link-list {
+        display: grid;
+        gap: 12px;
+    }
+    .home-link-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+    }
+    .home-link-card:hover {
+        background: #f0f7fb;
+        border-color: #bfd5e2;
+    }
+    .home-link-card strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 16px;
+    }
+    .home-link-card span {
+        color: #52606d;
+        line-height: 1.55;
+    }
+    .home-access-note {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 10px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+    }
+    .home-systems-section {
+        margin-top: 24px;
+    }
+    .home-systems-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+    .home-systems-header h2 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: -0.02em;
+    }
+    .home-systems-header p {
+        margin: 0;
+        color: #52606d;
+    }
+    .home-system-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+    }
+    .home-system-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .home-system-card h3 {
+        margin: 0;
+        font-size: 18px;
+    }
+    .home-system-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .home-system-badge-gpu {
+        background: #eef6ff;
+        color: #1d4ed8;
+    }
+    .home-system-badge-cpu {
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+    .home-system-meta {
+        display: grid;
+        gap: 7px;
+        font-size: 14px;
+        color: #52606d;
+    }
+    .home-system-meta strong {
+        color: #1f2933;
+    }
+    .home-section-footer {
+        margin-top: 16px;
+    }
+    .home-section-footer a {
+        color: #0f766e;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .home-section-footer a:hover {
+        text-decoration: underline;
+    }
+    @media (max-width: 900px) {
+        .home-overview-grid,
+        .home-content-grid,
+        .home-content-grid-three {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<section class="home-overview-grid">
+    <section class="page-card">
+        <h2 class="section-title">Start Here</h2>
+        <p class="section-intro">
+            Browse measured and estimated results, inspect connected systems, and jump directly into onboarding guides for applications and sites.
+        </p>
+        <div class="home-actions">
+            <a class="home-action-link home-action-link-primary" href="{{ url_for('results.results') }}">Browse Results</a>
+            <a class="home-action-link home-action-link-secondary" href="{{ url_for('systemlist') }}">View All Systems</a>
+            {% if session.get('authenticated') %}
+            <a class="home-action-link home-action-link-secondary" href="{{ url_for('estimated.estimated_results') }}">Open Estimated Results</a>
+            {% else %}
+            <a class="home-action-link home-action-link-locked" href="{{ url_for('auth.login') }}">Estimated Results (login required)</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <aside class="page-card">
+        <h2 class="section-title">At a Glance</h2>
+        <p class="section-intro">
+            Use this portal to understand how CX connects to real systems, browse portal pages, and find the right onboarding guide for applications or sites.
+        </p>
+        <div class="home-summary-grid">
+            <div class="home-summary-card">
+                <span class="home-summary-value">{{ system_count }}</span>
+                <span class="home-summary-label">Connected systems</span>
+            </div>
+            <div class="home-summary-card">
+                <span class="home-summary-value">{% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}4{% else %}3{% endif %}</span>
+                <span class="home-summary-label">Primary entry points</span>
+            </div>
+            <div class="home-summary-card">
+                <span class="home-summary-value">Results</span>
+                <span class="home-summary-label">Measured and projected views</span>
+            </div>
+            <div class="home-summary-card">
+                <span class="home-summary-value">Guides</span>
+                <span class="home-summary-label">Guides for apps and sites</span>
+            </div>
+        </div>
+    </aside>
+</section>
+
+<section class="home-content-grid {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}home-content-grid-three{% endif %}">
+    <section class="page-card">
+        <h2 class="section-title">Main Entry Points</h2>
+        <p class="section-intro">
+            Start here for the main portal pages used to browse measured results, projected outputs, and connected systems.
+        </p>
+        <div class="home-link-list">
+            <a class="home-link-card" href="{{ url_for('results.results') }}">
+                <strong>Results</strong>
+                <span>Browse measured benchmark results, compare runs, and inspect result-quality detail pages.</span>
+            </a>
+            <a class="home-link-card" href="{% if session.get('authenticated') %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
                 {% if session.get('authenticated') %}
-                <a class="button-link secondary" href="{{ url_for('estimated.estimated_results') }}">Open Estimated Results</a>
+                <strong>Estimated Results</strong>
+                <span>Review system projections, current/future breakdowns, and estimation detail derived from benchmark inputs.</span>
                 {% else %}
-                <a class="button-link locked" href="{{ url_for('auth.login') }}">Estimated Results (login required)</a>
+                <strong>Estimated Results</strong>
+                <span>Review system projections and estimation detail derived from benchmark inputs after signing in.</span>
+                <span class="home-access-note">Login required</span>
+                {% endif %}
+            </a>
+            <a class="home-link-card" href="{{ url_for('systemlist') }}">
+                <strong>Systems</strong>
+                <span>See connected systems, quick hardware summaries, and onboarding-facing system metadata.</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="page-card">
+        <h2 class="section-title">For Application Developers</h2>
+        <p class="section-intro">
+            These guides explain how to add a new benchmark application, enable a new site, and attach estimation support.
+        </p>
+        <div class="home-link-list">
+            <a class="home-link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
+                <strong>Add a New Application</strong>
+                <span>Define `build.sh`, `run.sh`, `list.csv`, and result emission for a supported benchmark application.</span>
+            </a>
+            <a class="home-link-card" href="{{ guide_links.add_site }}" target="_blank" rel="noopener noreferrer">
+                <strong>Add a New Site</strong>
+                <span>Register new systems, queue templates, display metadata, and site-specific runner setup.</span>
+            </a>
+            <a class="home-link-card" href="{{ guide_links.add_estimation }}" target="_blank" rel="noopener noreferrer">
+                <strong>Add Estimation Support</strong>
+                <span>Connect application-side result emission to estimation inputs and estimation workflows.</span>
+            </a>
+        </div>
+    </section>
+
+    {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}
+    <section class="page-card">
+        <h2 class="section-title">Operations Views</h2>
+        <p class="section-intro">
+            These pages help administrators check node-hour usage, application/system coverage, configuration state, and portal access setup.
+        </p>
+        <div class="home-link-list">
+            <a class="home-link-card" href="{{ url_for('results.usage_report') }}">
+                <strong>Usage Report</strong>
+                <span>Inspect node-hour usage together with coverage checks, latest result quality state, and source provenance state.</span>
+            </a>
+            <a class="home-link-card" href="{{ url_for('admin.users') }}">
+                <strong>User Management</strong>
+                <span>Manage user affiliations, invitation links, and TOTP onboarding for the portal.</span>
+            </a>
+        </div>
+    </section>
+    {% endif %}
+</section>
+
+<section class="home-systems-section page-card">
+    <div class="home-systems-header">
+        <div>
+            <h2>Available Systems</h2>
+            <p>Connected systems are sourced from `config/system_info.csv` and shown here for quick orientation.</p>
+        </div>
+    </div>
+    <div class="home-system-grid">
+        {% for system in systems %}
+        <article class="home-system-card">
+            <div class="home-system-card-header">
+                <h3>{{ system.name }}</h3>
+                {% if system.gpu_name != '-' %}
+                <span class="home-system-badge home-system-badge-gpu">GPU-enabled</span>
+                {% else %}
+                <span class="home-system-badge home-system-badge-cpu">CPU-only</span>
                 {% endif %}
             </div>
-        </div>
-
-        <aside class="summary-panel">
-            <div>
-                <h2>At a Glance</h2>
-                <p class="panel-intro">
-                    Use this portal to understand how CX connects to real systems, browse portal pages,
-                    and find the right onboarding guide for applications or sites.
-                </p>
+            <div class="home-system-meta">
+                <div><strong>CPU</strong> {{ system.cpu_name }}</div>
+                <div><strong>CPU/node</strong> {{ system.cpu_per_node }} | <strong>Cores</strong> {{ system.cpu_cores }}</div>
+                <div><strong>GPU</strong> {{ system.gpu_name }}{% if system.gpu_per_node != '-' %} ({{ system.gpu_per_node }}/node){% endif %}</div>
+                <div><strong>Memory</strong> {{ system.memory }}</div>
             </div>
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <span class="summary-value">{{ system_count }}</span>
-                    <span class="summary-label">Connected systems</span>
-                </div>
-                <div class="summary-card">
-                    <span class="summary-value">3</span>
-                    <span class="summary-label">Primary entry points</span>
-                </div>
-                <div class="summary-card">
-                    <span class="summary-value">Results</span>
-                    <span class="summary-label">Portal result views</span>
-                </div>
-                <div class="summary-card">
-                    <span class="summary-value">Guides</span>
-                    <span class="summary-label">Guides for apps and sites</span>
-                </div>
-            </div>
-        </aside>
-    </section>
-
-    <section class="content-grid">
-        <div class="section-panel">
-            <h2>Main Entry Points</h2>
-            <p class="panel-intro">
-                Start here for the main CX portal entry points.
-            </p>
-            <div class="link-list">
-                <a class="link-card" href="{{ url_for('results.results') }}">
-                    <strong>Results</strong>
-                    <span>Browse measured benchmark results, compare runs, and inspect result quality details.</span>
-                </a>
-                <a class="link-card" href="{% if session.get('authenticated') %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
-                    {% if session.get('authenticated') %}
-                    <strong>Estimated Results</strong>
-                    <span>Review system projections and estimation outputs derived from benchmark inputs.</span>
-                    {% else %}
-                    <strong>Estimated Results</strong>
-                    <span>Review system projections and estimation outputs derived from benchmark inputs after signing in.</span>
-                    <span class="access-note">Login required</span>
-                    {% endif %}
-                </a>
-                <a class="link-card" href="{{ url_for('systemlist') }}">
-                    <strong>Available Systems</strong>
-                    <span>See the systems currently connected to the portal, including CPU, GPU, and memory summaries.</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="section-panel">
-            <h2>For Application Developers</h2>
-            <p class="panel-intro">
-                These guides explain how to add a new benchmark application, enable a new site, and attach estimation support.
-            </p>
-            <div class="link-list">
-                <a class="link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
-                    <strong>Add a New Application</strong>
-                    <span>Define `build.sh`, `run.sh`, `list.csv`, and result emission for a supported benchmark application.</span>
-                </a>
-                <a class="link-card" href="{{ guide_links.add_site }}" target="_blank" rel="noopener noreferrer">
-                    <strong>Add a New Site</strong>
-                    <span>Register new systems, queue templates, display metadata, and site-specific runner setup.</span>
-                </a>
-                <a class="link-card" href="{{ guide_links.add_estimation }}" target="_blank" rel="noopener noreferrer">
-                    <strong>Add Estimation Support</strong>
-                    <span>Connect application-side result emission to estimation inputs and estimation workflows.</span>
-                </a>
-            </div>
-        </div>
-    </section>
-
-    <section class="systems-section">
-        <div class="systems-header">
-            <div>
-                <h2>Available Systems</h2>
-                <p>Connected systems are sourced from `config/system_info.csv` and shown here for quick orientation.</p>
-            </div>
-        </div>
-        <div class="system-grid">
-            {% for system in systems %}
-            <article class="system-card">
-                <h3>{{ system.name }}</h3>
-                <div class="system-meta">
-                    <div><strong>CPU</strong> {{ system.cpu_name }}</div>
-                    <div><strong>CPU/node</strong> {{ system.cpu_per_node }} | <strong>Cores</strong> {{ system.cpu_cores }}</div>
-                    <div><strong>GPU</strong> {{ system.gpu_name }}{% if system.gpu_per_node != '-' %} ({{ system.gpu_per_node }}/node){% endif %}</div>
-                    <div><strong>Memory</strong> {{ system.memory }}</div>
-                </div>
-            </article>
-            {% endfor %}
-        </div>
-        <div class="section-footer">
-            <a href="{{ url_for('systemlist') }}">Open the full system list</a>
-        </div>
-    </section>
-</div>
-
-</body>
-</html>
+        </article>
+        {% endfor %}
+    </div>
+    <div class="home-section-footer">
+        <a href="{{ url_for('systemlist') }}">Open the full system list</a>
+    </div>
+</section>
+{% endblock %}

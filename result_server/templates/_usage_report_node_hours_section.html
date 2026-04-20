@@ -1,0 +1,66 @@
+<section class="page-card table-card">
+  <h2 class="section-title">Node-Hour Usage</h2>
+  <p class="section-intro">Aggregated node-hour usage by application, system, and selected period.</p>
+
+  {% include "_usage_report_controls.html" %}
+
+  {% if result.apps %}
+  <div class="table-wrap">
+    <table class="usage-table usage-node-hours-table">
+      <thead>
+        <tr>
+          <th rowspan="2" class="usage-node-hours-head"></th>
+          {% for system in result.systems %}
+          <th colspan="{{ filtered_periods|length }}" class="usage-node-hours-head">{{ system }}</th>
+          {% endfor %}
+          <th colspan="{{ filtered_periods|length }}" class="usage-node-hours-total-head">Total</th>
+        </tr>
+        <tr>
+          {% for system in result.systems %}
+          {% for period in filtered_periods %}
+          <th class="usage-node-hours-head usage-node-hours-period">{{ period }}</th>
+          {% endfor %}
+          {% endfor %}
+          {% for period in filtered_periods %}
+          <th class="usage-node-hours-total-head usage-node-hours-period">{{ period }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for app in result.apps %}
+        <tr>
+          <td class="usage-node-hours-app">{{ app }}</td>
+          {% for system in result.systems %}
+          {% for period in filtered_periods %}
+          {% set val = result.table[app][system][period] %}
+          <td class="usage-node-hours-value">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+          {% endfor %}
+          {% for period in filtered_periods %}
+          {% set val = result.row_totals[app][period] %}
+          <td class="usage-node-hours-total">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="usage-node-hours-footer">
+          <td class="usage-node-hours-app">Total</td>
+          {% for system in result.systems %}
+          {% for period in filtered_periods %}
+          {% set val = result.col_totals[system][period] %}
+          <td class="usage-node-hours-value">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+          {% endfor %}
+          {% for period in filtered_periods %}
+          {% set val = result.grand_totals[period] %}
+          <td class="usage-node-hours-grand-total">{% if val > 0 %}{{ val }}{% else %}-{% endif %}</td>
+          {% endfor %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted-empty">No usage data is available for the selected periods.</p>
+  {% endif %}
+</section>

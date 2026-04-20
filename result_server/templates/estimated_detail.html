@@ -1,251 +1,116 @@
 {% extends "_results_base.html" %}
+{% from "_detail_tables.html" import render_json_block, render_titled_key_value_table %}
+{% from "_estimated_breakdown_card.html" import render_breakdown_card %}
 
 {% block title %}Estimate Detail{% endblock %}
 {% block page_subtitle %}Inspect package resolution, system-side benchmarks, and estimate metadata for one projected result.{% endblock %}
 
 {% block content %}
+{% include "_detail_page_styles.html" %}
 <section class="page-card">
-    <a href="{{ url_for('estimated.estimated_results') }}" style="display: inline-block; margin-bottom: 14px;">&larr; Back to Estimated Results</a>
+    <a href="{{ url_for('estimated.estimated_results') }}" class="back-link">&larr; Back to Estimated Results</a>
 
     <style>
-        .detail-table { width: auto; margin-bottom: 20px; }
+        .detail-table { margin-bottom: 20px; }
         .detail-table th { text-align: left; min-width: 200px; background-color: #eef6f8; }
         .detail-table td { min-width: 260px; white-space: normal; }
-        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
-        .detail-card { padding: 16px 18px; border: 1px solid #d8e3e8; border-radius: 16px; background: rgba(255,255,255,0.92); }
-        .detail-card h2 { margin: 0 0 12px; font-size: 20px; }
-        .detail-card h3 { margin: 16px 0 10px; font-size: 15px; color: #52606d; }
-        .detail-code { font-family: Consolas, "Courier New", monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+        .applicability-summary {
+            margin-bottom: 20px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid #d8e3e8;
+        }
+        .applicability-summary h2 {
+            margin: 0 0 8px;
+            font-size: 20px;
+        }
+        .applicability-summary p {
+            margin: 0;
+            line-height: 1.6;
+        }
+        .applicability-summary ul {
+            margin: 12px 0 0 18px;
+            padding: 0;
+            color: #334155;
+            line-height: 1.5;
+        }
+        .applicability-summary-ok {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+        .applicability-summary-warn {
+            background: #fff7ed;
+            border-color: #fed7aa;
+        }
+        .applicability-summary-danger {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .applicability-summary-info {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
         .breakdown-table { width: 100%; margin-top: 10px; }
         .breakdown-table th { text-align: left; background-color: #eef6f8; }
         .breakdown-table td { white-space: normal; max-width: none; }
+        .breakdown-table th:first-child { min-width: 180px; }
+        .breakdown-table td:nth-child(2),
+        .breakdown-table td:nth-child(3),
+        .breakdown-table td:nth-child(4),
+        .breakdown-table td:nth-child(5) {
+            white-space: nowrap;
+        }
+        .breakdown-table td:nth-child(6) {
+            min-width: 220px;
+            line-height: 1.45;
+        }
         .applicability-status { font-weight: 600; }
         .applicability-note { margin-top: 4px; color: #5f6f7b; font-size: 12px; }
+        .fallback-value {
+            white-space: nowrap;
+            font-weight: 600;
+            color: #9a3412;
+        }
         .empty-note { color: #6b7280; font-size: 13px; }
     </style>
 
-    {% set estimate_meta = result.get('estimate_metadata', {}) %}
-    {% set current = result.get('current_system', {}) %}
-    {% set future = result.get('future_system', {}) %}
-    {% set measurement = result.get('measurement', {}) %}
-    {% set assumptions = result.get('assumptions', {}) %}
-    {% set confidence = result.get('confidence', {}) %}
-    {% set current_breakdown = current.get('fom_breakdown', {}) %}
-    {% set future_breakdown = future.get('fom_breakdown', {}) %}
+    {{ render_titled_key_value_table("Meta Information", meta_rows, "detail-table", "detail-table-wrap", "detail-card") }}
 
-    <div class="detail-card">
-        <h2>Meta Information</h2>
-        <table class="detail-table">
-            <tr><th>Code</th><td>{{ result.get('code', 'N/A') }}</td></tr>
-            <tr><th>Exp</th><td>{{ result.get('exp', 'N/A') }}</td></tr>
-            <tr><th>Applicability</th><td>{{ result.get('applicability', {}).get('status', 'N/A') }}</td></tr>
-            <tr><th>Requested Package</th><td>{{ estimate_meta.get('requested_estimation_package', 'N/A') }}</td></tr>
-            <tr><th>Applied Package</th><td>{{ estimate_meta.get('estimation_package', 'N/A') }}</td></tr>
-            <tr><th>Method Class</th><td>{{ estimate_meta.get('method_class', 'N/A') }}</td></tr>
-            <tr><th>Detail Level</th><td>{{ estimate_meta.get('detail_level', 'N/A') }}</td></tr>
-            <tr><th>Estimate UUID</th><td class="detail-code">{{ estimate_meta.get('estimation_result_uuid', 'N/A') }}</td></tr>
-            <tr><th>Estimate Timestamp</th><td>{{ estimate_meta.get('estimation_result_timestamp', 'N/A') }}</td></tr>
-            <tr><th>Performance Ratio</th><td>{{ "%.3f"|format(result.get('performance_ratio', 'N/A')|float) if result.get('performance_ratio') not in [None, '', 'N/A', 'null', 'nan'] else result.get('performance_ratio', 'N/A') }}</td></tr>
-        </table>
+    <div class="applicability-summary applicability-summary-{{ applicability_summary.tone }}">
+        <h2>Applicability Summary</h2>
+        <p><strong>{{ applicability_summary.status }}</strong>: {{ applicability_summary.headline }}</p>
+        <p class="applicability-note">{{ applicability_summary.body }}</p>
+        {% if applicability_summary.highlights %}
+        <ul>
+            {% for item in applicability_summary.highlights %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
 
     <div class="detail-grid">
         <div class="detail-card">
-            <h2>Package Resolution</h2>
-            <table class="detail-table">
-                <tr><th>Current Requested</th><td>{{ estimate_meta.get('current_package', {}).get('requested_estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Current Applied</th><td>{{ estimate_meta.get('current_package', {}).get('estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Future Requested</th><td>{{ estimate_meta.get('future_package', {}).get('requested_estimation_package', 'N/A') }}</td></tr>
-                <tr><th>Future Applied</th><td>{{ estimate_meta.get('future_package', {}).get('estimation_package', 'N/A') }}</td></tr>
-            </table>
-
-            <h3>Measurement</h3>
-            <div class="detail-code">{{ measurement | tojson(indent=2) }}</div>
-
-            <h3>Confidence</h3>
-            <div class="detail-code">{{ confidence | tojson(indent=2) }}</div>
+            {{ render_titled_key_value_table("Package Resolution", package_rows, "detail-table", "detail-table-wrap", "", "") }}
+            {% if reestimation_rows %}
+            {{ render_titled_key_value_table("Re-Estimation Context", reestimation_rows, "detail-table", "detail-table-wrap", "", "") }}
+            {% endif %}
+            {{ render_json_block("Measurement", measurement_json) }}
+            {{ render_json_block("Confidence", confidence_json) }}
         </div>
 
-        <div class="detail-card">
-            <h2>Current System</h2>
-            <table class="detail-table">
-                <tr><th>System</th><td>{{ current.get('system', 'N/A') }}</td></tr>
-                <tr><th>FOM</th><td>{{ current.get('fom', 'N/A') }}</td></tr>
-                <tr><th>Target Nodes</th><td>{{ current.get('target_nodes', 'N/A') }}</td></tr>
-                <tr><th>Scaling Method</th><td>{{ current.get('scaling_method', 'N/A') }}</td></tr>
-                <tr><th>Benchmark System</th><td>{{ current.get('benchmark', {}).get('system', 'N/A') }}</td></tr>
-                <tr><th>Benchmark FOM</th><td>{{ current.get('benchmark', {}).get('fom', 'N/A') }}</td></tr>
-                <tr><th>Benchmark Nodes</th><td>{{ current.get('benchmark', {}).get('nodes', 'N/A') }}</td></tr>
-                <tr><th>Sections</th><td>{{ current_breakdown.get('sections', []) | length }}</td></tr>
-                <tr><th>Overlaps</th><td>{{ current_breakdown.get('overlaps', []) | length }}</td></tr>
-                <tr><th>Model</th><td>{{ current.get('model', {}).get('name', 'N/A') }}</td></tr>
-                <tr><th>Model Type</th><td>{{ current.get('model', {}).get('type', 'N/A') }}</td></tr>
-            </table>
-        </div>
+        {{ render_titled_key_value_table("Current System", current_rows, "detail-table", "detail-table-wrap", "detail-card") }}
 
-        <div class="detail-card">
-            <h2>Future System</h2>
-            <table class="detail-table">
-                <tr><th>System</th><td>{{ future.get('system', 'N/A') }}</td></tr>
-                <tr><th>FOM</th><td>{{ future.get('fom', 'N/A') }}</td></tr>
-                <tr><th>Target Nodes</th><td>{{ future.get('target_nodes', 'N/A') }}</td></tr>
-                <tr><th>Scaling Method</th><td>{{ future.get('scaling_method', 'N/A') }}</td></tr>
-                <tr><th>Benchmark System</th><td>{{ future.get('benchmark', {}).get('system', 'N/A') }}</td></tr>
-                <tr><th>Benchmark FOM</th><td>{{ future.get('benchmark', {}).get('fom', 'N/A') }}</td></tr>
-                <tr><th>Benchmark Nodes</th><td>{{ future.get('benchmark', {}).get('nodes', 'N/A') }}</td></tr>
-                <tr><th>Sections</th><td>{{ future_breakdown.get('sections', []) | length }}</td></tr>
-                <tr><th>Overlaps</th><td>{{ future_breakdown.get('overlaps', []) | length }}</td></tr>
-                <tr><th>Model</th><td>{{ future.get('model', {}).get('name', 'N/A') }}</td></tr>
-                <tr><th>Model Type</th><td>{{ future.get('model', {}).get('type', 'N/A') }}</td></tr>
-            </table>
-        </div>
+        {{ render_titled_key_value_table("Future System", future_rows, "detail-table", "detail-table-wrap", "detail-card") }}
     </div>
 
     <div class="detail-card">
-        <h2>Assumptions</h2>
-        <div class="detail-code">{{ assumptions | tojson(indent=2) }}</div>
+        {{ render_json_block("Assumptions", assumptions_json) }}
     </div>
 
     <div class="detail-grid">
-        <div class="detail-card">
-            <h2>Current Breakdown</h2>
-            {% if current_breakdown.get('sections') or current_breakdown.get('overlaps') %}
-                {% if current_breakdown.get('sections') %}
-                <h3>Sections</h3>
-                <table class="breakdown-table">
-                    <thead>
-                        <tr><th>Name</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
-                    </thead>
-                    <tbody>
-                    {% for item in current_breakdown.get('sections', []) %}
-                        {% set applicability = item.get('package_applicability', {}) %}
-                        {% set missing_inputs = applicability.get('missing_inputs', []) %}
-                        <tr>
-                            <td>{{ item.get('name', 'N/A') }}</td>
-                            <td>{{ item.get('time', 'N/A') }}</td>
-                            <td>{{ item.get('estimation_package', 'N/A') }}</td>
-                            <td>{{ item.get('scaling_method', 'N/A') }}</td>
-                            <td>{{ item.get('fallback_used', '—') }}</td>
-                            <td>
-                                {% if applicability %}
-                                <div class="applicability-status">{{ applicability.get('status', 'N/A') }}</div>
-                                {% if missing_inputs %}
-                                <div class="applicability-note">{{ missing_inputs | join(', ') }}</div>
-                                {% endif %}
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-                {% if current_breakdown.get('overlaps') %}
-                <h3>Overlaps</h3>
-                <table class="breakdown-table">
-                    <thead>
-                        <tr><th>Sections</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
-                    </thead>
-                    <tbody>
-                    {% for item in current_breakdown.get('overlaps', []) %}
-                        {% set applicability = item.get('package_applicability', {}) %}
-                        {% set missing_inputs = applicability.get('missing_inputs', []) %}
-                        <tr>
-                            <td>{{ item.get('sections', []) | join(', ') }}</td>
-                            <td>{{ item.get('time', 'N/A') }}</td>
-                            <td>{{ item.get('estimation_package', 'N/A') }}</td>
-                            <td>{{ item.get('scaling_method', 'N/A') }}</td>
-                            <td>{{ item.get('fallback_used', '—') }}</td>
-                            <td>
-                                {% if applicability %}
-                                <div class="applicability-status">{{ applicability.get('status', 'N/A') }}</div>
-                                {% if missing_inputs %}
-                                <div class="applicability-note">{{ missing_inputs | join(', ') }}</div>
-                                {% endif %}
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-            {% else %}
-            <div class="empty-note">No section or overlap breakdown is stored for the current-side estimate.</div>
-            {% endif %}
-        </div>
-
-        <div class="detail-card">
-            <h2>Future Breakdown</h2>
-            {% if future_breakdown.get('sections') or future_breakdown.get('overlaps') %}
-                {% if future_breakdown.get('sections') %}
-                <h3>Sections</h3>
-                <table class="breakdown-table">
-                    <thead>
-                        <tr><th>Name</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
-                    </thead>
-                    <tbody>
-                    {% for item in future_breakdown.get('sections', []) %}
-                        {% set applicability = item.get('package_applicability', {}) %}
-                        {% set missing_inputs = applicability.get('missing_inputs', []) %}
-                        <tr>
-                            <td>{{ item.get('name', 'N/A') }}</td>
-                            <td>{{ item.get('time', 'N/A') }}</td>
-                            <td>{{ item.get('estimation_package', 'N/A') }}</td>
-                            <td>{{ item.get('scaling_method', 'N/A') }}</td>
-                            <td>{{ item.get('fallback_used', '—') }}</td>
-                            <td>
-                                {% if applicability %}
-                                <div class="applicability-status">{{ applicability.get('status', 'N/A') }}</div>
-                                {% if missing_inputs %}
-                                <div class="applicability-note">{{ missing_inputs | join(', ') }}</div>
-                                {% endif %}
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-                {% if future_breakdown.get('overlaps') %}
-                <h3>Overlaps</h3>
-                <table class="breakdown-table">
-                    <thead>
-                        <tr><th>Sections</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
-                    </thead>
-                    <tbody>
-                    {% for item in future_breakdown.get('overlaps', []) %}
-                        {% set applicability = item.get('package_applicability', {}) %}
-                        {% set missing_inputs = applicability.get('missing_inputs', []) %}
-                        <tr>
-                            <td>{{ item.get('sections', []) | join(', ') }}</td>
-                            <td>{{ item.get('time', 'N/A') }}</td>
-                            <td>{{ item.get('estimation_package', 'N/A') }}</td>
-                            <td>{{ item.get('scaling_method', 'N/A') }}</td>
-                            <td>{{ item.get('fallback_used', '—') }}</td>
-                            <td>
-                                {% if applicability %}
-                                <div class="applicability-status">{{ applicability.get('status', 'N/A') }}</div>
-                                {% if missing_inputs %}
-                                <div class="applicability-note">{{ missing_inputs | join(', ') }}</div>
-                                {% endif %}
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-            {% else %}
-            <div class="empty-note">No section or overlap breakdown is stored for the future-side estimate.</div>
-            {% endif %}
-        </div>
+        {{ render_breakdown_card('Current Breakdown', current_breakdown, 'No section or overlap breakdown is stored for the current-side estimate.') }}
+        {{ render_breakdown_card('Future Breakdown', future_breakdown, 'No section or overlap breakdown is stored for the future-side estimate.') }}
     </div>
 </section>
 {% endblock %}

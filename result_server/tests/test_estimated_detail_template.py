@@ -2,22 +2,61 @@ import os
 import sys
 
 import pytest
-from flask import Flask, Blueprint, render_template
+from flask import render_template
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import build_portal_shell_app
+from utils.estimated_detail_view import build_estimated_detail_context
 
 
 ESTIMATE_RESULT = {
     "code": "qws",
     "exp": "CASE0",
     "performance_ratio": 0.104,
-    "applicability": {"status": "applicable"},
+    "execution_mode": "cross",
+    "ci_trigger": "push",
+    "pipeline_id": 2468,
+    "estimate_job": "qws_Fugaku_estimate",
+    "applicability": {
+        "status": "partially_applicable",
+        "missing_inputs": ["section_package_unsupported:half"],
+        "required_actions": ["collect-section-specific-package-inputs"],
+    },
     "estimate_metadata": {
         "requested_estimation_package": "instrumented_app_sections_dummy",
         "estimation_package": "instrumented_app_sections_dummy",
         "method_class": "detailed",
         "detail_level": "intermediate",
+        "source_result_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "source_result_timestamp": "2026-04-10 11:11:11",
+        "source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "Fugaku",
+            "node_count": "1",
+            "numproc_node": "4",
+        },
+        "current_source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "Fugaku",
+            "node_count": "1",
+            "numproc_node": "4",
+        },
+        "future_source_result": {
+            "uuid": "ffffffff-1111-2222-3333-444444444444",
+            "timestamp": "2026-04-10 11:22:22",
+            "code": "qws",
+            "exp": "CASE0",
+            "system": "MiyabiG",
+            "node_count": "1",
+            "numproc_node": "1",
+        },
         "estimation_result_uuid": "11111111-2222-3333-4444-555555555555",
         "estimation_result_timestamp": "2026-04-10 12:34:56",
         "current_package": {
@@ -87,75 +126,83 @@ ESTIMATE_RESULT = {
     "measurement": {"tool": "application-section-timer", "method": "section-timing"},
     "confidence": {"level": "experimental", "score": 0.2},
     "assumptions": {"scaling_assumption": "weak-scaling"},
+    "reestimation": {
+        "reason": "package-update",
+        "trigger": "ci-reestimation",
+        "scope": "both",
+        "baseline_policy": "reuse-recorded-baseline",
+        "request": {
+            "reason": "package-update",
+            "trigger": "ci-reestimation",
+            "scope": "both",
+            "baseline_policy": "reuse-recorded-baseline",
+        },
+        "source_result_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "source_result_timestamp": "2026-04-10 11:11:11",
+        "source_estimate_result_uuid": "99999999-8888-7777-6666-555555555555",
+        "source_estimate_result_timestamp": "2026-04-10 12:00:00",
+        "source_result": {
+            "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "timestamp": "2026-04-10 11:11:11",
+        },
+        "source_estimate": {
+            "uuid": "99999999-8888-7777-6666-555555555555",
+            "timestamp": "2026-04-10 12:00:00",
+            "requested_estimation_package": "instrumented_app_sections_dummy",
+            "estimation_package": "instrumented_app_sections_dummy",
+            "method_class": "detailed",
+            "detail_level": "intermediate",
+            "ci_trigger": "push",
+            "pipeline_id": 1234,
+            "estimate_job": "qws_MiyabiG_reestimate",
+        },
+    },
 }
 
 
 @pytest.fixture
 def app():
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-
-    @app.route("/estimated/")
-    def estimated_results():
-        return "estimated"
-
-    @app.route("/")
-    def home():
-        return "home"
-
-    @app.route("/systemlist")
-    def systemlist():
-        return "systems"
-
-    results_bp = Blueprint("results", __name__)
-    estimated_bp = Blueprint("estimated", __name__)
-    admin_bp = Blueprint("admin", __name__)
-    auth_bp = Blueprint("auth", __name__)
-
-    @results_bp.route("/")
-    def results():
-        return "results"
-
-    @results_bp.route("/confidential")
-    def results_confidential():
-        return "results confidential"
-
-    @results_bp.route("/usage")
-    def usage_report():
-        return "usage"
-
-    @estimated_bp.route("/", endpoint="estimated_results")
-    def estimated_results_bp():
-        return "estimated"
-
-    @admin_bp.route("/")
-    def admin_users():
-        return "admin"
-
-    @auth_bp.route("/login")
-    def login():
-        return "login"
-
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-
-    yield app
+    yield build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
 
 
 def test_estimated_detail_template_renders_sections(app):
     with app.test_request_context("/estimated/detail/estimate.json"):
-        html = render_template("estimated_detail.html", result=ESTIMATE_RESULT, filename="estimate.json")
+        html = render_template(
+            "estimated_detail.html",
+            result=ESTIMATE_RESULT,
+            **build_estimated_detail_context(ESTIMATE_RESULT),
+        )
 
     assert "Estimate Detail" in html
+    assert "Applicability Summary" in html
     assert "Package Resolution" in html
+    assert "Re-Estimation Context" in html
     assert "Current System" in html
     assert "Future System" in html
+    assert "Estimate succeeded, but part of the breakdown used fallback handling." in html
+    assert "required action: collect-section-specific-package-inputs" in html
     assert "weakscaling" in html
     assert "instrumented_app_sections_dummy" in html
+    assert "Source Result UUID" in html
+    assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in html
+    assert "Source Result Timestamp" in html
+    assert "Current Source UUID" in html
+    assert "Future Source UUID" in html
+    assert "ffffffff-1111-2222-3333-444444444444" in html
+    assert "CI Trigger" in html
+    assert "push" in html
+    assert "Pipeline ID" in html
+    assert "2468" in html
+    assert "Estimate Job" in html
+    assert "qws_Fugaku_estimate" in html
+    assert "Source Estimate UUID" in html
+    assert "99999999-8888-7777-6666-555555555555" in html
+    assert "Source Estimate Job" in html
+    assert "qws_MiyabiG_reestimate" in html
     assert "fallback" in html
+    assert "Missing Inputs" in html
+    assert "Required Actions" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html

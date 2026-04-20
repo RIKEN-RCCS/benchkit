@@ -1,48 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>User Management - CX Portal Admin</title>
-    {% include "_table_base.html" %}
-    <style>
-        .btn {
-            padding: 7px 14px;
-            border-radius: 999px;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
-            display: inline-block;
-            border: 1px solid transparent;
-        }
-        .btn-primary { background-color: #0f766e; color: #fff; border-color: #0f766e; }
-        .btn-primary:hover { background-color: #0b5f59; color: #fff; }
-        .btn-danger { background-color: #fff1f2; color: #b42318; border-color: #fecdd3; }
-        .btn-danger:hover { background-color: #ffe4e6; color: #912018; }
-        .btn-warning { background-color: #fff8e7; color: #9a3412; border-color: #f7d38b; }
-        .btn-warning:hover { background-color: #ffefc2; color: #7c2d12; }
-        .flash { padding: 12px 14px; margin-bottom: 16px; border-radius: 14px; background-color: #edfdf3; color: #166534; border: 1px solid #bbf7d0; }
-        .invitation-box { padding: 14px; margin: 16px 0; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px; word-break: break-all; }
-        .status-ok { color: #15803d; font-weight: 600; }
-        .status-pending { color: #b91c1c; font-weight: 600; }
-        .inline-form { display: inline; }
-        .actions { white-space: nowrap; }
-    </style>
-</head>
-<body>
+{% extends "_results_base.html" %}
 
-{% include "_navigation.html" %}
+{% block title %}User Management{% endblock %}
+{% block page_subtitle %}Manage access, affiliations, and TOTP onboarding for CX portal users.{% endblock %}
 
-<div class="portal-page">
-<section class="page-hero">
-    <span class="page-eyebrow">CX Portal</span>
-    <h1 class="page-title">User Management</h1>
-    <p class="page-subtitle">Manage access, affiliations, and TOTP onboarding for CX portal users.</p>
-</section>
+{% block content %}
+<style>
+    .btn {
+        padding: 7px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+        border: 1px solid transparent;
+    }
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+    .btn-primary { background-color: #0f766e; color: #fff; border-color: #0f766e; }
+    .btn-primary:hover { background-color: #0b5f59; color: #fff; }
+    .btn-danger { background-color: #fff1f2; color: #b42318; border-color: #fecdd3; }
+    .btn-danger:hover { background-color: #ffe4e6; color: #912018; }
+    .btn-warning { background-color: #fff8e7; color: #9a3412; border-color: #f7d38b; }
+    .btn-warning:hover { background-color: #ffefc2; color: #7c2d12; }
+    .invitation-box {
+        padding: 14px;
+        margin: 16px 0;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 14px;
+        word-break: break-all;
+    }
+    .status-ok { color: #15803d; font-weight: 600; }
+    .status-pending { color: #b91c1c; font-weight: 600; }
+    .inline-form { display: inline; }
+    .actions { min-width: 280px; }
+    .actions-stack {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .users-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        box-shadow: inset 0 -1px 0 #d8e3e8;
+    }
+    .users-table td:first-child,
+    .users-table th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: #f9fcfd;
+        box-shadow: 10px 0 18px -18px rgba(15, 23, 42, 0.28);
+    }
+    .users-table thead th:first-child {
+        z-index: 3;
+        background: #eef6f8;
+    }
+    .users-table td {
+        max-width: none;
+        white-space: normal;
+        vertical-align: top;
+    }
+    .admin-add-user-form {
+        margin-bottom: 0;
+    }
+</style>
 
 {% with messages = get_flashed_messages() %}
 {% if messages %}
     {% for msg in messages %}
-    <div class="flash">{{ msg }}</div>
+    <div class="inline-notice">{{ msg }}</div>
     {% endfor %}
 {% endif %}
 {% endwith %}
@@ -58,7 +87,7 @@
 <section class="page-card">
     <h2 class="section-title">Add User</h2>
     <p class="section-intro">Create a user record and generate a new invitation link for TOTP setup.</p>
-    <form method="POST" action="{{ url_for('admin.add_user') }}" class="control-row" style="margin-bottom: 0;">
+    <form method="POST" action="{{ url_for('admin.add_user') }}" class="control-row admin-add-user-form">
         <input type="email" name="email" placeholder="user@example.com" required>
         <input type="text" name="affiliations" placeholder="group1, group2">
         <button type="submit" class="btn btn-primary">Add &amp; Generate Invitation</button>
@@ -67,8 +96,9 @@
 
 <section class="page-card table-card">
     <h2 class="section-title">Registered Users</h2>
+    <p class="section-intro">Review current user access, TOTP registration status, and affiliation updates in one place.</p>
     <div class="table-wrap">
-        <table>
+        <table class="users-table">
             <thead>
                 <tr>
                     <th>Email</th>
@@ -90,20 +120,22 @@
                         {% endif %}
                     </td>
                     <td class="actions">
-                        <form class="inline-form" method="POST" action="{{ url_for('admin.update_affiliations', email=u.email) }}">
-                            <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
-                            <button type="submit" class="btn btn-warning">Update</button>
-                        </form>
-                        {% if u.email != session.get('user_email') %}
-                        <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
-                              onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
-                            <button type="submit" class="btn btn-primary">Reinvite</button>
-                        </form>
-                        <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
-                              onsubmit="return confirm('Delete {{ u.email }}?');">
-                            <button type="submit" class="btn btn-danger">Delete</button>
-                        </form>
-                        {% endif %}
+                        <div class="actions-stack">
+                            <form class="inline-form" method="POST" action="{{ url_for('admin.update_affiliations', email=u.email) }}">
+                                <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
+                                <button type="submit" class="btn btn-warning">Update</button>
+                            </form>
+                            {% if u.email != session.get('user_email') %}
+                            <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
+                                  onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
+                                <button type="submit" class="btn btn-primary">Reinvite</button>
+                            </form>
+                            <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
+                                  onsubmit="return confirm('Delete {{ u.email }}?');">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
             {% else %}
@@ -113,7 +145,4 @@
         </table>
     </div>
 </section>
-</div>
-
-</body>
-</html>
+{% endblock %}

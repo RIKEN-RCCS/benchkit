@@ -3,41 +3,17 @@ import os
 import shutil
 import sys
 import tempfile
-import types
 
-import fakeredis
 import pytest
-from flask import Flask
-
-
-def _setup_stubs():
-    if "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
-
-    otp_mod = types.ModuleType("utils.otp_manager")
-    otp_mod.get_affiliations = lambda email: ["dev"]
-    otp_mod.is_allowed = lambda email: True
-    sys.modules["utils.otp_manager"] = otp_mod
-
-    otp_redis_mod = types.ModuleType("utils.otp_redis_manager")
-    otp_redis_mod.get_affiliations = lambda email: ["dev"]
-    otp_redis_mod.is_allowed = lambda email: True
-    otp_redis_mod.send_otp = lambda email: (True, "stub")
-    otp_redis_mod.verify_otp = lambda email, code: True
-    otp_redis_mod.invalidate_otp = lambda email: None
-    sys.modules["utils.otp_redis_manager"] = otp_redis_mod
-
-
-_setup_stubs()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from test_support import (
+    StaticAffiliationUserStore,
+    build_portal_route_app,
+    install_portal_test_stubs,
+)
 
-from routes.home import register_home_routes
-from routes.estimated import estimated_bp
-from routes.auth import auth_bp
-from routes.admin import admin_bp
-from routes.results import results_bp
-from utils.user_store import UserStore
+install_portal_test_stubs()
 
 
 @pytest.fixture
@@ -52,33 +28,12 @@ def tmp_dirs():
 @pytest.fixture
 def app(tmp_dirs):
     received, estimated = tmp_dirs
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
-
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["RECEIVED_DIR"] = received
-    app.config["ESTIMATED_DIR"] = estimated
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-
-    r_conn = fakeredis.FakeRedis(decode_responses=True)
-    app.config["REDIS_CONN"] = r_conn
-    app.config["REDIS_PREFIX"] = "test:"
-    store = UserStore(r_conn, "test:")
-    app.config["USER_STORE"] = store
-
-    store.create_user("user@example.com", "SECRET", ["dev"])
-
-    register_home_routes(app)
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
-
-    @app.route("/systemlist")
-    def systemlist():
-        return ""
-
-    yield app
+    yield build_portal_route_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        received_dir=received,
+        estimated_dir=estimated,
+        user_store=StaticAffiliationUserStore({"user@example.com": ["dev"]}),
+    )
 
 
 @pytest.fixture
