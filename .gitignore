@@ -26,6 +26,9 @@ result_server/config/allowed_emails.json
 # Flask session files
 result_server/flask_session/
 
+# Local audit workspace
+audit/
+
 # editor backup files and caches
 *~
 *.bak
