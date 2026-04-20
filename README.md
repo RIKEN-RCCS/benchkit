@@ -17,6 +17,7 @@ Repository migration details are documented in [docs/repository-history.md](docs
 
 ## Quick Links
 
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Add a new application: [docs/guides/add-app.md](docs/guides/add-app.md)
 - Add a new system: [docs/guides/add-site.md](docs/guides/add-site.md)
 - Add estimation support: [docs/guides/add-estimation.md](docs/guides/add-estimation.md)
