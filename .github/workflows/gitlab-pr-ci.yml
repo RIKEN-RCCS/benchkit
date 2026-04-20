@@ -1,0 +1,179 @@
+name: GitLab PR CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: gitlab-pr-ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gitlab-pr-ci:
+    name: Run GitLab CI for PR benchmark changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Determine whether GitLab CI is needed
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "run_gitlab_ci=false" >> "${GITHUB_OUTPUT}"
+          echo "code_filter=" >> "${GITHUB_OUTPUT}"
+
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "Manual run: GitLab CI will be triggered."
+            echo "run_gitlab_ci=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git remote add upstream "https://github.com/${REPOSITORY}.git" 2>/dev/null || \
+            git remote set-url upstream "https://github.com/${REPOSITORY}.git"
+          git fetch --no-tags upstream "+refs/heads/${BASE_REF}:refs/remotes/upstream/${BASE_REF}"
+
+          changed_files="$(git diff --name-only "refs/remotes/upstream/${BASE_REF}...${HEAD_SHA}")"
+          echo "Changed files:"
+          printf '%s\n' "${changed_files}"
+
+          if ! printf '%s\n' "${changed_files}" | grep -Eq '^(\.gitlab-ci\.yml|\.github/workflows/gitlab-pr-ci\.yml|config/|programs/|scripts/)'; then
+            echo "No app/site/CI changes detected. GitLab CI is not needed."
+            exit 0
+          fi
+
+          code_filter="$(printf '%s\n' "${changed_files}" | awk -F/ '$1 == "programs" && $2 != "" { print $2 }' | sort -u | paste -sd, -)"
+          if [ -n "${code_filter}" ]; then
+            echo "Detected code filter: ${code_filter}"
+            echo "code_filter=${code_filter}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "No specific programs/<code>/ changes detected. GitLab CI will use the default code scope."
+          fi
+
+          if [ "${HEAD_REPO}" != "${REPOSITORY}" ]; then
+            echo "Fork PR detected with app/site/CI changes."
+            echo "Automatic GitLab CI is not run for forks because repository secrets are not exposed to forked pull requests."
+            echo "A maintainer should test the changes from a trusted same-repository branch before merge."
+            exit 1
+          fi
+
+          echo "Relevant same-repository changes detected. GitLab CI will be triggered."
+          echo "run_gitlab_ci=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Push PR head to GitLab test branch
+        if: steps.scope.outputs.run_gitlab_ci == 'true'
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO}" ]; then
+            echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
+            exit 1
+          fi
+
+          branch="github/pr-${PR_NUMBER:-manual-${GITHUB_RUN_ID}}"
+          echo "GITLAB_TEST_BRANCH=${branch}" >> "${GITHUB_ENV}"
+
+          git config user.name "github-bot"
+          git config user.email "bot@example.com"
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}"
+          git push -o ci.skip gitlab "HEAD:refs/heads/${branch}" --force
+
+      - name: Trigger and wait for GitLab pipeline
+        if: steps.scope.outputs.run_gitlab_ci == 'true'
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+          CODE_FILTER: ${{ steps.scope.outputs.code_filter }}
+        run: |
+          set -euo pipefail
+
+          repo="${GITLAB_REPO#https://}"
+          repo="${repo#http://}"
+          host="${repo%%/*}"
+          project_path="${repo#*/}"
+          project_path="${project_path%.git}"
+
+          project_encoded="$(PROJECT_PATH="${project_path}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
+
+          api="https://${host}/api/v4/projects/${project_encoded}/pipeline"
+
+          curl_args=(
+            --fail
+            --silent
+            --request POST
+            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
+            --form "ref=${GITLAB_TEST_BRANCH}"
+          )
+
+          if [ -n "${CODE_FILTER}" ]; then
+            echo "Triggering GitLab pipeline with code=${CODE_FILTER}"
+            curl_args+=(--form "variables[0][key]=code")
+            curl_args+=(--form "variables[0][value]=${CODE_FILTER}")
+          else
+            echo "Triggering GitLab pipeline without a code filter."
+          fi
+
+          response="$(curl "${curl_args[@]}" "${api}")"
+          pipeline_id="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["id"])')"
+          pipeline_url="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"]).get("web_url", ""))')"
+
+          echo "GitLab pipeline: ${pipeline_url}"
+          pipeline_api="https://${host}/api/v4/projects/${project_encoded}/pipelines/${pipeline_id}"
+
+          for _ in $(seq 1 180); do
+            response="$(curl --fail --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${pipeline_api}")"
+            status="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["status"])')"
+
+            echo "GitLab pipeline status: ${status}"
+            case "${status}" in
+              success)
+                exit 0
+                ;;
+              failed|canceled|skipped)
+                exit 1
+                ;;
+              manual)
+                echo "GitLab pipeline is waiting for manual action."
+                exit 1
+                ;;
+            esac
+
+            sleep 20
+          done
+
+          echo "Timed out waiting for GitLab pipeline ${pipeline_id}."
+          exit 1
+
+      - name: Delete GitLab test branch
+        if: always() && steps.scope.outputs.run_gitlab_ci == 'true'
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GITLAB_TEST_BRANCH:-}" ]; then
+            git remote add gitlab-cleanup "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}" || true
+            git push gitlab-cleanup --delete "${GITLAB_TEST_BRANCH}" || true
+          fi
