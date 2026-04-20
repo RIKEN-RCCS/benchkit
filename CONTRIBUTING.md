@@ -53,6 +53,8 @@ When opening a pull request, please provide enough context for reviewers to unde
 - whether any user-facing behavior changed
 - whether tests or validation were run
 
+For CI behavior and GitLab benchmark validation rules, see [CI Execution Control / CI実行制御](docs/ci.md).
+
 ## Scope
 
 In general:
