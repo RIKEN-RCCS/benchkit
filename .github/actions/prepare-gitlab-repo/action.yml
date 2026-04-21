@@ -1,0 +1,53 @@
+name: Prepare GitLab repository settings
+description: Validate and split the scheme-less GitLab repository secret.
+
+inputs:
+  gitlab-repo:
+    description: Scheme-less GitLab repository path, for example gitlab.example.com/group/project.git.
+    required: true
+
+outputs:
+  host-path:
+    description: GitLab repository host/path with optional .git suffix.
+    value: ${{ steps.prepare.outputs.host-path }}
+  host:
+    description: GitLab host name.
+    value: ${{ steps.prepare.outputs.host }}
+  project-path:
+    description: GitLab project path without .git suffix.
+    value: ${{ steps.prepare.outputs.project-path }}
+
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      shell: bash
+      env:
+        GITLAB_REPO: ${{ inputs.gitlab-repo }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${GITLAB_REPO}" ]; then
+          echo "GITLAB_REPO secret is required."
+          exit 1
+        fi
+
+        case "${GITLAB_REPO}" in
+          http://*|https://*)
+            echo "GITLAB_REPO must use host/path format, for example gitlab.example.com/group/project.git."
+            exit 1
+            ;;
+        esac
+
+        repo="${GITLAB_REPO%.git}"
+        host="${repo%%/*}"
+        project_path="${repo#*/}"
+
+        if [ -z "${host}" ] || [ "${project_path}" = "${repo}" ] || [ -z "${project_path}" ]; then
+          echo "GITLAB_REPO must include a host and project path, for example gitlab.example.com/group/project.git."
+          exit 1
+        fi
+
+        echo "host-path=${GITLAB_REPO}" >> "${GITHUB_OUTPUT}"
+        echo "host=${host}" >> "${GITHUB_OUTPUT}"
+        echo "project-path=${project_path}" >> "${GITHUB_OUTPUT}"

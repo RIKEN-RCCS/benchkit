@@ -4,10 +4,10 @@ on:
   pull_request:
     paths:
       - "result_server/**"
-      - "scripts/test_result_server.py"
-      - "scripts/validate_result_quality.py"
       - "scripts/result_server/send_results.sh"
-      - "config/result_quality_policy.json"
+      - "config/system.csv"
+      - "config/queue.csv"
+      - "config/system_info.csv"
       - "requirements-result-server.txt"
       - ".github/workflows/result-server-tests.yml"
   push:
@@ -15,10 +15,10 @@ on:
       - "**"
     paths:
       - "result_server/**"
-      - "scripts/test_result_server.py"
-      - "scripts/validate_result_quality.py"
       - "scripts/result_server/send_results.sh"
-      - "config/result_quality_policy.json"
+      - "config/system.csv"
+      - "config/queue.csv"
+      - "config/system_info.csv"
       - "requirements-result-server.txt"
       - ".github/workflows/result-server-tests.yml"
   workflow_dispatch:
@@ -49,5 +49,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-result-server.txt
 
+      - name: Run site configuration preflight
+        run: python result_server/tests/check_site_config.py
+
       - name: Run result_server pytest suite
-        run: python scripts/test_result_server.py
+        run: python result_server/tests/run_result_server_tests.py

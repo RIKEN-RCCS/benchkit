@@ -16,26 +16,40 @@
       {% endif %}
     </div>
     <div class="diagnostic-card">
-      <h3>System Info Coverage</h3>
+      <h3>Public System Catalog</h3>
+      {% if site_diagnostics.public_missing_system_definitions | default([]) %}
+      <ul class="diagnostic-list">
+        {% for system in site_diagnostics.public_missing_system_definitions %}
+        <li><code>system_info.csv</code> exposes {{ system }}, but <code>system.csv</code> has no matching system.</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       {% if site_diagnostics.missing_system_info %}
       <ul class="diagnostic-list">
         {% for system in site_diagnostics.missing_system_info %}
-        <li>{{ system }} is missing a <code>system_info.csv</code> entry.</li>
+        <li>{{ system }} is registered in <code>system.csv</code> but is not exposed in <code>system_info.csv</code>.</li>
         {% endfor %}
       </ul>
-      {% else %}
-      <p class="diagnostic-empty">Every registered system has a <code>system_info.csv</code> entry.</p>
+      {% elif not site_diagnostics.public_missing_system_definitions | default([]) %}
+      <p class="diagnostic-empty">Every public <code>system_info.csv</code> entry has a matching <code>system.csv</code> definition.</p>
       {% endif %}
     </div>
     <div class="diagnostic-card">
       <h3>Queue Definitions</h3>
+      {% if site_diagnostics.public_missing_queue_definitions | default([]) %}
+      <ul class="diagnostic-list">
+        {% for item in site_diagnostics.public_missing_queue_definitions %}
+        <li><code>system_info.csv</code> exposes {{ item.system }}, but its <code>system.csv</code> queue{% if item.queue %} <code>{{ item.queue }}</code>{% endif %} is not defined in <code>queue.csv</code>.</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       {% if site_diagnostics.missing_queue_definitions %}
       <ul class="diagnostic-list">
         {% for item in site_diagnostics.missing_queue_definitions %}
         <li>{{ item.system }} references queue <code>{{ item.queue }}</code> without a matching <code>queue.csv</code> definition.</li>
         {% endfor %}
       </ul>
-      {% else %}
+      {% elif not site_diagnostics.public_missing_queue_definitions | default([]) %}
       <p class="diagnostic-empty">All queues referenced by <code>system.csv</code> are defined.</p>
       {% endif %}
     </div>

@@ -5,31 +5,6 @@ echo "Sending results to server"
 
 ls results/
 
-run_result_quality_validator() {
-  local fail_on="${BK_RESULT_QUALITY_FAIL_ON:-none}"
-  local python_cmd=""
-
-  if command -v python3 >/dev/null 2>&1; then
-    python_cmd="python3"
-  elif command -v python >/dev/null 2>&1; then
-    python_cmd="python"
-  fi
-
-  if [[ -z "$python_cmd" ]]; then
-    echo "Result-quality validator skipped: Python runtime not found"
-    return 0
-  fi
-
-  echo "Running result-quality validator (fail-on=${fail_on})"
-  "$python_cmd" scripts/validate_result_quality.py results --fail-on "$fail_on"
-}
-
-if [[ "${BK_RESULT_QUALITY_VALIDATE:-false}" == "true" ]]; then
-  run_result_quality_validator
-else
-  echo "Result-quality validator disabled (set BK_RESULT_QUALITY_VALIDATE=true to enable)"
-fi
-
 meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
 
