@@ -7,8 +7,8 @@
 #   Effect: Pipeline is created but jobs are skipped based on file changes
 #
 # Files that automatically skip CI:
-# - README.md, ADD_APP.md (documentation)
-# - result_server/**/* (portal/server code and templates)
+# - root Markdown files and docs/**/* (documentation)
+# - result_server/**/* and config/system_info.csv (portal/server code, templates, and display metadata)
 #
 # Important Notes:
 # - trigger_child_pipeline depends on generate_matrix, so we use needs: optional: true
@@ -33,7 +33,7 @@ variables:
 # Extract system and code filters from API variables or commit message
 .filters: &filters
   - |
-    # Priority 1: API trigger variables (from curl -F "variables[system]=...")
+    # Priority 1: API trigger variables (from GitLab Pipeline API variables)
     if [[ -n "$system" ]]; then
       echo "System filter from API variable: $system"
     else
@@ -47,7 +47,7 @@ variables:
       fi
     fi
   - |
-    # Priority 1: API trigger variables (from curl -F "variables[code]=...")
+    # Priority 1: API trigger variables (from GitLab Pipeline API variables)
     if [[ -n "$code" ]]; then
       echo "Code filter from API variable: $code"
     else
@@ -86,7 +86,6 @@ generate_matrix:
       when: never  # [park-send]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
-        - ".github/workflows/*.yml"
         - "programs/**/*"
         - "scripts/**/*"
         - "config/system.csv"
@@ -94,7 +93,9 @@ generate_matrix:
       when: always
     - changes:
         - "*.md"
+        - "docs/**/*"
         - "result_server/**/*"
+        - "config/system_info.csv"
       when: never
     - when: always
 
@@ -121,7 +122,6 @@ trigger_child_pipeline:
       when: never  # [park-send]コミットメッセージでは無効
     - changes:
         - ".gitlab-ci.yml"
-        - ".github/workflows/*.yml"
         - "programs/**/*"
         - "scripts/**/*"
         - "config/system.csv"
@@ -129,7 +129,9 @@ trigger_child_pipeline:
       when: always
     - changes:
         - "*.md"
+        - "docs/**/*"
         - "result_server/**/*"
+        - "config/system_info.csv"
       when: never
     - when: always
 # BenchPark Monitor Jobs
