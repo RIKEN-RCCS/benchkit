@@ -33,7 +33,7 @@ variables:
 # Extract system and code filters from API variables or commit message
 .filters: &filters
   - |
-    # Priority 1: API trigger variables (from curl -F "variables[system]=...")
+    # Priority 1: API trigger variables (from GitLab Pipeline API variables)
     if [[ -n "$system" ]]; then
       echo "System filter from API variable: $system"
     else
@@ -47,7 +47,7 @@ variables:
       fi
     fi
   - |
-    # Priority 1: API trigger variables (from curl -F "variables[code]=...")
+    # Priority 1: API trigger variables (from GitLab Pipeline API variables)
     if [[ -n "$code" ]]; then
       echo "Code filter from API variable: $code"
     else
