@@ -93,6 +93,10 @@ The workflow:
 - 実行後、一時GitLabブランチを削除します。
 - Removes the temporary GitLab branch after the run.
 
+この経路は、`qws` / `MiyabiG` の最小実行で、GitLab pipeline 起動から推定まで動作確認済みです。
+
+This path has been smoke-tested with a minimal `qws` / `MiyabiG` run through GitLab pipeline execution and estimation.
+
 `target_ref`はupstreamリポジトリ内のbranch、tag、SHAを指定する想定です。forkからのpull requestをGitLab CIで試す場合は、maintainerがまずupstreamリポジトリ側に`ci/pr-123`のような信頼済み一時ブランチを作り、そのブランチに対して`GitLab Manual CI`を実行します。
 
 `target_ref` is intended to refer to a branch, tag, or SHA in the upstream repository. For fork pull requests, a maintainer should first create a trusted temporary branch in the upstream repository, such as `ci/pr-123`, and then run `GitLab Manual CI` against that branch.
@@ -113,6 +117,10 @@ Feature branch pushes do not trigger GitLab synchronization.
 この同期workflowは、`develop`、`main`、tagを`ci.skip`付きでGitLabへmirrorします。これによりGitLab側の履歴は追従しますが、GitLab CIは自動起動しません。
 
 The sync workflow mirrors `develop`, `main`, and tags to GitLab with `ci.skip`. This keeps GitLab history aligned without starting GitLab CI automatically.
+
+`ci.skip` により GitLab CI が自動起動しないことは、保護ブランチ同期の運用で確認済みです。
+
+The protected-branch synchronization path has been confirmed to update the GitLab mirror without automatically starting GitLab CI because it uses `ci.skip`.
 
 通常の運用では、pull requestが`develop`へmergeされた後、または`develop`が`main`へmergeされた後に同期が行われます。
 
