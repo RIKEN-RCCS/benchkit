@@ -89,6 +89,65 @@ def test_results_template_renders_table_note():
     assert "#10" in html
 
 
+def test_results_template_renders_ncu_options_tooltip():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results"):
+        from flask import render_template
+
+        html = render_template(
+            "results.html",
+            columns=[
+                {"label": "Timestamp", "key": "timestamp"},
+                {"label": "Profiler / PA", "key": "profile_summary"},
+                {"label": "JSON", "key": "json_link"},
+            ],
+            rows=[
+                {
+                    "timestamp": "2026-04-13 12:00:00",
+                    "profile_summary": "ncu / single",
+                    "profile_summary_meta": {
+                        "has_profile_data": True,
+                        "headline": "ncu / single",
+                        "subline": "text, 1 run",
+                        "events": [],
+                        "ncu_options": ["--target-processes", "all", "--set", "basic", "--launch-count", "1"],
+                        "report_kinds": ["ncu_report", "summary_text"],
+                    },
+                    "data_link": "/results/padata0.tgz",
+                    "json_link": "/results/result0.json",
+                    "detail_link": "/results/detail/result0.json",
+                    "filename": "result0.json",
+                    "source_info": None,
+                    "quality": {"level": "ready", "label": "Ready", "summary": "Breakdown is present."},
+                    "system": "RC_GH200",
+                    "code": "genesis",
+                    "fom": 1.0,
+                    "exp": "CASE0",
+                    "fom_version": "test",
+                    "nodes": "1",
+                    "numproc_node": "8",
+                    "nthreads": "9",
+                    "ci_trigger": "push",
+                    "pipeline_id": "10",
+                    "source_hash": "-",
+                }
+            ],
+            pagination={"total": 1, "page": 1, "total_pages": 1},
+            current_per_page=50,
+            current_system="",
+            current_code="",
+            current_exp="",
+            filter_options={"systems": ["RC_GH200"], "codes": ["genesis"], "exps": ["CASE0"]},
+            systems_info={},
+        )
+
+    assert "ncu / single" in html
+    assert "ncu options: --target-processes all --set basic --launch-count 1" in html
+    assert "ncu_report" in html
+
+
 def test_estimated_results_template_renders_table_note():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),

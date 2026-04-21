@@ -109,6 +109,38 @@ case "$system" in
         mpirun -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
+    GenkaiA|GenkaiB|GenkaiC)
+        qws_numproc=$((nodes * numproc_node))
+        module load intel/2023.2 mvapich/3.0-intel2023.2
+        mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    Grand_C|Grand_G)
+        qws_numproc=$((nodes * numproc_node))
+        module load intel impi
+        if [[ -n "${I_MPI_ROOT:-}" && -d "${I_MPI_ROOT}/bin" ]]; then
+            export PATH="${I_MPI_ROOT}/bin:${PATH}"
+        fi
+        qws_mpi_launcher=$(command -v mpirun || command -v mpiexec || command -v mpiexec.hydra || true)
+        if [[ -z "$qws_mpi_launcher" ]]; then
+            echo "qws: mpirun/mpiexec/mpiexec.hydra not found after module load intel impi" >&2
+            echo "qws: PATH=${PATH}" >&2
+            echo "qws: MPI launcher candidates:" >&2
+            type -a mpirun mpiexec mpiexec.hydra mpiicc mpiicpc mpiicpx 2>&1 >&2 || true
+            echo "qws: loaded modules:" >&2
+            module list >&2 || true
+            echo "qws: environment:" >&2
+            env | sort >&2
+            exit 1
+        fi
+        "$qws_mpi_launcher" -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    AOBA_A|AOBA_B|AOBA_S)
+        qws_numproc=$((nodes * numproc_node))
+        mpirun -np ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
     *)
         echo "Unknown Running system: $system"
         exit 1

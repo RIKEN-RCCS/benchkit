@@ -1,8 +1,11 @@
+# result_server requires Python 3.12+ for safe tar extraction via tarfile filter="data".
 Flask>=3.0,<4.0
 Flask-Session>=0.8,<1.0
+Flask-WTF>=1.2,<2.0
+gunicorn>=23.0,<24.0
 redis>=5.0,<6.0
 pyotp>=2.9,<3.0
 qrcode[pil]>=8.0,<9.0
-pytest>=8.0,<9.0
+pytest>=9.0.3,<10.0
 hypothesis>=6.0,<7.0
 fakeredis>=2.23,<3.0

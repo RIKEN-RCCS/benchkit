@@ -320,7 +320,36 @@ class TestLoadResultsTableExtension:
         assert row["profile_summary_meta"]["headline"] == "fapp / detailed"
         assert row["profile_summary_meta"]["subline"] == "both, 17 runs"
         assert row["profile_summary_meta"]["events"][0] == "pa1"
+        assert row["profile_summary_meta"]["ncu_options"] == []
         assert "cpu_pa_csv" in row["profile_summary_meta"]["report_kinds"]
+
+    def test_profile_summary_keeps_ncu_options_separate_from_events(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
+            "code": "genesis",
+            "system": "RC_GH200",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "profile_data": {
+                "tool": "ncu",
+                "level": "single",
+                "report_format": "text",
+                "run_count": 1,
+                "events": [],
+                "ncu_options": ["--target-processes", "all", "--set", "basic", "--launch-count", "1"],
+                "report_kinds": ["ncu_report", "summary_text"],
+            },
+        })
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["profile_summary"] == "ncu / single"
+        assert row["profile_summary_meta"]["events"] == []
+        assert row["profile_summary_meta"]["ncu_options"][:2] == ["--target-processes", "all"]
+        assert "ncu_report" in row["profile_summary_meta"]["report_kinds"]
 
 
 class TestSummarizeResultQuality:

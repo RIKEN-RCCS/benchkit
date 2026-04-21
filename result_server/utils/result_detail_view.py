@@ -43,21 +43,35 @@ def _build_profile_rows(profile_data):
         return []
 
     events = profile_data.get("events") or []
+    ncu_options = profile_data.get("ncu_options") or []
     report_kinds = profile_data.get("report_kinds") or []
-    return build_labeled_value_rows([
+    rows = build_labeled_value_rows([
         ("Tool", profile_data.get("tool", "N/A")),
         ("Level", profile_data.get("level", "N/A")),
         ("Report Format", profile_data.get("report_format", "N/A")),
         ("Run Count", profile_data.get("run_count", "N/A")),
-        ("Tool-Specific Events", _build_tool_specific_events_description(profile_data)),
-        ("Events", ", ".join(events) if events else "none"),
-        ("Report Kinds", ", ".join(report_kinds) if report_kinds else "none"),
     ])
+    tool_specific_detail = _build_tool_specific_detail(profile_data)
+    if tool_specific_detail:
+        rows.append({"label": "Tool-Specific Detail", "value": tool_specific_detail})
+    if events:
+        rows.append({"label": "Events", "value": ", ".join(events)})
+    if ncu_options:
+        rows.append({"label": "NCU Options", "value": " ".join(ncu_options)})
+    if report_kinds:
+        rows.append({"label": "Report Kinds", "value": ", ".join(report_kinds)})
+    return rows
 
 
-def _build_tool_specific_events_description(profile_data):
+def _build_tool_specific_detail(profile_data):
+    if profile_data.get("tool") == "ncu":
+        ncu_options = profile_data.get("ncu_options") or []
+        if ncu_options:
+            return f"ncu options: {' '.join(ncu_options)}"
+        return "ncu options recorded in archive metadata when available"
+
     if profile_data.get("tool") != "fapp":
-        return "tool-specific event set"
+        return "tool-specific metadata"
 
     level = profile_data.get("level")
     mapping = {

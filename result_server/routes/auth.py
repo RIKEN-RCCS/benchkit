@@ -2,6 +2,7 @@
 
 from flask import (
     Blueprint,
+    abort,
     current_app,
     flash,
     redirect,
@@ -23,6 +24,40 @@ from utils.totp_manager import (
 from utils.user_store import get_user_store
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+def _redis_ping_ok(redis_conn):
+    """Return whether the configured Redis connection is currently usable."""
+    if not redis_conn:
+        return False
+    try:
+        redis_conn.ping()
+        return True
+    except Exception:
+        current_app.logger.exception("Redis ping failed during authentication")
+        return False
+
+
+def _get_redis_or_fail():
+    """Return Redis for auth tracking, failing closed when configured to require it."""
+    redis_conn = current_app.config.get("REDIS_CONN")
+    requires_redis = current_app.config.get("AUTH_REQUIRES_REDIS", False)
+
+    if not redis_conn:
+        if requires_redis:
+            current_app.logger.error("Redis unavailable; refusing login")
+            abort(503, description="Authentication service temporarily unavailable.")
+        return None
+
+    if _redis_ping_ok(redis_conn):
+        return redis_conn
+
+    if requires_redis:
+        current_app.logger.error("Redis unavailable; refusing login")
+        abort(503, description="Authentication service temporarily unavailable.")
+
+    current_app.logger.warning("Redis unavailable; continuing without auth throttling")
+    return None
 
 
 def _render_login_totp_step(email):
@@ -50,6 +85,8 @@ def login():
 
     email = request.form.get("email", "").strip()
     totp_code = request.form.get("totp_code", "").strip()
+    redis_conn = _get_redis_or_fail()
+    prefix = current_app.config.get("REDIS_PREFIX", "")
 
     # Step 1: email submitted -> show the TOTP entry form.
     if email and not totp_code:
@@ -64,8 +101,6 @@ def login():
             return redirect(url_for("auth.login"))
 
         # Enforce rate limiting when Redis-backed tracking is available.
-        redis_conn = current_app.config.get("REDIS_CONN")
-        prefix = current_app.config.get("REDIS_PREFIX", "")
         if redis_conn:
             is_locked, remaining = check_rate_limit(redis_conn, prefix, email)
             if is_locked:

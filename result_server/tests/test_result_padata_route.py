@@ -50,3 +50,27 @@ def test_results_route_serves_padata_from_received_padata_dir(client, tmp_dirs):
     resp = client.get(f"/results/{tgz_name}")
     assert resp.status_code == 200
     assert resp.data == b"fake tgz content"
+
+
+def test_results_route_blocks_confidential_padata_matched_by_server_uuid(client, tmp_dirs):
+    received, received_padata = tmp_dirs
+    uid = "12345678-1234-1234-1234-123456789abc"
+    tgz_name = f"padata_20250101_120000_{uid}.tgz"
+
+    with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "FOM": 1.0,
+                "_server_uuid": uid,
+                "confidential": ["dev"],
+            },
+            f,
+        )
+
+    with open(os.path.join(received_padata, tgz_name), "wb") as f:
+        f.write(b"fake tgz content")
+
+    resp = client.get(f"/results/{tgz_name}")
+    assert resp.status_code == 403

@@ -28,17 +28,21 @@ EOF
 
 cat > "${TMP_DIR}/bk_profiler_artifact/meta.json" <<'EOF'
 {
-  "tool": "fapp",
+  "tool": "ncu",
   "level": "single",
   "report_format": "text",
   "raw_dir": "raw",
+  "measurement": {
+    "ncu_options": ["--target-processes", "all", "--set", "basic", "--launch-count", "1"]
+  },
   "runs": [
     {
       "name": "rep1",
-      "event": "pa1",
+      "event": "single",
       "raw_path": "raw/rep1",
       "reports": [
-        {"kind": "summary_text", "path": "reports/fapp_A_rep1.txt"}
+        {"kind": "ncu_report", "path": "raw/rep1/profile.ncu-rep"},
+        {"kind": "summary_text", "path": "reports/ncu_import_rep1.txt"}
       ]
     }
   ]
@@ -74,10 +78,23 @@ set -euo pipefail
 exec "${TMP_DIR}/bin/python" "$@"
 EOF
 
+PYTHON_FOR_FAKE_JQ="${PYTHON_FOR_FAKE_JQ:-}"
+if [ -z "$PYTHON_FOR_FAKE_JQ" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_FOR_FAKE_JQ="$(command -v python3)"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_FOR_FAKE_JQ="$(command -v python)"
+  else
+    echo "python3/python not found; skipping send_results profile_data test"
+    exit 0
+  fi
+fi
+export PYTHON_FOR_FAKE_JQ
+
 cat > "${TMP_DIR}/bin/jq" <<'EOF'
 #!/bin/bash
 set -euo pipefail
-python_exe="/c/Users/yoshi/AppData/Local/Programs/Python/Python312/python.exe"
+python_exe="${PYTHON_FOR_FAKE_JQ:?PYTHON_FOR_FAKE_JQ is required}"
 
 if [ "$1" = "-c" ]; then
   shift
@@ -97,7 +114,8 @@ if "tool: .tool" in expr and "report_kinds" in expr:
         "report_format": data.get("report_format"),
         "raw_dir": data.get("raw_dir"),
         "run_count": len(data.get("runs", [])),
-        "events": [run.get("event") for run in data.get("runs", []) if run.get("event")],
+        "events": [run.get("event") for run in data.get("runs", []) if data.get("tool") == "fapp" and run.get("event")],
+        "ncu_options": data.get("measurement", {}).get("ncu_options", []) if data.get("tool") == "ncu" else [],
         "report_kinds": sorted({rep.get("kind") for run in data.get("runs", []) for rep in run.get("reports", []) if rep.get("kind")}),
     }
     print(json.dumps(summary))
@@ -186,9 +204,12 @@ bash "${REPO_DIR}/scripts/result_server/send_results.sh" >/dev/null
 popd >/dev/null
 
 grep -q '"profile_data"' "${TMP_DIR}/results/result0.json"
-grep -q '"tool": "fapp"' "${TMP_DIR}/results/result0.json"
-grep -q '"level": "single"' "${TMP_DIR}/results/result0.json"
-grep -q '"run_count": 1' "${TMP_DIR}/results/result0.json"
+grep -Eq '"tool":[[:space:]]*"ncu"' "${TMP_DIR}/results/result0.json"
+grep -Eq '"level":[[:space:]]*"single"' "${TMP_DIR}/results/result0.json"
+grep -Eq '"run_count":[[:space:]]*1' "${TMP_DIR}/results/result0.json"
+grep -Eq '"events":[[:space:]]*\[[[:space:]]*\]' "${TMP_DIR}/results/result0.json"
+grep -Eq '"ncu_options":[[:space:]]*\[' "${TMP_DIR}/results/result0.json"
+grep -Eq '"ncu_report"' "${TMP_DIR}/results/result0.json"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/results/result0.json"
 grep -q '"result0.json"' "${TMP_DIR}/results/server_result_meta.json"
 

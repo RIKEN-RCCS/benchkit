@@ -88,7 +88,8 @@
     <h2 class="section-title">Add User</h2>
     <p class="section-intro">Create a user record and generate a new invitation link for TOTP setup.</p>
     <form method="POST" action="{{ url_for('admin.add_user') }}" class="control-row admin-add-user-form">
-        <input type="email" name="email" placeholder="user@example.com" required>
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <input type="email" name="email" placeholder="user@example.com" required autocomplete="username">
         <input type="text" name="affiliations" placeholder="group1, group2">
         <button type="submit" class="btn btn-primary">Add &amp; Generate Invitation</button>
     </form>
@@ -122,16 +123,19 @@
                     <td class="actions">
                         <div class="actions-stack">
                             <form class="inline-form" method="POST" action="{{ url_for('admin.update_affiliations', email=u.email) }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <input type="text" name="affiliations" value="{{ u.affiliations | join(', ') }}" size="20">
                                 <button type="submit" class="btn btn-warning">Update</button>
                             </form>
                             {% if u.email != session.get('user_email') %}
                             <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
                                   onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <button type="submit" class="btn btn-primary">Reinvite</button>
                             </form>
                             <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
                                   onsubmit="return confirm('Delete {{ u.email }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>
                             {% endif %}

@@ -121,6 +121,7 @@
 <div class="secret-key">{{ secret }}</div>
 
 <form method="POST" action="{{ url_for('auth.setup', token=token) }}">
+    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
     <div class="setup-field">
         <label for="totp_code">Verification Code</label>
         <input type="text" id="totp_code" name="totp_code" maxlength="6" pattern="[0-9]{6}"
