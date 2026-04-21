@@ -98,7 +98,6 @@ jobs:
           api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipeline"
 
           curl_args=(
-            --fail
             --silent
             --request POST
             --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
