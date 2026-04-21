@@ -64,10 +64,6 @@ EOF
 cat > "${TMP_DIR}/bin/python" <<'EOF'
 #!/bin/bash
 set -euo pipefail
-if [ "${1:-}" = "scripts/validate_result_quality.py" ]; then
-  printf '%s\n' "$*" > "${TMP_DIR}/validator_invocation.txt"
-  exit 0
-fi
 echo "fake python: unsupported invocation: $*" >&2
 exit 1
 EOF
@@ -184,14 +180,11 @@ chmod +x "${TMP_DIR}/bin/curl" "${TMP_DIR}/bin/jq" "${TMP_DIR}/bin/python" "${TM
 export PATH="${TMP_DIR}/bin:${PATH}"
 export RESULT_SERVER="https://example.invalid"
 export RESULT_SERVER_KEY="dummy"
-export BK_RESULT_QUALITY_VALIDATE="true"
-export BK_RESULT_QUALITY_FAIL_ON="none"
 
 pushd "${TMP_DIR}" >/dev/null
 bash "${REPO_DIR}/scripts/result_server/send_results.sh" >/dev/null
 popd >/dev/null
 
-grep -q 'scripts/validate_result_quality.py results --fail-on none' "${TMP_DIR}/validator_invocation.txt"
 grep -q '"profile_data"' "${TMP_DIR}/results/result0.json"
 grep -q '"tool": "fapp"' "${TMP_DIR}/results/result0.json"
 grep -q '"level": "single"' "${TMP_DIR}/results/result0.json"

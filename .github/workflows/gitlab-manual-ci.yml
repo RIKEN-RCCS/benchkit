@@ -50,15 +50,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.target_ref }}
 
+      - name: Prepare GitLab repository settings
+        id: gitlab-repo
+        uses: ./.github/actions/prepare-gitlab-repo
+        with:
+          gitlab-repo: ${{ secrets.GITLAB_REPO }}
+
       - name: Push target ref to GitLab test branch
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
           TARGET_REF: ${{ inputs.target_ref }}
         run: |
           set -euo pipefail
 
-          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO}" ]; then
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO_HOST_PATH}" ]; then
             echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
             exit 1
           fi
@@ -71,14 +77,14 @@ jobs:
 
           git config user.name "github-bot"
           git config user.email "bot@example.com"
-          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}"
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}"
           git push -o ci.skip gitlab "HEAD:refs/heads/${branch}" --force
 
       - name: Trigger and wait for GitLab pipeline
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
-          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+          GITLAB_HOST: ${{ steps.gitlab-repo.outputs.host }}
+          GITLAB_PROJECT_PATH: ${{ steps.gitlab-repo.outputs.project-path }}
           CODE_FILTER: ${{ inputs.code }}
           SYSTEM_FILTER: ${{ inputs.system }}
           BENCHPARK_APP: ${{ inputs.app }}
@@ -88,14 +94,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          repo="${GITLAB_REPO#https://}"
-          repo="${repo#http://}"
-          host="${repo%%/*}"
-          project_path="${repo#*/}"
-          project_path="${project_path%.git}"
-
-          project_encoded="$(PROJECT_PATH="${project_path}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
-          api="https://${host}/api/v4/projects/${project_encoded}/pipeline"
+          project_encoded="$(PROJECT_PATH="${GITLAB_PROJECT_PATH}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
+          api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipeline"
 
           curl_args=(
             --fail
@@ -136,7 +136,7 @@ jobs:
           pipeline_url="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"]).get("web_url", ""))')"
 
           echo "GitLab pipeline: ${pipeline_url}"
-          pipeline_api="https://${host}/api/v4/projects/${project_encoded}/pipelines/${pipeline_id}"
+          pipeline_api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipelines/${pipeline_id}"
 
           for _ in $(seq 1 180); do
             response="$(curl --fail --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${pipeline_api}")"
@@ -166,11 +166,10 @@ jobs:
         if: always()
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
-          GITLAB_TEST_BRANCH: ${{ env.GITLAB_TEST_BRANCH }}
+          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
         run: |
           set -euo pipefail
-          if [ -n "${GITLAB_TEST_BRANCH:-}" ]; then
-            git remote add gitlab-cleanup "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}" || true
+          if [ -n "${GITLAB_TEST_BRANCH:-}" ] && [ -n "${GITLAB_REPO_HOST_PATH:-}" ]; then
+            git remote add gitlab-cleanup "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}" || true
             git push gitlab-cleanup --delete "${GITLAB_TEST_BRANCH}" || true
           fi

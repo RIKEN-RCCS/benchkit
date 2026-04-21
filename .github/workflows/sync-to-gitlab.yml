@@ -11,20 +11,31 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Prepare GitLab repository settings
+        id: gitlab-repo
+        uses: ./.github/actions/prepare-gitlab-repo
+        with:
+          gitlab-repo: ${{ secrets.GITLAB_REPO }}
 
       - name: Push protected branches and tags to GitLab
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO: ${{ secrets.GITLAB_REPO }}
+          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
         run: |
           set -euo pipefail
 
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO_HOST_PATH}" ]; then
+            echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
+            exit 1
+          fi
+
           git config user.name "github-bot"
           git config user.email "bot@example.com"
-          git remote add gitlab https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO}
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}"
           git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
           git push -o ci.skip gitlab refs/remotes/origin/develop:refs/heads/develop refs/remotes/origin/main:refs/heads/main --force
           git push -o ci.skip gitlab --tags --force

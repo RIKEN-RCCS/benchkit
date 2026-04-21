@@ -128,15 +128,24 @@ def build_site_diagnostics(
         for row in system_info_rows
         if (row.get("system") or "").strip()
     }
+    public_systems = [
+        (row.get("system") or "").strip()
+        for row in system_info_rows
+        if (row.get("system") or "").strip()
+    ]
 
     missing_queue_definitions = []
     missing_system_info = []
+    public_missing_system_definitions = []
+    public_missing_queue_definitions = []
     registered_systems = []
+    system_rows_by_name = {}
 
     for row in systems:
         system = (row.get("system") or "").strip()
         queue = (row.get("queue") or "").strip()
         registered_systems.append(system)
+        system_rows_by_name[system] = row
 
         if queue and queue not in queue_names:
             missing_queue_definitions.append({
@@ -146,6 +155,19 @@ def build_site_diagnostics(
 
         if system and system not in system_info_names:
             missing_system_info.append(system)
+
+    for system in public_systems:
+        row = system_rows_by_name.get(system)
+        if row is None:
+            public_missing_system_definitions.append(system)
+            continue
+
+        queue = (row.get("queue") or "").strip()
+        if not queue or queue not in queue_names:
+            public_missing_queue_definitions.append({
+                "system": system,
+                "queue": queue,
+            })
 
     coverage_systems, app_support_rows = load_app_system_support_matrix(
         programs_dir=programs_root,
@@ -181,6 +203,8 @@ def build_site_diagnostics(
         "application_count": len(app_support_rows),
         "missing_queue_definitions": missing_queue_definitions,
         "missing_system_info": missing_system_info,
+        "public_missing_system_definitions": public_missing_system_definitions,
+        "public_missing_queue_definitions": public_missing_queue_definitions,
         "partial_support": partial_support,
         "unused_systems": unused_systems,
         "application_directory_count": program_diagnostics["application_directory_count"],
@@ -189,3 +213,29 @@ def build_site_diagnostics(
         "apps_with_estimate_count": program_diagnostics["apps_with_estimate_count"],
         "unknown_listed_systems": program_diagnostics["unknown_listed_systems"],
     }
+
+
+def build_site_config_preflight_failures(diagnostics):
+    failures = []
+
+    for system in diagnostics.get("public_missing_system_definitions", []):
+        failures.append(
+            f"system_info.csv exposes {system}, but config/system.csv has no matching system."
+        )
+
+    for item in diagnostics.get("public_missing_queue_definitions", []):
+        system = item.get("system", "")
+        queue = item.get("queue", "")
+        if queue:
+            failures.append(
+                "system_info.csv exposes "
+                f"{system}, but config/system.csv references queue {queue} "
+                "without a matching config/queue.csv definition."
+            )
+        else:
+            failures.append(
+                "system_info.csv exposes "
+                f"{system}, but config/system.csv does not set a queue."
+            )
+
+    return failures

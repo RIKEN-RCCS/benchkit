@@ -4,7 +4,10 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from utils.site_diagnostics import build_site_diagnostics
+from utils.site_diagnostics import (
+    build_site_config_preflight_failures,
+    build_site_diagnostics,
+)
 
 
 def _write_csv(path, header, rows):
@@ -89,9 +92,11 @@ def test_build_site_diagnostics(tmp_path):
     assert diagnostics["application_count"] == 2
     assert diagnostics["application_directory_count"] == 2
     assert diagnostics["missing_system_info"] == ["RC_TEST"]
+    assert diagnostics["public_missing_system_definitions"] == []
     assert diagnostics["missing_queue_definitions"] == [
         {"system": "RC_TEST", "queue": "SLURM_UNKNOWN"}
     ]
+    assert diagnostics["public_missing_queue_definitions"] == []
     assert diagnostics["unused_systems"] == ["RC_TEST", "RC_PARTIAL"]
     assert diagnostics["partial_support"] == [
         {
@@ -117,4 +122,55 @@ def test_build_site_diagnostics(tmp_path):
             "enabled_rows": 1,
             "disabled_rows": 0,
         }
+    ]
+    assert build_site_config_preflight_failures(diagnostics) == []
+
+
+def test_site_config_preflight_requires_public_systems_to_be_runnable(tmp_path):
+    config_dir = tmp_path / "config"
+    programs_dir = tmp_path / "programs"
+    config_dir.mkdir()
+    programs_dir.mkdir()
+
+    _write_csv(
+        config_dir / "system.csv",
+        ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
+        [
+            ["Fugaku", "cross", "", "", "FJ", "small"],
+            ["PUBLIC_BAD_QUEUE", "native", "", "", "MISSING_QUEUE", "debug"],
+            ["PRIVATE_DEV", "native", "", "", "DEV_QUEUE", "debug"],
+        ],
+    )
+    _write_csv(
+        config_dir / "queue.csv",
+        ["queue", "submit_cmd", "template"],
+        [
+            ["FJ", "pjsub", "template"],
+        ],
+    )
+    _write_csv(
+        config_dir / "system_info.csv",
+        ["system", "name", "cpu_name", "cpu_per_node", "cpu_cores", "gpu_name", "gpu_per_node", "memory", "display_order"],
+        [
+            ["Fugaku", "Fugaku", "A64FX", "1", "48", "-", "-", "32GB", "1"],
+            ["PUBLIC_BAD_QUEUE", "PUBLIC_BAD_QUEUE", "CPU", "1", "16", "-", "-", "64GB", "2"],
+            ["PUBLIC_MISSING_SYSTEM", "PUBLIC_MISSING_SYSTEM", "CPU", "1", "16", "-", "-", "64GB", "3"],
+        ],
+    )
+
+    diagnostics = build_site_diagnostics(
+        system_csv_path=str(config_dir / "system.csv"),
+        queue_csv_path=str(config_dir / "queue.csv"),
+        system_info_csv_path=str(config_dir / "system_info.csv"),
+        programs_dir=str(programs_dir),
+    )
+
+    assert diagnostics["missing_system_info"] == ["PRIVATE_DEV"]
+    assert diagnostics["public_missing_system_definitions"] == ["PUBLIC_MISSING_SYSTEM"]
+    assert diagnostics["public_missing_queue_definitions"] == [
+        {"system": "PUBLIC_BAD_QUEUE", "queue": "MISSING_QUEUE"}
+    ]
+    assert build_site_config_preflight_failures(diagnostics) == [
+        "system_info.csv exposes PUBLIC_MISSING_SYSTEM, but config/system.csv has no matching system.",
+        "system_info.csv exposes PUBLIC_BAD_QUEUE, but config/system.csv references queue MISSING_QUEUE without a matching config/queue.csv definition.",
     ]

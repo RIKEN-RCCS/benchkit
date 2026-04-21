@@ -10,7 +10,7 @@ import pytest
 
 
 def main(argv: list[str]) -> int:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     suite_path = repo_root / "result_server" / "tests"
 
     if len(argv) > 1:

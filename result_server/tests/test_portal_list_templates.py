@@ -267,7 +267,7 @@ def test_result_compare_template_renders_headline():
     assert "compareConfigData" in html
 
 
-def test_usage_report_quality_section_renders_actions_and_validator_candidates():
+def test_usage_report_quality_section_renders_actions_and_improvement_candidates():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
@@ -328,7 +328,7 @@ def test_usage_report_quality_section_renders_actions_and_validator_candidates()
         )
 
     assert "Next Action" in html
-    assert "Validator Candidates" in html
+    assert "Improvement Candidates" in html
     assert "populate top-level source_info for provenance tracking" in html
     assert "source_info present, fom_breakdown present" in html
     assert "2: source_info is missing, fom_breakdown is missing" in html

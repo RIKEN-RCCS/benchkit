@@ -103,7 +103,7 @@ def _build_quality_rows(quality):
         },
         {"label": "Estimation Inputs", "value": f"{stats.get('artifact_count', 0)} artifact reference(s)"},
         {"label": "Suggested Actions", "list": quality.get("suggested_actions") or ["none"]},
-        {"label": "Validator Candidates", "list": quality.get("validator_candidates") or ["none"]},
+        {"label": "Improvement Candidates", "list": quality.get("validator_candidates") or ["none"]},
         {"label": "Warnings", "list": warnings or ["none"]},
     ]
 
