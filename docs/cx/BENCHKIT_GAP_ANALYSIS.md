@@ -312,11 +312,12 @@ Once the estimation specification is clarified, many other design decisions beco
 #### 5.2.1 CI 関連 GAP 解消タスク / CI Gap Closure Tasks
 
 CI 関連の残 GAP は、「仕組みを新規に置く」段階から「対象範囲を運用に耐える形へ広げ、古くならないようにする」段階へ移っている。
-短期的には次の作業を優先する。
+短期的な実装・確認は次の状態まで進んでいる。
 
-1. `result-server-tests.yml` の path filter を棚卸しし、`result_server/**/*`、`scripts/result_server/send_results.sh`、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` が揃っていることを回帰テスト的に確認する。
-2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明を同期し、root Markdown、`docs/**/*`、`result_server/**/*`、`config/system_info.csv` の扱いが実設定と文書でずれないようにする。
-3. 手動 GitLab CI と protected branch sync の secret 形式、branch cleanup、pipeline variable 渡しを最小ケースで検証し、運用手順と workflow 実装の drift を防ぐ。
+1. `result-server-tests.yml` の path filter は、`result_server/**/*`、`scripts/result_server/send_results.sh`、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` を対象にする形へ更新済みである。
+2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明は、root Markdown、`docs/**/*`、`result_server/**/*`、`config/system_info.csv` の扱いが一致するよう同期済みである。
+3. 手動 GitLab CI は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動から推定まで確認済みである。Pipeline API variables は JSON payload で渡す。
+4. protected branch sync は、`ci.skip` により GitLab mirror 更新時に GitLab CI が自動起動しないことを運用上確認済みである。
 
 docs-only / portal-only / benchmark-code / CI-config の代表的な変更セットは、`docs/ci.md` の examples として整理済みである。
 公開 `system_info.csv` に載せた system が `system.csv` と `queue.csv` に到達できることは、`result_server/tests/check_site_config.py` による CI preflight として整理済みである。逆に、開発用・非公開用の `system.csv` / `queue.csv` 定義が `system_info.csv` に載っていないことは許容する。
