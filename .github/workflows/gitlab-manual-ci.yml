@@ -97,43 +97,44 @@ jobs:
           project_encoded="$(PROJECT_PATH="${GITLAB_PROJECT_PATH}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
           api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipeline"
 
-          curl_args=(
-            --silent
-            --request POST
-            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
-            --form "ref=${GITLAB_TEST_BRANCH}"
-          )
+          payload_file="$(mktemp)"
+          PAYLOAD_FILE="${payload_file}" python3 - <<'PY'
+          import json
+          import os
 
-          var_index=0
-          add_variable() {
-            local key="$1"
-            local value="$2"
-            if [ -n "${value}" ]; then
-              echo "GitLab variable: ${key}=${value}"
-              curl_args+=(--form "variables[${var_index}][key]=${key}")
-              curl_args+=(--form "variables[${var_index}][value]=${value}")
-              var_index=$((var_index + 1))
-            fi
-          }
+          variables = []
 
-          add_variable "code" "${CODE_FILTER}"
-          add_variable "system" "${SYSTEM_FILTER}"
-          add_variable "app" "${BENCHPARK_APP}"
+          def add_variable(key, value):
+              if value:
+                  print(f"GitLab variable: {key}={value}")
+                  variables.append({
+                      "key": key,
+                      "value": value,
+                      "variable_type": "env_var",
+                  })
 
-          if [ "${BENCHPARK}" = "true" ]; then
-            add_variable "benchpark" "true"
-          fi
-          if [ "${PARK_ONLY}" = "true" ]; then
-            add_variable "park_only" "true"
-          fi
-          if [ "${PARK_SEND}" = "true" ]; then
-            add_variable "park_send" "true"
-          fi
+          add_variable("code", os.environ.get("CODE_FILTER", ""))
+          add_variable("system", os.environ.get("SYSTEM_FILTER", ""))
+          add_variable("app", os.environ.get("BENCHPARK_APP", ""))
+
+          if os.environ.get("BENCHPARK") == "true":
+              add_variable("benchpark", "true")
+          if os.environ.get("PARK_ONLY") == "true":
+              add_variable("park_only", "true")
+          if os.environ.get("PARK_SEND") == "true":
+              add_variable("park_send", "true")
+
+          with open(os.environ["PAYLOAD_FILE"], "w", encoding="utf-8") as f:
+              json.dump({
+                  "ref": os.environ["GITLAB_TEST_BRANCH"],
+                  "variables": variables,
+              }, f)
+          PY
 
           response_file="$(mktemp)"
-          http_status="$(curl --show-error --silent --output "${response_file}" --write-out "%{http_code}" "${curl_args[@]}" "${api}")"
+          http_status="$(curl --show-error --silent --output "${response_file}" --write-out "%{http_code}" --request POST --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" --header "Content-Type: application/json" --data @"${payload_file}" "${api}")"
           response="$(cat "${response_file}")"
-          rm -f "${response_file}"
+          rm -f "${response_file}" "${payload_file}"
 
           if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
             echo "GitLab pipeline trigger failed with HTTP ${http_status}."
