@@ -131,7 +131,17 @@ jobs:
             add_variable "park_send" "true"
           fi
 
-          response="$(curl "${curl_args[@]}" "${api}")"
+          response_file="$(mktemp)"
+          http_status="$(curl --show-error --silent --output "${response_file}" --write-out "%{http_code}" "${curl_args[@]}" "${api}")"
+          response="$(cat "${response_file}")"
+          rm -f "${response_file}"
+
+          if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
+            echo "GitLab pipeline trigger failed with HTTP ${http_status}."
+            echo "${response}"
+            exit 1
+          fi
+
           pipeline_id="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["id"])')"
           pipeline_url="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"]).get("web_url", ""))')"
 
@@ -139,7 +149,17 @@ jobs:
           pipeline_api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipelines/${pipeline_id}"
 
           for _ in $(seq 1 180); do
-            response="$(curl --fail --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${pipeline_api}")"
+            response_file="$(mktemp)"
+            http_status="$(curl --show-error --silent --output "${response_file}" --write-out "%{http_code}" --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${pipeline_api}")"
+            response="$(cat "${response_file}")"
+            rm -f "${response_file}"
+
+            if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
+              echo "GitLab pipeline status request failed with HTTP ${http_status}."
+              echo "${response}"
+              exit 1
+            fi
+
             status="$(PIPELINE="${response}" python3 -c 'import json, os; print(json.loads(os.environ["PIPELINE"])["status"])')"
 
             echo "GitLab pipeline status: ${status}"
