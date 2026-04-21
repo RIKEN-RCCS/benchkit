@@ -74,10 +74,23 @@ set -euo pipefail
 exec "${TMP_DIR}/bin/python" "$@"
 EOF
 
+PYTHON_FOR_FAKE_JQ="${PYTHON_FOR_FAKE_JQ:-}"
+if [ -z "$PYTHON_FOR_FAKE_JQ" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_FOR_FAKE_JQ="$(command -v python3)"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_FOR_FAKE_JQ="$(command -v python)"
+  else
+    echo "python3/python not found; skipping send_results profile_data test"
+    exit 0
+  fi
+fi
+export PYTHON_FOR_FAKE_JQ
+
 cat > "${TMP_DIR}/bin/jq" <<'EOF'
 #!/bin/bash
 set -euo pipefail
-python_exe="/c/Users/yoshi/AppData/Local/Programs/Python/Python312/python.exe"
+python_exe="${PYTHON_FOR_FAKE_JQ:?PYTHON_FOR_FAKE_JQ is required}"
 
 if [ "$1" = "-c" ]; then
   shift
@@ -186,9 +199,9 @@ bash "${REPO_DIR}/scripts/result_server/send_results.sh" >/dev/null
 popd >/dev/null
 
 grep -q '"profile_data"' "${TMP_DIR}/results/result0.json"
-grep -q '"tool": "fapp"' "${TMP_DIR}/results/result0.json"
-grep -q '"level": "single"' "${TMP_DIR}/results/result0.json"
-grep -q '"run_count": 1' "${TMP_DIR}/results/result0.json"
+grep -Eq '"tool":[[:space:]]*"fapp"' "${TMP_DIR}/results/result0.json"
+grep -Eq '"level":[[:space:]]*"single"' "${TMP_DIR}/results/result0.json"
+grep -Eq '"run_count":[[:space:]]*1' "${TMP_DIR}/results/result0.json"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/results/result0.json"
 grep -q '"result0.json"' "${TMP_DIR}/results/server_result_meta.json"
 

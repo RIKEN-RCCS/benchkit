@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - "result_server/**"
-      - "scripts/result_server/send_results.sh"
+      - "scripts/bk_functions.sh"
+      - "scripts/result.sh"
+      - "scripts/result_server/**"
+      - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_result_profile_data.sh"
+      - "scripts/tests/test_send_results_profile_data.sh"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -15,7 +20,12 @@ on:
       - "**"
     paths:
       - "result_server/**"
-      - "scripts/result_server/send_results.sh"
+      - "scripts/bk_functions.sh"
+      - "scripts/result.sh"
+      - "scripts/result_server/**"
+      - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_result_profile_data.sh"
+      - "scripts/tests/test_send_results_profile_data.sh"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -54,3 +64,16 @@ jobs:
 
       - name: Run result_server pytest suite
         run: python result_server/tests/run_result_server_tests.py
+
+  profile-data-shell:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run profiler and profile-data shell tests
+        run: |
+          bash scripts/tests/test_bk_profiler.sh
+          bash scripts/tests/test_result_profile_data.sh
+          bash scripts/tests/test_send_results_profile_data.sh

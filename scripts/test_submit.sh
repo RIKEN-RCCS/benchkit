@@ -114,6 +114,15 @@ case "$system" in
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh
     ;;
+  GenkaiA|GenkaiB|GenkaiC)
+    proc=$((nodes * numproc_node))
+    echo pjsub -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc \
+         script.sh
+    pjsub -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc \
+         script.sh
+    ;;
   RC_GH200)
     echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
@@ -134,8 +143,7 @@ case "$system" in
     ;;
   *)
     echo "Error: Unknown system '$system'"
-    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, RC_GH200, MiyabiC, MiyabiG"
+    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, GenkaiA, GenkaiB, GenkaiC, RC_GH200, MiyabiC, MiyabiG"
     exit 1
     ;;
 esac
-

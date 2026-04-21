@@ -74,7 +74,8 @@ for listfile in programs/*/list.csv; do
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"
 
-	export elapse nodes queue_group numproc_node nthreads 
+    proc=$((nodes * numproc_node))
+	export elapse nodes queue_group numproc_node nthreads proc
 
 	read -r submit_cmd template <<< "$(get_queue_template "$system")"
     if [[ -z "$submit_cmd" || -z "$template" ]]; then
@@ -211,4 +212,3 @@ ${job_prefix}_build_run:
 
   done < "$listfile"
 done
-

@@ -8,3 +8,6 @@ RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,6
 RC_DGXSP,RC_DGXSP,ARM Cortex-X925 / Cortex-A725,1,20,NVIDIA GB10,1,128GB,7
 RC_GENOA,RC_GENOA,AMD EPYC 9684X,2,96,-,-,768GB,8
 RC_FX700,RC_FX700,A64FX,1,48,-,-,32GB,9
+GenkaiA,GenkaiA,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,-,-,512GiB,10
+GenkaiB,GenkaiB,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,NVIDIA H100 (Hopper),4,1024GiB,11
+GenkaiC,GenkaiC,Intel Xeon Platinum 8480+ (Sapphire Rapids),2,56,NVIDIA H100 (Hopper),8,8TiB,12

@@ -45,12 +45,13 @@ popd >/dev/null
 
 RESULT_JSON="${TMP_DIR}/results/result0.json"
 test -f "${RESULT_JSON}"
-grep -q '"profile_data"' "${RESULT_JSON}"
-grep -q '"tool": "fapp"' "${RESULT_JSON}"
-grep -q '"level": "single"' "${RESULT_JSON}"
-grep -q '"report_format": "text"' "${RESULT_JSON}"
-grep -q '"run_count": 1' "${RESULT_JSON}"
-grep -q '"pa1"' "${RESULT_JSON}"
-grep -q '"summary_text"' "${RESULT_JSON}"
+jq -e '
+  .profile_data.tool == "fapp" and
+  .profile_data.level == "single" and
+  .profile_data.report_format == "text" and
+  .profile_data.run_count == 1 and
+  (.profile_data.events | index("pa1") != null) and
+  (.profile_data.report_kinds | index("summary_text") != null)
+' "${RESULT_JSON}" >/dev/null
 
 echo "result profile_data test passed"

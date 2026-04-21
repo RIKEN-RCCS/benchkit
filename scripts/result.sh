@@ -24,6 +24,41 @@ node_count='how_many'
 numproc_node=""
 nthreads=""
 
+build_profile_data_summary() {
+  local tgz_file="$1"
+
+  if [[ ! -f "$tgz_file" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local meta_member
+  meta_member=$(tar -tzf "$tgz_file" 2>/dev/null | grep 'meta\.json$' | head -n 1 || true)
+  if [[ -z "$meta_member" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local meta_json
+  meta_json=$(tar -xOf "$tgz_file" "$meta_member" 2>/dev/null || true)
+  if [[ -z "$meta_json" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  echo "$meta_json" | jq -c '
+    {
+      tool: .tool,
+      level: .level,
+      report_format: .report_format,
+      raw_dir: .raw_dir,
+      run_count: ((.runs // []) | length),
+      events: ((.runs // []) | map(.event) | map(select(. != null and . != ""))),
+      report_kinds: ((.runs // []) | map(.reports // []) | add | map(.kind) | unique)
+    }
+  ' 2>/dev/null || true
+}
+
 # Read source_info.env if it exists (written by bk_fetch_source in build stage)
 source_info_block="null"
 if [ -f results/source_info.env ]; then
@@ -99,6 +134,15 @@ write_result_json() {
   \"pipeline_id\": $pipeline_id"
   fi
 
+  # Build profile_data summary if a matching profiler archive exists.
+  local profile_data_block=""
+  local profile_data_summary=""
+  profile_data_summary=$(build_profile_data_summary "results/padata${idx}.tgz")
+  if [ -n "$profile_data_summary" ]; then
+    profile_data_block=",
+  \"profile_data\": ${profile_data_summary}"
+  fi
+
   # Build fom_breakdown if sections exist
   if [ -n "$sections_json" ]; then
     # Validate overlap section names
@@ -139,7 +183,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
+  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
 }
 EOF
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -o pipefail
 system="$1"
 nodes="$2"
 numproc_node="$3"
@@ -104,6 +105,73 @@ if [[ ! -f ${inputdir}/apoa1.rst ]]; then
 fi
 cp ${inputdir}/apoa1.rst  .
 
+run_genesis_gh200_gpu() {
+    local system_name="$1"
+    local env_prefix="$2"
+    local default_module="$3"
+    local module_var="${env_prefix}_MODULE"
+    local mpi_cmd_var="${env_prefix}_MPI_CMD"
+    local mpi_args_var="${env_prefix}_MPI_ARGS"
+    local cuda_visible_devices_var="${env_prefix}_CUDA_VISIBLE_DEVICES"
+    local profiler_tool_var="${env_prefix}_PROFILER_TOOL"
+    local profiler_level_var="${env_prefix}_PROFILER_LEVEL"
+
+    local module_name="${!module_var:-$default_module}"
+    if [ "$module_name" != "none" ] && command -v module >/dev/null 2>&1; then
+        read -r -a module_names <<< "$module_name"
+        module load "${module_names[@]}"
+    fi
+
+    read -r -a mpi_cmd <<< "${!mpi_cmd_var:-mpirun -np ${numproc}}"
+    if [ -n "${!mpi_args_var:-}" ]; then
+        read -r -a gh200_mpi_args <<< "${!mpi_args_var}"
+        mpi_cmd+=("${gh200_mpi_args[@]}")
+    fi
+
+    export OMP_NUM_THREADS=${nthreads}
+    if [ -n "${!cuda_visible_devices_var:-}" ]; then
+        export CUDA_VISIBLE_DEVICES="${!cuda_visible_devices_var}"
+    fi
+
+    local genesis_profiler_requested=""
+    local genesis_profiler_explicit=0
+    if [ -n "${!profiler_tool_var:-}" ]; then
+        genesis_profiler_requested="${!profiler_tool_var}"
+        genesis_profiler_explicit=1
+    elif [ -n "${GENESIS_PROFILER_TOOL:-}" ]; then
+        genesis_profiler_requested="${GENESIS_PROFILER_TOOL}"
+        genesis_profiler_explicit=1
+    else
+        genesis_profiler_requested="ncu"
+    fi
+
+    genesis_profiler_tool=$(bk_get_profiler_tool "$genesis_profiler_requested") || return 1
+    genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-single}}"
+    if [ -n "$genesis_profiler_tool" ]; then
+        if [ "$genesis_profiler_tool" = "ncu" ] && ! command -v ncu >/dev/null 2>&1; then
+            if [ "$genesis_profiler_explicit" -eq 1 ]; then
+                echo "Genesis ${system_name}: ncu profiler requested but ncu is not in PATH." >&2
+                echo "Load Nsight Compute with ${module_var}, or set ${profiler_tool_var}=none / GENESIS_PROFILER_TOOL=none to run without profiling." >&2
+                return 1
+            fi
+            echo "Genesis ${system_name}: default ncu profiler is not in PATH; running without profiling." >&2
+            echo "Set ${profiler_tool_var}=ncu or GENESIS_PROFILER_TOOL=ncu to require Nsight Compute profiling." >&2
+            genesis_profiler_tool=""
+            genesis_profiler_requested="none"
+        fi
+    fi
+
+    echo "Running ${system_name} as Grace-Hopper GPU run with profiler=${genesis_profiler_requested:-none} level=${genesis_profiler_level}"
+    if [ -n "$genesis_profiler_tool" ]; then
+        bk_profiler "$genesis_profiler_tool" \
+            --level "$genesis_profiler_level" \
+            --archive "${resultsdir}/padata0.tgz" \
+            --raw-dir ncu \
+            -- "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+    else
+        "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+    fi
+}
 
 case "$system" in
   Fugaku)
@@ -125,8 +193,15 @@ case "$system" in
     export OMP_NUM_THREADS=${nthreads}
 	${mpi_cmd} ./${binary} ${input}.sub 2>&1 | tee ${output}
     ;;
+  MiyabiG)
+    run_genesis_gh200_gpu "$system" GENESIS_MIYABIG none
+    ;;
+  RC_GH200)
+    run_genesis_gh200_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    ;;
   *)
     echo "Unknown Running system: $system"
+    exit 1
     ;;
 esac
 

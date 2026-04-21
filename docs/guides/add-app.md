@@ -328,7 +328,7 @@ tar -czf ../results/padata0.tgz ./pa
 ### Fugaku で `fapp` を使う場合
 
 Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、BenchKit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
-`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive の root に `meta.json` を入れます。BenchKit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
+`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。BenchKit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
 
 `fapp` では共通 level として次を扱います。
 
@@ -373,6 +373,26 @@ bk_profiler_artifact/
 
 より一般的な profiler helper の設計方針は [Profiler Support Guide](profiler-support.md) を参照してください。
 level の早見表と portal 上の見え方は [Profiler Level Reference](profiler-level-reference.md) にまとめています。
+
+### GPU アプリで `ncu` を使う場合
+
+NVIDIA GPU 向けアプリでは、Nsight Compute CLI (`ncu`) を `bk_profiler` 経由で使えます。
+MPI launcher 経由のアプリでは、`bk_profiler ncu` が既定で `--target-processes all` を付け、child process の CUDA kernel も採取対象にします。
+MiyabiG と RC_GH200 のように計算ノード構成が同じ Grace-Hopper GPU 系の場合は、ジョブ投入方式だけを system 設定に任せ、アプリ側の build/run と profiler 採取は共通化するのが自然です。
+
+```bash
+BK_PROFILER_ARGS="--set full --kernel-name regex:your_kernel" \
+bk_profiler ncu --level single --archive ../results/padata0.tgz --raw-dir ncu -- \
+    mpirun -np 1 ./your_gpu_app input.inp
+```
+
+`ncu` の既定 level は `single` です。最初は採取時間を抑えるため、`single` または `simple` から始めてください。
+raw report は `padata*.tgz` 内の `raw/rep1/` に保存され、可能な場合は `reports/ncu_import_rep1.txt` に text report が保存されます。
+site の既定 module に `ncu` が含まれない場合は、アプリ側で module を load するか、system 固有の module 変数を用意してください。
+Genesis GH200 参照実装では `GENESIS_MIYABIG_MODULE` / `GENESIS_GH200_MODULE` で module を上書きできます。
+既定の `ncu` が PATH にない場合は warning を出して profiler なしで benchmark 本体を実行しますが、`GENESIS_MIYABIG_PROFILER_TOOL=ncu`、`GENESIS_GH200_PROFILER_TOOL=ncu`、または `GENESIS_PROFILER_TOOL=ncu` を明示した場合は採取不能として失敗します。
+profiler なしを明示する場合は `GENESIS_MIYABIG_PROFILER_TOOL=none`、`GENESIS_GH200_PROFILER_TOOL=none`、または `GENESIS_PROFILER_TOOL=none` を使えます。
+level は `GENESIS_MIYABIG_PROFILER_LEVEL` / `GENESIS_GH200_PROFILER_LEVEL`、または共通の `GENESIS_PROFILER_LEVEL` で上書きできます。
 
 ---
 

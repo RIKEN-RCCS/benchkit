@@ -8,4 +8,7 @@ RC_GENOA,native,,cloud_jacamar,SLURM_RC,genoa
 RC_FX700,native,,cloud_jacamar,SLURM_RC,fx700
 MiyabiG,cross,miyabi_g_login,miyabi_g_jacamar,PBS_Miyabi,debug-g
 MiyabiC,cross,miyabi_c_login,miyabi_c_jacamar,PBS_Miyabi,debug-c
+GenkaiA,cross,genkai_login,genkai_jacamar,PJM_GENKAI,a-batch
+GenkaiB,cross,genkai_login,genkai_jacamar,PJM_GENKAI,b-batch
+GenkaiC,cross,genkai_login,genkai_jacamar,PJM_GENKAI,c-batch
 FNCX,native,,fncx-curl-jq,none,small

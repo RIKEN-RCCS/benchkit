@@ -439,7 +439,7 @@ queue,submit_cmd,template
 PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=your_group"
 ```
 
-テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`
+テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）
 
 ### `config/system_info.csv` に表示用メタデータを追加
 
@@ -547,7 +547,8 @@ mkdir -p ~/.config/systemd/user
 [Unit]
 Description=GitLab Runner service (user mode, amd64)
 After=network.target
-ConditionHost=your-login-node   # ← 実際のホスト名に変更
+# 実際のホスト名に変更
+ConditionHost=your-login-node
 
 [Service]
 ExecStart=%h/gitlab-runner_jacamar-ci_amd/bin/gitlab-runner run --config %h/gitlab-runner_jacamar-ci_amd/config.toml --working-directory %h
@@ -565,7 +566,8 @@ WantedBy=default.target
 [Unit]
 Description=GitLab Runner service (user mode, arm64)
 After=network.target
-ConditionHost=your-arm-login-node   # ← 実際のホスト名に変更
+# 実際のホスト名に変更
+ConditionHost=your-arm-login-node
 
 [Service]
 ExecStart=%h/gitlab-runner_jacamar-ci_arm/bin/gitlab-runner run --config %h/gitlab-runner_jacamar-ci_arm/config.toml --working-directory %h
@@ -578,7 +580,7 @@ StandardError=append:%h/gitlab-runner_jacamar-ci_arm/gitlab-runner.err
 WantedBy=default.target
 ```
 
-`ConditionHost=` を設定することで、同じホームディレクトリを複数ノードで共有していても、指定したホストでのみサービスが起動します。
+`ConditionHost=` を設定することで、同じホームディレクトリを複数ノードで共有していても、指定したホストでのみサービスが起動します。systemd の unit file では行末コメントを値として解釈するので、コメントは別行に置いてください。
 
 ### サービスの有効化・起動
 

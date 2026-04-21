@@ -76,7 +76,22 @@ bk_profiler <tool> [options] -- <command ...>
 ここでいう CSV は `fapp` 固有の CPU performance analysis report を指す。
 BenchKit は「CSV があること」を共通必須にはしない。
 
-## 5. Archive の考え方
+## 5. `ncu` の level 定義
+
+`ncu` では現在、次の対応を採る。
+
+- `single` → `--set basic --launch-count 1`
+- `simple` → `--set basic --launch-count 5`
+- `standard` → `--set full --launch-count 1`
+- `detailed` → `--set full --nvtx`
+
+既定の report format は `text` とする。
+raw report は `raw/rep1/profile*.ncu-rep` または Nsight Compute の出力形式に従う report file として保存し、可能な場合は `ncu --import ... --page details` の出力を `reports/ncu_import_rep1.txt` に保存する。
+
+MPI launcher 経由の GPU application では、既定で `--target-processes all` を付けて child process も採取対象にする。
+追加の kernel filter、section set、NVTX filter などは `BK_PROFILER_ARGS` で `ncu` に渡す。
+
+## 6. Archive の考え方
 
 `bk_profiler` は archive の中に少なくとも次を置く。
 
@@ -104,7 +119,7 @@ bk_profiler_artifact/
     cpu_pa_rep2.csv
 ```
 
-## 6. `meta.json` の役割
+## 7. `meta.json` の役割
 
 `meta.json` は、archive の内容を BenchKit や推定 package が機械的に判断するための最小 metadata とする。
 
@@ -138,7 +153,7 @@ bk_profiler_artifact/
 
 を見て、その artifact が適用可能かどうかを判断できる。
 
-## 7. アプリ側の責務
+## 8. アプリ側の責務
 
 アプリ側は profiler helper を直接一般化しすぎず、次だけを持てばよい。
 
@@ -154,7 +169,30 @@ bk_profiler_artifact/
 
 だけを持つ。
 
-## 8. 今は固定しないこと
+`genesis` では、MiyabiG と RC_GH200 を同じ Grace-Hopper GPU 系の計算ノードとして扱い、GPU build / run に対して、
+
+- build で `--enable-gpu`、`--enable-openmp`、`--with-gpuarch=sm_90` を指定する
+- MiyabiG の既定 build では外部 LAPACK を要求せず、必要な場合だけ `GENESIS_MIYABIG_LAPACK_LIBS` で有効化する
+- `.fpp` 前処理では GENESIS の traditional cpp flags を保持しつつ、GPU/single/MPI/OpenMP/FFTE の define を `PPFLAGS` 経由で明示する
+- CUDA 12.9 以降向けに `src/spdyn/gpu_sp_energy.cu` の `nvToolsExt.h` include を `nvtx3/nvToolsExt.h` に補正する
+- `mpif90` の実体が `nvfortran` の環境向けに、GENESIS の compiler 判定を NVHPC/PGI 系として補正する
+- GENESIS の古い PGI flag (`-Mcuda` など) は `configure.ac` 側で NVHPC 25.x/aarch64 向けの `-cuda -gpu=cc90` へ補正する
+- NVHPC 25.x では古い PGI pinned-array 経路の `PGICUDA` define を外し、GPU kernel 用の domain fields を保持する
+- run では、`ncu` が PATH にある場合に `bk_profiler ncu --level single -- ...` を呼ぶ
+
+形を参照実装とする。ジョブ投入方式は MiyabiG が PBS、RC_GH200 が SLURM で異なるが、アプリ側の実行方法と profiler 採取方法は共通化する。
+
+CUDA prefix、compiler wrapper、module、profiler tool は site 側の module 構成に合わせて上書きできる。
+
+- build/run 共通の module: `GENESIS_MIYABIG_MODULE`, `GENESIS_GH200_MODULE`
+- build 時の CUDA/compiler/config: `GENESIS_MIYABIG_CUDA_PATH`, `GENESIS_MIYABIG_FC`, `GENESIS_MIYABIG_CC`, `GENESIS_MIYABIG_CONFIG_ARGS`
+- run 時の profiler: `GENESIS_MIYABIG_PROFILER_TOOL`, `GENESIS_GH200_PROFILER_TOOL`, `GENESIS_MIYABIG_PROFILER_LEVEL`, `GENESIS_GH200_PROFILER_LEVEL`, または共通の `GENESIS_PROFILER_TOOL` / `GENESIS_PROFILER_LEVEL`
+
+Genesis GH200 run の profiler 既定値は `ncu` だが、これは暗黙の既定値としてだけ扱う。`ncu` が PATH にない環境では warning を出して profiler なしで benchmark 本体を実行する。
+一方、`GENESIS_PROFILER_TOOL=ncu` または system 固有の `GENESIS_*_PROFILER_TOOL=ncu` を明示した場合は、`ncu` が見つからなければ失敗させる。
+profiler なしを明示したい場合は、`GENESIS_PROFILER_TOOL=none` または system 固有の `GENESIS_*_PROFILER_TOOL=none` を指定する。
+
+## 9. 今は固定しないこと
 
 現時点では、次は固定しない。
 

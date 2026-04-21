@@ -39,9 +39,23 @@ Default report behavior for `fapp` is:
 
 Here `both` means text summaries plus CSV reports.
 
+## Current `ncu` Mapping
+
+- `single`
+  - `--set basic --launch-count 1`
+- `simple`
+  - `--set basic --launch-count 5`
+- `standard`
+  - `--set full --launch-count 1`
+- `detailed`
+  - `--set full --nvtx`
+
+Default report behavior for `ncu` is `text`.
+BenchKit stores the Nsight Compute raw report under `raw/rep1/` and, when import succeeds, a text details page under `reports/ncu_import_rep1.txt`.
+
 ## Portal Summary
 
-BenchKit stores profiler metadata in `meta.json` inside `padata.tgz`, and also copies a compact summary into `result.json` as `profile_data`.
+BenchKit stores profiler metadata in `bk_profiler_artifact/meta.json` inside `padata.tgz`, and also copies a compact summary into `result.json` as `profile_data`.
 
 This makes it possible to inspect profiler coverage without downloading the archive first.
 
