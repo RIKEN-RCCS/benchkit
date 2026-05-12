@@ -87,9 +87,10 @@
 {% if step == "email" %}
 <p class="auth-lead">Start with the email address associated with your portal account. You will enter your authenticator code on the next step.</p>
 <form method="POST" action="{{ url_for('auth.login') }}">
+    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
     <div class="auth-field">
         <label for="email">Email address</label>
-        <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus autocomplete="username">
     </div>
     <div class="auth-actions">
         <button type="submit" class="primary-button">Continue</button>
@@ -99,6 +100,7 @@
 <p class="auth-lead">Enter the 6-digit code from your authenticator app to complete sign-in.</p>
 <span class="auth-step-note">Step 2 of 2</span>
 <form method="POST" action="{{ url_for('auth.login') }}">
+    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
     <input type="hidden" name="email" value="{{ email }}">
     <div class="auth-field">
         <label for="totp_code">TOTP Code</label>

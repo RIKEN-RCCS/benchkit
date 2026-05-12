@@ -2,19 +2,21 @@ import os
 import sys
 from datetime import timedelta
 
-from flask import Flask, current_app, render_template
+from flask import Flask, render_template
 from flask_session import Session
 
 from routes.api import api_bp
 from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
+from utils.auth import parse_ingest_keys
+from utils.csrf import init_csrf
 
 
-EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
+INGEST_KEYS = parse_ingest_keys()
 
-if not EXPECTED_API_KEY:
-    print("ERROR: RESULT_SERVER_KEY is not set.", file=sys.stderr)
+if not INGEST_KEYS:
+    print("ERROR: RESULT_SERVER_KEYS or RESULT_SERVER_KEY is not set.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -41,6 +43,7 @@ def _configure_redis(app, prefix):
     app.config["REDIS_CONN"] = redis.from_url(redis_url, decode_responses=True)
     app.config["REDIS_PREFIX"] = "dev:" if prefix == "/dev" else "main:"
     app.config["SESSION_COOKIE_NAME"] = "session_dev" if prefix == "/dev" else "session_main"
+    app.config["AUTH_REQUIRES_REDIS"] = True
 
 
 def _configure_user_store(app):
@@ -92,12 +95,14 @@ def create_app(prefix="", base_dir=None):
     if not secret_key:
         raise RuntimeError("FLASK_SECRET_KEY must be set in production")
     app.secret_key = secret_key
+    app.config["INGEST_KEYS"] = INGEST_KEYS.copy()
 
     _configure_session(app, base_dir)
     _configure_redis(app, prefix)
     _configure_user_store(app)
     _configure_totp_issuer(app, prefix)
     _configure_result_directories(app, base_dir)
+    init_csrf(app, exempt_blueprints=(api_bp,))
 
     register_home_routes(app, prefix=prefix)
     _register_portal_blueprints(app, prefix)
@@ -127,4 +132,6 @@ app_dev = create_app(prefix="/dev", base_dir=os.path.join(BASE_PATH, "dev1"))
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8800)
+    host = os.environ.get("RESULT_SERVER_HOST", "127.0.0.1")
+    port = int(os.environ.get("RESULT_SERVER_PORT", "8800"))
+    app.run(host=host, port=port)

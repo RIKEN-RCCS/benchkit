@@ -120,10 +120,32 @@ class TestResultDetailTemplate:
         assert "PA Data Summary" in html
         assert "fapp" in html
         assert "single" in html
-        assert "Tool-Specific Events" in html
+        assert "Tool-Specific Detail" in html
         assert "fapp event set: pa1" in html
         assert "summary_text" in html
         assert "pa1" in html
+
+    def test_ncu_pa_data_summary_shows_ncu_options_without_generic_events(self, app):
+        result = {
+            **FULL_RESULT,
+            "profile_data": {
+                "tool": "ncu",
+                "level": "single",
+                "report_format": "text",
+                "run_count": 1,
+                "events": [],
+                "ncu_options": ["--target-processes", "all", "--set", "basic", "--launch-count", "1"],
+                "report_kinds": ["ncu_report", "summary_text"],
+            },
+        }
+        with app.test_request_context():
+            html = _render_result_detail(result, FULL_QUALITY)
+
+        assert "Tool-Specific Detail" in html
+        assert "ncu options: --target-processes all --set basic --launch-count 1" in html
+        assert "NCU Options" in html
+        assert "ncu_report" in html
+        assert ">Events<" not in html
 
     def test_vector_data_table(self, app):
         with app.test_request_context():

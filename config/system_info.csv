@@ -8,3 +8,11 @@ RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,6
 RC_DGXSP,RC_DGXSP,ARM Cortex-X925 / Cortex-A725,1,20,NVIDIA GB10,1,128GB,7
 RC_GENOA,RC_GENOA,AMD EPYC 9684X,2,96,-,-,768GB,8
 RC_FX700,RC_FX700,A64FX,1,48,-,-,32GB,9
+GenkaiA,GenkaiA,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,-,-,512GiB,10
+GenkaiB,GenkaiB,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,NVIDIA H100 (Hopper),4,1024GiB,11
+GenkaiC,GenkaiC,Intel Xeon Platinum 8480+ (Sapphire Rapids),2,56,NVIDIA H100 (Hopper),8,8TiB,12
+Grand_C,Grand_C,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,-,-,512GiB,13
+Grand_G,Grand_G,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,NVIDIA H100 (Hopper),4,512GiB,14
+AOBA_A,AOBA_A,SX-Aurora TSUBASA VH,1,24,NEC SX-Aurora TSUBASA Type 20B VE,8,640GB,15
+AOBA_B,AOBA_B,AMD EPYC 7702,2,64,-,-,256GB,16
+AOBA_S,AOBA_S,SX-Aurora TSUBASA VH,1,64,NEC SX-Aurora TSUBASA Type 30A VE,8,256GB + 768GB,17

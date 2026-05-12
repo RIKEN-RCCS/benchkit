@@ -64,6 +64,24 @@ get_system_queue_group() {
     return 0
 }
 
+# Queue templates can request aggregate CPU sockets or GPU cards. Pull the
+# per-node values from system_info.csv instead of duplicating them in queue.csv.
+get_system_cpu_per_node() {
+    local system="$1"
+    local info_file="${SYSTEM_INFO_FILE:-config/system_info.csv}"
+    awk -F, -v s="$system" '$1==s {print $4}' "$info_file"
+    return 0
+}
+
+# A dash in system_info.csv means "no GPU"; matrix_generate.sh normalizes
+# non-numeric values to zero before doing scheduler arithmetic.
+get_system_gpu_per_node() {
+    local system="$1"
+    local info_file="${SYSTEM_INFO_FILE:-config/system_info.csv}"
+    awk -F, -v s="$system" '$1==s {print $7}' "$info_file"
+    return 0
+}
+
 # System_CSVからtag_buildを取得する
 # $1: システム名
 # mode=nativeの場合は空文字を返す（tag_buildカラム自体が空）

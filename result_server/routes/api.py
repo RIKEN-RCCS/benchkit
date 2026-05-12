@@ -7,12 +7,13 @@ import re
 import uuid
 import shutil
 import io
+import sys
 import tarfile
 from datetime import datetime
 
-api_bp = Blueprint("api", __name__)
+from utils.auth import verify_ingest_key
 
-EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
+api_bp = Blueprint("api", __name__)
 
 
 # ==========================================
@@ -20,10 +21,19 @@ EXPECTED_API_KEY = os.environ.get("RESULT_SERVER_KEY")
 # ==========================================
 
 def require_api_key():
-    """Validate the request API key."""
-    api_key = request.headers.get("X-API-Key")
-    if api_key != EXPECTED_API_KEY:
+    """Validate the request API key and return the authenticated runner id."""
+    runner_id = verify_ingest_key(request.headers.get("X-API-Key", ""))
+    if not runner_id:
         abort(401, description="Invalid API Key")
+    current_app.logger.info(
+        "api key accepted",
+        extra={
+            "runner_id": runner_id,
+            "endpoint": request.path,
+            "ip": request.remote_addr,
+        },
+    )
+    return runner_id
 
 
 def save_json_file(data, prefix, out_dir, given_uuid=None):
@@ -135,6 +145,16 @@ def _find_result_file_by_uuid(received_dir, uuid_value):
 
 
 def _safe_extract_tar_bytes(file_storage, target_dir):
+    """Extract uploaded tar bytes with path and member-type checks.
+
+    The explicit path normalization catches traversal attempts before writing
+    anything, and Python 3.12's data filter rejects non-regular archive entries
+    such as unsafe links or device files.
+    """
+    if sys.version_info < (3, 12):
+        raise RuntimeError("Python 3.12 or later is required for safe tar extraction.")
+
+    os.makedirs(target_dir, exist_ok=True)
     with tarfile.open(fileobj=file_storage.stream, mode="r:*") as tar:
         for member in tar.getmembers():
             normalized = os.path.normpath(member.name)
@@ -142,8 +162,8 @@ def _safe_extract_tar_bytes(file_storage, target_dir):
                 abort(400, description="Unsafe archive entry")
         try:
             tar.extractall(target_dir, filter="data")
-        except TypeError:
-            tar.extractall(target_dir)
+        except tarfile.FilterError:
+            abort(400, description="Unsafe archive entry")
 
 
 # ==========================================
@@ -178,9 +198,7 @@ def ingest_estimate():
 @api_bp.route("/api/ingest/padata", methods=["POST"])
 def ingest_padata():
     """Receive and store a PA Data archive."""
-    api_key = request.headers.get("X-API-Key")
-    if api_key != EXPECTED_API_KEY:
-        abort(401, description="Invalid API Key")
+    require_api_key()
 
     uuid_str = request.form.get("id")
     if not uuid_str or not is_valid_uuid(uuid_str):

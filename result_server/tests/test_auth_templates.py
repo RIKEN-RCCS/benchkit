@@ -19,6 +19,8 @@ def test_auth_login_template_renders_portal_shell():
     assert "Sign in with your email address and TOTP code" in html
     assert "Step 2 of 2" not in html
     assert "Continue" in html
+    assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in html
+    assert 'autocomplete="username"' in html
 
 
 def test_auth_setup_template_renders_portal_shell():
@@ -46,6 +48,7 @@ def test_admin_users_template_renders_portal_table():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
+    app.jinja_env.globals["csrf_token"] = lambda: "test-csrf-token"
     with app.test_request_context("/admin/users"):
         from flask import render_template, session
 
@@ -71,3 +74,4 @@ def test_admin_users_template_renders_portal_table():
     assert "Review current user access" in html
     assert "Registered" in html
     assert "Pending" in html
+    assert 'name="csrf_token" value="test-csrf-token"' in html

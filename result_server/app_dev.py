@@ -15,16 +15,32 @@ Usage:
 import argparse
 import json
 import os
+import secrets
 import sys
 import types
 import uuid
+import warnings
 from datetime import datetime, timedelta
+
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def setup_dev_environment(base_dir):
     """Configure development environment variables and runtime directories."""
-    os.environ.setdefault("RESULT_SERVER_KEY", "dev-api-key")
-    os.environ.setdefault("FLASK_SECRET_KEY", "dev-secret-key")
+    if not os.environ.get("RESULT_SERVER_KEYS") and not os.environ.get("RESULT_SERVER_KEY"):
+        os.environ["RESULT_SERVER_KEYS"] = f"local-dev:{secrets.token_urlsafe(32)}"
+        warnings.warn(
+            "RESULT_SERVER_KEYS not set; using an ephemeral dev API key.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    if not os.environ.get("FLASK_SECRET_KEY"):
+        os.environ["FLASK_SECRET_KEY"] = secrets.token_hex(32)
+        warnings.warn(
+            "FLASK_SECRET_KEY not set; using an ephemeral dev secret key.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     os.environ.setdefault("BASE_PATH", base_dir)
     os.environ["DEV_MODE"] = "1"
 
@@ -42,6 +58,19 @@ def setup_dev_environment(base_dir):
         "dev1/flask_session",
     ]:
         os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
+
+
+def validate_dev_runtime(host):
+    """Abort when the development launcher is used outside local-only mode."""
+    if os.environ.get("FLASK_ENV") == "production":
+        sys.exit("app_dev.py must not be used in production. Use app.py.")
+    if host not in LOOPBACK_HOSTS:
+        sys.exit(f"app_dev.py refuses to bind to {host}. Use app.py for production.")
+
+
+def dev_debug_enabled():
+    """Return whether the Werkzeug debugger was explicitly enabled."""
+    return os.environ.get("RESULT_SERVER_DEV_DEBUG") == "1"
 
 
 def _create_stub_totp_manager():
@@ -130,15 +159,19 @@ def create_dev_app(base_dir):
     from flask_session import Session
 
     from routes.home import register_home_routes
+    from utils.auth import parse_ingest_keys
+    from utils.csrf import init_csrf
     from utils.system_info import get_all_systems_info, summarize_systems_info
 
     app = Flask(__name__, template_folder="templates")
 
-    app.secret_key = "dev-secret-key"
+    app.secret_key = os.environ["FLASK_SECRET_KEY"]
     app.config.update(
         SESSION_TYPE="filesystem",
         SESSION_FILE_DIR=os.path.join(base_dir, "main", "flask_session"),
         SESSION_PERMANENT=False,
+        AUTH_REQUIRES_REDIS=False,
+        INGEST_KEYS=parse_ingest_keys(),
     )
     Session(app)
 
@@ -166,6 +199,10 @@ def create_dev_app(base_dir):
     register_home_routes(app)
 
     # Register all portal blueprints.
+    from routes.api import api_bp
+
+    app.register_blueprint(api_bp)
+
     from routes.results import results_bp
 
     app.register_blueprint(results_bp, url_prefix="/results")
@@ -179,6 +216,8 @@ def create_dev_app(base_dir):
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
     from routes.admin import admin_bp
+
+    init_csrf(app, exempt_blueprints=(api_bp,))
 
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
@@ -472,9 +511,16 @@ def generate_sample_data(received_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="BenchKit Result Server - Dev Mode")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Loopback host to bind (default: 127.0.0.1)",
+    )
     parser.add_argument("--port", type=int, default=8800, help="Port number (default: 8800)")
     parser.add_argument("--generate-sample", action="store_true", help="Generate sample data")
     args = parser.parse_args()
+
+    validate_dev_runtime(args.host)
 
     # Development base directory.
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -492,15 +538,18 @@ def main():
         print("Generating sample data...")
         generate_sample_data(received_dir)
 
-    print(f"\nStarting dev server on http://localhost:{args.port}")
-    print(f"  Results: http://localhost:{args.port}/results")
-    print(f"  Systems: http://localhost:{args.port}/systemlist")
+    print(f"\nStarting dev server on http://{args.host}:{args.port}")
+    print(f"  Results: http://{args.host}:{args.port}/results")
+    print(f"  Systems: http://{args.host}:{args.port}/systemlist")
     print(f"  Data dir: {base_dir}")
     print()
 
     # Create and launch the Flask app directly.
     app = create_dev_app(base_dir)
-    app.run(host="127.0.0.1", port=args.port, debug=True)
+    debug = dev_debug_enabled()
+    if debug:
+        app.logger.warning("Werkzeug debugger enabled for local development.")
+    app.run(host=args.host, port=args.port, debug=debug)
 
 
 if __name__ == "__main__":

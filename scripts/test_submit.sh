@@ -28,6 +28,7 @@ fi
 
 source ./scripts/job_functions.sh
 SYSTEM_FILE="config/system.csv"
+SYSTEM_INFO_FILE="config/system_info.csv"
 
 # --- checking dir and list ---
 if [ ! -d "programs/$code" ]; then
@@ -114,6 +115,45 @@ case "$system" in
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh
     ;;
+  GenkaiA|GenkaiB|GenkaiC)
+    proc=$((nodes * numproc_node))
+    echo pjsub -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc \
+         script.sh
+    pjsub -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc \
+         script.sh
+    ;;
+  Grand_C)
+    cpu_per_node=$(get_system_cpu_per_node "$system")
+    echo qsub -q $queue_group \
+         -l select=${nodes}:nsockets=${cpu_per_node},walltime=${elapse} \
+         -W group_list=d30992 script.sh
+    qsub -q $queue_group \
+         -l select=${nodes}:nsockets=${cpu_per_node},walltime=${elapse} \
+         -W group_list=d30992 script.sh
+    ;;
+  Grand_G)
+    echo qsub -q $queue_group \
+         -l select=${nodes}:ngpus=1,walltime=${elapse} \
+         -W group_list=d30992 script.sh
+    qsub -q $queue_group \
+         -l select=${nodes}:ngpus=1,walltime=${elapse} \
+         -W group_list=d30992 script.sh
+    ;;
+  AOBA_A|AOBA_S)
+    proc=$((nodes * numproc_node))
+    echo qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T necmpi --venode $proc \
+         -l elapstim_req=$elapse script.sh
+    qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T necmpi --venode $proc \
+         -l elapstim_req=$elapse script.sh
+    ;;
+  AOBA_B)
+    echo qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T intmpi -b $nodes \
+         -l elapstim_req=$elapse script.sh
+    qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T intmpi -b $nodes \
+         -l elapstim_req=$elapse script.sh
+    ;;
   RC_GH200)
     echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
@@ -121,21 +161,20 @@ case "$system" in
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   MiyabiC)
-    echo qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+    echo qsub -q debug-c -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
-    qsub -q debug-c -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+    qsub -q debug-c -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
     ;;
   MiyabiG)
-    echo qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+    echo qsub -q debug-g -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
-    qsub -q debug-g -l select=${nodes}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
+    qsub -q debug-g -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=$nthreads -l walltime=${elapse} -W group_list=$(groups |awk '{print $2}') \
 	 script.sh
     ;;
   *)
     echo "Error: Unknown system '$system'"
-    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, RC_GH200, MiyabiC, MiyabiG"
+    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, GenkaiA, GenkaiB, GenkaiC, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, MiyabiC, MiyabiG"
     exit 1
     ;;
 esac
-

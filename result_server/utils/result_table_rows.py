@@ -105,6 +105,8 @@ def _format_profile_summary(profile_data):
     return " / ".join(headline_parts) if headline_parts else "profile data"
 
 
+# The template expects a stable, display-ready shape even when older result JSON
+# files do not have profile_data or when only one profiler family is present.
 def _build_profile_summary_meta(profile_data):
     if not isinstance(profile_data, dict) or not profile_data:
         return {
@@ -112,6 +114,7 @@ def _build_profile_summary_meta(profile_data):
             "headline": "",
             "subline": "",
             "events": [],
+            "ncu_options": [],
             "report_kinds": [],
         }
 
@@ -128,5 +131,6 @@ def _build_profile_summary_meta(profile_data):
         "headline": _format_profile_summary(profile_data),
         "subline": ", ".join(subline_parts),
         "events": profile_data.get("events") if isinstance(profile_data.get("events"), list) else [],
+        "ncu_options": profile_data.get("ncu_options") if isinstance(profile_data.get("ncu_options"), list) else [],
         "report_kinds": profile_data.get("report_kinds") if isinstance(profile_data.get("report_kinds"), list) else [],
     }

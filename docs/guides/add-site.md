@@ -6,16 +6,17 @@ GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD 
 ## 目次
 
 1. [前提条件](#1-前提条件)
-2. [ディレクトリ構成](#2-ディレクトリ構成)
-3. [GitLab Runner のインストール](#3-gitlab-runner-のインストール)
-4. [Jacamar-CI のビルド・インストール](#4-jacamar-ci-のビルドインストール)
-5. [カスタムランナースクリプトの作成](#5-カスタムランナースクリプトの作成)
-6. [ランナーの登録](#6-ランナーの登録)
-7. [Jacamar 用ランナーの設定](#7-jacamar-用ランナーの設定)
-8. [config.toml の設定](#8-configtoml-の設定)
-9. [BenchKit への拠点登録](#9-benchkit-への拠点登録)
-10. [ランナーの常駐化（systemd user mode）](#10-ランナーの常駐化systemd-user-mode)
-11. [トラブルシューティング](#11-トラブルシューティング)
+2. [クイックセットアップ（推奨）](#クイックセットアップ推奨)
+3. [ディレクトリ構成](#2-ディレクトリ構成)
+4. [GitLab Runner のインストール](#3-gitlab-runner-のインストール)
+5. [Jacamar-CI のビルド・インストール](#4-jacamar-ci-のビルドインストール)
+6. [カスタムランナースクリプトの作成](#5-カスタムランナースクリプトの作成)
+7. [ランナーの登録](#6-ランナーの登録)
+8. [Jacamar 用ランナーの設定](#7-jacamar-用ランナーの設定)
+9. [config.toml の設定](#8-configtoml-の設定)
+10. [BenchKit への拠点登録](#9-benchkit-への拠点登録)
+11. [ランナーの常駐化（systemd user mode）](#10-ランナーの常駐化systemd-user-mode)
+12. [トラブルシューティング](#11-トラブルシューティング)
 
 ---
 
@@ -27,6 +28,88 @@ GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD 
 - 以下のツールが利用可能であること：
   - `git`, `curl`, `make`, `gcc`/`g++`
   - （環境によっては）`gperf`, `libseccomp` のビルドが必要
+
+---
+
+## クイックセットアップ（推奨）
+
+通常は `scripts/setup_site_runner.sh` を使えば、GitLab Runner の取得、Jacamar-CI のビルド、frontend runner と Jacamar runner の登録、`custom-config.toml` / `config.toml` 相当の設定、systemd user service の作成までまとめて実行できます。
+
+`--login-token` と `--jacamar-token` には、GitLab で作成した各 runner の authentication token を指定します。URL は両 runner で共通です。
+
+### 実行前の疎通確認
+
+セットアップ前に、対象ログインノードから GitLab サーバへ到達できるか確認します。GitLab Runner は GitLab 側から接続されるのではなく、ログインノード上の常駐プロセスが GitLab へ job を取りに行きます。
+
+```bash
+GITLAB_URL="https://YOUR_GITLAB_SERVER"
+
+hostname -s
+getent hosts "$(printf '%s\n' "$GITLAB_URL" | sed -E 's#^https?://([^/]+).*#\1#')"
+
+env | grep -Ei '^(http_proxy|https_proxy|HTTP_PROXY|HTTPS_PROXY|no_proxy|NO_PROXY)=' || true
+grep -Rihn -i proxy ~/.bashrc ~/.bash_profile ~/.profile /etc/profile /etc/profile.d 2>/dev/null || true
+
+env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  curl -I --connect-timeout 5 "$GITLAB_URL"
+```
+
+direct 接続が timeout し、サイト側で proxy が指定されている場合は、その proxy で疎通確認します。
+
+```bash
+RUNNER_PROXY="http://PROXY_HOST:PORT"
+
+curl -I --connect-timeout 5 -x "$RUNNER_PROXY" "$GITLAB_URL"
+```
+
+proxy 経由でだけ成功する場合は、`setup_site_runner.sh` 実行時に `--proxy "$RUNNER_PROXY"` を指定します。`systemd --user` のサービスはログインシェルの proxy 環境変数を継承しないことがあるため、proxy は runner の systemd unit に明示しておくのが安全です。
+
+AMD64 ログインノードの例：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/setup_site_runner.sh \
+  | bash -s -- \
+      --arch amd64 \
+      --site your_site \
+      --gitlab-url https://YOUR_GITLAB_SERVER \
+      --login-token "$LOGIN_RUNNER_TOKEN" \
+      --jacamar-token "$JACAMAR_RUNNER_TOKEN" \
+      --scheduler pbs \
+      --service-host "$(hostname -s)"
+```
+
+proxy が必要な拠点では、上のコマンドに `--proxy "$RUNNER_PROXY"` を追加します。
+
+ARM64 ログインノードでは `--arch arm64` を指定します。
+
+よく使う指定：
+
+- `--site your_site`
+  - Runner description と、期待する tag 表示に使います
+- `--login-tag` / `--jacamar-tag`
+  - Runner authentication token workflow では tag は GitLab 側で設定します。このオプションはスクリプト末尾の確認表示用です
+- `--scheduler pbs|slurm|pjm`
+  - Jacamar の executor を指定します
+- `--jacamar-repo URL`
+  - Jacamar-CI の clone 元を明示します。省略時は `--scheduler pjm` の場合だけ PJM 対応 fork `https://gitlab.com/yoshifuminakamura/jacamar-ci.git` を使い、それ以外は upstream `https://gitlab.com/ecp-ci/jacamar-ci.git` を使います
+- `--base-dir /path/to/gitlab-runner_jacamar-ci_amd`
+  - 既定は `$HOME/gitlab-runner_jacamar-ci_amd` または `$HOME/gitlab-runner_jacamar-ci_arm`
+- `--libseccomp auto|system|local|none`
+  - 既定は `auto` です。利用可能な system libseccomp があれば使い、なければ gperf と libseccomp をローカルビルドします
+- `--with-libseccomp`
+  - `--libseccomp local` の短縮形です。常に gperf と libseccomp をローカルビルドします
+- `--jacamar-pbs-tools tools.go`
+  - PBS の完了判定にサイト固有パッチが必要な場合に使います
+- `--unrestricted-cmd-line`
+  - Jacamar の `GIT_ASKPASS` credential helper が効かず、`get_sources` で `fatal: unable to get password from user` になる場合の回避策です。runner generated command line に job token が現れる可能性があるため、単一ユーザ運用や `/proc` の閲覧制限がある環境で使ってください
+- `--proxy http://PROXY_HOST:PORT`
+  - runner の systemd user service に `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を設定します。`http://` または `https://` を省略した場合は `http://` を補います
+- `--no-proxy LIST`
+  - runner の systemd user service に `no_proxy` / `NO_PROXY` を設定します
+- `--no-systemd` / `--no-start`
+  - systemd user service を作らない、または作るだけで起動しない場合に使います
+
+このスクリプトは `config.toml` の `environment` に `PATH=$BASE_DIR/bin:...` を登録時点で入れるため、アーティファクト保存時に `gitlab-runner` が見つからない問題も避けられます。以下の手動手順は、スクリプトが失敗した場合の切り分けや、サイト固有に調整したい場合の参照として使ってください。
 
 ---
 
@@ -139,6 +222,8 @@ rm -rf jacamar-ci go
 - ジョブ完了判定: `qstat` 出力にジョブIDが含まれなくなったら完了と判定
 - `Exit_status` の取得: `-H -f` オプションで履歴から抽出（テキスト形式）
 - ジョブが履歴に残らない場合は正常終了と見なす
+
+AOBA/NQSV のように `qstat -H` が使えない環境では、ジョブが `qstat` から消えた後に終了コードを後追い取得できない場合があります。この場合は `qsub` 直後から `qwait -w exited <jobid>` で待ち、出力される `exited N` を parse して `N != 0` を GitLab job failure として扱うパッチが必要です。`qwait` 自体の戻り値が 0 でも、ジョブの終了コードは `exited N` 側に入る点に注意してください。
 
 パッチの適用方法：
 ```bash
@@ -264,7 +349,7 @@ exit 0
 
 ### `run.sh` - ジョブ実行
 ```bash
-#!/usr/bin/bash
+#!/usr/bin/env bash
 source ~/.bashrc
 set -eo pipefail
 exec "$@"
@@ -272,18 +357,23 @@ exec "$@"
 
 ### `cleanup.sh` - ジョブ後片付け
 ```bash
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-LOGFILE="${CUSTOM_DIR}/custom_cleanup.log"
+BASE_DIR="/path/to/gitlab-runner_jacamar-ci_amd"  # ← 実際のパスに変更
+LOGFILE="${CUSTOM_DIR:-${BASE_DIR}}/custom_cleanup.log"
 echo "CLEANUP STARTED at $(date)" >> "$LOGFILE"
-echo "CUSTOM_ENV_CI_JOB_ID=$CUSTOM_ENV_CI_JOB_ID" >> "$LOGFILE"
 
-BUILD_DIR="${CUSTOM_UNIQUE_BUILD_DIR}"
-CACHE_DIR="${CUSTOM_UNIQUE_CACHE_DIR}"
+BUILD_DIR="${CUSTOM_UNIQUE_BUILD_DIR:-}"
+CACHE_DIR="${CUSTOM_UNIQUE_CACHE_DIR:-}"
 
-[ -n "$BUILD_DIR" ] && [ -d "$BUILD_DIR" ] && rm -rf "$BUILD_DIR"
-[ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ] && rm -rf "$CACHE_DIR"
+case "$BUILD_DIR" in
+  "${BASE_DIR}/builds/"*) [[ -d "$BUILD_DIR" ]] && rm -rf -- "$BUILD_DIR" ;;
+esac
+
+case "$CACHE_DIR" in
+  "${BASE_DIR}/cache/"*) [[ -d "$CACHE_DIR" ]] && rm -rf -- "$CACHE_DIR" ;;
+esac
 
 echo "CLEANUP DONE at $(date)" >> "$LOGFILE"
 ```
@@ -309,12 +399,9 @@ chmod +x "$BASE_DIR"/{config,prepare,run,cleanup}.sh
 "$BASE_DIR/bin/gitlab-runner" register \
   --non-interactive \
   --url "https://YOUR_GITLAB_SERVER" \
-  --registration-token "YOUR_TOKEN" \
+  --token "YOUR_TOKEN" \
   --executor "custom" \
   --description "site-login" \
-  --tag-list "your_site_login" \
-  --run-untagged="false" \
-  --locked="false" \
   --builds-dir "$BASE_DIR/builds" \
   --cache-dir "$BASE_DIR/cache" \
   --config "$BASE_DIR/config.toml" \
@@ -329,12 +416,9 @@ chmod +x "$BASE_DIR"/{config,prepare,run,cleanup}.sh
 "$BASE_DIR/bin/gitlab-runner" register \
   --non-interactive \
   --url "https://YOUR_GITLAB_SERVER" \
-  --registration-token "YOUR_TOKEN" \
+  --token "YOUR_TOKEN" \
   --executor "custom" \
   --description "site-jacamar" \
-  --tag-list "your_site_jacamar" \
-  --run-untagged="false" \
-  --locked="false" \
   --builds-dir "$BASE_DIR/builds" \
   --cache-dir "$BASE_DIR/cache" \
   --config "$BASE_DIR/config.toml" \
@@ -345,6 +429,7 @@ chmod +x "$BASE_DIR"/{config,prepare,run,cleanup}.sh
 ```
 
 > **Note**: Jacamar 用ランナーの `--custom-*-exec` は登録時のプレースホルダです。実際の引数は `config.toml` で設定します（次セクション参照）。
+> **Note**: Runner authentication token を使う GitLab Runner 18 系の workflow では、tag、locked、run-untagged などは GitLab server 側で設定します。register コマンドに `--tag-list` や `--locked` を渡すと失敗します。
 
 ---
 
@@ -439,7 +524,9 @@ queue,submit_cmd,template
 PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=your_group"
 ```
 
-テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`
+テンプレート内で使える変数：`${queue_group}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）, `${cpu_per_node}`, `${gpu_per_node}`, `${cpu_sockets}`（`nodes * cpu_per_node`）, `${gpu_cards}`（`nodes * gpu_per_node`）
+
+`${cpu_per_node}` と `${gpu_per_node}` は `config/system_info.csv` から取得します。CPU socket 数や GPU card 数を scheduler に明示するサイトでは、`system_info.csv` の値も投入条件に使われます。
 
 ### `config/system_info.csv` に表示用メタデータを追加
 
@@ -547,7 +634,8 @@ mkdir -p ~/.config/systemd/user
 [Unit]
 Description=GitLab Runner service (user mode, amd64)
 After=network.target
-ConditionHost=your-login-node   # ← 実際のホスト名に変更
+# 実際のホスト名に変更
+ConditionHost=your-login-node
 
 [Service]
 ExecStart=%h/gitlab-runner_jacamar-ci_amd/bin/gitlab-runner run --config %h/gitlab-runner_jacamar-ci_amd/config.toml --working-directory %h
@@ -565,7 +653,8 @@ WantedBy=default.target
 [Unit]
 Description=GitLab Runner service (user mode, arm64)
 After=network.target
-ConditionHost=your-arm-login-node   # ← 実際のホスト名に変更
+# 実際のホスト名に変更
+ConditionHost=your-arm-login-node
 
 [Service]
 ExecStart=%h/gitlab-runner_jacamar-ci_arm/bin/gitlab-runner run --config %h/gitlab-runner_jacamar-ci_arm/config.toml --working-directory %h
@@ -578,7 +667,7 @@ StandardError=append:%h/gitlab-runner_jacamar-ci_arm/gitlab-runner.err
 WantedBy=default.target
 ```
 
-`ConditionHost=` を設定することで、同じホームディレクトリを複数ノードで共有していても、指定したホストでのみサービスが起動します。
+`ConditionHost=` を設定することで、同じホームディレクトリを複数ノードで共有していても、指定したホストでのみサービスが起動します。systemd の unit file では行末コメントを値として解釈するので、コメントは別行に置いてください。
 
 ### サービスの有効化・起動
 
@@ -629,7 +718,125 @@ environment = ["PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:..."]
 
 ### ランナーが GitLab に接続できない
 - ログインノードから GitLab サーバへの HTTPS 通信が可能か確認
-- プロキシ設定が必要な場合は `config.toml` の `environment` に `https_proxy` を追加
+- プロキシ設定が必要な場合は `setup_site_runner.sh --proxy` で systemd user service に proxy を明示
+
+ログインシェルでは `curl -I https://gitlab.swc.r-ccs.riken.jp` が成功するのに、常駐ランナーが
+`Checking for jobs... failed` や `lookup gitlab.swc.r-ccs.riken.jp on [::1]:53` で失敗する場合は、
+`systemd --user` のサービスがログインシェルの proxy 環境変数を継承していない可能性があります。
+
+```bash
+env | grep -Ei 'proxy|http|https|no_proxy'
+curl -I https://gitlab.swc.r-ccs.riken.jp
+systemctl --user show gitlab-runner-<site>-amd.service -p Environment
+```
+
+`systemctl --user show` の `Environment=` が空なら、サービスに proxy を明示します。
+
+```bash
+systemctl --user edit gitlab-runner-<site>-amd.service
+```
+
+```ini
+[Service]
+Environment="http_proxy=http://PROXY_HOST:PORT"
+Environment="https_proxy=http://PROXY_HOST:PORT"
+Environment="HTTP_PROXY=http://PROXY_HOST:PORT"
+Environment="HTTPS_PROXY=http://PROXY_HOST:PORT"
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart gitlab-runner-<site>-amd.service
+systemctl --user show gitlab-runner-<site>-amd.service -p Environment
+```
+
+### 計算ノードに `git` がない場合
+
+一部の計算ノードでは、ログインノードやフロントエンドランナーでは `git` が使えても、バッチジョブ内では `git: コマンドが見つかりません` になることがあります。アプリの `run.sh` が実行時に外部ソースを clone する場合は、計算ノード側でも `git` 相当のコマンドが必要です。
+
+Singularity/Apptainer が計算ノードで使える場合は、共有ファイルシステム上に `git` 入りコンテナと wrapper を置く方法が有効です。
+
+```bash
+BASE=/uhome/<user>/gitlab-runner_jacamar-ci_amd
+SING=/path/to/singularity
+
+mkdir -p "$BASE/containers" "$BASE/bin"
+"$SING" build --sandbox "$BASE/containers/git" docker://alpine/git:latest
+```
+
+`$BASE/bin/git`:
+
+```bash
+#!/bin/bash
+set -e
+
+# GitLab Runner の get_sources はログインノード上の認証 helper を使うため、
+# ホストの git がある場合はそちらへ委譲する。
+if [[ -x /usr/bin/git ]]; then
+  exec /usr/bin/git "$@"
+fi
+
+SING=/path/to/singularity
+IMG=/uhome/<user>/gitlab-runner_jacamar-ci_amd/containers/git
+
+exec "$SING" exec \
+  --bind /mnt:/mnt \
+  --bind /uhome:/uhome \
+  --pwd "$PWD" \
+  "$IMG" \
+  git "$@"
+```
+
+```bash
+chmod +x "$BASE/bin/git"
+```
+
+Jacamar 用ランナーの `config.toml` では wrapper のある `bin` を `PATH` に入れます。ただし `get_sources` までコンテナ内 `git` に置き換えると、GitLab Runner/Jacamar が生成する credential helper をコンテナ内から実行できず、`fatal: cannot exec .../pass` で失敗することがあります。上記のように、ログインノードでは `/usr/bin/git` に委譲し、計算ノードでだけコンテナ内 `git` を使う wrapper にしてください。
+
+確認:
+
+```bash
+git --version
+git ls-remote https://github.com/RIKEN-LQCD/qws.git HEAD
+```
+
+### 計算ノードから外部 proxy に届かない場合
+
+`queue.csv` で `qsub -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY` を指定していても、計算ノードからその proxy に TCP 接続できるとは限りません。例えば `git` や `curl` が `Trying PROXY_HOST...` のまま進まず、ジョブが経過時間超過で kill される場合は、proxy 変数ではなくネットワーク到達性を疑います。
+
+計算ノードで確認:
+
+```bash
+hostname -I
+ip route
+cat /etc/resolv.conf 2>/dev/null || true
+cat /etc/hosts 2>/dev/null || true
+env | sort | egrep -i '^(http_proxy|https_proxy|HTTP_PROXY|HTTPS_PROXY|no_proxy|NO_PROXY)=' || true
+
+timeout 5 bash -c '</dev/tcp/PROXY_HOST/PROXY_PORT'
+echo "tcp rc=$?"
+
+timeout 20 curl -v -I -x http://PROXY_HOST:PROXY_PORT https://github.com/
+echo "curl rc=$?"
+```
+
+`tcp rc=124` は timeout、`ホストへの経路がありません` は経路なしを示します。この場合は計算ノード用の別 proxy を確認するか、実行ジョブ中の外部 `git clone` を避けます。短期回避として、ログインノードで取得したソースを共有ファイルシステム上にキャッシュし、Jacamar の `pre_build_script` で作業ディレクトリへ配置しておく方法があります。
+
+```toml
+pre_build_script = """
+set -e
+case "${CI_JOB_NAME:-}" in
+  qws_<SITE>_*_run)
+    cache=/uhome/<user>/gitlab-runner_jacamar-ci_amd/site-cache/qws
+    if [ ! -d qws ]; then
+      echo "[site pre_build] copying qws source from $cache"
+      cp -a "$cache" qws
+    fi
+    test -d qws || { echo "[site pre_build] qws source is missing" >&2; exit 1; }
+    ;;
+esac
+"""
+```
 
 ### ARM/x86 混在環境での注意
 同じ共有ボリュームを異なるアーキテクチャのマシンがマウントしている場合、必ずアーキテクチャ別のディレクトリ（`_amd` / `_arm`）を使い分けてください。バイナリの混在はランタイムエラーの原因になります。
@@ -658,10 +865,14 @@ qstat -f <job_id>
 
 # ジョブ履歴の確認
 qstat -H -f <job_id>
+
+# NQSV で qstat -H がない場合は、投入直後に qwait で終了コードを確認
+qwait -w exited <job_id>
 ```
 
 **解決方法:**
 JSON形式の `qstat` がサポートされていない場合は、セクション4「サイト固有パッチについて」に記載の `tools.go` パッチを適用してください。
+NQSV のように `qstat -H` がない場合は、`qwait -w exited <job_id>` の出力を使って終了コードを返す `tools.go` パッチを適用してください。
 
 ### NFS同期でファイルが見えない
 

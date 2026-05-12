@@ -168,6 +168,11 @@ class _StubUserStore:
         return bool(user and user.get("totp_secret"))
 
 
+class _BrokenRedis:
+    def ping(self):
+        raise ConnectionError("redis down")
+
+
 @pytest.fixture
 def admin_app():
     """Create a Flask app for admin self-delete protection tests."""
@@ -205,6 +210,73 @@ def admin_app():
 
     yield app, store
     shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def auth_app():
+    """Create a Flask app for focused auth Redis availability tests."""
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    app.secret_key = "test-secret"
+    app.config["TESTING"] = True
+    app.config["USER_STORE"] = _StubUserStore()
+
+    from routes.admin import admin_bp
+    from routes.auth import auth_bp
+    from routes.estimated import estimated_bp
+    from routes.home import register_home_routes
+    from routes.results import results_bp
+
+    register_home_routes(app)
+    app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(results_bp, url_prefix="/results")
+    app.register_blueprint(estimated_bp, url_prefix="/estimated")
+
+    temp_dir = tempfile.mkdtemp()
+    app.config["RECEIVED_DIR"] = temp_dir
+    app.config["ESTIMATED_DIR"] = temp_dir
+
+    @app.route("/systemlist")
+    def systemlist():
+        return "systems"
+
+    yield app
+    shutil.rmtree(temp_dir)
+
+
+class TestAuthRedisFailClosed:
+    """Tests production login behavior when Redis is unavailable."""
+
+    def test_requires_redis_without_connection_returns_503(self, auth_app):
+        auth_app.config["AUTH_REQUIRES_REDIS"] = True
+        auth_app.config["REDIS_CONN"] = None
+
+        with auth_app.test_client() as client:
+            resp = client.post("/auth/login", data={"email": "user@test.com"})
+
+        assert resp.status_code == 503
+
+    def test_requires_redis_with_failed_ping_returns_503(self, auth_app):
+        auth_app.config["AUTH_REQUIRES_REDIS"] = True
+        auth_app.config["REDIS_CONN"] = _BrokenRedis()
+
+        with auth_app.test_client() as client:
+            resp = client.post("/auth/login", data={"email": "user@test.com"})
+
+        assert resp.status_code == 503
+
+    def test_dev_mode_without_redis_continues_login_flow(self, auth_app):
+        auth_app.config["AUTH_REQUIRES_REDIS"] = False
+        auth_app.config["REDIS_CONN"] = None
+
+        with auth_app.test_client() as client:
+            resp = client.post("/auth/login", data={"email": "user@test.com"})
+
+        assert resp.status_code == 200
+        assert b"Step 2 of 2" in resp.data
 
 
 class TestAdminSelfDeletePrevention:

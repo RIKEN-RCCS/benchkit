@@ -44,11 +44,22 @@ def get_file_confidential_tags(filename: str, save_dir: str):
     if not uuid_match:
         return []
 
-    uuid = uuid_match.group(0)
+    uuid = uuid_match.group(0).lower()
+    tags = []
     for json_filename in os.listdir(save_dir):
-        if json_filename.endswith(".json") and uuid in json_filename:
-            return _read_confidential_from_json(json_filename, save_dir)
-    return []
+        if not json_filename.endswith(".json"):
+            continue
+        if uuid in json_filename.lower():
+            tags.extend(_read_confidential_from_json(json_filename, save_dir))
+            continue
+
+        data = _read_json(json_filename, save_dir)
+        if not isinstance(data, dict):
+            continue
+        server_uuid = data.get("_server_uuid")
+        if server_uuid is not None and str(server_uuid).lower() == uuid:
+            tags.extend(_extract_confidential_tags(data))
+    return _unique_tags(tags)
 
 
 def check_file_permission(filename: str, dir_path: str) -> None:
@@ -116,28 +127,48 @@ def load_authenticated_result_json(
 
 
 def _read_confidential_from_json(json_file: str, save_dir: str):
+    data = _read_json(json_file, save_dir)
+    if not isinstance(data, dict):
+        return []
+    return _extract_confidential_tags(data)
+
+
+def _read_json(json_file: str, save_dir: str):
     filepath = os.path.join(save_dir, json_file)
     if not os.path.exists(filepath):
-        return []
+        return None
 
     try:
         with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        confidential_value = data.get("confidential", None)
-
-        if isinstance(confidential_value, list):
-            return [
-                str(item).strip()
-                for item in confidential_value
-                if item and str(item).lower() != "null"
-            ]
-
-        if isinstance(confidential_value, str):
-            confidential_value = confidential_value.strip()
-            if confidential_value.lower() != "null" and confidential_value != "":
-                return [confidential_value]
-
-        return []
+            return json.load(f)
     except Exception:
-        return []
+        return None
+
+
+def _extract_confidential_tags(data):
+    confidential_value = data.get("confidential", None)
+
+    if isinstance(confidential_value, list):
+        return [
+            str(item).strip()
+            for item in confidential_value
+            if item and str(item).lower() != "null"
+        ]
+
+    if isinstance(confidential_value, str):
+        confidential_value = confidential_value.strip()
+        if confidential_value.lower() != "null" and confidential_value != "":
+            return [confidential_value]
+
+    return []
+
+
+def _unique_tags(tags):
+    unique = []
+    seen = set()
+    for tag in tags:
+        if tag in seen:
+            continue
+        seen.add(tag)
+        unique.append(tag)
+    return unique
