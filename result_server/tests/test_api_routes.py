@@ -2,6 +2,7 @@
 
 import io
 import json
+import logging
 import os
 import shutil
 import sys
@@ -38,21 +39,15 @@ def app(tmp_dirs):
     """Build a Flask app configured for API route tests."""
     received, received_padata, received_estimation_inputs, estimated = tmp_dirs
 
-    # Override the expected API key for this test app.
-    import routes.api as api_mod
-    original_key = api_mod.EXPECTED_API_KEY
-    api_mod.EXPECTED_API_KEY = API_KEY
-
     app = build_api_route_app(
         received_dir=received,
         received_padata_dir=received_padata,
         received_estimation_inputs_dir=received_estimation_inputs,
         estimated_dir=estimated,
     )
+    app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
 
     yield app
-
-    api_mod.EXPECTED_API_KEY = original_key
 
 
 @pytest.fixture
@@ -90,6 +85,62 @@ class TestIngestResult:
         assert saved["code"] == "test"
         assert saved["_server_uuid"] == body["id"]
         assert saved["_server_timestamp"] == body["timestamp"]
+
+    def test_valid_key_logs_runner_id(self, client, caplog):
+        """Accepted API requests should include the resolved runner id in logs."""
+        with caplog.at_level(logging.INFO):
+            resp = client.post("/api/ingest/result",
+                               data=b'{"code":"test"}',
+                               headers={"X-API-Key": API_KEY,
+                                        "Content-Type": "application/json"})
+
+        assert resp.status_code == 200
+        assert any(
+            record.message == "api key accepted"
+            and getattr(record, "runner_id", None) == "test-runner"
+            and getattr(record, "endpoint", None) == "/api/ingest/result"
+            for record in caplog.records
+        )
+
+    def test_multiple_ingest_keys_accept_individual_runner_keys(self, app):
+        """RESULT_SERVER_KEYS-style config should accept each runner key."""
+        app.config["INGEST_KEYS"] = {
+            "runner-a-key": "runner-a",
+            "runner-b-key": "runner-b",
+        }
+
+        with app.test_client() as client:
+            resp_a = client.post("/api/ingest/result",
+                                 data=b'{"code":"a"}',
+                                 headers={"X-API-Key": "runner-a-key",
+                                          "Content-Type": "application/json"})
+            resp_b = client.post("/api/ingest/result",
+                                 data=b'{"code":"b"}',
+                                 headers={"X-API-Key": "runner-b-key",
+                                          "Content-Type": "application/json"})
+
+        assert resp_a.status_code == 200
+        assert resp_b.status_code == 200
+
+    def test_legacy_result_server_key_env_is_still_accepted(self, tmp_dirs, monkeypatch):
+        """RESULT_SERVER_KEY should remain valid as the default runner fallback."""
+        monkeypatch.delenv("RESULT_SERVER_KEYS", raising=False)
+        monkeypatch.setenv("RESULT_SERVER_KEY", "legacy-key")
+        received, received_padata, received_estimation_inputs, estimated = tmp_dirs
+        app = build_api_route_app(
+            received_dir=received,
+            received_padata_dir=received_padata,
+            received_estimation_inputs_dir=received_estimation_inputs,
+            estimated_dir=estimated,
+        )
+
+        with app.test_client() as client:
+            resp = client.post("/api/ingest/result",
+                               data=b'{"code":"legacy"}',
+                               headers={"X-API-Key": "legacy-key",
+                                        "Content-Type": "application/json"})
+
+        assert resp.status_code == 200
 
     def test_missing_api_key_returns_401(self, client):
         """Test case."""
@@ -339,6 +390,90 @@ class TestEstimationInputs:
         assert resp.status_code == 200
         saved_path = os.path.join(estimation_inputs_dir, result_stem, "prepare_rhs_interval.json")
         assert os.path.exists(saved_path)
+
+    def test_ingest_estimation_inputs_rejects_parent_path_entry(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        self._seed_result(received, uuid_value)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            payload = b"bad"
+            info = tarfile.TarInfo(name="../outside.txt")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+
+    def test_ingest_estimation_inputs_rejects_absolute_path_entry(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        self._seed_result(received, uuid_value)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            payload = b"bad"
+            info = tarfile.TarInfo(name="/outside.txt")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+
+    def test_ingest_estimation_inputs_rejects_absolute_symlink(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        self._seed_result(received, uuid_value)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            info = tarfile.TarInfo(name="link")
+            info.type = tarfile.SYMTYPE
+            info.linkname = "/etc/passwd"
+            tar.addfile(info)
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+
+    def test_ingest_estimation_inputs_rejects_absolute_hardlink(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        self._seed_result(received, uuid_value)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            info = tarfile.TarInfo(name="hardlink")
+            info.type = tarfile.LNKTYPE
+            info.linkname = "/etc/passwd"
+            tar.addfile(info)
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
 
     def test_query_estimation_inputs_returns_archive(self, client, tmp_dirs):
         received = tmp_dirs[0]

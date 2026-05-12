@@ -10,6 +10,7 @@ set -euo pipefail
 
 SYSTEM_FILE="config/system.csv"
 QUEUE_FILE="config/queue.csv"
+SYSTEM_INFO_FILE="config/system_info.csv"
 OUTPUT_FILE=".gitlab-ci.generated.yml"
 
 source ./scripts/job_functions.sh
@@ -74,7 +75,16 @@ for listfile in programs/*/list.csv; do
     job_prefix="${program}_${system}_N${nodes}_P${numproc_node}_T${nthreads}"
     program_path="$program_dir"
 
-	export elapse nodes queue_group numproc_node nthreads 
+    # queue.csv templates can use both direct list.csv values and derived
+    # scheduler quantities such as total ranks, CPU sockets, and GPU cards.
+    proc=$((nodes * numproc_node))
+    cpu_per_node=$(get_system_cpu_per_node "$system")
+    gpu_per_node=$(get_system_gpu_per_node "$system")
+    [[ "$cpu_per_node" =~ ^[0-9]+$ ]] || cpu_per_node=0
+    [[ "$gpu_per_node" =~ ^[0-9]+$ ]] || gpu_per_node=0
+    cpu_sockets=$((nodes * cpu_per_node))
+    gpu_cards=$((nodes * gpu_per_node))
+	export elapse nodes queue_group numproc_node nthreads proc cpu_per_node gpu_per_node cpu_sockets gpu_cards
 
 	read -r submit_cmd template <<< "$(get_queue_template "$system")"
     if [[ -z "$submit_cmd" || -z "$template" ]]; then
@@ -211,4 +221,3 @@ ${job_prefix}_build_run:
 
   done < "$listfile"
 done
-

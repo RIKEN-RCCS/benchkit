@@ -10,6 +10,7 @@
                 {% if row.profile_summary_meta.subline %}<br>{{ row.profile_summary_meta.subline }}{% endif %}
                 {% if row.data_link %}<br>archive: available{% endif %}
                 {% if row.profile_summary_meta.events %}<br>events: {{ row.profile_summary_meta.events | join(', ') }}{% endif %}
+                {% if row.profile_summary_meta.ncu_options %}<br>ncu options: {{ row.profile_summary_meta.ncu_options | join(' ') }}{% endif %}
                 {% if row.profile_summary_meta.report_kinds %}<br>reports: {{ row.profile_summary_meta.report_kinds | join(', ') }}{% endif %}
             </span>
         </span>

@@ -8,6 +8,7 @@
 #
 # Files that automatically skip CI:
 # - root Markdown files and docs/**/* (documentation)
+# - .github/**/* (GitHub-only workflow/action files)
 # - result_server/**/* and config/system_info.csv (portal/server code, templates, and display metadata)
 #
 # Important Notes:
@@ -85,17 +86,22 @@ generate_matrix:
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
       when: never  # [park-send]コミットメッセージでは無効
     - changes:
-        - ".gitlab-ci.yml"
-        - "programs/**/*"
-        - "scripts/**/*"
-        - "config/system.csv"
-        - "config/queue.csv"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - ".gitlab-ci.yml"
+          - "programs/**/*"
+          - "scripts/**/*"
+          - "config/system.csv"
+          - "config/queue.csv"
       when: always
     - changes:
-        - "*.md"
-        - "docs/**/*"
-        - "result_server/**/*"
-        - "config/system_info.csv"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - ".github/**/*"
+          - "*.md"
+          - "docs/**/*"
+          - "result_server/**/*"
+          - "config/system_info.csv"
       when: never
     - when: always
 
@@ -121,17 +127,22 @@ trigger_child_pipeline:
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
       when: never  # [park-send]コミットメッセージでは無効
     - changes:
-        - ".gitlab-ci.yml"
-        - "programs/**/*"
-        - "scripts/**/*"
-        - "config/system.csv"
-        - "config/queue.csv"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - ".gitlab-ci.yml"
+          - "programs/**/*"
+          - "scripts/**/*"
+          - "config/system.csv"
+          - "config/queue.csv"
       when: always
     - changes:
-        - "*.md"
-        - "docs/**/*"
-        - "result_server/**/*"
-        - "config/system_info.csv"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - ".github/**/*"
+          - "*.md"
+          - "docs/**/*"
+          - "result_server/**/*"
+          - "config/system_info.csv"
       when: never
     - when: always
 # BenchPark Monitor Jobs
@@ -163,7 +174,9 @@ generate_benchpark_matrix:
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
       when: always
     - changes:
-        - "benchpark-bridge/**/*"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - "benchpark-bridge/**/*"
       when: always
     - when: never
 
@@ -197,7 +210,9 @@ trigger_benchpark_pipeline:
     - if: '$CI_COMMIT_MESSAGE =~ /\[benchpark\]/'
       when: always
     - changes:
-        - "benchpark-bridge/**/*"
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - "benchpark-bridge/**/*"
       when: always
     - when: never
 

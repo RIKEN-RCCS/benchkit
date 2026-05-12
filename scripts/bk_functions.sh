@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 # bk_functions.sh - Common functions for standardized benchmark result output.
-# Source this file from Run_Scripts: source scripts/bk_functions.sh
+# Source this file from BenchKit bash run/build/estimate scripts.
 #
-# POSIX compatible (no jq dependency).
+# Bash is required for the estimation and profiler helpers below.
 
 # bk_emit_result - Output a standardized FOM result line.
 #
@@ -621,9 +621,14 @@ bk_run_estimation_data_collection() {
 #
 # BenchKit keeps the common wrapper in bk_functions.sh, while each application
 # decides whether to use a profiler and which profiler tool / level to request.
+# A level is translated per tool: fapp levels expand to one or more counter
+# event runs, while ncu levels expand to a single Nsight Compute invocation with
+# preset command-line options. Both tools stage raw data and meta.json in the
+# same archive shape so result generation and the portal do not need to infer
+# tool-specific filenames.
 #
 # Positional arguments:
-#   $1 - profiler tool (empty|none|off|fapp)
+#   $1 - profiler tool (empty|none|off|fapp|ncu)
 #
 # Supported variables:
 #   BK_PROFILER_LEVEL          optional profiler level override
@@ -632,6 +637,8 @@ bk_run_estimation_data_collection() {
 #   BK_PROFILER_REPORT_ARGS    optional extra postprocess flags
 #   BK_PROFILER_DIR            raw profile output dir (default: pa)
 #   BK_PROFILER_STAGE_DIR      temporary staging dir for archive creation
+# BK_PROFILER_ARGS and BK_PROFILER_REPORT_ARGS are expanded as shell fragments
+# because sites often need to pass multiple profiler flags from CI variables.
 bk_get_profiler_tool() {
   _bk_profiler_tool="${1:-}"
   case "$_bk_profiler_tool" in
@@ -639,7 +646,7 @@ bk_get_profiler_tool() {
       printf '%s\n' ""
       return 0
       ;;
-    fapp)
+    fapp|ncu)
       printf '%s\n' "$_bk_profiler_tool"
       return 0
       ;;
@@ -669,11 +676,18 @@ bk_get_profiler_level() {
       fapp)
         _bk_profiler_level="single"
         ;;
+      ncu)
+        _bk_profiler_level="single"
+        ;;
     esac
   fi
 
   case "$_bk_profiler_tool:${_bk_profiler_level}" in
     fapp:single|fapp:simple|fapp:standard|fapp:detailed)
+      printf '%s\n' "$_bk_profiler_level"
+      return 0
+      ;;
+    ncu:single|ncu:simple|ncu:standard|ncu:detailed)
       printf '%s\n' "$_bk_profiler_level"
       return 0
       ;;
@@ -702,6 +716,9 @@ bk_get_profiler_report_format() {
       fapp:simple|fapp:standard|fapp:detailed)
         _bk_profiler_report_format="both"
         ;;
+      ncu:single|ncu:simple|ncu:standard|ncu:detailed)
+        _bk_profiler_report_format="text"
+        ;;
     esac
   fi
 
@@ -717,6 +734,8 @@ bk_get_profiler_report_format() {
   esac
 }
 
+# fapp requires a separate profiler run for each counter group. The public
+# level names stay stable even if the underlying pa* event set changes.
 bk_profiler_fapp_level_events() {
   case "$1" in
     single)
@@ -752,6 +771,73 @@ bk_profiler_fapp_postprocess_command() {
   return 1
 }
 
+# Nsight Compute levels are intentionally short presets. Callers can append
+# site- or application-specific flags with BK_PROFILER_ARGS.
+bk_profiler_ncu_level_args() {
+  case "$1" in
+    single)
+      printf '%s\n' "--set basic --launch-count 1"
+      ;;
+    simple)
+      printf '%s\n' "--set basic --launch-count 5"
+      ;;
+    standard)
+      printf '%s\n' "--set full --launch-count 1"
+      ;;
+    detailed)
+      printf '%s\n' "--set full --nvtx"
+      ;;
+    *)
+      echo "bk_profiler_ncu_level_args: unsupported level '$1'" >&2
+      return 1
+      ;;
+  esac
+}
+
+# Nsight Compute changed report suffixes across releases, so look for all names
+# we have seen instead of hard-coding only .ncu-rep.
+bk_profiler_find_ncu_report() {
+  _bk_ncu_report_dir="$1"
+  find "$_bk_ncu_report_dir" -maxdepth 1 -type f \( \
+    -name '*.ncu-rep' -o \
+    -name '*.nsight-cuprof' -o \
+    -name 'profile*' \
+  \) | head -n 1
+}
+
+bk_json_escape() {
+  _bk_json_value="$1"
+  _bk_json_value=${_bk_json_value//\\/\\\\}
+  _bk_json_value=${_bk_json_value//\"/\\\"}
+  _bk_json_value=${_bk_json_value//$'\t'/\\t}
+  _bk_json_value=${_bk_json_value//$'\r'/\\r}
+  _bk_json_value=${_bk_json_value//$'\n'/\\n}
+  printf '%s' "$_bk_json_value"
+}
+
+bk_json_string() {
+  printf '"'
+  bk_json_escape "$1"
+  printf '"'
+}
+
+bk_json_string_array() {
+  _bk_json_first=1
+  printf '['
+  for _bk_json_item in "$@"; do
+    if [ "$_bk_json_first" -eq 0 ]; then
+      printf ', '
+    fi
+    bk_json_string "$_bk_json_item"
+    _bk_json_first=0
+  done
+  printf ']'
+}
+
+# Write a compact, tool-neutral manifest for the profiler archive. Result JSON
+# generation reads this manifest to expose summary fields without opening every
+# raw profiler artifact. For fapp, run_events contains counter names; for ncu it
+# carries the selected level so optional hooks still receive useful context.
 bk_profiler_write_meta() {
   _bk_meta_stage_dir="$1"
   _bk_meta_tool="$2"
@@ -759,6 +845,8 @@ bk_profiler_write_meta() {
   _bk_meta_report_format="$4"
   _bk_meta_run_names="$5"
   _bk_meta_run_events="$6"
+  _bk_meta_profiler_args="$7"
+  _bk_meta_report_args="$8"
   _bk_meta_file="${_bk_meta_stage_dir}/meta.json"
   IFS=',' read -r -a _bk_meta_names <<< "$_bk_meta_run_names"
   IFS=',' read -r -a _bk_meta_events <<< "$_bk_meta_run_events"
@@ -769,19 +857,94 @@ bk_profiler_write_meta() {
     printf '  "level": "%s",\n' "$_bk_meta_level"
     printf '  "report_format": "%s",\n' "$_bk_meta_report_format"
     printf '  "raw_dir": "raw",\n'
+    printf '  "measurement": {\n'
+    printf '    "run_count": %s,\n' "${#_bk_meta_names[@]}"
+    printf '    "profiler_args": '
+    bk_json_string "$_bk_meta_profiler_args"
+    printf ',\n'
+    printf '    "report_args": '
+    bk_json_string "$_bk_meta_report_args"
+    case "$_bk_meta_tool" in
+      fapp)
+        printf ',\n'
+        printf '    "fapp_events": '
+        bk_json_string_array "${_bk_meta_events[@]}"
+        printf '\n'
+        ;;
+      ncu)
+        _bk_meta_ncu_level_args=$(bk_profiler_ncu_level_args "$_bk_meta_level")
+        read -r -a _bk_meta_ncu_level_arg_array <<< "$_bk_meta_ncu_level_args"
+        printf ',\n'
+        printf '    "ncu_options": '
+        bk_json_string_array "--target-processes" "all" "${_bk_meta_ncu_level_arg_array[@]}"
+        printf '\n'
+        ;;
+      *)
+        printf '\n'
+        ;;
+    esac
+    printf '  },\n'
     printf '  "runs": [\n'
     for _bk_meta_idx in "${!_bk_meta_names[@]}"; do
       _bk_meta_name="${_bk_meta_names[$_bk_meta_idx]}"
       _bk_meta_event="${_bk_meta_events[$_bk_meta_idx]:-}"
-      _bk_meta_text_path="reports/fapp_A_${_bk_meta_name}.txt"
-      _bk_meta_csv_path="reports/cpu_pa_${_bk_meta_name}.csv"
-      _bk_meta_text_abs="${_bk_meta_stage_dir}/${_bk_meta_text_path}"
-      _bk_meta_csv_abs="${_bk_meta_stage_dir}/${_bk_meta_csv_path}"
+      case "$_bk_meta_tool" in
+        fapp)
+          _bk_meta_text_path="reports/fapp_A_${_bk_meta_name}.txt"
+          _bk_meta_csv_path="reports/cpu_pa_${_bk_meta_name}.csv"
+          _bk_meta_text_abs="${_bk_meta_stage_dir}/${_bk_meta_text_path}"
+          _bk_meta_csv_abs="${_bk_meta_stage_dir}/${_bk_meta_csv_path}"
+          _bk_meta_ncu_report_path=""
+          _bk_meta_ncu_report_abs=""
+          ;;
+        ncu)
+          _bk_meta_text_path="reports/ncu_import_${_bk_meta_name}.txt"
+          _bk_meta_csv_path=""
+          _bk_meta_text_abs="${_bk_meta_stage_dir}/${_bk_meta_text_path}"
+          _bk_meta_csv_abs=""
+          _bk_meta_ncu_report_abs=$(bk_profiler_find_ncu_report "${_bk_meta_stage_dir}/raw/${_bk_meta_name}" || true)
+          if [ -n "$_bk_meta_ncu_report_abs" ]; then
+            _bk_meta_ncu_report_path="${_bk_meta_ncu_report_abs#${_bk_meta_stage_dir}/}"
+          else
+            _bk_meta_ncu_report_path=""
+          fi
+          ;;
+        *)
+          _bk_meta_text_path=""
+          _bk_meta_csv_path=""
+          _bk_meta_text_abs=""
+          _bk_meta_csv_abs=""
+          _bk_meta_ncu_report_path=""
+          _bk_meta_ncu_report_abs=""
+          ;;
+      esac
 
       printf '    {\n'
       printf '      "name": "%s",\n' "$_bk_meta_name"
       printf '      "event": "%s",\n' "$_bk_meta_event"
       printf '      "raw_path": "raw/%s",\n' "$_bk_meta_name"
+      printf '      "measurement": {\n'
+      case "$_bk_meta_tool" in
+        fapp)
+          printf '        "counter": '
+          bk_json_string "$_bk_meta_event"
+          printf ',\n'
+          printf '        "options": '
+          bk_json_string_array "-C" "-d" "raw/${_bk_meta_name}" "-Hevent=${_bk_meta_event}"
+          printf '\n'
+          ;;
+        ncu)
+          _bk_meta_ncu_level_args=$(bk_profiler_ncu_level_args "$_bk_meta_level")
+          read -r -a _bk_meta_ncu_level_arg_array <<< "$_bk_meta_ncu_level_args"
+          printf '        "options": '
+          bk_json_string_array "-o" "raw/${_bk_meta_name}/profile" "--target-processes" "all" "${_bk_meta_ncu_level_arg_array[@]}"
+          printf '\n'
+          ;;
+        *)
+          printf '        "options": []\n'
+          ;;
+      esac
+      printf '      },\n'
       printf '      "reports": [\n'
       _bk_meta_has_report=0
       if [ -f "$_bk_meta_text_abs" ]; then
@@ -793,6 +956,13 @@ bk_profiler_write_meta() {
           printf ',\n'
         fi
         printf '        {"kind": "cpu_pa_csv", "path": "%s"}' "$_bk_meta_csv_path"
+        _bk_meta_has_report=1
+      fi
+      if [ -n "$_bk_meta_ncu_report_path" ] && [ -f "$_bk_meta_ncu_report_abs" ]; then
+        if [ "$_bk_meta_has_report" -eq 1 ]; then
+          printf ',\n'
+        fi
+        printf '        {"kind": "ncu_report", "path": "%s"}' "$_bk_meta_ncu_report_path"
         _bk_meta_has_report=1
       fi
       if [ "$_bk_meta_has_report" -eq 1 ]; then
@@ -810,6 +980,9 @@ bk_profiler_write_meta() {
   } > "$_bk_meta_file"
 }
 
+# Optional hooks let site scripts wrap individual profiler runs, for example to
+# load per-run modules or print scheduler diagnostics. Hook arguments are:
+# tool, level, run name, fapp event or ncu level, then the profiled command.
 bk_profiler_call_optional_hook() {
   _bk_hook_name="$1"
   shift || true
@@ -900,6 +1073,9 @@ bk_profiler() {
   mkdir -p "$_bk_stage_dir/reports"
   _bk_profiler_run_names=""
   _bk_profiler_run_events=""
+  _bk_profiler_status=0
+  _bk_profiler_extra_args="${BK_PROFILER_ARGS:-}"
+  _bk_profiler_report_extra_args="${BK_PROFILER_REPORT_ARGS:-}"
 
   case "$_bk_profiler_tool" in
     fapp)
@@ -912,10 +1088,20 @@ bk_profiler() {
         mkdir -p "$_bk_fapp_rep_dir"
         echo "bk_profiler[fapp]: starting ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
         bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
+        # BK_PROFILER_ARGS is intentionally word-split into fapp options.
         # shellcheck disable=SC2086
-        fapp -C -d "$_bk_fapp_rep_dir" ${BK_PROFILER_ARGS:-} -Hevent="${_bk_fapp_event}" "$@"
+        if fapp -C -d "$_bk_fapp_rep_dir" ${_bk_profiler_extra_args} -Hevent="${_bk_fapp_event}" "$@"; then
+          _bk_fapp_status=0
+        else
+          _bk_fapp_status=$?
+        fi
         bk_profiler_call_optional_hook bk_profiler_after_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
-        echo "bk_profiler[fapp]: completed ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
+        if [ "$_bk_fapp_status" -eq 0 ]; then
+          echo "bk_profiler[fapp]: completed ${_bk_fapp_rep_name} event=${_bk_fapp_event}" >&2
+        else
+          echo "bk_profiler[fapp]: failed ${_bk_fapp_rep_name} event=${_bk_fapp_event} status=${_bk_fapp_status}" >&2
+          _bk_profiler_status="$_bk_fapp_status"
+        fi
         cp -R "$_bk_fapp_rep_dir" "$_bk_stage_dir/raw/${_bk_fapp_rep_name}"
         if [ -n "$_bk_profiler_run_names" ]; then
           _bk_profiler_run_names="${_bk_profiler_run_names},${_bk_fapp_rep_name}"
@@ -925,10 +1111,44 @@ bk_profiler() {
           _bk_profiler_run_events="${_bk_fapp_event}"
         fi
         _bk_fapp_run_index=$((_bk_fapp_run_index + 1))
+        if [ "$_bk_fapp_status" -ne 0 ]; then
+          break
+        fi
       done
+      ;;
+    ncu)
+      if ! command -v ncu >/dev/null 2>&1; then
+        echo "bk_profiler[ncu]: ncu not found in PATH" >&2
+        return 1
+      fi
+      _bk_ncu_rep_name="rep1"
+      _bk_ncu_rep_dir="${_bk_profiler_dir}/${_bk_ncu_rep_name}"
+      _bk_ncu_profile_base="${_bk_ncu_rep_dir}/profile"
+      mkdir -p "$_bk_ncu_rep_dir"
+      _bk_ncu_level_args=$(bk_profiler_ncu_level_args "$_bk_profiler_level") || return 1
+      echo "bk_profiler[ncu]: starting ${_bk_ncu_rep_name} level=${_bk_profiler_level}" >&2
+      bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_ncu_rep_name" "$_bk_profiler_level" "$@" || return 1
+      # BK_PROFILER_ARGS is intentionally word-split into ncu options.
+      # shellcheck disable=SC2086
+      if ncu -o "$_bk_ncu_profile_base" --target-processes all ${_bk_ncu_level_args} ${_bk_profiler_extra_args} "$@"; then
+        _bk_profiler_status=0
+      else
+        _bk_profiler_status=$?
+      fi
+      bk_profiler_call_optional_hook bk_profiler_after_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_ncu_rep_name" "$_bk_profiler_level" "$@" || return 1
+      if [ "$_bk_profiler_status" -eq 0 ]; then
+        echo "bk_profiler[ncu]: completed ${_bk_ncu_rep_name} level=${_bk_profiler_level}" >&2
+      else
+        echo "bk_profiler[ncu]: failed ${_bk_ncu_rep_name} level=${_bk_profiler_level} status=${_bk_profiler_status}" >&2
+      fi
+      cp -R "$_bk_ncu_rep_dir" "$_bk_stage_dir/raw/${_bk_ncu_rep_name}"
+      _bk_profiler_run_names="${_bk_ncu_rep_name}"
+      _bk_profiler_run_events="${_bk_profiler_level}"
       ;;
   esac
 
+  # Report import/postprocess is best-effort: keep the raw archive even when a
+  # text/CSV summary cannot be produced on the run node.
   case "$_bk_profiler_tool" in
     fapp)
       if _bk_fapp_post_cmd=$(bk_profiler_fapp_postprocess_command); then
@@ -937,23 +1157,46 @@ bk_profiler() {
         for _bk_fapp_rep_name in "${_bk_fapp_run_name_list[@]}"; do
           _bk_fapp_rep_dir="${_bk_profiler_dir}/${_bk_fapp_rep_name}"
           if [ "$_bk_profiler_report_format" = "text" ] || [ "$_bk_profiler_report_format" = "both" ]; then
+            # BK_PROFILER_REPORT_ARGS is intentionally word-split into fapp/fapppx options.
             # shellcheck disable=SC2086
-            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${BK_PROFILER_REPORT_ARGS:-} > "$_bk_stage_dir/reports/fapp_A_${_bk_fapp_rep_name}.txt" 2>&1 || true
+            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/fapp_A_${_bk_fapp_rep_name}.txt" 2>&1 || true
           fi
           if [ "$_bk_profiler_report_format" = "csv" ] || [ "$_bk_profiler_report_format" = "both" ]; then
+            # BK_PROFILER_REPORT_ARGS is intentionally word-split into fapp/fapppx options.
             # shellcheck disable=SC2086
-            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${BK_PROFILER_REPORT_ARGS:-} -Icpupa -tcsv -o "$_bk_stage_dir/reports/cpu_pa_${_bk_fapp_rep_name}.csv" >/dev/null 2>&1 || true
+            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} -Icpupa -tcsv -o "$_bk_stage_dir/reports/cpu_pa_${_bk_fapp_rep_name}.csv" >/dev/null 2>&1 || true
           fi
         done
       else
         echo "fapp/fapppx not found in PATH" > "$_bk_stage_dir/reports/fapp_A_missing.txt"
       fi
       ;;
+    ncu)
+      IFS=',' read -r -a _bk_ncu_run_name_list <<< "$_bk_profiler_run_names"
+      for _bk_ncu_rep_name in "${_bk_ncu_run_name_list[@]}"; do
+        _bk_ncu_report_file=$(bk_profiler_find_ncu_report "$_bk_profiler_dir/${_bk_ncu_rep_name}" || true)
+        if [ -n "$_bk_ncu_report_file" ] && { [ "$_bk_profiler_report_format" = "text" ] || [ "$_bk_profiler_report_format" = "both" ]; }; then
+          # BK_PROFILER_REPORT_ARGS is intentionally word-split into ncu --import options.
+          # shellcheck disable=SC2086
+          ncu --import "$_bk_ncu_report_file" --page details ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/ncu_import_${_bk_ncu_rep_name}.txt" 2>&1 || true
+        fi
+      done
+      ;;
   esac
 
-  bk_profiler_write_meta "$_bk_stage_dir" "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format" "$_bk_profiler_run_names" "$_bk_profiler_run_events"
-  tar -czf "$_bk_profiler_archive" "$_bk_stage_dir"
+  # Preserve the profiler command status after metadata/archive creation. If the
+  # archive itself cannot be written, that failure is more actionable to CI.
+  bk_profiler_write_meta "$_bk_stage_dir" "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format" "$_bk_profiler_run_names" "$_bk_profiler_run_events" "$_bk_profiler_extra_args" "$_bk_profiler_report_extra_args"
+  if tar -czf "$_bk_profiler_archive" "$_bk_stage_dir"; then
+    _bk_profiler_archive_status=0
+  else
+    _bk_profiler_archive_status=$?
+  fi
   rm -rf "$_bk_stage_dir"
+  if [ "$_bk_profiler_archive_status" -ne 0 ]; then
+    return "$_bk_profiler_archive_status"
+  fi
+  return "$_bk_profiler_status"
 }
 
 # bk_emit_overlap - Backward-compatible wrapper for overlap-like section timing.

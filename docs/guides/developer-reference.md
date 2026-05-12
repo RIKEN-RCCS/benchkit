@@ -197,7 +197,7 @@ Typical requirements include:
 - Bash and standard shell tooling
 - GitLab CI runner support
 - site-specific scheduler/runtime support
-- Python for result shaping, estimation support, and portal components
+- Python 3.12 or later for result shaping, estimation support, and portal components
 - Flask-related Python packages for `result_server`
 - optional profiler tools depending on system support
 
@@ -210,6 +210,15 @@ For the lightweight `result_server` verification path:
 - install dependencies with `python -m pip install -r requirements-result-server.txt`
 - run the portal test suite with `python result_server/tests/run_result_server_tests.py`
 - CI coverage for portal-only changes is provided by `.github/workflows/result-server-tests.yml`
+
+For production portal deployments:
+
+- Set `FLASK_SECRET_KEY` to a strong secret and run `result_server/app.py`, not `app_dev.py`.
+- `app.py` binds to `127.0.0.1:8800` by default; set `RESULT_SERVER_HOST` and `RESULT_SERVER_PORT` explicitly when the deployment requires a different bind address.
+- Set runner-scoped ingest keys with `RESULT_SERVER_KEYS=runner-a:key-a,runner-b:key-b`.
+- The legacy `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but should be rotated to `RESULT_SERVER_KEYS`.
+- `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
+- `app_dev.py` is localhost-only, uses ephemeral development secrets when none are provided, and enables the Werkzeug debugger only with `RESULT_SERVER_DEV_DEBUG=1`.
 
 ### Result Quality Visibility
 

@@ -8,6 +8,10 @@ ls results/
 meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
 
+# Backfill profile_data for older result JSONs that were produced before
+# result.sh learned to embed profiler summaries. The summary comes from
+# bk_profiler_artifact/meta.json inside the matching padata archive; raw
+# profiler files stay in the archive and are uploaded separately below.
 build_profile_data_summary() {
   local tgz_file="$1"
 
@@ -37,7 +41,18 @@ build_profile_data_summary() {
       report_format: .report_format,
       raw_dir: .raw_dir,
       run_count: ((.runs // []) | length),
-      events: ((.runs // []) | map(.event) | map(select(. != null and . != ""))),
+      events: (
+        if .tool == "fapp"
+        then ((.runs // []) | map(.event) | map(select(. != null and . != "")))
+        else []
+        end
+      ),
+      ncu_options: (
+        if .tool == "ncu" and ((.measurement.ncu_options // null) | type) == "array"
+        then .measurement.ncu_options
+        else []
+        end
+      ),
       report_kinds: ((.runs // []) | map(.reports // []) | add | map(.kind) | unique)
     }
   ' 2>/dev/null || true
@@ -47,7 +62,7 @@ build_profile_data_summary() {
 for json_file in results/result*.json; do
   [[ ! -f "$json_file" ]] && continue
 
-  # Determine corresponding TGZ name
+  # Match result12.json with padata12.tgz, and result.json with padata.tgz.
   tgz_base="padata"
 
   if [[ "$json_file" =~ result([0-9]+)\.json$ ]]; then

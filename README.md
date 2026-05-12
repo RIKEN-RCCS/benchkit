@@ -48,6 +48,10 @@ This includes:
 - system-specific execution environments
 - runtime requirements
 
+## Runtime Requirements
+
+- `result_server` requires Python 3.12 or later.
+
 ## License
 
 This project is licensed under the BSD 3-Clause License. See [LICENSE](LICENSE).

@@ -61,6 +61,20 @@ case "$system" in
     MiyabiC)
  	make -j 8 fugaku_benchmark= omp=1  compiler=intel arch=skylake rdma= mpi=1 powerapi=
         ;;
+    GenkaiA|GenkaiB|GenkaiC)
+	module load intel/2023.2 mvapich/3.0-intel2023.2
+	make -j 8 fugaku_benchmark= omp=1 compiler=intel arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpicxx
+	;;
+    Grand_C|Grand_G)
+	module load intel impi
+	make -j 8 fugaku_benchmark= omp=1 compiler=intel arch=skylake rdma= mpi=1 powerapi=
+	;;
+    AOBA_A|AOBA_S)
+	make -j 8 fugaku_benchmark= omp=1 compiler=nec arch=sx rdma= mpi=1 powerapi=
+	;;
+    AOBA_B)
+	make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpic++
+	;;
     *)
 	echo "Unknown system: $system"
 	exit 1
