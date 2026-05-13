@@ -412,6 +412,34 @@ class TestEstimationInputs:
         )
         assert resp.status_code == 400
 
+    def test_ingest_estimation_inputs_keeps_existing_data_on_bad_archive(self, client, tmp_dirs):
+        received = tmp_dirs[0]
+        estimation_inputs_dir = tmp_dirs[2]
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        result_stem = self._seed_result(received, uuid_value)
+        target_dir = os.path.join(estimation_inputs_dir, result_stem)
+        os.makedirs(target_dir, exist_ok=True)
+        existing_path = os.path.join(target_dir, "existing.json")
+        with open(existing_path, "w", encoding="utf-8") as f:
+            json.dump({"keep": True}, f)
+
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+            payload = b"bad"
+            info = tarfile.TarInfo(name="../outside.txt")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        archive_bytes.seek(0)
+
+        resp = client.post(
+            "/api/ingest/estimation-inputs",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+        assert os.path.exists(existing_path)
+
     def test_ingest_estimation_inputs_rejects_absolute_path_entry(self, client, tmp_dirs):
         received = tmp_dirs[0]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
@@ -496,5 +524,4 @@ class TestEstimationInputs:
         with tarfile.open(fileobj=archive_bytes, mode="r:gz") as tar:
             names = tar.getnames()
         assert "compute_solver_papi.tgz" in names
-
 

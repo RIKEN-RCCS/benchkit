@@ -458,6 +458,16 @@ class TestExistingFeatureCompatibility:
             resp = client.get(f"/results/compare?files={f1},{f2}")
             assert resp.status_code == 200
 
+    def test_compare_route_rejects_unsafe_filename(self, flask_app, tmp_dir):
+        """Compare should not accept path-like filenames from query parameters."""
+        uid = str(uuid.uuid4())
+        f1 = f"result_20250101_000000_{uid}.json"
+        _write_json(tmp_dir, f1, {"code": "a", "system": "s", "FOM": 1.0})
+
+        with flask_app.test_client() as client:
+            resp = client.get(f"/results/compare?files={f1},../outside.json")
+            assert resp.status_code == 404
+
     def test_no_filter_reads_only_page_files(self, flask_app, tmp_dir):
         """Test case."""
         _make_result_files(tmp_dir, 150)

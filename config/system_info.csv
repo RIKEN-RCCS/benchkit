@@ -1,18 +1,29 @@
 system,name,cpu_name,cpu_per_node,cpu_cores,gpu_name,gpu_per_node,memory,display_order
-Fugaku,Fugaku,A64FX,1,48,-,-,32GB,1
-FugakuCN,FugakuCN,A64FX,1,48,-,-,32GB,2
-FugakuLN,FugakuLN,Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz,2,16,-,-,96GB,3
-MiyabiG,MiyabiG,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,4
-MiyabiC,MiyabiC,Intel Xeon Max 9480,2,56,-,-,128GB,5
-RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,6
-RC_DGXSP,RC_DGXSP,ARM Cortex-X925 / Cortex-A725,1,20,NVIDIA GB10,1,128GB,7
-RC_GENOA,RC_GENOA,AMD EPYC 9684X,2,96,-,-,768GB,8
-RC_FX700,RC_FX700,A64FX,1,48,-,-,32GB,9
-GenkaiA,GenkaiA,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,-,-,512GiB,10
-GenkaiB,GenkaiB,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,NVIDIA H100 (Hopper),4,1024GiB,11
-GenkaiC,GenkaiC,Intel Xeon Platinum 8480+ (Sapphire Rapids),2,56,NVIDIA H100 (Hopper),8,8TiB,12
-Grand_C,Grand_C,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,-,-,512GiB,13
-Grand_G,Grand_G,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,NVIDIA H100 (Hopper),4,512GiB,14
-AOBA_A,AOBA_A,SX-Aurora TSUBASA VH,1,24,NEC SX-Aurora TSUBASA Type 20B VE,8,640GB,15
-AOBA_B,AOBA_B,AMD EPYC 7702,2,64,-,-,256GB,16
-AOBA_S,AOBA_S,SX-Aurora TSUBASA VH,1,64,NEC SX-Aurora TSUBASA Type 30A VE,8,256GB + 768GB,17
+AI4SS,RIKEN AI4S Supercomputer,NVIDIA Grace CPU,2,72,NVIDIA B200,4,960GiB + 692.8GiB,1
+Fugaku,Fugaku,A64FX,1,48,-,-,32GB,2
+FugakuCN,FugakuCN,A64FX,1,48,-,-,32GB,3
+FugakuLN,FugakuLN,Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz,2,16,-,-,96GB,4
+MiyabiG,MiyabiG,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,5
+MiyabiC,MiyabiC,Intel Xeon Max 9480,2,56,-,-,128GB,6
+RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,7
+RC_DGXSP,RC_DGXSP,ARM Cortex-X925 / Cortex-A725,1,20,NVIDIA GB10,1,128GB,8
+RC_GENOA,RC_GENOA,AMD EPYC 9684X,2,96,-,-,768GB,9
+RC_FX700,RC_FX700,A64FX,1,48,-,-,32GB,10
+GenkaiA,GenkaiA,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,-,-,512GiB,11
+GenkaiB,GenkaiB,Intel Xeon Platinum 8490H (Sapphire Rapids),2,60,NVIDIA H100 (Hopper),4,1024GiB,12
+GenkaiC,GenkaiC,Intel Xeon Platinum 8480+ (Sapphire Rapids),2,56,NVIDIA H100 (Hopper),8,8TiB,13
+Grand_C,Grand_C,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,-,-,512GiB,14
+Grand_G,Grand_G,Intel Xeon Gold 6548Y+ (Emerald Rapids),2,32,NVIDIA H100 (Hopper),4,512GiB,15
+AOBA_A,AOBA_A,SX-Aurora TSUBASA VH,1,24,NEC SX-Aurora TSUBASA Type 20B VE,8,640GB,16
+AOBA_B,AOBA_B,AMD EPYC 7702,2,64,-,-,256GB,17
+AOBA_S,AOBA_S,SX-Aurora TSUBASA VH,1,64,NEC SX-Aurora TSUBASA Type 30A VE,8,256GB + 768GB,18
+Odyssey,Odyssey,A64FX,1,48,-,-,32GiB,19
+Aquarius,Aquarius,Intel Xeon Platinum 8360Y,2,36,NVIDIA A100,8,512GiB,20
+TSUBAME4,TSUBAME4.0,AMD EPYC 9654,2,96,NVIDIA H100 SXM5 94GB HBM2e,4,768GiB,21
+Camphor3,Camphor3,Intel Xeon CPU Max 9480,2,56,-,-,128GiB,22
+Pegasus,Pegasus,Intel Xeon Platinum 8468,2,48,NVIDIA H100 PCIe,1,128GiB + 2TiB PMem,23
+Sirius,Sirius (PACS12.0),AMD EPYC Zen 4 (MI300A APU),4,24,AMD Instinct MI300A CDNA3,4,512GB HBM3,24
+SQUID_CPU,SQUID CPU,Intel Xeon Platinum 8368,2,38,-,-,256GB,25
+SQUID_GPU,SQUID GPU,Intel Xeon Platinum 8368,2,38,NVIDIA A100 SXM4 40GB,8,512GB,26
+SQUID_VECTOR,SQUID Vector,AMD EPYC 7402P,1,24,NEC SX-Aurora TSUBASA Type20A VE,8,128GB + 384GB,27
+OCTOPUS,OCTOPUS,Intel Xeon 6980P (Granite Rapids),2,128,-,-,768GB,28

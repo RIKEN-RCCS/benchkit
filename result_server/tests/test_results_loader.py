@@ -115,6 +115,19 @@ class TestLoadSingleResult:
         assert "vector" in result["metrics"]
         assert result["metrics"]["vector"]["x_axis"]["name"] == "message_size"
 
+    def test_rejects_parent_path_filename(self, tmp_dir):
+        """Result loaders should not read JSON outside the configured directory."""
+        outside_dir = tempfile.mkdtemp()
+        try:
+            _write_json(outside_dir, "outside.json", {"code": "outside"})
+            result = load_result_json(
+                os.path.join("..", os.path.basename(outside_dir), "outside.json"),
+                tmp_dir,
+            )
+            assert result is None
+        finally:
+            shutil.rmtree(outside_dir)
+
 
 # ============================================================
 # load_result_json_batch behavior
