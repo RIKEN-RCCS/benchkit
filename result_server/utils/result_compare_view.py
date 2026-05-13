@@ -1,3 +1,5 @@
+from flask import abort
+
 from utils.result_file import check_file_permission
 from utils.result_records import build_axis_label, build_compare_headline, load_result_json_batch
 
@@ -43,4 +45,6 @@ def load_result_compare_context(filenames, directory):
     for filename in filenames:
         check_file_permission(filename, directory)
     results = load_result_json_batch(filenames, directory)
+    if len(results) != len(filenames):
+        abort(404, "Result file not found")
     return build_result_compare_context(results)

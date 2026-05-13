@@ -100,7 +100,7 @@ echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script
 
 # --- システム別ジョブ投入 ---
 case "$system" in
-  FugakuLN)
+  FugakuLN|FNCX)
     echo "Notice: system=$system → submit test will NOT be performed."
     exit 1
     ;;
@@ -123,6 +123,41 @@ case "$system" in
     pjsub -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
          --mpi proc=$proc \
          script.sh
+    ;;
+  Odyssey)
+    proc=$((nodes * numproc_node))
+    echo pjsub -g jh260034o -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc --omp thread=$nthreads \
+         script.sh
+    pjsub -g jh260034o -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc --omp thread=$nthreads \
+         script.sh
+    ;;
+  Aquarius)
+    proc=$((nodes * numproc_node))
+    echo pjsub -g jh260034a -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc --omp thread=$nthreads \
+         script.sh
+    pjsub -g jh260034a -L rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+         --mpi proc=$proc --omp thread=$nthreads \
+         script.sh
+    ;;
+  Pegasus|Sirius)
+    echo qsub -q $queue_group \
+         -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads} \
+         -l walltime=${elapse} script.sh
+    qsub -q $queue_group \
+         -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads} \
+         -l walltime=${elapse} script.sh
+    ;;
+  TSUBAME4)
+    echo qsub -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
+    qsub -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
+    ;;
+  Camphor3)
+    proc=$((nodes * numproc_node))
+    echo sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G script.sh
+    sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G script.sh
     ;;
   Grand_C)
     cpu_per_node=$(get_system_cpu_per_node "$system")
@@ -154,10 +189,36 @@ case "$system" in
     qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T intmpi -b $nodes \
          -l elapstim_req=$elapse script.sh
     ;;
-  RC_GH200)
-    echo sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+  SQUID_CPU|OCTOPUS)
+    echo qsub -q $queue_group -b $nodes \
+         -l elapstim_req=${elapse},cpunum_job=${nthreads} script.sh
+    qsub -q $queue_group -b $nodes \
+         -l elapstim_req=${elapse},cpunum_job=${nthreads} script.sh
+    ;;
+  SQUID_GPU)
+    gpu_per_node=$(get_system_gpu_per_node "$system")
+    echo qsub -q $queue_group -b $nodes \
+         -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node} script.sh
+    qsub -q $queue_group -b $nodes \
+         -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node} script.sh
+    ;;
+  SQUID_VECTOR)
+    proc=$((nodes * numproc_node))
+    echo qsub -q $queue_group --venode $proc \
+         -l elapstim_req=${elapse} script.sh
+    qsub -q $queue_group --venode $proc \
+         -l elapstim_req=${elapse} script.sh
+    ;;
+  AI4SS)
+    echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
-    sbatch -p qc-gh200 -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+    sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
+	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
+    ;;
+  RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
+    echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
+    sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   MiyabiC)
@@ -174,7 +235,7 @@ case "$system" in
     ;;
   *)
     echo "Error: Unknown system '$system'"
-    echo "Supported systems: Fugaku, FugakuCN, FugakuLN, GenkaiA, GenkaiB, GenkaiC, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, MiyabiC, MiyabiG"
+    echo "Supported systems: AI4SS, Fugaku, FugakuCN, FugakuLN, FNCX, GenkaiA, GenkaiB, GenkaiC, Odyssey, Aquarius, Pegasus, Sirius, TSUBAME4, Camphor3, SQUID_CPU, SQUID_GPU, SQUID_VECTOR, OCTOPUS, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700, MiyabiC, MiyabiG"
     exit 1
     ;;
 esac

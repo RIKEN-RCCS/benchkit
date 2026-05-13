@@ -1,4 +1,5 @@
 system,enable,nodes,numproc_node,nthreads,elapse
+AI4SS,yes,1,1,72,0:10:00
 Fugaku,yes,1,4,12,0:10:00
 FugakuLN,yes,1,1,1,0:10:00
 FugakuCN,no,1,4,12,0:10:00
@@ -6,7 +7,7 @@ FugakuCN,no,2,4,12,0:10:00
 RC_GH200,yes,1,1,72,0:10:00
 RC_DGXSP,yes,1,1,20,0:10:00
 RC_GENOA,yes,1,1,96,0:10:00
-RC_FX700,yes,1,4,12,0:10:00
+RC_FX700,yes,1,1,12,0:10:00
 MiyabiG,yes,1,1,72,0:10:00
 MiyabiC,yes,1,1,112,0:10:00
 GenkaiA,yes,1,1,120,0:10:00
@@ -17,4 +18,8 @@ Grand_G,yes,1,1,64,0:10:00
 AOBA_A,yes,1,1,8,0:10:00
 AOBA_S,yes,1,1,8,0:10:00
 AOBA_B,yes,1,1,128,0:10:00
+Odyssey,yes,1,1,12,0:10:00
+Aquarius,yes,1,1,8,0:10:00
+TSUBAME4,yes,1,1,192,0:10:00
+Camphor3,yes,1,1,112,0:10:00
 FNCX,yes,1,1,1,0:10:00

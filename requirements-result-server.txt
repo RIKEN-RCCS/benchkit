@@ -1,4 +1,4 @@
-# result_server requires Python 3.12+ for safe tar extraction via tarfile filter="data".
+# result_server is tested and deployed on Python 3.12+; archive handling uses explicit path/type validation.
 Flask>=3.0,<4.0
 Flask-Session>=0.8,<1.0
 Flask-WTF>=1.2,<2.0

@@ -84,6 +84,14 @@ case "$system" in
         echo 'dummy call for FNCX Docker runner test'
         bk_emit_result --fom 99.99 --fom-version dummy --exp FNCXTest --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
+    AI4SS)
+        module load nvhpc-hpcx/26.3
+        export OMP_NUM_THREADS=72
+        export OMP_PLACES=cores
+        export OMP_PROC_BIND=close
+        mpirun --bind-to none -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 1 >> ../results/result
+        ;;
     RC_GH200)
         module load system/qc-gh200 nvhpc-hpcx/25.9
         mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
@@ -140,6 +148,58 @@ case "$system" in
         qws_numproc=$((nodes * numproc_node))
         mpirun -np ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    Odyssey)
+        if [[ -r /etc/profile.d/modules.sh ]]; then
+            source /etc/profile.d/modules.sh
+        else
+            echo "qws: /etc/profile.d/modules.sh is not readable" >&2
+        fi
+        module unload fjmpi fj odyssey 2>/dev/null || true
+        module load odyssey fj fjmpi
+        export OMP_NUM_THREADS=12
+        export PLE_MPI_STD_EMPTYFILE=off
+        mpiexec -n 1 -ofout CASE0 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50
+        print_results CASE0 CASE0 1 >> ../results/result
+        ;;
+    Aquarius)
+        module purge
+        module load intel
+        source /work/opt/local/x86_64/cores/intel/2023.0.0/mpi/latest/env/vars.sh
+        export OMP_NUM_THREADS=8
+        export I_MPI_PIN=1
+        mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 1 >> ../results/result
+        ;;
+    TSUBAME4)
+        qws_numproc=$((nodes * numproc_node))
+        mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    Camphor3)
+        camphor3_modulepath="${MODULEPATH:-}"
+        if [[ -r /etc/profile.d/modules.sh ]]; then
+            source /etc/profile.d/modules.sh
+        elif [[ -r /etc/profile.d/z00_lmod.sh ]]; then
+            source /etc/profile.d/z00_lmod.sh
+        else
+            echo "qws: no module init script found" >&2
+        fi
+        if [[ -n "${MODULEPATH:-}" ]]; then
+            camphor3_modulepath="${MODULEPATH}"
+        fi
+        module purge
+        if [[ -n "${camphor3_modulepath:-}" ]]; then
+            export MODULEPATH="${camphor3_modulepath}"
+        fi
+        module load intel/2023.2 intelmpi/2023.2 PrgEnvIntel/2023
+        export OMP_NUM_THREADS="${nthreads}"
+        export I_MPI_PIN=1
+        if [[ "${SLURM_CONF:-}" == /etc/slurm/sysA/* ]]; then
+            unset SLURM_CONF
+        fi
+        srun -n 1 -c "${nthreads}" ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 1 >> ../results/result
         ;;
     *)
         echo "Unknown Running system: $system"

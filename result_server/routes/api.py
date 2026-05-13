@@ -7,8 +7,8 @@ import re
 import uuid
 import shutil
 import io
-import sys
 import tarfile
+import tempfile
 from datetime import datetime
 
 from utils.auth import verify_ingest_key
@@ -145,25 +145,61 @@ def _find_result_file_by_uuid(received_dir, uuid_value):
 
 
 def _safe_extract_tar_bytes(file_storage, target_dir):
-    """Extract uploaded tar bytes with path and member-type checks.
-
-    The explicit path normalization catches traversal attempts before writing
-    anything, and Python 3.12's data filter rejects non-regular archive entries
-    such as unsafe links or device files.
-    """
-    if sys.version_info < (3, 12):
-        raise RuntimeError("Python 3.12 or later is required for safe tar extraction.")
-
+    """Extract uploaded tar bytes with path and member-type checks."""
     os.makedirs(target_dir, exist_ok=True)
     with tarfile.open(fileobj=file_storage.stream, mode="r:*") as tar:
         for member in tar.getmembers():
             normalized = os.path.normpath(member.name)
-            if os.path.isabs(normalized) or normalized.startswith(".."):
+            drive, _ = os.path.splitdrive(normalized)
+            if (
+                drive
+                or os.path.isabs(normalized)
+                or normalized == ".."
+                or normalized.startswith(f"..{os.sep}")
+                or normalized.startswith("../")
+                or normalized.startswith("..\\")
+            ):
                 abort(400, description="Unsafe archive entry")
-        try:
-            tar.extractall(target_dir, filter="data")
-        except tarfile.FilterError:
-            abort(400, description="Unsafe archive entry")
+            if member.issym() or member.islnk() or member.isdev():
+                abort(400, description="Unsafe archive entry")
+            if not (member.isfile() or member.isdir()):
+                abort(400, description="Unsafe archive entry")
+
+            destination = os.path.abspath(os.path.join(target_dir, normalized))
+            abs_target_dir = os.path.abspath(target_dir)
+            try:
+                if os.path.commonpath([abs_target_dir, destination]) != abs_target_dir:
+                    abort(400, description="Unsafe archive entry")
+            except ValueError:
+                abort(400, description="Unsafe archive entry")
+
+            if member.isdir():
+                os.makedirs(destination, exist_ok=True)
+                continue
+
+            os.makedirs(os.path.dirname(destination), exist_ok=True)
+            source = tar.extractfile(member)
+            if source is None:
+                abort(400, description="Unsafe archive entry")
+            with source, open(destination, "wb") as output:
+                shutil.copyfileobj(source, output)
+
+
+def _replace_directory_after_success(source_dir, target_dir):
+    """Replace target_dir only after source_dir is fully prepared."""
+    if not os.path.isdir(target_dir):
+        os.rename(source_dir, target_dir)
+        return False
+
+    backup_dir = f"{target_dir}.bak.{uuid.uuid4().hex}"
+    os.rename(target_dir, backup_dir)
+    try:
+        os.rename(source_dir, target_dir)
+    except Exception:
+        os.rename(backup_dir, target_dir)
+        raise
+    shutil.rmtree(backup_dir)
+    return True
 
 
 # ==========================================
@@ -264,13 +300,16 @@ def ingest_estimation_inputs():
 
     result_stem = os.path.splitext(result_filename)[0]
     inputs_root = current_app.config["RECEIVED_ESTIMATION_INPUTS_DIR"]
+    os.makedirs(inputs_root, exist_ok=True)
     target_dir = os.path.join(inputs_root, result_stem)
-    replaced = os.path.isdir(target_dir)
-    if replaced:
-        shutil.rmtree(target_dir)
-    os.makedirs(target_dir, exist_ok=True)
-
-    _safe_extract_tar_bytes(uploaded_file, target_dir)
+    temp_dir = tempfile.mkdtemp(prefix=f".{result_stem}.", dir=inputs_root)
+    try:
+        _safe_extract_tar_bytes(uploaded_file, temp_dir)
+        replaced = _replace_directory_after_success(temp_dir, target_dir)
+    except Exception:
+        if os.path.isdir(temp_dir):
+            shutil.rmtree(temp_dir)
+        raise
 
     print(f"Saved estimation inputs: {target_dir}", flush=True)
     return {
