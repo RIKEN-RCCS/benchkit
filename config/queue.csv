@@ -1,4 +1,5 @@
 queue,submit_cmd,template
+SLURM_AI4SS,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads} --gpus-per-node=${numproc_node}"
 FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005"
 PJM_GENKAI,pjsub,"-L rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi proc=${proc}"
 SLURM_RC,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"
@@ -7,4 +8,12 @@ PBS_Grand_C,qsub,"-q ${queue_group} -l select=${nodes}:nsockets=${cpu_per_node},
 PBS_Grand_G,qsub,"-q ${queue_group} -l select=${nodes}:ngpus=1,walltime=${elapse} -W group_list=d30992"
 NQSV_AOBA_VE,qsub,"-Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q ${queue_group} -T necmpi --venode ${proc} -l elapstim_req=${elapse}"
 NQSV_AOBA_B,qsub,"-Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q ${queue_group} -T intmpi -b ${nodes} -l elapstim_req=${elapse}"
+PJM_WISTERIA_O,pjsub,"-g jh260034o -L rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi proc=${proc} --omp thread=${nthreads}"
+PJM_WISTERIA_A,pjsub,"-g jh260034a -L rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi proc=${proc} --omp thread=${nthreads}"
+PBS_TSUKUBA,qsub,"-q ${queue_group} -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads} -l walltime=${elapse}"
+AGE_TSUBAME4,qsub,"-l ${queue_group}=${nodes} -l h_rt=${elapse}"
+SLURM_CAMPHOR3,sbatch,"-p ${queue_group} -t ${elapse} --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G"
+NQSV_OSAKA_CPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads}"
+NQSV_OSAKA_GPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node}"
+NQSV_OSAKA_VE,qsub,"-q ${queue_group} --venode ${proc} -l elapstim_req=${elapse}"
 none,none,none

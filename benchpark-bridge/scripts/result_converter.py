@@ -10,7 +10,6 @@ import json
 import os
 import sys
 import glob
-import yaml
 from datetime import datetime
 from pathlib import Path
 

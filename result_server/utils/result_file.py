@@ -11,8 +11,8 @@ from utils.session_user_context import get_session_user_context
 
 
 def load_result_file(filename: str, save_dir: str):
-    filepath = os.path.join(save_dir, filename)
-    if not os.path.exists(filepath):
+    filepath = resolve_safe_child_path(filename, save_dir)
+    if filepath is None or not os.path.exists(filepath):
         abort(404)
 
     if filename.endswith(".json"):
@@ -27,7 +27,31 @@ def load_result_file(filename: str, save_dir: str):
             abort(400, "Invalid JSON")
 
     abs_dir = os.path.abspath(save_dir)
-    return send_from_directory(abs_dir, filename, as_attachment=True)
+    return send_from_directory(abs_dir, os.path.basename(filepath), as_attachment=True)
+
+
+def resolve_safe_child_path(
+    filename: str,
+    base_dir: str,
+    *,
+    required_suffix: Optional[str] = None,
+):
+    """Resolve a basename-only child path under base_dir, or return None."""
+    if not filename or os.path.isabs(filename):
+        return None
+    if "/" in filename or "\\" in filename or os.path.basename(filename) != filename:
+        return None
+    if required_suffix and not filename.endswith(required_suffix):
+        return None
+
+    abs_base = os.path.abspath(base_dir)
+    candidate = os.path.abspath(os.path.join(abs_base, filename))
+    try:
+        if os.path.commonpath([abs_base, candidate]) != abs_base:
+            return None
+    except ValueError:
+        return None
+    return candidate
 
 
 def get_file_confidential_tags(filename: str, save_dir: str):
@@ -134,8 +158,8 @@ def _read_confidential_from_json(json_file: str, save_dir: str):
 
 
 def _read_json(json_file: str, save_dir: str):
-    filepath = os.path.join(save_dir, json_file)
-    if not os.path.exists(filepath):
+    filepath = resolve_safe_child_path(json_file, save_dir, required_suffix=".json")
+    if filepath is None or not os.path.exists(filepath):
         return None
 
     try:

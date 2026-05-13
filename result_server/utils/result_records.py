@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime
 
-from utils.result_file import get_file_confidential_tags
+from utils.result_file import get_file_confidential_tags, resolve_safe_child_path
 
 
 def load_visible_result_json(
@@ -30,8 +30,8 @@ def load_visible_result_json(
 
 def load_result_json(filename, directory):
     """Load a single JSON file from a result directory."""
-    filepath = os.path.join(directory, filename)
-    if not os.path.isfile(filepath):
+    filepath = resolve_safe_child_path(filename, directory, required_suffix=".json")
+    if filepath is None or not os.path.isfile(filepath):
         return None
 
     try:

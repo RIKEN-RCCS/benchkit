@@ -36,6 +36,10 @@ case "$system" in
 	echo "Dummy build for FNCX Docker runner test"
 	echo aaaa > main
 	;;
+    AI4SS)
+	module load nvhpc-hpcx/26.3
+	make -j 8 omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1
+	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
 	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
@@ -74,6 +78,38 @@ case "$system" in
 	;;
     AOBA_B)
 	make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpic++
+	;;
+    Odyssey)
+	module load odyssey
+	make compiler=fujitsu_cross arch=postk -j 8
+	;;
+    Aquarius)
+	module purge
+	module load intel
+	source /work/opt/local/x86_64/cores/intel/2023.0.0/mpi/latest/env/vars.sh
+	make compiler=intel arch=skylake rdma= -j8
+	;;
+    TSUBAME4)
+	make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpic++
+	;;
+    Camphor3)
+	camphor3_modulepath="${MODULEPATH:-}"
+	if [[ -r /etc/profile.d/modules.sh ]]; then
+	    source /etc/profile.d/modules.sh
+	elif [[ -r /etc/profile.d/z00_lmod.sh ]]; then
+	    source /etc/profile.d/z00_lmod.sh
+	else
+	    echo "qws: no module init script found" >&2
+	fi
+	if [[ -n "${MODULEPATH:-}" ]]; then
+	    camphor3_modulepath="${MODULEPATH}"
+	fi
+	module purge
+	if [[ -n "${camphor3_modulepath:-}" ]]; then
+	    export MODULEPATH="${camphor3_modulepath}"
+	fi
+	module load slurm/2022 SysA/2022 intel/2023.2 intelmpi/2023.2 PrgEnvIntel/2023
+	make -j 8 fugaku_benchmark= omp=1 compiler=intel arch=skylake rdma= mpi=1 powerapi=
 	;;
     *)
 	echo "Unknown system: $system"

@@ -44,19 +44,27 @@ jobs:
     name: Run GitLab CI manually
     runs-on: ubuntu-latest
     steps:
+      - name: Check out trusted workflow ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: trusted
+
+      - name: Prepare GitLab repository settings
+        id: gitlab-repo
+        uses: ./trusted/.github/actions/prepare-gitlab-repo
+        with:
+          gitlab-repo: ${{ secrets.GITLAB_REPO }}
+
       - name: Check out target ref
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.target_ref }}
-
-      - name: Prepare GitLab repository settings
-        id: gitlab-repo
-        uses: ./.github/actions/prepare-gitlab-repo
-        with:
-          gitlab-repo: ${{ secrets.GITLAB_REPO }}
+          path: target
 
       - name: Push target ref to GitLab test branch
+        working-directory: target
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
@@ -184,6 +192,7 @@ jobs:
 
       - name: Delete GitLab test branch
         if: always()
+        working-directory: trusted
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
