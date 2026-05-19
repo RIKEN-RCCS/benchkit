@@ -42,6 +42,23 @@ control mechanism.
 
 ## Gunicorn
 
-Use the repository `gunicorn.conf.py` as the baseline process manager
-configuration. It binds to `127.0.0.1:8800` by default, sets worker timeouts,
-and enables `max_requests` recycling to reduce long-running worker risk.
+Run Gunicorn under systemd with explicit worker, bind, timeout, and recycling
+settings that match the deployment. Keep stdout/stderr captured by journald or
+an append-only service log so `benchkit.audit` JSON Lines emitted on stderr are
+retained.
+
+Example options:
+
+```text
+gunicorn -w 2 -b 127.0.0.1:8800 --timeout 60 --max-requests 1000 benchkit.result_server.app:app
+```
+
+For deployments that want a separate audit file in addition to stderr capture,
+set:
+
+```text
+RESULT_SERVER_AUDIT_LOG_FILE=/path/to/audit.jsonl
+```
+
+The service user must be able to append to that file. Keep rotation and access
+controls in the systemd/logrotate or log aggregation layer.

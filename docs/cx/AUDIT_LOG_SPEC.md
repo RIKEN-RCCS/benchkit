@@ -10,6 +10,10 @@ review, not for storing secrets or full request payloads.
 - Format helper: `result_server/utils/audit_logging.py`
 - Recommended formatter: `JsonAuditFormatter`
 - Record shape: one JSON object per event
+- Default destination: stderr, so systemd/Gunicorn deployments can capture it
+  through `StandardError`
+- Optional mirror destination: set `RESULT_SERVER_AUDIT_LOG_FILE=/path/to/audit.jsonl`
+  to also append JSON Lines to a deployment-managed file
 
 Common fields:
 
