@@ -221,6 +221,7 @@ For production portal deployments:
 - See `docs/deploy/key-management.md` for generation and rotation guidance.
 - `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
 - API ingest and query endpoints use Redis-backed rate limits by default; set `RESULT_SERVER_MAX_UPLOAD_MB` and `RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB` when deployment-specific upload limits are needed.
+- Admin-managed affiliations are only rejected when they contain unsafe path/control characters or the comma delimiter used by the form; set `RESULT_SERVER_ALLOWED_AFFILIATIONS` only when a deployment wants to enforce a fixed comma-separated allowlist.
 - `app_dev.py` is localhost-only, uses ephemeral development secrets when none are provided, and enables the Werkzeug debugger only with `RESULT_SERVER_DEV_DEBUG=1`.
 
 ### Result Quality Visibility

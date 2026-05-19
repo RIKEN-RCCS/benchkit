@@ -9,6 +9,7 @@ from routes.api import api_bp
 from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
+from utils.admin_policy import parse_allowed_affiliations
 from utils.auth import parse_ingest_keys
 from utils.csrf import init_csrf
 from utils.preflight import validate_production_config
@@ -94,6 +95,13 @@ def _configure_upload_limits(app):
         ), 413
 
 
+def _configure_admin_policy(app):
+    """Configure admin-route policy settings."""
+    app.config["ALLOWED_AFFILIATIONS"] = parse_allowed_affiliations(
+        os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS")
+    )
+
+
 def _register_portal_blueprints(app, prefix):
     """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp
@@ -127,6 +135,7 @@ def create_app(prefix="", base_dir=None):
     _configure_totp_issuer(app, prefix)
     _configure_result_directories(app, base_dir)
     _configure_upload_limits(app)
+    _configure_admin_policy(app)
     init_csrf(app, exempt_blueprints=(api_bp,))
 
     register_home_routes(app, prefix=prefix)
