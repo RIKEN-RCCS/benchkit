@@ -11,12 +11,15 @@ from routes.home import register_home_routes
 from routes.results import results_bp
 from utils.auth import parse_ingest_keys
 from utils.csrf import init_csrf
+from utils.preflight import validate_production_config
 
 
 INGEST_KEYS = parse_ingest_keys()
+PREFLIGHT_ERRORS = validate_production_config(os.environ, INGEST_KEYS)
 
-if not INGEST_KEYS:
-    print("ERROR: RESULT_SERVER_KEYS or RESULT_SERVER_KEY is not set.", file=sys.stderr)
+if PREFLIGHT_ERRORS:
+    for error in PREFLIGHT_ERRORS:
+        print(f"ERROR: {error}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -76,7 +79,9 @@ def _register_portal_blueprints(app, prefix):
     """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp
     from routes.auth import auth_bp
+    from routes.security_metadata import register_security_metadata_routes
 
+    register_security_metadata_routes(app, prefix=prefix)
     app.register_blueprint(api_bp, url_prefix=prefix)
     app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
     app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")

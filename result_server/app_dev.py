@@ -159,6 +159,7 @@ def create_dev_app(base_dir):
     from flask_session import Session
 
     from routes.home import register_home_routes
+    from routes.security_metadata import register_security_metadata_routes
     from utils.auth import parse_ingest_keys
     from utils.csrf import init_csrf
     from utils.system_info import get_all_systems_info, summarize_systems_info
@@ -197,6 +198,7 @@ def create_dev_app(base_dir):
 
     # Home routes and loaders pull everything from current_app.config.
     register_home_routes(app)
+    register_security_metadata_routes(app)
 
     # Register all portal blueprints.
     from routes.api import api_bp
