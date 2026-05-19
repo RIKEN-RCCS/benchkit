@@ -1,5 +1,7 @@
 """Authentication routes for login, TOTP setup, and logout."""
 
+import logging
+
 from flask import (
     Blueprint,
     abort,
@@ -12,6 +14,7 @@ from flask import (
     url_for,
 )
 
+from utils.audit_logging import audit_event
 from utils.totp_manager import (
     check_code_reuse,
     check_rate_limit,
@@ -35,6 +38,12 @@ def _redis_ping_ok(redis_conn):
         return True
     except Exception:
         current_app.logger.exception("Redis ping failed during authentication")
+        audit_event(
+            "redis_unavailable",
+            result="failure",
+            level=logging.ERROR,
+            details={"component": "auth", "reason": "ping_failed"},
+        )
         return False
 
 
@@ -46,6 +55,12 @@ def _get_redis_or_fail():
     if not redis_conn:
         if requires_redis:
             current_app.logger.error("Redis unavailable; refusing login")
+            audit_event(
+                "redis_unavailable",
+                result="failure",
+                level=logging.ERROR,
+                details={"component": "auth", "reason": "missing_connection"},
+            )
             abort(503, description="Authentication service temporarily unavailable.")
         return None
 
@@ -54,9 +69,21 @@ def _get_redis_or_fail():
 
     if requires_redis:
         current_app.logger.error("Redis unavailable; refusing login")
+        audit_event(
+            "redis_unavailable",
+            result="failure",
+            level=logging.ERROR,
+            details={"component": "auth", "reason": "unusable_connection"},
+        )
         abort(503, description="Authentication service temporarily unavailable.")
 
     current_app.logger.warning("Redis unavailable; continuing without auth throttling")
+    audit_event(
+        "redis_unavailable",
+        result="degraded",
+        level=logging.WARNING,
+        details={"component": "auth", "reason": "continuing_without_throttling"},
+    )
     return None
 
 
@@ -104,6 +131,13 @@ def login():
         if redis_conn:
             is_locked, remaining = check_rate_limit(redis_conn, prefix, email)
             if is_locked:
+                audit_event(
+                    "login_failure",
+                    actor=email,
+                    result="failure",
+                    level=logging.WARNING,
+                    details={"reason": "rate_limited"},
+                )
                 flash(f"Too many failed attempts. Please try again in {remaining} seconds.")
                 return _render_login_totp_step(email)
 
@@ -113,6 +147,13 @@ def login():
         if user and user["totp_secret"] and verify_code(user["totp_secret"], totp_code):
             # Reject already-consumed codes to prevent replay attacks.
             if redis_conn and check_code_reuse(redis_conn, prefix, email, totp_code):
+                audit_event(
+                    "login_failure",
+                    actor=email,
+                    result="failure",
+                    level=logging.WARNING,
+                    details={"reason": "totp_reuse"},
+                )
                 flash("This code has already been used. Please wait for a new code.")
                 return _render_login_totp_step(email)
 
@@ -123,10 +164,18 @@ def login():
             session["authenticated"] = True
             session["user_email"] = email
             session["user_affiliations"] = user["affiliations"]
+            audit_event("login_success", actor=email, result="success")
             flash("Authentication successful.")
             return redirect(url_for("results.results"))
 
         # Failed authentication: record or report the attempt.
+        audit_event(
+            "login_failure",
+            actor=email,
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "invalid_totp_or_user"},
+        )
         if redis_conn:
             attempts = record_failed_attempt(redis_conn, prefix, email)
             from utils.totp_manager import MAX_LOGIN_ATTEMPTS
@@ -174,9 +223,17 @@ def setup(token):
         store.create_user(email, secret, affiliations)
         store.delete_invitation(token)
         session.pop("_setup_secret", None)
+        audit_event("setup_complete", actor=email, result="success")
         flash("TOTP registration complete. You can now log in.")
         return redirect(url_for("auth.login"))
 
+    audit_event(
+        "setup_failure",
+        actor=email,
+        result="failure",
+        level=logging.WARNING,
+        details={"reason": "invalid_totp"},
+    )
     flash("Invalid code. Please try again.")
     return _render_setup_page(email, token, secret)
 
