@@ -25,7 +25,7 @@ Common fields:
 | `actor` | Authenticated user email or runner id, when available |
 | `target` | User, file, directory, or object affected by the event |
 | `result` | `success`, `failure`, or `degraded` |
-| `endpoint` | Request path, when emitted during a request |
+| `endpoint` | Flask route template, when emitted during a request |
 | `method` | HTTP method, when emitted during a request |
 | `ip` | Remote address as provided by Flask |
 | `user_agent` | User-Agent header |
@@ -65,8 +65,10 @@ Audit logs must not contain:
 - Full request bodies or uploaded file contents
 
 The audit helper redacts sensitive keys in `details`, including `api_key`,
-`x-api-key`, `totp_code`, `secret`, `password`, and `token`. Route code should
-still avoid passing secrets to `audit_event()` in the first place.
+`x-api-key`, `totp_code`, `secret`, `password`, and `token`. It records Flask
+route templates instead of concrete request paths so route variables such as
+invitation tokens are not copied into `endpoint`. Route code should still avoid
+passing secrets to `audit_event()` in the first place.
 
 ## Retention Guidance
 

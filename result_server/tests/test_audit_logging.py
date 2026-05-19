@@ -197,6 +197,46 @@ def test_audit_event_redacts_sensitive_detail_fields(caplog):
         _cleanup(temp_dirs)
 
 
+def test_audit_event_uses_route_template_without_invitation_token(caplog):
+    app = Flask(__name__)
+    configure_audit_logging(app)
+
+    @app.route("/auth/setup/<token>", methods=["POST"])
+    def setup(token):
+        audit_event("setup_failure", actor="user@example.com", result="failure")
+        return "ok"
+
+    with app.test_client() as client, caplog.at_level(logging.INFO, logger="benchkit.audit"):
+        resp = client.post("/auth/setup/invitation-secret-token")
+
+    assert resp.status_code == 200
+    records = _audit_records(caplog, "setup_failure")
+    assert len(records) == 1
+    fields = records[0].audit_fields
+    assert fields["endpoint"] == "/auth/setup/<token>"
+    assert "invitation-secret-token" not in json.dumps(fields)
+
+
+def test_audit_event_uses_route_template_without_admin_email(caplog):
+    app = Flask(__name__)
+    configure_audit_logging(app)
+
+    @app.route("/admin/users/<email>/delete", methods=["POST"])
+    def delete_user(email):
+        audit_event("admin_user_deleted", actor="admin@example.com", target=email, result="success")
+        return "ok"
+
+    with app.test_client() as client, caplog.at_level(logging.INFO, logger="benchkit.audit"):
+        resp = client.post("/admin/users/user@example.com/delete")
+
+    assert resp.status_code == 200
+    records = _audit_records(caplog, "admin_user_deleted")
+    assert len(records) == 1
+    fields = records[0].audit_fields
+    assert fields["endpoint"] == "/admin/users/<email>/delete"
+    assert fields["target"] == "user@example.com"
+
+
 def test_json_audit_formatter_outputs_event_payload(caplog):
     app, temp_dirs = _api_app()
     try:
