@@ -43,15 +43,41 @@ control mechanism.
 ## Gunicorn
 
 Run Gunicorn under systemd with explicit worker, bind, timeout, and recycling
-settings that match the deployment. Keep stdout/stderr captured by journald or
-an append-only service log so `benchkit.audit` JSON Lines emitted on stderr are
-retained.
+settings that match the deployment. The current `result_server` modules use
+repo-local top-level imports (`routes.*`, `utils.*`), so set `PYTHONPATH` to the
+`result_server` directory when importing the app as `benchkit.result_server.app`.
+Keep stdout/stderr captured by journald or an append-only service log so
+`benchkit.audit` JSON Lines emitted on stderr are retained.
 
 Example options:
 
 ```text
-gunicorn -w 2 -b 127.0.0.1:8800 --timeout 60 --max-requests 1000 benchkit.result_server.app:app
+WorkingDirectory=<deploy-root>
+Environment=PYTHONPATH=<deploy-root>/benchkit/result_server
+ExecStart=<venv>/bin/gunicorn \
+  -w 2 \
+  -b 127.0.0.1:8800 \
+  --timeout 60 \
+  --max-requests 1000 \
+  benchkit.result_server.app:app
 ```
+
+An equivalent direct import form is:
+
+```text
+gunicorn --chdir <deploy-root>/benchkit/result_server \
+  -w 2 \
+  -b 127.0.0.1:8800 \
+  --timeout 60 \
+  --max-requests 1000 \
+  app:app
+```
+
+Both styles work with the current tree because Python 3.3+ can import
+`benchkit.result_server.app` as a namespace package without `__init__.py` files,
+while the existing `from routes.*` and `from utils.*` imports are resolved by
+putting `benchkit/result_server` on `PYTHONPATH` or making it the working
+directory.
 
 For deployments that want a separate audit file in addition to stderr capture,
 set:

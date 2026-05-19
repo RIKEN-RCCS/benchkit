@@ -100,8 +100,13 @@ def _audit_logger() -> logging.Logger:
 def _request_fields() -> dict[str, str]:
     if not has_request_context():
         return {}
+    endpoint = "(no rule)"
+    if request.url_rule is not None:
+        # Use the route template so path variables such as invitation tokens are
+        # not copied into audit logs.
+        endpoint = request.url_rule.rule
     return {
-        "endpoint": request.path,
+        "endpoint": endpoint,
         "method": request.method,
         "ip": request.remote_addr or "",
         "user_agent": request.headers.get("User-Agent", ""),
