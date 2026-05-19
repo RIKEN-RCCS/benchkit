@@ -5,6 +5,7 @@ from functools import wraps
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     make_response,
     redirect,
@@ -14,8 +15,9 @@ from flask import (
     url_for,
 )
 
-from utils.user_store import get_user_store
+from utils.admin_policy import parse_affiliations
 from utils.rate_limit import rate_limited
+from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -37,6 +39,40 @@ def _render_users_page(invitation_url=None):
 def _admin_rate_key(_request):
     """Return the session-scoped admin rate-limit key."""
     return f"admin:{session.get('user_email', 'anon')}"
+
+
+def _allowed_affiliations():
+    """Return the configured affiliation allowlist, if one is enforced."""
+    return current_app.config.get("ALLOWED_AFFILIATIONS")
+
+
+def _parse_requested_affiliations():
+    """Parse submitted affiliations and flash an error for invalid values."""
+    affiliations_raw = request.form.get("affiliations", "").strip()
+    affiliations, invalid = parse_affiliations(affiliations_raw, _allowed_affiliations())
+    if invalid:
+        flash(f"Invalid affiliations: {', '.join(sorted(invalid))}.")
+        return None
+    return affiliations
+
+
+def _user_affiliations(store, email):
+    """Return the affiliations for a user, handling missing records uniformly."""
+    if hasattr(store, "get_user"):
+        user = store.get_user(email)
+    else:
+        user = next(
+            (item for item in store.list_users() if item.get("email") == email),
+            None,
+        )
+    if not user:
+        return None
+    return list(user.get("affiliations", []))
+
+
+def _admin_user_count(store):
+    """Return the number of stored users with the admin affiliation."""
+    return sum(1 for user in store.list_users() if "admin" in user.get("affiliations", []))
 
 
 def admin_required(f):
@@ -68,8 +104,9 @@ def add_user():
     """Create a user invitation and show the generated invitation URL."""
     store = get_user_store()
     email = request.form.get("email", "").strip()
-    affiliations_raw = request.form.get("affiliations", "").strip()
-    affiliations = [item.strip() for item in affiliations_raw.split(",") if item.strip()]
+    affiliations = _parse_requested_affiliations()
+    if affiliations is None:
+        return redirect(url_for("admin.users"))
 
     if not email:
         flash("Email is required.")
@@ -86,7 +123,7 @@ def add_user():
     return _render_users_page(invitation_url)
 
 
-@admin_bp.route("/users/<path:email>/delete", methods=["POST"])
+@admin_bp.route("/users/<email>/delete", methods=["POST"])
 @admin_required
 @rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def delete_user(email):
@@ -95,25 +132,44 @@ def delete_user(email):
         flash("You cannot delete your own account.")
         return redirect(url_for("admin.users"))
     store = get_user_store()
+    affiliations = _user_affiliations(store, email)
+    if affiliations is None:
+        flash(f"User {email} not found.")
+        return redirect(url_for("admin.users"))
+    if "admin" in affiliations and _admin_user_count(store) <= 1:
+        flash("You cannot delete the only admin user.")
+        return redirect(url_for("admin.users"))
     store.delete_user(email)
     flash(f"User {email} has been deleted.")
     return redirect(url_for("admin.users"))
 
 
-@admin_bp.route("/users/<path:email>/affiliations", methods=["POST"])
+@admin_bp.route("/users/<email>/affiliations", methods=["POST"])
 @admin_required
 @rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def update_affiliations(email):
     """Update the affiliations stored for a user."""
     store = get_user_store()
-    affiliations_raw = request.form.get("affiliations", "").strip()
-    affiliations = [item.strip() for item in affiliations_raw.split(",") if item.strip()]
+    current_affiliations = _user_affiliations(store, email)
+    if current_affiliations is None:
+        flash(f"User {email} not found.")
+        return redirect(url_for("admin.users"))
+    affiliations = _parse_requested_affiliations()
+    if affiliations is None:
+        return redirect(url_for("admin.users"))
+    if (
+        "admin" in current_affiliations
+        and "admin" not in affiliations
+        and _admin_user_count(store) <= 1
+    ):
+        flash("You cannot remove admin from the only admin user.")
+        return redirect(url_for("admin.users"))
     store.update_affiliations(email, affiliations)
     flash(f"Affiliations updated for {email}.")
     return redirect(url_for("admin.users"))
 
 
-@admin_bp.route("/users/<path:email>/reinvite", methods=["POST"])
+@admin_bp.route("/users/<email>/reinvite", methods=["POST"])
 @admin_required
 @rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def reinvite_user(email):

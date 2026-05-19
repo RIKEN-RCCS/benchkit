@@ -162,6 +162,7 @@ def create_dev_app(base_dir):
 
     from routes.home import register_home_routes
     from routes.security_metadata import register_security_metadata_routes
+    from utils.admin_policy import parse_allowed_affiliations
     from utils.auth import parse_ingest_keys
     from utils.csrf import init_csrf
     from utils.system_info import get_all_systems_info, summarize_systems_info
@@ -184,6 +185,9 @@ def create_dev_app(base_dir):
             int(os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB", DEFAULT_MAX_ARCHIVE_MEMBER_MB))
             * 1024
             * 1024
+        ),
+        ALLOWED_AFFILIATIONS=parse_allowed_affiliations(
+            os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS")
         ),
     )
     Session(app)

@@ -22,9 +22,11 @@ Useful Redis checks:
 """
 
 import argparse
+import os
 
 import redis
 
+from utils.admin_policy import parse_affiliations, parse_allowed_affiliations
 from utils.user_store import UserStore
 
 
@@ -53,7 +55,10 @@ def main():
     )
     args = parser.parse_args()
 
-    affiliations = [item.strip() for item in args.affiliations.split(",") if item.strip()]
+    allowed = parse_allowed_affiliations(os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS"))
+    affiliations, invalid = parse_affiliations(args.affiliations, allowed)
+    if invalid:
+        parser.error(f"Invalid affiliations: {', '.join(sorted(invalid))}.")
 
     r_conn = redis.from_url(args.redis_url, decode_responses=True)
     store = UserStore(r_conn, args.prefix)

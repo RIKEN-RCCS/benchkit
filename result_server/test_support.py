@@ -81,15 +81,15 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def add_user():
         return ""
 
-    @admin_bp.route("/users/<path:email>/affiliations", methods=["POST"])
+    @admin_bp.route("/users/<email>/affiliations", methods=["POST"])
     def update_affiliations(email):
         return email
 
-    @admin_bp.route("/users/<path:email>/reinvite", methods=["POST"])
+    @admin_bp.route("/users/<email>/reinvite", methods=["POST"])
     def reinvite_user(email):
         return email
 
-    @admin_bp.route("/users/<path:email>/delete", methods=["POST"])
+    @admin_bp.route("/users/<email>/delete", methods=["POST"])
     def delete_user(email):
         return email
 
