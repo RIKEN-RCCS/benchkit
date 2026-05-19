@@ -12,9 +12,11 @@ import tempfile
 from datetime import datetime
 
 from utils.auth import verify_ingest_key
+from utils.rate_limit import rate_limited
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+DEFAULT_MAX_ARCHIVE_MEMBER_SIZE = 1024 * 1024 * 1024
 
 
 # ==========================================
@@ -35,6 +37,12 @@ def require_api_key():
         },
     )
     return runner_id
+
+
+def _api_rate_key(req):
+    """Return the runner-scoped API rate-limit key for a request."""
+    runner_id = verify_ingest_key(req.headers.get("X-API-Key", "")) or "unknown"
+    return f"runner:{runner_id}"
 
 
 def save_json_file(data, prefix, out_dir, given_uuid=None):
@@ -173,8 +181,14 @@ def _find_result_file_by_uuid(received_dir, uuid_value):
 def _safe_extract_tar_bytes(file_storage, target_dir):
     """Extract uploaded tar bytes with path and member-type checks."""
     os.makedirs(target_dir, exist_ok=True)
+    max_member_size = current_app.config.get(
+        "MAX_ARCHIVE_MEMBER_SIZE",
+        DEFAULT_MAX_ARCHIVE_MEMBER_SIZE,
+    )
     with tarfile.open(fileobj=file_storage.stream, mode="r:*") as tar:
         for member in tar.getmembers():
+            if member.size > max_member_size:
+                abort(400, description="Archive member too large")
             normalized = os.path.normpath(member.name)
             drive, _ = os.path.splitdrive(normalized)
             if (
@@ -233,6 +247,7 @@ def _replace_directory_after_success(source_dir, target_dir):
 # ==========================================
 
 @api_bp.route("/api/ingest/result", methods=["POST"])
+@rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_result():
     """Receive and persist a collected result JSON payload."""
     require_api_key()
@@ -245,6 +260,7 @@ def ingest_result():
 
 
 @api_bp.route("/api/ingest/estimate", methods=["POST"])
+@rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_estimate():
     """Receive and persist an estimated-result JSON payload."""
     require_api_key()
@@ -262,6 +278,7 @@ def ingest_estimate():
 
 
 @api_bp.route("/api/ingest/padata", methods=["POST"])
+@rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_padata():
     """Receive and store a PA Data archive."""
     require_api_key()
@@ -296,7 +313,7 @@ def ingest_padata():
 
     tmp_path = save_path + ".tmp"
     with open(tmp_path, "wb") as f:
-        f.write(uploaded_file.read())
+        shutil.copyfileobj(uploaded_file.stream, f, length=1024 * 1024)
         f.flush()
         os.fsync(f.fileno())
     os.rename(tmp_path, save_path)
@@ -312,6 +329,7 @@ def ingest_padata():
 
 
 @api_bp.route("/api/ingest/estimation-inputs", methods=["POST"])
+@rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_estimation_inputs():
     """Estimation input archive (tgz) upload and expansion."""
     require_api_key()
@@ -356,6 +374,7 @@ def ingest_estimation_inputs():
 # ==========================================
 
 @api_bp.route("/api/query/result", methods=["GET"])
+@rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
 def query_result():
     """Search results by uuid or by system/code/exp and return one result.
 
@@ -433,6 +452,7 @@ def query_result():
 
 
 @api_bp.route("/api/query/estimation-inputs", methods=["GET"])
+@rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
 def query_estimation_inputs():
     """Return estimation input artifacts for a result UUID as a tar.gz archive."""
     require_api_key()
@@ -472,6 +492,7 @@ def query_estimation_inputs():
 
 
 @api_bp.route("/api/query/estimate", methods=["GET"])
+@rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
 def query_estimate():
     """Return one estimate JSON document identified by UUID."""
     require_api_key()

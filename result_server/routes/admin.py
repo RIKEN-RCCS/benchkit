@@ -15,6 +15,7 @@ from flask import (
 )
 
 from utils.user_store import get_user_store
+from utils.rate_limit import rate_limited
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -31,6 +32,11 @@ def _render_users_page(invitation_url=None):
     for user in all_users:
         user["has_totp"] = store.has_totp_secret(user["email"])
     return render_template("admin_users.html", users=all_users, invitation_url=invitation_url)
+
+
+def _admin_rate_key(_request):
+    """Return the session-scoped admin rate-limit key."""
+    return f"admin:{session.get('user_email', 'anon')}"
 
 
 def admin_required(f):
@@ -57,6 +63,7 @@ def users():
 
 @admin_bp.route("/users/add", methods=["POST"])
 @admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def add_user():
     """Create a user invitation and show the generated invitation URL."""
     store = get_user_store()
@@ -81,6 +88,7 @@ def add_user():
 
 @admin_bp.route("/users/<path:email>/delete", methods=["POST"])
 @admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def delete_user(email):
     """Delete a user unless the current admin targets their own account."""
     if email == session.get("user_email"):
@@ -94,6 +102,7 @@ def delete_user(email):
 
 @admin_bp.route("/users/<path:email>/affiliations", methods=["POST"])
 @admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def update_affiliations(email):
     """Update the affiliations stored for a user."""
     store = get_user_store()
@@ -106,6 +115,7 @@ def update_affiliations(email):
 
 @admin_bp.route("/users/<path:email>/reinvite", methods=["POST"])
 @admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def reinvite_user(email):
     """Generate a new invitation link after clearing the current TOTP secret."""
     store = get_user_store()

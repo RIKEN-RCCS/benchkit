@@ -220,6 +220,7 @@ For production portal deployments:
 - The legacy `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but should be rotated to `RESULT_SERVER_KEYS`.
 - See `docs/deploy/key-management.md` for generation and rotation guidance.
 - `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
+- API ingest and query endpoints use Redis-backed rate limits by default; set `RESULT_SERVER_MAX_UPLOAD_MB` and `RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB` when deployment-specific upload limits are needed.
 - `app_dev.py` is localhost-only, uses ephemeral development secrets when none are provided, and enables the Werkzeug debugger only with `RESULT_SERVER_DEV_DEBUG=1`.
 
 ### Result Quality Visibility

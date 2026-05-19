@@ -23,6 +23,8 @@ import warnings
 from datetime import datetime, timedelta
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+DEFAULT_MAX_UPLOAD_MB = 512
+DEFAULT_MAX_ARCHIVE_MEMBER_MB = 1024
 
 
 def setup_dev_environment(base_dir):
@@ -155,7 +157,7 @@ def create_dev_app(base_dir):
     sys.modules["redis"] = types.ModuleType("redis")
     sys.modules["utils.totp_manager"] = _create_stub_totp_manager()
 
-    from flask import Flask, render_template
+    from flask import Flask, jsonify, render_template
     from flask_session import Session
 
     from routes.home import register_home_routes
@@ -173,8 +175,25 @@ def create_dev_app(base_dir):
         SESSION_PERMANENT=False,
         AUTH_REQUIRES_REDIS=False,
         INGEST_KEYS=parse_ingest_keys(),
+        MAX_CONTENT_LENGTH=(
+            int(os.environ.get("RESULT_SERVER_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB))
+            * 1024
+            * 1024
+        ),
+        MAX_ARCHIVE_MEMBER_SIZE=(
+            int(os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB", DEFAULT_MAX_ARCHIVE_MEMBER_MB))
+            * 1024
+            * 1024
+        ),
     )
     Session(app)
+
+    @app.errorhandler(413)
+    def payload_too_large(_error):
+        return jsonify(
+            error="Payload too large",
+            limit_mb=app.config["MAX_CONTENT_LENGTH"] // 1024 // 1024,
+        ), 413
 
     # Register a default local admin user.
     stub_store = _StubUserStore()
