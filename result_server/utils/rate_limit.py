@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from functools import wraps
 
 from flask import abort, current_app, request
 from werkzeug.exceptions import HTTPException
+
+from utils.audit_logging import audit_event
 
 
 RateKeyFunc = Callable[[object], str]
@@ -37,6 +40,17 @@ def rate_limited(*, max_per_minute: int, key_fn: RateKeyFunc | None = None, scop
                 if count == 1:
                     redis_conn.expire(redis_key, 60)
                 if count > limit:
+                    audit_event(
+                        "rate_limit_exceeded",
+                        actor=key_suffix,
+                        result="failure",
+                        level=logging.WARNING,
+                        details={
+                            "scope": scope,
+                            "count": count,
+                            "threshold": limit,
+                        },
+                    )
                     current_app.logger.warning(
                         "rate_limit_exceeded",
                         extra={

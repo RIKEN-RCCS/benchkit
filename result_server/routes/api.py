@@ -7,11 +7,13 @@ import re
 import uuid
 import shutil
 import io
+import logging
 import tarfile
 import tempfile
 from datetime import datetime
 
 from utils.auth import verify_ingest_key
+from utils.audit_logging import audit_event
 from utils.rate_limit import rate_limited
 
 api_bp = Blueprint("api", __name__)
@@ -27,7 +29,14 @@ def require_api_key():
     """Validate the request API key and return the authenticated runner id."""
     runner_id = verify_ingest_key(request.headers.get("X-API-Key", ""))
     if not runner_id:
+        audit_event(
+            "api_auth_failed",
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "invalid_api_key"},
+        )
         abort(401, description="Invalid API Key")
+    audit_event("api_auth_success", actor=runner_id, result="success")
     current_app.logger.info(
         "api key accepted",
         extra={
@@ -250,38 +259,54 @@ def _replace_directory_after_success(source_dir, target_dir):
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_result():
     """Receive and persist a collected result JSON payload."""
-    require_api_key()
+    runner_id = require_api_key()
     data = request.data
-    return save_json_file(
+    saved = save_json_file(
         data=data,
         prefix="result",
         out_dir=current_app.config["RECEIVED_DIR"],
-    ), 200
+    )
+    audit_event(
+        "ingest_accepted",
+        actor=runner_id,
+        target=saved["json_file"],
+        result="success",
+        details={"ingest_type": "result", "id": saved["id"]},
+    )
+    return saved, 200
 
 
 @api_bp.route("/api/ingest/estimate", methods=["POST"])
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_estimate():
     """Receive and persist an estimated-result JSON payload."""
-    require_api_key()
+    runner_id = require_api_key()
     raw_uuid = request.headers.get("X-UUID")
     if raw_uuid is not None and not is_valid_uuid(raw_uuid):
         abort(400, description="Invalid X-UUID header")
 
     data = request.data
-    return save_json_file(
+    saved = save_json_file(
         data=data,
         prefix="estimate",
         out_dir=current_app.config["ESTIMATED_DIR"],
         given_uuid=raw_uuid,
-    ), 200
+    )
+    audit_event(
+        "ingest_accepted",
+        actor=runner_id,
+        target=saved["json_file"],
+        result="success",
+        details={"ingest_type": "estimate", "id": saved["id"]},
+    )
+    return saved, 200
 
 
 @api_bp.route("/api/ingest/padata", methods=["POST"])
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_padata():
     """Receive and store a PA Data archive."""
-    require_api_key()
+    runner_id = require_api_key()
 
     uuid_str = request.form.get("id")
     if not uuid_str or not is_valid_uuid(uuid_str):
@@ -319,20 +344,28 @@ def ingest_padata():
     os.rename(tmp_path, save_path)
 
     print(f"Saved: {save_path}", flush=True)
-    return {
+    response = {
         "status": "uploaded",
         "id": uuid_str,
         "timestamp": timestamp,
         "file": os.path.basename(save_path),
         "replaced": bool(matched_files),
-    }, 200
+    }
+    audit_event(
+        "ingest_accepted",
+        actor=runner_id,
+        target=response["file"],
+        result="success",
+        details={"ingest_type": "padata", "id": uuid_str, "replaced": response["replaced"]},
+    )
+    return response, 200
 
 
 @api_bp.route("/api/ingest/estimation-inputs", methods=["POST"])
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
 def ingest_estimation_inputs():
     """Estimation input archive (tgz) upload and expansion."""
-    require_api_key()
+    runner_id = require_api_key()
 
     uuid_str = request.form.get("id")
     if not uuid_str or not is_valid_uuid(uuid_str):
@@ -361,12 +394,24 @@ def ingest_estimation_inputs():
         raise
 
     print(f"Saved estimation inputs: {target_dir}", flush=True)
-    return {
+    response = {
         "status": "uploaded",
         "id": uuid_str,
         "directory": result_stem,
         "replaced": replaced,
-    }, 200
+    }
+    audit_event(
+        "ingest_accepted",
+        actor=runner_id,
+        target=result_stem,
+        result="success",
+        details={
+            "ingest_type": "estimation_inputs",
+            "id": uuid_str,
+            "replaced": replaced,
+        },
+    )
+    return response, 200
 
 
 # ==========================================
@@ -386,7 +431,7 @@ def query_result():
 
     Returns the full JSON of the matching result file.
     """
-    require_api_key()
+    runner_id = require_api_key()
 
     uuid_value = request.args.get("uuid")
     system = request.args.get("system")
@@ -404,6 +449,12 @@ def query_result():
         )
         if data is None:
             abort(404, description=f"No result found for uuid={uuid_value}")
+        audit_event(
+            "api_query_accepted",
+            actor=runner_id,
+            result="success",
+            details={"query_type": "result", "mode": "uuid"},
+        )
         return jsonify(data), 200
 
     if not system or not code:
@@ -446,6 +497,12 @@ def query_result():
         meta_uuid = uuid_match.group(0) if uuid_match else None
 
         data["_meta"] = {"timestamp": meta_timestamp, "uuid": meta_uuid}
+        audit_event(
+            "api_query_accepted",
+            actor=runner_id,
+            result="success",
+            details={"query_type": "result", "mode": "filter"},
+        )
         return jsonify(data), 200
 
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
@@ -455,7 +512,7 @@ def query_result():
 @rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
 def query_estimation_inputs():
     """Return estimation input artifacts for a result UUID as a tar.gz archive."""
-    require_api_key()
+    runner_id = require_api_key()
 
     uuid_value = request.args.get("uuid")
     if not uuid_value or not is_valid_uuid(uuid_value):
@@ -473,6 +530,13 @@ def query_estimation_inputs():
     )
     if not os.path.isdir(source_dir):
         abort(404, description=f"No estimation inputs found for uuid={uuid_value}")
+
+    audit_event(
+        "api_query_accepted",
+        actor=runner_id,
+        result="success",
+        details={"query_type": "estimation_inputs"},
+    )
 
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
@@ -495,7 +559,7 @@ def query_estimation_inputs():
 @rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
 def query_estimate():
     """Return one estimate JSON document identified by UUID."""
-    require_api_key()
+    runner_id = require_api_key()
 
     uuid_value = request.args.get("uuid")
     if not uuid_value or not is_valid_uuid(uuid_value):
@@ -509,4 +573,10 @@ def query_estimate():
     if data is None:
         abort(404, description=f"No estimate found for uuid={uuid_value}")
 
+    audit_event(
+        "api_query_accepted",
+        actor=runner_id,
+        result="success",
+        details={"query_type": "estimate"},
+    )
     return jsonify(data), 200

@@ -2,6 +2,8 @@
 
 from functools import wraps
 
+import logging
+
 from flask import (
     Blueprint,
     abort,
@@ -16,6 +18,7 @@ from flask import (
 )
 
 from utils.admin_policy import parse_affiliations
+from utils.audit_logging import audit_event
 from utils.rate_limit import rate_limited
 from utils.user_store import get_user_store
 
@@ -51,6 +54,13 @@ def _parse_requested_affiliations():
     affiliations_raw = request.form.get("affiliations", "").strip()
     affiliations, invalid = parse_affiliations(affiliations_raw, _allowed_affiliations())
     if invalid:
+        audit_event(
+            "admin_affiliation_rejected",
+            actor=session.get("user_email"),
+            result="failure",
+            level=logging.WARNING,
+            details={"invalid_affiliation_count": len(invalid)},
+        )
         flash(f"Invalid affiliations: {', '.join(sorted(invalid))}.")
         return None
     return affiliations
@@ -119,6 +129,13 @@ def add_user():
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
+    audit_event(
+        "admin_user_invited",
+        actor=session.get("user_email"),
+        target=email,
+        result="success",
+        details={"affiliations": affiliations},
+    )
     flash(f"Invitation created for {email}.")
     return _render_users_page(invitation_url)
 
@@ -129,6 +146,14 @@ def add_user():
 def delete_user(email):
     """Delete a user unless the current admin targets their own account."""
     if email == session.get("user_email"):
+        audit_event(
+            "admin_user_delete_blocked",
+            actor=session.get("user_email"),
+            target=email,
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "self_delete"},
+        )
         flash("You cannot delete your own account.")
         return redirect(url_for("admin.users"))
     store = get_user_store()
@@ -137,9 +162,23 @@ def delete_user(email):
         flash(f"User {email} not found.")
         return redirect(url_for("admin.users"))
     if "admin" in affiliations and _admin_user_count(store) <= 1:
+        audit_event(
+            "admin_user_delete_blocked",
+            actor=session.get("user_email"),
+            target=email,
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "only_admin"},
+        )
         flash("You cannot delete the only admin user.")
         return redirect(url_for("admin.users"))
     store.delete_user(email)
+    audit_event(
+        "admin_user_deleted",
+        actor=session.get("user_email"),
+        target=email,
+        result="success",
+    )
     flash(f"User {email} has been deleted.")
     return redirect(url_for("admin.users"))
 
@@ -162,9 +201,27 @@ def update_affiliations(email):
         and "admin" not in affiliations
         and _admin_user_count(store) <= 1
     ):
+        audit_event(
+            "admin_affiliation_change_blocked",
+            actor=session.get("user_email"),
+            target=email,
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "only_admin"},
+        )
         flash("You cannot remove admin from the only admin user.")
         return redirect(url_for("admin.users"))
     store.update_affiliations(email, affiliations)
+    audit_event(
+        "admin_affiliation_changed",
+        actor=session.get("user_email"),
+        target=email,
+        result="success",
+        details={
+            "old_affiliations": current_affiliations,
+            "new_affiliations": affiliations,
+        },
+    )
     flash(f"Affiliations updated for {email}.")
     return redirect(url_for("admin.users"))
 
@@ -186,5 +243,12 @@ def reinvite_user(email):
     token = store.create_invitation(email, affiliations)
     invitation_url = url_for("auth.setup", token=token, _external=True)
 
+    audit_event(
+        "admin_user_reinvited",
+        actor=session.get("user_email"),
+        target=email,
+        result="success",
+        details={"affiliations": affiliations},
+    )
     flash(f"Reinvitation created for {email}.")
     return _render_users_page(invitation_url)

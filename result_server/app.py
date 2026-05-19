@@ -10,6 +10,7 @@ from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
 from utils.admin_policy import parse_allowed_affiliations
+from utils.audit_logging import configure_audit_logging
 from utils.auth import parse_ingest_keys
 from utils.csrf import init_csrf
 from utils.preflight import validate_production_config
@@ -128,6 +129,7 @@ def create_app(prefix="", base_dir=None):
         raise RuntimeError("FLASK_SECRET_KEY must be set in production")
     app.secret_key = secret_key
     app.config["INGEST_KEYS"] = INGEST_KEYS.copy()
+    configure_audit_logging(app)
 
     _configure_session(app, base_dir)
     _configure_redis(app, prefix)

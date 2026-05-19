@@ -58,7 +58,7 @@ Continuous estimation has now moved beyond a mere entry point: a common estimati
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
 As of the current repository survey, BenchKit has six benchmark applications with `build.sh`/`run.sh`, but only `qws` has an `estimate.sh`.
-The result portal also already has a meaningful test base (`result_server/tests`: 33 `test_*.py` modules), and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
+The result portal also already has a meaningful test base (`result_server/tests`: 34 `test_*.py` modules), and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
 The main GitLab pipeline still intentionally skips heavy benchmark execution when a direct or manually triggered GitLab pipeline sees changes limited to `result_server/**/*` or portal display metadata such as `config/system_info.csv`. Protected-branch synchronization itself uses `ci.skip`, so the dedicated lightweight GitHub Actions path should continue to be kept in sync as portal-side files evolve.
 
 ## 2.1 現時点で明示しておく設計負債 / Explicit Design Debts to Keep Visible
@@ -296,7 +296,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 今回のコードベース調査では、性能推定に次ぐ実務上の詰まりどころとして、`result_server` の検証導線が見えた。
 
-- `result_server/tests` には 33 個の `test_*.py` モジュールがあり、portal 側はすでに「検証すべき対象」になっている
+- `result_server/tests` には 34 個の `test_*.py` モジュールがあり、portal 側はすでに「検証すべき対象」になっている
 - repo-local な依存関係定義として `requirements-result-server.txt` があり、`result_server/tests/run_result_server_tests.py` が標準 test entrypoint として使える
 - portal-oriented 変更向けの lightweight GitHub Actions として `.github/workflows/result-server-tests.yml` が用意されている
 - `.gitlab-ci.yml` は直接または手動起動されたGitLab pipelineで `result_server/**/*` や `config/system_info.csv` 変更時に重い benchmark pipeline を skip する。保護ブランチ同期自体は `ci.skip` を使うため、GitHub Actions 側の path filter を portal 周辺の実ファイルに追従させ続ける必要がある
