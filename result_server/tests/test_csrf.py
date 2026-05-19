@@ -13,7 +13,7 @@ from utils.csrf import init_csrf
 
 install_portal_test_stubs()
 
-API_KEY = "test-api-key-12345"
+API_KEY = "test-api-key-12345678901234567890"
 
 
 class _Store:

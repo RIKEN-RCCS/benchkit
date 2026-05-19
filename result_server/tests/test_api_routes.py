@@ -17,7 +17,7 @@ from test_support import build_api_route_app, install_portal_test_stubs
 
 install_portal_test_stubs()
 
-API_KEY = "test-api-key-12345"
+API_KEY = "test-api-key-12345678901234567890"
 
 
 @pytest.fixture
@@ -105,18 +105,18 @@ class TestIngestResult:
     def test_multiple_ingest_keys_accept_individual_runner_keys(self, app):
         """RESULT_SERVER_KEYS-style config should accept each runner key."""
         app.config["INGEST_KEYS"] = {
-            "runner-a-key": "runner-a",
-            "runner-b-key": "runner-b",
+            "runner-a-key-12345678901234567890": "runner-a",
+            "runner-b-key-12345678901234567890": "runner-b",
         }
 
         with app.test_client() as client:
             resp_a = client.post("/api/ingest/result",
                                  data=b'{"code":"a"}',
-                                 headers={"X-API-Key": "runner-a-key",
+                                 headers={"X-API-Key": "runner-a-key-12345678901234567890",
                                           "Content-Type": "application/json"})
             resp_b = client.post("/api/ingest/result",
                                  data=b'{"code":"b"}',
-                                 headers={"X-API-Key": "runner-b-key",
+                                 headers={"X-API-Key": "runner-b-key-12345678901234567890",
                                           "Content-Type": "application/json"})
 
         assert resp_a.status_code == 200
@@ -125,7 +125,7 @@ class TestIngestResult:
     def test_legacy_result_server_key_env_is_still_accepted(self, tmp_dirs, monkeypatch):
         """RESULT_SERVER_KEY should remain valid as the default runner fallback."""
         monkeypatch.delenv("RESULT_SERVER_KEYS", raising=False)
-        monkeypatch.setenv("RESULT_SERVER_KEY", "legacy-key")
+        monkeypatch.setenv("RESULT_SERVER_KEY", "legacy-key-12345678901234567890")
         received, received_padata, received_estimation_inputs, estimated = tmp_dirs
         app = build_api_route_app(
             received_dir=received,
@@ -137,7 +137,7 @@ class TestIngestResult:
         with app.test_client() as client:
             resp = client.post("/api/ingest/result",
                                data=b'{"code":"legacy"}',
-                               headers={"X-API-Key": "legacy-key",
+                               headers={"X-API-Key": "legacy-key-12345678901234567890",
                                         "Content-Type": "application/json"})
 
         assert resp.status_code == 200
@@ -184,6 +184,39 @@ class TestIngestEstimate:
         assert saved["code"] == "est-test"
         assert saved["estimate_metadata"]["estimation_result_uuid"] == body["id"]
         assert "estimation_result_timestamp" in saved["estimate_metadata"]
+
+    def test_post_valid_json_with_uuid_header(self, client, tmp_dirs):
+        """A valid X-UUID header should be used as the persisted estimate id."""
+        estimate_uuid = "12345678-1234-1234-1234-123456789abc"
+        resp = client.post("/api/ingest/estimate",
+                           data=b'{"code":"est-test"}',
+                           headers={"X-API-Key": API_KEY,
+                                    "X-UUID": estimate_uuid,
+                                    "Content-Type": "application/json"})
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["id"] == estimate_uuid
+        assert estimate_uuid in body["json_file"]
+
+        estimated = tmp_dirs[3]
+        files = os.listdir(estimated)
+        assert files == [body["json_file"]]
+
+    @pytest.mark.parametrize("header_value", [
+        "../../../etc/passwd_evil",
+        "..%2F..%2Fetc%2Fpasswd",
+        "not-a-uuid",
+        "",
+    ])
+    def test_rejects_invalid_uuid_header(self, client, header_value):
+        """X-UUID must be a canonical UUID before it reaches file naming."""
+        resp = client.post("/api/ingest/estimate",
+                           data=b'{}',
+                           headers={"X-API-Key": API_KEY,
+                                    "X-UUID": header_value,
+                                    "Content-Type": "application/json"})
+        assert resp.status_code == 400
 
     def test_missing_api_key_returns_401(self, client):
         resp = client.post("/api/ingest/estimate",
@@ -234,6 +267,25 @@ class TestIngestPadata:
         data = {
             "id": "12345678-1234-1234-1234-123456789abc",
             "timestamp": "20250101_120000",
+        }
+        resp = client.post("/api/ingest/padata",
+                           data=data,
+                           headers={"X-API-Key": API_KEY},
+                           content_type="multipart/form-data")
+        assert resp.status_code == 400
+
+    @pytest.mark.parametrize("timestamp", [
+        "../bad",
+        "20250101",
+        "2025/01/01_12:00:00",
+        "",
+    ])
+    def test_rejects_invalid_timestamp(self, client, timestamp):
+        """PA Data timestamps must match YYYYMMDD_HHMMSS before file naming."""
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": timestamp,
+            "file": (io.BytesIO(b"data"), "test.tgz"),
         }
         resp = client.post("/api/ingest/padata",
                            data=data,
@@ -524,4 +576,3 @@ class TestEstimationInputs:
         with tarfile.open(fileobj=archive_bytes, mode="r:gz") as tar:
             names = tar.getnames()
         assert "compute_solver_papi.tgz" in names
-

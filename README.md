@@ -22,6 +22,7 @@ Repository migration details are documented in [docs/repository-history.md](docs
 - Add a new system: [docs/guides/add-site.md](docs/guides/add-site.md)
 - Add estimation support: [docs/guides/add-estimation.md](docs/guides/add-estimation.md)
 - CI execution control: [docs/ci.md](docs/ci.md)
+- Security policy: [SECURITY.md](SECURITY.md)
 - Profiler support guide: [docs/guides/profiler-support.md](docs/guides/profiler-support.md)
 - Profiler level reference: [docs/guides/profiler-level-reference.md](docs/guides/profiler-level-reference.md)
 

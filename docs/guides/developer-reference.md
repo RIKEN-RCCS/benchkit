@@ -215,8 +215,10 @@ For production portal deployments:
 
 - Set `FLASK_SECRET_KEY` to a strong secret and run `result_server/app.py`, not `app_dev.py`.
 - `app.py` binds to `127.0.0.1:8800` by default; set `RESULT_SERVER_HOST` and `RESULT_SERVER_PORT` explicitly when the deployment requires a different bind address.
-- Set runner-scoped ingest keys with `RESULT_SERVER_KEYS=runner-a:key-a,runner-b:key-b`.
+- Set runner-scoped ingest keys with `RESULT_SERVER_KEYS=runner-a:<RUNNER_A_KEY>,runner-b:<RUNNER_B_KEY>`.
+- `FLASK_SECRET_KEY` and each ingest key must be at least 32 characters and must not use known insecure examples such as `dev-api-key`, `changeme`, or `secret`; production startup refuses these values.
 - The legacy `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but should be rotated to `RESULT_SERVER_KEYS`.
+- See `docs/deploy/key-management.md` for generation and rotation guidance.
 - `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
 - `app_dev.py` is localhost-only, uses ephemeral development secrets when none are provided, and enables the Werkzeug debugger only with `RESULT_SERVER_DEV_DEBUG=1`.
 

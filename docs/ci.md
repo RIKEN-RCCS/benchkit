@@ -226,10 +226,15 @@ Protected-branch synchronization pushes to GitLab with `ci.skip`, so these skip 
 
 Current skip-oriented patterns include:
 
+- `.github/**/*`
 - `*.md`
 - `docs/**/*`
 - `result_server/**/*`
 - `config/system_info.csv`
+
+> Synchronization note: this list mirrors the `paths:` entries in
+> `.gitlab-ci.yml`. Update this document in the same PR when those rules
+> change.
 
 `system_info.csv` is the public portal catalog. Every system listed there must also be registered in `system.csv` and reference a queue defined in `queue.csv`. The reverse is intentionally not required: private or development-only systems may exist in `system.csv` / `queue.csv` without being exposed in `system_info.csv`.
 

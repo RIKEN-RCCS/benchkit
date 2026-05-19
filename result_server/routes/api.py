@@ -14,6 +14,7 @@ from datetime import datetime
 from utils.auth import verify_ingest_key
 
 api_bp = Blueprint("api", __name__)
+_TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
 
 
 # ==========================================
@@ -38,9 +39,12 @@ def require_api_key():
 
 def save_json_file(data, prefix, out_dir, given_uuid=None):
     """Persist a JSON payload using atomic file replacement."""
+    if given_uuid is not None and not is_valid_uuid(given_uuid):
+        abort(400, description="Invalid UUID")
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = given_uuid or str(uuid.uuid4())
-    filename = f"{prefix}_{timestamp}_{unique_id}.json"
+    filename = _safe_basename(f"{prefix}_{timestamp}_{unique_id}.json")
     path = os.path.join(out_dir, filename)
     tmp_path = path + ".tmp"
 
@@ -85,11 +89,33 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
 
 def is_valid_uuid(value):
     """Return whether the given string is a valid UUID."""
+    if not isinstance(value, str) or not value:
+        return False
     try:
-        uuid.UUID(value)
-        return True
+        parsed = uuid.UUID(value)
+        return str(parsed) == value.lower()
     except ValueError:
         return False
+
+
+def is_valid_timestamp(value):
+    """Return whether the string matches the canonical timestamp format."""
+    return isinstance(value, str) and bool(_TIMESTAMP_RE.fullmatch(value))
+
+
+def _safe_basename(name):
+    """Return a basename-only file component or abort with 400."""
+    if not isinstance(name, str) or not name:
+        abort(400, description="Invalid file component")
+    if (
+        name in {".", ".."}
+        or os.path.isabs(name)
+        or os.path.basename(name) != name
+        or "/" in name
+        or "\\" in name
+    ):
+        abort(400, description="Invalid file component")
+    return name
 
 
 def _load_json_by_uuid(directory, field_path, uuid_value):
@@ -222,12 +248,16 @@ def ingest_result():
 def ingest_estimate():
     """Receive and persist an estimated-result JSON payload."""
     require_api_key()
+    raw_uuid = request.headers.get("X-UUID")
+    if raw_uuid is not None and not is_valid_uuid(raw_uuid):
+        abort(400, description="Invalid X-UUID header")
+
     data = request.data
     return save_json_file(
         data=data,
         prefix="estimate",
         out_dir=current_app.config["ESTIMATED_DIR"],
-        given_uuid=request.headers.get("X-UUID"),
+        given_uuid=raw_uuid,
     ), 200
 
 
@@ -241,8 +271,8 @@ def ingest_padata():
         abort(400, description="Invalid or missing UUID")
 
     timestamp = request.form.get("timestamp")
-    if not timestamp:
-        abort(400, description="Missing Timestamp")
+    if not is_valid_timestamp(timestamp):
+        abort(400, description="Invalid or missing Timestamp")
 
     uploaded_file = request.files.get("file")
     if not uploaded_file:
@@ -256,12 +286,13 @@ def ingest_padata():
     ]
 
     if matched_files:
-        old_file_path = os.path.join(received_dir, matched_files[0])
+        old_file_path = os.path.join(received_dir, _safe_basename(matched_files[0]))
         backup_path = old_file_path + ".bak"
         shutil.move(old_file_path, backup_path)
         save_path = old_file_path
     else:
-        save_path = os.path.join(received_dir, f"padata_{timestamp}_{uuid_str}.tgz")
+        filename = _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
+        save_path = os.path.join(received_dir, filename)
 
     tmp_path = save_path + ".tmp"
     with open(tmp_path, "wb") as f:
