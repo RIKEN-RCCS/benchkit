@@ -2,7 +2,7 @@ import os
 import sys
 from datetime import timedelta
 
-from flask import Flask, render_template
+from flask import Flask, jsonify, render_template
 from flask_session import Session
 
 from routes.api import api_bp
@@ -14,6 +14,8 @@ from utils.csrf import init_csrf
 from utils.preflight import validate_production_config
 
 
+DEFAULT_MAX_UPLOAD_MB = 512
+DEFAULT_MAX_ARCHIVE_MEMBER_MB = 1024
 INGEST_KEYS = parse_ingest_keys()
 PREFLIGHT_ERRORS = validate_production_config(os.environ, INGEST_KEYS)
 
@@ -75,6 +77,23 @@ def _configure_result_directories(app, base_dir):
     app.config.update(dir_map)
 
 
+def _configure_upload_limits(app):
+    """Configure request and archive size limits for ingest endpoints."""
+    max_upload_mb = int(os.environ.get("RESULT_SERVER_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB))
+    max_member_mb = int(
+        os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB", DEFAULT_MAX_ARCHIVE_MEMBER_MB)
+    )
+    app.config["MAX_CONTENT_LENGTH"] = max_upload_mb * 1024 * 1024
+    app.config["MAX_ARCHIVE_MEMBER_SIZE"] = max_member_mb * 1024 * 1024
+
+    @app.errorhandler(413)
+    def payload_too_large(_error):
+        return jsonify(
+            error="Payload too large",
+            limit_mb=app.config["MAX_CONTENT_LENGTH"] // 1024 // 1024,
+        ), 413
+
+
 def _register_portal_blueprints(app, prefix):
     """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp
@@ -107,6 +126,7 @@ def create_app(prefix="", base_dir=None):
     _configure_user_store(app)
     _configure_totp_issuer(app, prefix)
     _configure_result_directories(app, base_dir)
+    _configure_upload_limits(app)
     init_csrf(app, exempt_blueprints=(api_bp,))
 
     register_home_routes(app, prefix=prefix)
