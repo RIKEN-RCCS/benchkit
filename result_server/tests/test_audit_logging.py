@@ -7,10 +7,12 @@ import shutil
 import sys
 import tempfile
 
+from flask import Flask
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from test_support import build_api_route_app, build_portal_route_app, install_portal_test_stubs
-from utils.audit_logging import JsonAuditFormatter, audit_event
+from utils.audit_logging import JsonAuditFormatter, audit_event, configure_audit_logging
 
 install_portal_test_stubs()
 
@@ -215,3 +217,79 @@ def test_json_audit_formatter_outputs_event_payload(caplog):
         assert payload["timestamp"].endswith("Z")
     finally:
         _cleanup(temp_dirs)
+
+
+def test_configure_audit_logging_adds_default_json_stderr_handler():
+    logger = logging.getLogger("benchkit.audit")
+    original_handlers = list(logger.handlers)
+    logger.handlers = [
+        handler
+        for handler in logger.handlers
+        if not getattr(handler, "_benchkit_audit_stderr_handler", False)
+    ]
+    try:
+        app = Flask(__name__)
+        configured = configure_audit_logging(app)
+        handlers = [
+            handler
+            for handler in configured.handlers
+            if getattr(handler, "_benchkit_audit_stderr_handler", False)
+        ]
+
+        assert app.audit_logger is configured
+        assert len(handlers) == 1
+        assert isinstance(handlers[0].formatter, JsonAuditFormatter)
+
+        configure_audit_logging(app)
+        handlers_after_second_call = [
+            handler
+            for handler in configured.handlers
+            if getattr(handler, "_benchkit_audit_stderr_handler", False)
+        ]
+        assert handlers_after_second_call == handlers
+    finally:
+        for handler in logger.handlers:
+            if handler not in original_handlers:
+                handler.close()
+        logger.handlers = original_handlers
+
+
+def test_configure_audit_logging_can_mirror_to_file(monkeypatch, tmp_path):
+    logger = logging.getLogger("benchkit.audit")
+    original_handlers = list(logger.handlers)
+    logger.handlers = [
+        handler
+        for handler in logger.handlers
+        if not getattr(handler, "_benchkit_audit_stderr_handler", False)
+        and not getattr(handler, "_benchkit_audit_file_handler", False)
+    ]
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("RESULT_SERVER_AUDIT_LOG_FILE", str(audit_log))
+    try:
+        app = Flask(__name__)
+        configure_audit_logging(app)
+
+        with app.test_request_context("/api/ingest/result", method="POST"):
+            audit_event("ingest_accepted", actor="runner-a", result="success")
+
+        for handler in logger.handlers:
+            handler.flush()
+
+        lines = audit_log.read_text(encoding="utf-8").splitlines()
+        payload = json.loads(lines[-1])
+        assert payload["event_type"] == "ingest_accepted"
+        assert payload["actor"] == "runner-a"
+        assert payload["result"] == "success"
+
+        configure_audit_logging(app)
+        file_handlers = [
+            handler
+            for handler in logger.handlers
+            if getattr(handler, "_benchkit_audit_file_handler", False)
+        ]
+        assert len(file_handlers) == 1
+    finally:
+        for handler in logger.handlers:
+            if handler not in original_handlers:
+                handler.close()
+        logger.handlers = original_handlers

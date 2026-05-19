@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +13,9 @@ from flask import current_app, has_app_context, has_request_context, request
 
 
 AUDIT_LOGGER_NAME = "benchkit.audit"
+_AUDIT_STDERR_HANDLER_MARKER = "_benchkit_audit_stderr_handler"
+_AUDIT_FILE_HANDLER_MARKER = "_benchkit_audit_file_handler"
+_AUDIT_FILE_PATH_ATTR = "_benchkit_audit_file_path"
 _SENSITIVE_DETAIL_KEYS = frozenset({
     "api_key",
     "code",
@@ -40,10 +45,48 @@ class JsonAuditFormatter(logging.Formatter):
         return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
 
+def _has_stderr_handler(logger: logging.Logger) -> bool:
+    return any(getattr(handler, _AUDIT_STDERR_HANDLER_MARKER, False) for handler in logger.handlers)
+
+
+def _has_file_handler(logger: logging.Logger, path: str) -> bool:
+    return any(
+        getattr(handler, _AUDIT_FILE_HANDLER_MARKER, False)
+        and getattr(handler, _AUDIT_FILE_PATH_ATTR, None) == path
+        for handler in logger.handlers
+    )
+
+
 def configure_audit_logging(app):
-    """Attach the shared audit logger to a Flask app."""
+    """Attach the shared audit logger to a Flask app.
+
+    By default the audit logger writes JSON Lines to stderr so gunicorn/systemd
+    deployments capture security events even when the root logger only emits
+    warnings. RESULT_SERVER_AUDIT_LOG_FILE can additionally mirror events to a
+    deployment-managed file.
+    """
     logger = logging.getLogger(AUDIT_LOGGER_NAME)
     logger.setLevel(logging.INFO)
+    formatter = JsonAuditFormatter()
+
+    if not _has_stderr_handler(logger):
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(formatter)
+        setattr(handler, _AUDIT_STDERR_HANDLER_MARKER, True)
+        logger.addHandler(handler)
+
+    audit_log_file = os.environ.get("RESULT_SERVER_AUDIT_LOG_FILE", "").strip()
+    if audit_log_file:
+        audit_log_file = os.path.abspath(os.path.expanduser(audit_log_file))
+        if not _has_file_handler(logger, audit_log_file):
+            file_handler = logging.FileHandler(audit_log_file, encoding="utf-8")
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(formatter)
+            setattr(file_handler, _AUDIT_FILE_HANDLER_MARKER, True)
+            setattr(file_handler, _AUDIT_FILE_PATH_ATTR, audit_log_file)
+            logger.addHandler(file_handler)
+
     app.audit_logger = logger
     return logger
 
