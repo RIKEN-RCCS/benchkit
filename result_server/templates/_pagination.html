@@ -1,8 +1,8 @@
 <!-- templates/_pagination.html -->
 {% set base_params = "" %}
-{% if current_system %}{% set base_params = base_params ~ "&system=" ~ current_system %}{% endif %}
-{% if current_code %}{% set base_params = base_params ~ "&code=" ~ current_code %}{% endif %}
-{% if current_exp %}{% set base_params = base_params ~ "&exp=" ~ current_exp %}{% endif %}
+{% if current_system %}{% set base_params = base_params ~ "&system=" ~ (current_system | urlencode) %}{% endif %}
+{% if current_code %}{% set base_params = base_params ~ "&code=" ~ (current_code | urlencode) %}{% endif %}
+{% if current_exp %}{% set base_params = base_params ~ "&exp=" ~ (current_exp | urlencode) %}{% endif %}
 
 <div class="control-row pagination-row">
     <span class="pagination-summary">Showing {{ pagination.total }} results</span>
@@ -27,9 +27,16 @@
         {% endif %}
     </span>
 
-    <select onchange="window.location.href='?page=1&per_page='+this.value+'{{ base_params }}'" class="pagination-per-page">
-        {% for size in [50, 100, 200] %}
-            <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }} / page</option>
-        {% endfor %}
-    </select>
+    <form method="get" class="pagination-per-page-form">
+        <input type="hidden" name="page" value="1">
+        {% if current_system %}<input type="hidden" name="system" value="{{ current_system }}">{% endif %}
+        {% if current_code %}<input type="hidden" name="code" value="{{ current_code }}">{% endif %}
+        {% if current_exp %}<input type="hidden" name="exp" value="{{ current_exp }}">{% endif %}
+        <select name="per_page" class="pagination-per-page">
+            {% for size in [50, 100, 200] %}
+                <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }} / page</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="soft-button pagination-link">Apply</button>
+    </form>
 </div>
