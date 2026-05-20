@@ -7,6 +7,7 @@ from flask import (
     abort,
     current_app,
     flash,
+    make_response,
     redirect,
     render_template,
     request,
@@ -27,6 +28,16 @@ from utils.totp_manager import (
 from utils.user_store import get_user_store
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+def _add_no_store_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
+def _render_no_store_template(template_name, **context):
+    return _add_no_store_headers(make_response(render_template(template_name, **context)))
 
 
 def _redis_ping_ok(redis_conn):
@@ -94,7 +105,7 @@ def _render_login_totp_step(email):
 def _render_setup_page(email, token, secret):
     issuer = current_app.config.get("TOTP_ISSUER", "CX Portal")
     qr_data = generate_qr_base64(secret, email, issuer=issuer)
-    return render_template(
+    return _render_no_store_template(
         "auth_setup.html",
         error=False,
         qr_data=qr_data,
@@ -201,7 +212,7 @@ def setup(token):
 
     if not invitation:
         flash("This invitation link is invalid or has expired.")
-        return render_template("auth_setup.html", error=True)
+        return _render_no_store_template("auth_setup.html", error=True)
 
     email = invitation["email"]
     affiliations = invitation["affiliations"]

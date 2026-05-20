@@ -148,6 +148,31 @@ def test_results_template_renders_ncu_options_tooltip():
     assert "ncu_report" in html
 
 
+def test_pagination_template_urlencodes_filters_without_inline_javascript():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results"):
+        from flask import render_template
+
+        html = render_template(
+            "_pagination.html",
+            pagination={"total": 120, "page": 1, "total_pages": 3},
+            current_per_page=50,
+            current_system="Sys');alert(1)//",
+            current_code='code" onclick="alert(1)',
+            current_exp="<CASE0>",
+        )
+
+    assert "onchange=" not in html
+    assert "window.location.href" not in html
+    assert "system=Sys%27%29%3Balert%281%29" in html
+    assert "code=code%22%20onclick%3D%22alert%281%29" in html
+    assert "exp=%3CCASE0%3E" in html
+    assert "Sys');alert(1)//" not in html
+    assert 'code" onclick="alert(1)' not in html
+
+
 def test_estimated_results_template_renders_table_note():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
