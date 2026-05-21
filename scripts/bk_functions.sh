@@ -1250,6 +1250,43 @@ bk_emit_overlap() {
   bk_emit_section "overlap:${_bk_ovl_sections}" "$_bk_ovl_time" "$_bk_ovl_package" "$_bk_ovl_artifact" --type overlap --members "$_bk_ovl_sections"
 }
 
+bk_base64_encode_value() {
+  if command -v base64 >/dev/null 2>&1; then
+    printf '%s' "$1" | base64 | tr -d '\r\n'
+    return 0
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    printf '%s' "$1" | openssl base64 -A | tr -d '\r\n'
+    return 0
+  fi
+  echo "bk_base64_encode_value: neither base64 nor openssl found" >&2
+  return 1
+}
+
+bk_write_source_info_env() {
+  _bk_source_type="$1"
+  _bk_repo_url="${2:-}"
+  _bk_branch="${3:-}"
+  _bk_commit_hash="${4:-}"
+  _bk_file_path="${5:-}"
+  _bk_md5sum="${6:-}"
+
+  if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
+    echo "bk_write_source_info_env: neither base64 nor openssl found" >&2
+    return 1
+  fi
+
+  {
+    printf 'BK_SOURCE_INFO_FORMAT=base64-v1\n'
+    printf 'BK_SOURCE_TYPE_B64=%s\n' "$(bk_base64_encode_value "$_bk_source_type")"
+    printf 'BK_REPO_URL_B64=%s\n' "$(bk_base64_encode_value "$_bk_repo_url")"
+    printf 'BK_BRANCH_B64=%s\n' "$(bk_base64_encode_value "$_bk_branch")"
+    printf 'BK_COMMIT_HASH_B64=%s\n' "$(bk_base64_encode_value "$_bk_commit_hash")"
+    printf 'BK_FILE_PATH_B64=%s\n' "$(bk_base64_encode_value "$_bk_file_path")"
+    printf 'BK_MD5SUM_B64=%s\n' "$(bk_base64_encode_value "$_bk_md5sum")"
+  } > results/source_info.env
+}
+
 # bk_fetch_source - Fetch source code and collect metadata.
 #
 # Usage:
@@ -1273,7 +1310,7 @@ bk_emit_overlap() {
 #   BK_MD5SUM       - (file) Full 32-char md5sum
 #
 # Side effects:
-#   Writes results/source_info.env in export format
+#   Writes results/source_info.env as data, not executable shell
 #
 # Returns:
 #   0 - success
@@ -1331,13 +1368,7 @@ bk_fetch_source() {
 
     export BK_BRANCH BK_COMMIT_HASH
 
-    # Write results/source_info.env
-    cat > results/source_info.env <<EOF
-export BK_SOURCE_TYPE="git"
-export BK_REPO_URL="$BK_REPO_URL"
-export BK_BRANCH="$BK_BRANCH"
-export BK_COMMIT_HASH="$BK_COMMIT_HASH"
-EOF
+    bk_write_source_info_env "git" "$BK_REPO_URL" "$BK_BRANCH" "$BK_COMMIT_HASH"
 
   else
     # --- File archive path ---
@@ -1380,12 +1411,7 @@ EOF
       fi
     fi
 
-    # Write results/source_info.env
-    cat > results/source_info.env <<EOF
-export BK_SOURCE_TYPE="file"
-export BK_FILE_PATH="$BK_FILE_PATH"
-export BK_MD5SUM="$BK_MD5SUM"
-EOF
+    bk_write_source_info_env "file" "" "" "" "$BK_FILE_PATH" "$BK_MD5SUM"
 
   fi
 

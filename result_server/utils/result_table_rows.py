@@ -1,3 +1,6 @@
+import os
+from urllib.parse import urlsplit
+
 from flask import url_for
 
 from utils.result_records import (
@@ -13,6 +16,7 @@ def build_result_table_row(json_filename, result_data, padata_filenames):
     matched_padata = _find_matching_padata_archive(json_filename, result_data, padata_filenames)
     pipeline_timing = result_data.get("pipeline_timing", {})
     source_info = result_data.get("source_info")
+    source_link = _build_source_link(source_info)
     profile_data = result_data.get("profile_data")
 
     ci_trigger = result_data.get("ci_trigger", "-") or "-"
@@ -47,6 +51,7 @@ def build_result_table_row(json_filename, result_data, padata_filenames):
         "run_job": result_data.get("run_job", "-") or "-",
         "pipeline_id": pipeline_id,
         "source_info": source_info,
+        "source_link": source_link,
         "source_hash": _format_source_hash(source_info),
         "quality": summarize_result_quality(result_data),
         "profile_data": profile_data,
@@ -95,6 +100,36 @@ def _format_source_hash(source_info):
         return md5sum[:8] if md5sum else "-"
 
     return "-"
+
+
+def _build_source_link(source_info):
+    if not isinstance(source_info, dict):
+        return None
+
+    source_type = source_info.get("source_type")
+    if source_type == "git":
+        repo_url = str(source_info.get("repo_url") or "").strip()
+        parsed = urlsplit(repo_url)
+        has_unsafe_chars = any(ch.isspace() for ch in repo_url) or "\\" in repo_url
+        if parsed.scheme in {"http", "https"} and parsed.netloc and not has_unsafe_chars:
+            return {
+                "href": repo_url,
+                "title": repo_url,
+            }
+        return {
+            "href": None,
+            "title": "Repository URL is not linkable",
+        }
+
+    if source_type == "file":
+        file_path = str(source_info.get("file_path") or "").strip()
+        filename = os.path.basename(file_path) if file_path else "source archive"
+        return {
+            "href": None,
+            "title": filename or "source archive",
+        }
+
+    return None
 
 
 def _format_profile_summary(profile_data):

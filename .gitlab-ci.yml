@@ -101,6 +101,7 @@ generate_matrix:
           - "*.md"
           - "docs/**/*"
           - "result_server/**/*"
+          - "requirements-result-server.txt"
           - "config/system_info.csv"
       when: never
     - when: always
@@ -142,6 +143,7 @@ trigger_child_pipeline:
           - "*.md"
           - "docs/**/*"
           - "result_server/**/*"
+          - "requirements-result-server.txt"
           - "config/system_info.csv"
       when: never
     - when: always
