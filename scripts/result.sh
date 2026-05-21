@@ -74,31 +74,83 @@ build_profile_data_summary() {
   ' 2>/dev/null || true
 }
 
-# Read source_info.env if it exists (written by bk_fetch_source in build stage)
-source_info_block="null"
-if [ -f results/source_info.env ]; then
-  . results/source_info.env
-  if [ "$BK_SOURCE_TYPE" = "git" ]; then
-    source_info_block=$(cat <<EOFSI
-{
-    "source_type": "git",
-    "repo_url": "$BK_REPO_URL",
-    "branch": "$BK_BRANCH",
-    "commit_hash": "$BK_COMMIT_HASH"
-  }
-EOFSI
-)
-  elif [ "$BK_SOURCE_TYPE" = "file" ]; then
-    source_info_block=$(cat <<EOFSI
-{
-    "source_type": "file",
-    "file_path": "$BK_FILE_PATH",
-    "md5sum": "$BK_MD5SUM"
-  }
-EOFSI
-)
+decode_base64_value() {
+  if base64 --decode >/dev/null 2>&1 </dev/null; then
+    base64 --decode
+    return $?
   fi
-fi
+  if base64 -d >/dev/null 2>&1 </dev/null; then
+    base64 -d
+    return $?
+  fi
+  if base64 -D >/dev/null 2>&1 </dev/null; then
+    base64 -D
+    return $?
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    openssl base64 -d -A
+    return $?
+  fi
+  return 1
+}
+
+source_info_env_value() {
+  local key="$1"
+  local line
+  line=$(awk -F= -v k="${key}_B64" '$1 == k {print substr($0, length(k) + 2); exit}' results/source_info.env)
+  if [ -n "$line" ]; then
+    printf '%s' "$line" | decode_base64_value 2>/dev/null || true
+    return 0
+  fi
+
+  # Legacy fallback for old source_info.env files. Treat the file as data and
+  # accept only simple quoted values; never source it as shell.
+  awk -v key="$key" '
+    index($0, "export " key "=\"") == 1 && substr($0, length($0), 1) == "\"" {
+      prefix = "export " key "=\""
+      value = substr($0, length(prefix) + 1, length($0) - length(prefix) - 1)
+      if (value !~ /[`$\\]/) {
+        print value
+      }
+      exit
+    }
+  ' results/source_info.env
+}
+
+build_source_info_block() {
+  if [ ! -f results/source_info.env ]; then
+    printf '%s' "null"
+    return 0
+  fi
+
+  local source_type
+  source_type=$(source_info_env_value BK_SOURCE_TYPE)
+
+  if [ "$source_type" = "git" ]; then
+    jq -n \
+      --arg source_type "git" \
+      --arg repo_url "$(source_info_env_value BK_REPO_URL)" \
+      --arg branch "$(source_info_env_value BK_BRANCH)" \
+      --arg commit_hash "$(source_info_env_value BK_COMMIT_HASH)" \
+      '{source_type: $source_type, repo_url: $repo_url, branch: $branch, commit_hash: $commit_hash}'
+    return 0
+  fi
+
+  if [ "$source_type" = "file" ]; then
+    jq -n \
+      --arg source_type "file" \
+      --arg file_path "$(source_info_env_value BK_FILE_PATH)" \
+      --arg md5sum "$(source_info_env_value BK_MD5SUM)" \
+      '{source_type: $source_type, file_path: $file_path, md5sum: $md5sum}'
+    return 0
+  fi
+
+  printf '%s' "null"
+}
+
+# Read source_info.env if it exists (written by bk_fetch_source in build stage).
+# It is parsed as data and converted with jq; it is never sourced as shell.
+source_info_block=$(build_source_info_block)
 
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json

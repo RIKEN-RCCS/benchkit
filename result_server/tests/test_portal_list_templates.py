@@ -173,6 +173,30 @@ def test_pagination_template_urlencodes_filters_without_inline_javascript():
     assert 'code" onclick="alert(1)' not in html
 
 
+def test_code_cell_adds_noopener_to_source_links():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results"):
+        from flask import render_template
+
+        html = render_template(
+            "_results_table_cell_code.html",
+            row={
+                "code": "qws",
+                "source_link": {
+                    "href": "https://example.invalid/repo.git",
+                    "title": "https://example.invalid/repo.git",
+                },
+                "quality": {"level": "ready", "label": "Ready", "summary": "ok"},
+            },
+        )
+
+    assert 'target="_blank"' in html
+    assert 'rel="noopener noreferrer"' in html
+    assert 'href="https://example.invalid/repo.git"' in html
+
+
 def test_estimated_results_template_renders_table_note():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),

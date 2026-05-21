@@ -230,6 +230,7 @@ Current skip-oriented patterns include:
 - `*.md`
 - `docs/**/*`
 - `result_server/**/*`
+- `requirements-result-server.txt`
 - `config/system_info.csv`
 
 > Synchronization note: this list mirrors the `paths:` entries in

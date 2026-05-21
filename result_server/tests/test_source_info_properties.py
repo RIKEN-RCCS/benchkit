@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from test_support import install_portal_test_stubs
+from utils.result_table_rows import _build_source_link
 
 install_portal_test_stubs()
 
@@ -77,3 +78,51 @@ class TestHashValueFormatProperty:
         assert "file_path" in source_info
         assert "md5sum" in source_info
         assert MD5SUM_PATTERN.match(source_info["md5sum"]) is not None
+
+
+def test_git_source_link_allows_http_urls_only():
+    source_info = {
+        "source_type": "git",
+        "repo_url": "https://github.com/example/repo.git",
+    }
+
+    link = _build_source_link(source_info)
+
+    assert link["href"] == "https://github.com/example/repo.git"
+    assert link["title"] == "https://github.com/example/repo.git"
+
+
+def test_git_source_link_rejects_javascript_urls():
+    source_info = {
+        "source_type": "git",
+        "repo_url": "javascript:alert(1)",
+    }
+
+    link = _build_source_link(source_info)
+
+    assert link["href"] is None
+    assert link["title"] == "Repository URL is not linkable"
+
+
+def test_git_source_link_rejects_ambiguous_urls():
+    source_info = {
+        "source_type": "git",
+        "repo_url": "https://example.invalid\\@evil.invalid/repo.git",
+    }
+
+    link = _build_source_link(source_info)
+
+    assert link["href"] is None
+    assert link["title"] == "Repository URL is not linkable"
+
+
+def test_file_source_link_uses_basename_only():
+    source_info = {
+        "source_type": "file",
+        "file_path": "/sensitive/path/archive.tar.gz",
+    }
+
+    link = _build_source_link(source_info)
+
+    assert link["href"] is None
+    assert link["title"] == "archive.tar.gz"
