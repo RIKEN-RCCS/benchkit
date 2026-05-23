@@ -1,0 +1,4 @@
+system,enable,nodes,numproc_node,nthreads,elapse
+Fugaku,no,1,4,12,0:10:00
+MiyabiC,yes,1,96,1,0:10:00
+MiyabiG,yes,1,1,1,0:10:00
