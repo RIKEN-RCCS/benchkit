@@ -127,6 +127,7 @@ class _StubUserStore:
 
     def __init__(self):
         self._users = {}
+        self._invitations = {}
 
     def create_user(self, email, totp_secret, affiliations):
         self._users[email] = {
@@ -160,6 +161,19 @@ class _StubUserStore:
     def has_totp_secret(self, email):
         user = self._users.get(email)
         return bool(user and user.get("totp_secret"))
+
+    def create_invitation(self, email, affiliations, token="token-1"):
+        self._invitations[token] = {
+            "email": email,
+            "affiliations": list(affiliations),
+        }
+        return token
+
+    def get_invitation(self, token):
+        return self._invitations.get(token)
+
+    def delete_invitation(self, token):
+        self._invitations.pop(token, None)
 
 
 class _BrokenRedis:
@@ -276,6 +290,56 @@ class TestAuthRedisFailClosed:
 
         assert resp.status_code == 200
         assert b"Step 2 of 2" in resp.data
+
+
+class TestAuthHeadRequests:
+    """Tests safe HEAD behavior for public auth routes."""
+
+    def test_head_login_returns_200_without_redis(self, auth_app):
+        auth_app.config["AUTH_REQUIRES_REDIS"] = True
+        auth_app.config["REDIS_CONN"] = None
+
+        with auth_app.test_client() as client:
+            resp = client.head("/auth/login", follow_redirects=False)
+
+        assert resp.status_code == 200
+        assert resp.location is None
+        assert resp.data == b""
+
+    def test_get_login_still_renders_form(self, auth_app):
+        auth_app.config["AUTH_REQUIRES_REDIS"] = True
+        auth_app.config["REDIS_CONN"] = None
+
+        with auth_app.test_client() as client:
+            resp = client.get("/auth/login")
+
+        assert resp.status_code == 200
+        assert b"Email address" in resp.data
+
+    def test_head_setup_valid_token_does_not_create_secret(self, auth_app):
+        token = auth_app.config["USER_STORE"].create_invitation(
+            "user@test.com",
+            ["dev"],
+            token="valid-token",
+        )
+
+        with auth_app.test_client() as client:
+            resp = client.head(f"/auth/setup/{token}", follow_redirects=False)
+            with client.session_transaction() as sess:
+                setup_secret = sess.get("_setup_secret")
+
+        assert resp.status_code == 200
+        assert resp.location is None
+        assert resp.data == b""
+        assert setup_secret is None
+
+    def test_head_setup_invalid_token_returns_200_without_redirect(self, auth_app):
+        with auth_app.test_client() as client:
+            resp = client.head("/auth/setup/bad-token", follow_redirects=False)
+
+        assert resp.status_code == 200
+        assert resp.location is None
+        assert resp.data == b""
 
 
 class TestLoginRateLimiting:
