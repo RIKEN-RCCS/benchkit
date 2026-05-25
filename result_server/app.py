@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from flask import Flask, jsonify, render_template
 from flask_session import Session
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from routes.api import api_bp
 from routes.estimated import estimated_bp
@@ -40,6 +41,11 @@ def _configure_session(app, base_dir):
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
     )
     Session(app)
+
+
+def _configure_proxy_fix(app):
+    """Trust the single nginx reverse proxy in front of production gunicorn."""
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 
 def _configure_redis(app, prefix):
@@ -123,6 +129,7 @@ def create_app(prefix="", base_dir=None):
         raise ValueError("base_dir must be specified")
 
     app = Flask(__name__, template_folder="templates")
+    _configure_proxy_fix(app)
 
     secret_key = os.environ.get("FLASK_SECRET_KEY")
     if not secret_key:
