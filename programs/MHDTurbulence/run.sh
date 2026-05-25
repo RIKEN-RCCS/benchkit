@@ -26,8 +26,8 @@ case "$system" in
 	export OMP_NUM_THREADS=$nthreads
 	export KMP_AFFINITY=compact
 	mpirun -np "$NP" ./Simulation.x > ${LOG} 2>&1
-	elapsed=$(grep " sim time \[s\]:    " ${LOG} | awk '{print $4}' | tail -n 1)
-	tcc=$(grep " time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
+	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
+	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
 	;;
     MiyabiG)
 	exedir=exe
@@ -37,8 +37,8 @@ case "$system" in
 	echo "code is executed in "$code/$exedir/
 	NP=$((nodes * numproc_node))
 	mpirun -np "$NP" ./Simulation.x > ${LOG} 2>&1
-	elapsed=$(grep " sim time \[s\]:    " ${LOG} | awk '{print $4}' | tail -n 1)
-	tcc=$(grep " time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
+	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
+	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
 	;;
     *)
 	echo "Unknown system: $system"
