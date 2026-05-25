@@ -125,8 +125,8 @@ bk_emit_result() {
       ;;
   esac
 
-  # Normalize scientific notation (e.g. 3.64E+01 -> 36.415) to plain decimal
-  # result.sh parses with grep -Eo 'FOM:[ ]*[0-9.]*' which doesn't match E notation
+  # Canonicalize scientific notation where awk can do so without losing precision.
+  # Very small values may remain in scientific notation; result.sh accepts both.
   case "$_bk_fom" in
     *[eE]*)
       _bk_fom=$(awk "BEGIN {printf \"%.17g\", $_bk_fom}")

@@ -294,8 +294,8 @@ while IFS= read -r line; do
     sections_json=""
     overlaps_json=""
 
-    # Parse FOM line (existing logic)
-    fom=$(echo $line | grep -Eo 'FOM:[ ]*[0-9.]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    # Parse FOM line. Values may be decimal or scientific notation.
+    fom=$(printf '%s\n' "$line" | grep -Eo 'FOM:[ ]*[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
     if [ -z "$fom" ]; then
       fom=null
     fi
