@@ -125,7 +125,7 @@ def _login_rate_key():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """Render the login flow and validate submitted TOTP codes."""
-    if request.method == "GET":
+    if request.method in ("GET", "HEAD"):
         return render_template("auth_login.html", step="email")
 
     email = request.form.get("email", "").strip()
@@ -220,6 +220,9 @@ def setup(token):
 
     email = invitation["email"]
     affiliations = invitation["affiliations"]
+
+    if request.method == "HEAD":
+        return _add_no_store_headers(make_response("", 200))
 
     if request.method == "GET":
         secret = generate_secret()

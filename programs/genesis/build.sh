@@ -293,7 +293,7 @@ echo "FC=$FC"
 echo "CC=$CC"
 echo "CXX=${CXX:-}"
 echo "F77=${F77:-}"
-echo "configure args: ${CONFIG_ARGS[@]}"
+echo "configure args: ${CONFIG_ARGS[*]}"
 
 bootstrap_genesis
 configure_env=(CC="$CC" FC="$FC")

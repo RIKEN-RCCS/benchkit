@@ -74,7 +74,7 @@ case "$system" in
       cd -
       cp $BIN ../artifacts
       ;;
-    MiyabiG) 
+    MiyabiG)
       # OpenACC
       cp Makefile_openacc Makefile
       make -j 8 lib
