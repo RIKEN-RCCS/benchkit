@@ -39,10 +39,10 @@ Common fields:
 | `api_auth_failed` | `failure` | none | Missing or invalid API key. The presented key is never logged. |
 | `ingest_accepted` | `success` | runner id | Result, estimate, PA data, or estimation-input upload accepted. |
 | `api_query_accepted` | `success` | runner id | Authenticated API query accepted. |
-| `rate_limit_exceeded` | `failure` | rate-limit key | API or admin fixed-window limit exceeded. |
+| `rate_limit_exceeded` | `failure` | rate-limit key | Login, API, or admin fixed-window limit exceeded. |
 | `redis_unavailable` | `failure` / `degraded` | none | Redis unavailable for authentication or throttling. |
 | `login_success` | `success` | user email | User completed TOTP login. |
-| `login_failure` | `failure` | user email, when known | Login failed. TOTP code is never logged. |
+| `login_failure` | `failure` | user email, when known | Login failed. TOTP code is never logged. Invalid-code failures include a short-window failed-attempt count for audit context, but accounts are not hard-locked by that counter. |
 | `setup_complete` | `success` | user email | Invitation-based TOTP setup completed. |
 | `setup_failure` | `failure` | user email | TOTP setup verification failed. |
 | `admin_user_invited` | `success` | admin email | Admin created an invitation. |

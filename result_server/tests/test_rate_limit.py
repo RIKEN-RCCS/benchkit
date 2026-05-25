@@ -178,6 +178,23 @@ def test_rate_limit_redis_failure_fails_closed_when_required():
         _cleanup(temp_dirs)
 
 
+def test_rate_limit_missing_redis_fails_closed_when_required():
+    app, temp_dirs = _api_app()
+    app.config["REDIS_CONN"] = None
+    app.config["AUTH_REQUIRES_REDIS"] = True
+    try:
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/result",
+                data=json.dumps({"code": "first"}),
+                headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
+            )
+
+        assert resp.status_code == 503
+    finally:
+        _cleanup(temp_dirs)
+
+
 def test_admin_write_rate_limit_returns_429():
     app, temp_dirs = _portal_app()
     try:

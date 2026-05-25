@@ -8,9 +8,9 @@ import qrcode
 
 ISSUER_NAME = "CX Portal"
 
-# Brute-force protection thresholds.
+# Failed-login tracking thresholds.
 MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_SECONDS = 300  # 5 minutes
+FAILED_ATTEMPT_WINDOW_SECONDS = 300  # 5 minutes
 
 
 def generate_secret() -> str:
@@ -50,14 +50,11 @@ def check_code_reuse(redis_conn, prefix: str, email: str, code: str) -> bool:
     return False
 
 
-def check_rate_limit(redis_conn, prefix: str, email: str) -> tuple:
-    """Return whether the user is locked out and the remaining TTL."""
+def get_failed_attempt_count(redis_conn, prefix: str, email: str) -> int:
+    """Return the recent failed-login count for the given user."""
     key = f"{prefix}login_attempts:{email}"
     attempts = redis_conn.get(key)
-    if attempts and int(attempts) >= MAX_LOGIN_ATTEMPTS:
-        ttl = redis_conn.ttl(key)
-        return True, max(ttl, 0)
-    return False, 0
+    return int(attempts or 0)
 
 
 def record_failed_attempt(redis_conn, prefix: str, email: str) -> int:
@@ -65,7 +62,7 @@ def record_failed_attempt(redis_conn, prefix: str, email: str) -> int:
     key = f"{prefix}login_attempts:{email}"
     pipe = redis_conn.pipeline()
     pipe.incr(key)
-    pipe.expire(key, LOCKOUT_SECONDS)
+    pipe.expire(key, FAILED_ATTEMPT_WINDOW_SECONDS)
     results = pipe.execute()
     return results[0]
 

@@ -220,7 +220,8 @@ For production portal deployments:
 - The legacy `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but should be rotated to `RESULT_SERVER_KEYS`.
 - See `docs/deploy/key-management.md` for generation and rotation guidance.
 - `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
-- API ingest and query endpoints use Redis-backed rate limits by default; set `RESULT_SERVER_MAX_UPLOAD_MB` and `RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB` when deployment-specific upload limits are needed.
+- Login verification, API ingest/query, and admin write endpoints use Redis-backed rate limits by default; set `RESULT_SERVER_MAX_UPLOAD_MB` and `RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB` when deployment-specific upload limits are needed.
+- Repeated login failures are tracked per email for audit context only; source-scoped Redis rate limits enforce login traffic control without hard-locking a target account.
 - Admin-managed affiliations are only rejected when they contain unsafe path/control characters or the comma delimiter used by the form; set `RESULT_SERVER_ALLOWED_AFFILIATIONS` only when a deployment wants to enforce a fixed comma-separated allowlist.
 - Security-relevant auth, API, and admin actions emit structured `benchkit.audit` events; see `docs/cx/AUDIT_LOG_SPEC.md`.
 - `app_dev.py` is localhost-only, uses ephemeral development secrets when none are provided, and enables the Werkzeug debugger only with `RESULT_SERVER_DEV_DEBUG=1`.

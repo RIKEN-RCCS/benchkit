@@ -19,6 +19,7 @@ if "redis" in sys.modules:
 import fakeredis
 import pytest
 from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -27,11 +28,11 @@ from test_support import install_portal_test_stubs
 install_portal_test_stubs(include_redis=False)
 
 from utils.totp_manager import (
-    LOCKOUT_SECONDS,
+    FAILED_ATTEMPT_WINDOW_SECONDS,
     MAX_LOGIN_ATTEMPTS,
     check_code_reuse,
-    check_rate_limit,
     clear_failed_attempts,
+    get_failed_attempt_count,
     record_failed_attempt,
 )
 
@@ -76,36 +77,30 @@ class TestReplayAttackPrevention:
 
 
 class TestRateLimiting:
-    """Tests for brute-force protection on repeated login attempts."""
+    """Tests for failed-login attempt tracking."""
 
-    def test_no_lockout_initially(self, redis_conn):
-        """A new user should not be locked out."""
-        is_locked, remaining = check_rate_limit(redis_conn, PREFIX, "user@test.com")
-        assert is_locked is False
-        assert remaining == 0
+    def test_no_attempts_initially(self, redis_conn):
+        """A new user should have no recent failed attempts."""
+        assert get_failed_attempt_count(redis_conn, PREFIX, "user@test.com") == 0
 
-    def test_lockout_after_max_attempts(self, redis_conn):
-        """The user should be locked out after the maximum number of failures."""
+    def test_attempts_are_counted_after_max_attempts(self, redis_conn):
+        """Failed-attempt counters should track repeated failures without locking."""
         for _ in range(MAX_LOGIN_ATTEMPTS):
             record_failed_attempt(redis_conn, PREFIX, "user@test.com")
-        is_locked, remaining = check_rate_limit(redis_conn, PREFIX, "user@test.com")
-        assert is_locked is True
-        assert remaining > 0
+        assert get_failed_attempt_count(redis_conn, PREFIX, "user@test.com") == MAX_LOGIN_ATTEMPTS
 
-    def test_not_locked_before_max(self, redis_conn):
-        """The user should remain unlocked before reaching the limit."""
+    def test_attempts_before_max(self, redis_conn):
+        """The counter should reflect attempts before the advisory threshold."""
         for _ in range(MAX_LOGIN_ATTEMPTS - 1):
             record_failed_attempt(redis_conn, PREFIX, "user@test.com")
-        is_locked, _ = check_rate_limit(redis_conn, PREFIX, "user@test.com")
-        assert is_locked is False
+        assert get_failed_attempt_count(redis_conn, PREFIX, "user@test.com") == MAX_LOGIN_ATTEMPTS - 1
 
     def test_clear_resets_attempts(self, redis_conn):
-        """Clearing failures should reset the lockout state."""
+        """Clearing failures should reset the failed-attempt counter."""
         for _ in range(MAX_LOGIN_ATTEMPTS - 1):
             record_failed_attempt(redis_conn, PREFIX, "user@test.com")
         clear_failed_attempts(redis_conn, PREFIX, "user@test.com")
-        is_locked, _ = check_rate_limit(redis_conn, PREFIX, "user@test.com")
-        assert is_locked is False
+        assert get_failed_attempt_count(redis_conn, PREFIX, "user@test.com") == 0
 
     def test_record_returns_count(self, redis_conn):
         """record_failed_attempt() should return the current attempt count."""
@@ -117,15 +112,14 @@ class TestRateLimiting:
         """Attempt counters should be tracked per user."""
         for _ in range(MAX_LOGIN_ATTEMPTS):
             record_failed_attempt(redis_conn, PREFIX, "user1@test.com")
-        is_locked, _ = check_rate_limit(redis_conn, PREFIX, "user2@test.com")
-        assert is_locked is False
+        assert get_failed_attempt_count(redis_conn, PREFIX, "user2@test.com") == 0
 
     def test_attempts_key_has_ttl(self, redis_conn):
         """Attempt-counter keys should expire automatically."""
         record_failed_attempt(redis_conn, PREFIX, "user@test.com")
         key = f"{PREFIX}login_attempts:user@test.com"
         ttl = redis_conn.ttl(key)
-        assert 0 < ttl <= LOCKOUT_SECONDS
+        assert 0 < ttl <= FAILED_ATTEMPT_WINDOW_SECONDS
 
 
 class _StubUserStore:
@@ -170,6 +164,11 @@ class _StubUserStore:
 
 class _BrokenRedis:
     def ping(self):
+        raise ConnectionError("redis down")
+
+
+class _BrokenRateLimitRedis(fakeredis.FakeRedis):
+    def incr(self, _key):
         raise ConnectionError("redis down")
 
 
@@ -277,6 +276,136 @@ class TestAuthRedisFailClosed:
 
         assert resp.status_code == 200
         assert b"Step 2 of 2" in resp.data
+
+
+class TestLoginRateLimiting:
+    """Tests source-scoped login rate limiting without account lockout."""
+
+    def _configure_auth(self, app, monkeypatch, *, limit=20):
+        import routes.auth as auth_routes
+
+        app.config["REDIS_CONN"] = fakeredis.FakeRedis(decode_responses=True)
+        app.config["REDIS_PREFIX"] = PREFIX
+        app.config["RATE_LIMITS"] = {"login": limit}
+        app.config["AUTH_REQUIRES_REDIS"] = True
+        app.config["USER_STORE"].create_user("user@test.com", "SECRET", ["dev"])
+        monkeypatch.setattr(auth_routes, "verify_code", lambda _secret, code: code == "000000")
+
+    def test_login_post_rate_limit_returns_429(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=1)
+
+        with auth_app.test_client() as client:
+            first = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "111111"},
+            )
+            second = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "222222"},
+            )
+
+        assert first.status_code == 200
+        assert second.status_code == 429
+        assert b"Too many login attempts" in second.data
+
+    def test_proxyfix_separates_login_rate_keys_by_forwarded_client(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=1)
+        auth_app.wsgi_app = ProxyFix(auth_app.wsgi_app, x_for=1, x_proto=1)
+
+        with auth_app.test_client() as client:
+            first = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "111111"},
+                headers={"X-Forwarded-For": "198.51.100.10"},
+            )
+            second = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "222222"},
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+            third_same_source = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "333333"},
+                headers={"X-Forwarded-For": "198.51.100.10"},
+            )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert third_same_source.status_code == 429
+
+    def test_proxyfix_ignores_untrusted_extra_forwarded_for_values(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=1)
+        auth_app.wsgi_app = ProxyFix(auth_app.wsgi_app, x_for=1, x_proto=1)
+
+        with auth_app.test_client() as client:
+            spoofed = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "111111"},
+                headers={"X-Forwarded-For": "198.51.100.99, 203.0.113.10"},
+            )
+            same_trusted_source = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "222222"},
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+
+        assert spoofed.status_code == 200
+        assert same_trusted_source.status_code == 429
+
+    def test_login_rate_limit_redis_failure_fails_closed(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=20)
+        auth_app.config["REDIS_CONN"] = _BrokenRateLimitRedis(decode_responses=True)
+
+        with auth_app.test_client() as client:
+            resp = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "111111"},
+            )
+
+        assert resp.status_code == 503
+
+    def test_totp_replay_check_still_blocks_reused_code(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=100)
+        auth_app.wsgi_app = ProxyFix(auth_app.wsgi_app, x_for=1, x_proto=1)
+
+        with auth_app.test_client() as client:
+            first = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "000000"},
+                headers={"X-Forwarded-For": "198.51.100.10"},
+            )
+            replay = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "000000"},
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+
+        assert first.status_code == 302
+        assert replay.status_code == 200
+        assert b"This code has already been used" in replay.data
+
+    def test_failed_attempt_threshold_does_not_lock_out_valid_login(self, auth_app, monkeypatch):
+        self._configure_auth(auth_app, monkeypatch, limit=100)
+        auth_app.wsgi_app = ProxyFix(auth_app.wsgi_app, x_for=1, x_proto=1)
+
+        with auth_app.test_client() as client:
+            for _ in range(MAX_LOGIN_ATTEMPTS):
+                failed = client.post(
+                    "/auth/login",
+                    data={"email": "user@test.com", "totp_code": "111111"},
+                    headers={"X-Forwarded-For": "198.51.100.10"},
+                )
+                assert failed.status_code == 200
+
+            valid = client.post(
+                "/auth/login",
+                data={"email": "user@test.com", "totp_code": "000000"},
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+
+        assert valid.status_code == 302
+        assert valid.headers["Location"].endswith("/results/")
+        assert auth_app.config["REDIS_CONN"].get(f"{PREFIX}login_attempts:user@test.com") is None
 
 
 class TestAdminSelfDeletePrevention:

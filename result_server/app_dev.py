@@ -84,7 +84,7 @@ def _create_stub_totp_manager():
     mod.generate_qr_base64 = lambda s, e, **kw: ""
     mod.verify_code = lambda s, c: True
     mod.check_code_reuse = lambda *a, **kw: False
-    mod.check_rate_limit = lambda *a, **kw: False
+    mod.get_failed_attempt_count = lambda *a, **kw: 0
     mod.record_failed_attempt = lambda *a, **kw: 0
     mod.clear_failed_attempts = lambda *a, **kw: None
     mod.MAX_LOGIN_ATTEMPTS = 5

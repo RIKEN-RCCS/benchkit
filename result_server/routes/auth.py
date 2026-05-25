@@ -14,14 +14,16 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import TooManyRequests
 
 from utils.audit_logging import audit_event
+from utils.rate_limit import enforce_rate_limit
 from utils.totp_manager import (
     check_code_reuse,
-    check_rate_limit,
     clear_failed_attempts,
     generate_qr_base64,
     generate_secret,
+    MAX_LOGIN_ATTEMPTS,
     record_failed_attempt,
     verify_code,
 )
@@ -115,6 +117,11 @@ def _render_setup_page(email, token, secret):
     )
 
 
+def _login_rate_key():
+    """Return the source-scoped login rate-limit key."""
+    return request.remote_addr or "unknown"
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """Render the login flow and validate submitted TOTP codes."""
@@ -138,19 +145,17 @@ def login():
         if not email:
             return redirect(url_for("auth.login"))
 
-        # Enforce rate limiting when Redis-backed tracking is available.
         if redis_conn:
-            is_locked, remaining = check_rate_limit(redis_conn, prefix, email)
-            if is_locked:
-                audit_event(
-                    "login_failure",
-                    actor=email,
-                    result="failure",
-                    level=logging.WARNING,
-                    details={"reason": "rate_limited"},
+            try:
+                enforce_rate_limit(
+                    redis_conn=redis_conn,
+                    key_suffix=_login_rate_key(),
+                    max_per_minute=20,
+                    scope="login",
                 )
-                flash(f"Too many failed attempts. Please try again in {remaining} seconds.")
-                return _render_login_totp_step(email)
+            except TooManyRequests:
+                flash("Too many login attempts. Please wait and try again.")
+                return _render_login_totp_step(email), 429
 
         store = get_user_store()
         user = store.get_user(email)
@@ -179,26 +184,25 @@ def login():
             flash("Authentication successful.")
             return redirect(url_for("results.results"))
 
-        # Failed authentication: record or report the attempt.
+        # Failed authentication: record a short-window counter for audit/alerting.
+        details = {"reason": "invalid_totp_or_user"}
+        if redis_conn:
+            attempts = record_failed_attempt(redis_conn, prefix, email)
+            details.update(
+                {
+                    "failed_attempts": attempts,
+                    "failed_attempt_threshold": MAX_LOGIN_ATTEMPTS,
+                    "threshold_exceeded": attempts >= MAX_LOGIN_ATTEMPTS,
+                }
+            )
         audit_event(
             "login_failure",
             actor=email,
             result="failure",
             level=logging.WARNING,
-            details={"reason": "invalid_totp_or_user"},
+            details=details,
         )
-        if redis_conn:
-            attempts = record_failed_attempt(redis_conn, prefix, email)
-            from utils.totp_manager import MAX_LOGIN_ATTEMPTS
-
-            remaining_attempts = MAX_LOGIN_ATTEMPTS - attempts
-            if remaining_attempts > 0:
-                flash(f"Authentication failed. {remaining_attempts} attempts remaining.")
-            else:
-                flash("Too many failed attempts. Your account is temporarily locked.")
-                return _render_login_totp_step(email)
-        else:
-            flash("Authentication failed. Please check your code.")
+        flash("Authentication failed. Please check your code.")
         return _render_login_totp_step(email)
 
     return redirect(url_for("auth.login"))
