@@ -37,8 +37,27 @@
 {% if results %}
 <div id="resultsJsonData" class="hidden-config" data-results='{{ results | tojson }}'></div>
 <div id="compareConfigData" class="hidden-config" data-config='{{ compare_chart | tojson }}'></div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<div id="chartFallback" class="chart-fallback" hidden>
+    Failed to load chart library. Please review the result data without charts.
+</div>
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"
+        onerror="document.getElementById('chartFallback').hidden = false; var vectorChart = document.getElementById('compareVectorChart'); if (vectorChart) { vectorChart.style.display = 'none'; } document.getElementById('fomTimelineChart').style.display = 'none';"></script>
 <script>
+(function() {
+function showCompareChartFallback() {
+    document.getElementById('chartFallback').hidden = false;
+    var vectorChart = document.getElementById('compareVectorChart');
+    if (vectorChart) {
+        vectorChart.style.display = 'none';
+    }
+    document.getElementById('fomTimelineChart').style.display = 'none';
+}
+
+if (typeof Chart === 'undefined') {
+    showCompareChartFallback();
+    return;
+}
+
 var resultsData = JSON.parse(document.getElementById('resultsJsonData').getAttribute('data-results'));
 var compareConfig = JSON.parse(document.getElementById('compareConfigData').getAttribute('data-config'));
 
@@ -115,6 +134,7 @@ if (fomCanvas) {
         }
     });
 }
+})();
 </script>
 {% endif %}
 {% endblock %}

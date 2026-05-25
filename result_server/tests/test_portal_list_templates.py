@@ -373,6 +373,20 @@ def test_result_compare_template_renders_headline():
     assert "Fugaku / qws - Comparing 2 results" in html
     assert "FOM Timeline" in html
     assert "compareConfigData" in html
+    assert "vendor/chartjs/chart.umd.min.js" in html
+    assert "cdn.jsdelivr.net/npm/chart.js" not in html
+    assert "Failed to load chart library" in html
+
+
+def test_vendored_chartjs_static_asset_is_available():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+
+    response = app.test_client().get("/static/vendor/chartjs/chart.umd.min.js")
+
+    assert response.status_code == 200
+    assert b"Chart.js" in response.data[:512]
 
 
 def test_usage_report_quality_section_renders_actions_and_improvement_candidates():
