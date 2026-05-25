@@ -141,7 +141,7 @@
 
 {% if vector_metrics %}
 <div id="vectorData" class="hidden-config" data-vector='{{ vector_metrics | tojson }}'></div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"
         onerror="document.getElementById('chartFallback').hidden = false; document.getElementById('vectorChart').style.display = 'none';"></script>
 <script>
 (function() {
