@@ -58,7 +58,7 @@ Continuous estimation has now moved beyond a mere entry point: a common estimati
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
 As of the current repository survey, BenchKit has six benchmark applications with `build.sh`/`run.sh`, but only `qws` has an `estimate.sh`.
-The result portal also already has a meaningful test base (`result_server/tests`: 34 `test_*.py` modules), and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
+The result portal also already has a meaningful test base (`result_server/tests`: 36 `test_*.py` modules), and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
 The main GitLab pipeline still intentionally skips heavy benchmark execution when a direct or manually triggered GitLab pipeline sees changes limited to `result_server/**/*` or portal display metadata such as `config/system_info.csv`. Protected-branch synchronization itself uses `ci.skip`, so the dedicated lightweight GitHub Actions path should continue to be kept in sync as portal-side files evolve.
 
 ## 2.1 現時点で明示しておく設計負債 / Explicit Design Debts to Keep Visible
@@ -296,7 +296,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 今回のコードベース調査では、性能推定に次ぐ実務上の詰まりどころとして、`result_server` の検証導線が見えた。
 
-- `result_server/tests` には 34 個の `test_*.py` モジュールがあり、portal 側はすでに「検証すべき対象」になっている
+- `result_server/tests` には 36 個の `test_*.py` モジュールがあり、portal 側はすでに「検証すべき対象」になっている
 - repo-local な依存関係定義として `requirements-result-server.txt` があり、`result_server/tests/run_result_server_tests.py` が標準 test entrypoint として使える
 - portal-oriented 変更向けの lightweight GitHub Actions として `.github/workflows/result-server-tests.yml` が用意されている
 - `.gitlab-ci.yml` は直接または手動起動されたGitLab pipelineで `result_server/**/*` や `config/system_info.csv` 変更時に重い benchmark pipeline を skip する。保護ブランチ同期自体は `ci.skip` を使うため、GitHub Actions 側の path filter を portal 周辺の実ファイルに追従させ続ける必要がある
@@ -315,7 +315,7 @@ CI 関連の残 GAP は、「仕組みを新規に置く」段階から「対象
 短期的な実装・確認は次の状態まで進んでいる。
 
 1. `result-server-tests.yml` の path filter は、`result_server/**/*`、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**`、profile-data shell tests、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` を対象にする形へ更新済みである。
-2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明は、root Markdown、`docs/**/*`、`result_server/**/*`、public site config / profile-data helper 周辺の lightweight verification 経路の扱いが一致するよう同期済みである。
+2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明は、root Markdown、`docs/**/*`、`result_server/**/*`、`requirements-result-server.txt`、`config/system_info.csv` の skip 対象について同期済みである。一方、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**` は GitHub Actions の lightweight verification 対象でもあるが、直接または手動で GitLab pipeline を起動した場合は `.gitlab-ci.yml` の `scripts/**/*` rule により benchmark-affecting として実行される。
 3. 手動 GitLab CI は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動から推定まで確認済みである。Pipeline API variables は JSON payload で渡す。
 4. protected branch sync は、`ci.skip` により GitLab mirror 更新時に GitLab CI が自動起動しないことを運用上確認済みである。
 
@@ -323,7 +323,7 @@ docs-only / portal-only / benchmark-code / CI-config の代表的な変更セッ
 公開 `system_info.csv` に載せた system が `system.csv` と `queue.csv` に到達できることは、`result_server/tests/check_site_config.py` による CI preflight として整理済みである。逆に、開発用・非公開用の `system.csv` / `queue.csv` 定義が `system_info.csv` に載っていないことは許容する。
 app support matrix、partial support、app entrypoint 欠落、`list.csv` の未知 system などは、アプリごとの準備状況や導入段階に依存するため、現時点では CI failure ではなく `/results/usage` の visibility として扱う。
 
-完了条件は、変更種別ごとの期待 CI 経路が文書化され、path filter と skip rules がその期待に一致し、portal 実装変更が heavy benchmark を起動せず lightweight verification で捕捉されることである。Result JSON quality は portal 内の内部管理として可視化し、通常 PR の blocking rule にはしない。
+完了条件は、変更種別ごとの期待 CI 経路が文書化され、path filter と skip rules がその期待に一致し、portal 実装変更が heavy benchmark を起動せず lightweight verification で捕捉されることである。Result JSON / upload helper の変更は lightweight verification でまず捕捉しつつ、GitLab pipeline を明示起動した場合は benchmark-affecting script として扱う。Result JSON quality は portal 内の内部管理として可視化し、通常 PR の blocking rule にはしない。
 
 ### 5.3 次点: AI 駆動最適化連携 / Next Priority: AI-Driven Optimization
 

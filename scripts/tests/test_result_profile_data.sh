@@ -15,7 +15,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 cat > "${TMP_DIR}/results/result" <<'EOF'
-FOM:1.234 FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
+FOM:9.9999999999999995e-07 FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
 EOF
 
 cat > "${TMP_DIR}/bk_profiler_artifact/meta.json" <<'EOF'
@@ -79,6 +79,7 @@ popd >/dev/null
 RESULT_JSON="${TMP_DIR}/results/result0.json"
 test -f "${RESULT_JSON}"
 jq -e '
+  .FOM == "9.9999999999999995e-07" and
   .profile_data.tool == "fapp" and
   .profile_data.level == "single" and
   .profile_data.report_format == "text" and
