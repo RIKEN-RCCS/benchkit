@@ -48,6 +48,23 @@ benchkit/
 - `docs/`
   Specifications and operational guides.
 
+## Contributor Responsibility Boundaries
+
+The current repository workflow uses the following responsibility split.
+These are working roles for repository changes and reviews, not a full portal-side approval workflow.
+A future "requester" or "applicant" role belongs to the not-yet-implemented request/approval workflow.
+
+| Role | Owns | Usually edits |
+|---|---|---|
+| App maintainer | App-specific build, run, result emission, app-side estimation declarations, and app-local test cases. | `programs/<code>/build.sh`, `programs/<code>/run.sh`, `programs/<code>/estimate.sh`, `programs/<code>/list.csv` |
+| Site maintainer | System registration, queue/scheduler settings, runner setup assumptions, and portal display metadata for systems. | `config/system.csv`, `config/queue.csv`, `config/system_info.csv`, [add-site.md](./add-site.md) |
+| Estimation package maintainer | Estimation algorithm, required inputs, metadata, applicability, fallback, and package-specific assumptions. | `scripts/estimation/packages/`, `scripts/estimation/section_packages/`, [add-estimation-package.md](./add-estimation-package.md) |
+| BenchKit common maintainer | Shared shell helpers, Result/Estimate JSON handoff, portal implementation, common CI checks, and repository-wide contracts. | `scripts/bk_functions.sh`, `scripts/result.sh`, `scripts/estimation/common.sh`, `scripts/result_server/`, `result_server/`, `.github/`, `.gitlab-ci.yml` |
+| Admin / reviewer / approver | Review, manual CI judgment, PR acceptance, and portal admin operations. In the current workflow these are the same operational role. | GitHub PRs, GitLab manual CI, portal admin pages |
+
+Scaffolding or code generation may be added later as convenience tooling, but it is not required for contributors.
+The supported baseline is that contributors can add apps, sites, and estimation packages by following the guides and existing examples.
+
 ## Result Portal
 
 ### Overview
