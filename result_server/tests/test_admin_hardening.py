@@ -13,6 +13,8 @@ from test_support import build_portal_route_app, install_portal_test_stubs
 
 install_portal_test_stubs()
 
+from utils.admin_policy import is_valid_email
+
 
 class _Store:
     def __init__(self):
@@ -89,6 +91,39 @@ def _cleanup(paths):
         shutil.rmtree(path)
 
 
+@pytest.mark.parametrize(
+    "email",
+    [
+        "user@example.com",
+        "first.last@example.co.jp",
+        "u+tag@example.com",
+        "user_name-123@a-b.example",
+    ],
+)
+def test_is_valid_email_accepts_well_formed_addresses(email):
+    assert is_valid_email(email)
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "evil';alert(1);//@x.com",
+        'user"@x.com',
+        "<script>@x.com",
+        "user @x.com",
+        "user\nname@x.com",
+        "",
+        "  ",
+        "no-at-sign",
+        "two@@at.com",
+        "user@.tld",
+        ("a" * 260) + "@x.com",
+    ],
+)
+def test_is_valid_email_rejects_dangerous_or_malformed_addresses(email):
+    assert not is_valid_email(email)
+
+
 def test_add_user_rejects_unknown_affiliation():
     store = _Store()
     store.create_user("admin@test.com", "SECRET", ["admin"])
@@ -106,6 +141,27 @@ def test_add_user_rejects_unknown_affiliation():
         assert not store.user_exists("new@test.com")
         assert store.invitations == []
         assert b"Invalid affiliations" in resp.data
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_add_user_rejects_xss_email_payload():
+    store = _Store()
+    store.create_user("admin@test.com", "SECRET", ["admin"])
+    app, temp_dirs = _admin_app(store)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/users/add",
+                data={"email": "evil';alert(1);//@x.com", "affiliations": "dev"},
+                follow_redirects=True,
+            )
+
+        assert resp.status_code == 200
+        assert not store.user_exists("evil';alert(1);//@x.com")
+        assert store.invitations == []
+        assert b"Invalid email address" in resp.data
     finally:
         _cleanup(temp_dirs)
 
@@ -175,6 +231,25 @@ def test_add_user_accepts_arbitrary_safe_affiliation_without_allowlist():
             }
         ]
         assert b"Invalid affiliations" not in resp.data
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_users_template_does_not_embed_email_in_inline_submit_handler():
+    store = _Store()
+    store.create_user("admin@test.com", "SECRET", ["admin"])
+    store.create_user("evil';alert(1);x='@x.com", "SECRET2", ["dev"])
+    app, temp_dirs = _admin_app(store)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/admin/users")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "onsubmit=" not in html
+        assert "data-confirm-message" in html
+        assert "evil';alert(1);x='" not in html
     finally:
         _cleanup(temp_dirs)
 
