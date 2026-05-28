@@ -346,3 +346,28 @@ def test_create_admin_rejects_invalid_affiliation_before_redis(monkeypatch, caps
 
     assert excinfo.value.code == 2
     assert "Invalid affiliations" in capsys.readouterr().err
+
+
+def test_create_admin_rejects_invalid_email_before_redis(monkeypatch, capsys):
+    import create_admin
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("Redis should not be contacted for invalid email")
+
+    monkeypatch.setattr(create_admin.redis, "from_url", fail_if_called, raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "create_admin.py",
+            "evil';alert(1);//@x.com",
+            "--affiliations",
+            "admin",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        create_admin.main()
+
+    assert excinfo.value.code == 2
+    assert "Invalid email address" in capsys.readouterr().err

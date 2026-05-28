@@ -26,7 +26,7 @@ import os
 
 import redis
 
-from utils.admin_policy import parse_affiliations, parse_allowed_affiliations
+from utils.admin_policy import is_valid_email, parse_affiliations, parse_allowed_affiliations
 from utils.user_store import UserStore
 
 
@@ -55,6 +55,10 @@ def main():
     )
     args = parser.parse_args()
 
+    email = args.email.strip()
+    if not is_valid_email(email):
+        parser.error("Invalid email address.")
+
     allowed = parse_allowed_affiliations(os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS"))
     affiliations, invalid = parse_affiliations(args.affiliations, allowed)
     if invalid:
@@ -64,17 +68,17 @@ def main():
     store = UserStore(r_conn, args.prefix)
 
     # Reuse an existing account by clearing the current secret and issuing a new invite.
-    if store.user_exists(args.email):
-        print(f"User {args.email} already exists.")
+    if store.user_exists(email):
+        print(f"User {email} already exists.")
         ans = input("Generate reinvite link? [y/N]: ").strip().lower()
         if ans != "y":
             return
-        store.clear_totp_secret(args.email)
-        token = store.create_invitation(args.email, affiliations)
+        store.clear_totp_secret(email)
+        token = store.create_invitation(email, affiliations)
     else:
-        token = store.create_invitation(args.email, affiliations)
+        token = store.create_invitation(email, affiliations)
 
-    print(f"\nInvitation created for: {args.email}")
+    print(f"\nInvitation created for: {email}")
     print(f"Affiliations: {affiliations}")
     print("\nSetup URL:")
     print(f"  {args.base_url}/auth/setup/{token}")
