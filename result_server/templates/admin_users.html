@@ -128,13 +128,13 @@
                                 <button type="submit" class="btn btn-warning">Update</button>
                             </form>
                             {% if u.email != session.get('user_email') %}
-                            <form class="inline-form" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
-                                  onsubmit="return confirm('Reset TOTP for {{ u.email }}?');">
+                            <form class="inline-form js-confirm" method="POST" action="{{ url_for('admin.reinvite_user', email=u.email) }}"
+                                  data-confirm-message="Reset TOTP for {{ u.email }}?">
                                 {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <button type="submit" class="btn btn-primary">Reinvite</button>
                             </form>
-                            <form class="inline-form" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
-                                  onsubmit="return confirm('Delete {{ u.email }}?');">
+                            <form class="inline-form js-confirm" method="POST" action="{{ url_for('admin.delete_user', email=u.email) }}"
+                                  data-confirm-message="Delete {{ u.email }}?">
                                 {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>
@@ -149,4 +149,14 @@
         </table>
     </div>
 </section>
+<script>
+    document.querySelectorAll("form.js-confirm").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            var message = form.getAttribute("data-confirm-message") || "Are you sure?";
+            if (!window.confirm(message)) {
+                event.preventDefault();
+            }
+        });
+    });
+</script>
 {% endblock %}

@@ -17,7 +17,7 @@ from flask import (
     url_for,
 )
 
-from utils.admin_policy import parse_affiliations
+from utils.admin_policy import is_valid_email, parse_affiliations
 from utils.audit_logging import audit_event
 from utils.rate_limit import rate_limited
 from utils.user_store import get_user_store
@@ -120,6 +120,17 @@ def add_user():
 
     if not email:
         flash("Email is required.")
+        return redirect(url_for("admin.users"))
+    if not is_valid_email(email):
+        audit_event(
+            "admin_user_invite_rejected",
+            actor=session.get("user_email"),
+            target=email[:64],
+            result="failure",
+            level=logging.WARNING,
+            details={"reason": "invalid_email_format"},
+        )
+        flash("Invalid email address.")
         return redirect(url_for("admin.users"))
 
     if store.user_exists(email):
