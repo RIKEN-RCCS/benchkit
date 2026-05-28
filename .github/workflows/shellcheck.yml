@@ -1,0 +1,49 @@
+name: Shellcheck
+
+on:
+  pull_request:
+    paths:
+      - "scripts/*.sh"
+      - "scripts/**/*.sh"
+      - "programs/**/*.sh"
+      - ".github/workflows/shellcheck.yml"
+  push:
+    branches:
+      - "**"
+    paths:
+      - "scripts/*.sh"
+      - "scripts/**/*.sh"
+      - "programs/**/*.sh"
+      - ".github/workflows/shellcheck.yml"
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    name: shellcheck -S error
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install shellcheck-py
+        run: python -m pip install --quiet shellcheck-py
+
+      - name: Run shellcheck on scripts/ and programs/ at error level
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find scripts/ programs/ -name "*.sh" 2>/dev/null | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No shell files found; nothing to check."
+            exit 0
+          fi
+          echo "Checking ${#files[@]} shell files at -S error level"
+          shellcheck -S error -f gcc "${files[@]}"
+          echo "shellcheck error-level: 0"
