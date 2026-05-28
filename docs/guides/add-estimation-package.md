@@ -30,6 +30,9 @@
 - section package
   - `scripts/estimation/section_packages/`
 
+この配置は現時点の約束です。将来、推定 package が増えた場合にディレクトリ名や登録方法を見直す可能性があります。
+そのため、package 固有のロジック、metadata、applicability 判定はこの配下に閉じ、BenchKit 共通層へ app 固有・package 固有の処理を混ぜないようにしてください。
+
 `qws` の詳細ダミー推定では、たとえば次のような分担です。
 
 - top-level

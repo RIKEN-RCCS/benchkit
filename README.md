@@ -28,10 +28,21 @@ Repository migration details are documented in [docs/repository-history.md](docs
 
 ## CX Framework Documents
 
-- [docs/cx/CX_FRAMEWORK.md](docs/cx/CX_FRAMEWORK.md)
-- [docs/cx/CX_PLATFORM.md](docs/cx/CX_PLATFORM.md)
-- [docs/cx/BENCHKIT_SPEC.md](docs/cx/BENCHKIT_SPEC.md)
-- [docs/cx/ESTIMATION_SPEC.md](docs/cx/ESTIMATION_SPEC.md)
+Core specifications:
+
+- [CX framework](docs/cx/CX_FRAMEWORK.md): top-level concept and terminology.
+- [CX platform](docs/cx/CX_PLATFORM.md): system-level responsibilities and component boundaries.
+- [BenchKit specification](docs/cx/BENCHKIT_SPEC.md): BenchKit responsibilities, interfaces, and future extension points.
+- [BenchKit gap analysis](docs/cx/BENCHKIT_GAP_ANALYSIS.md): implementation-facing functional gaps against the BenchKit specification.
+
+Estimation specifications:
+
+- [Estimation](docs/cx/ESTIMATION_SPEC.md): common rules for accepting, running, storing, and presenting estimation functions. Detailed estimation data, package, input, and re-estimation specifications are linked from this document.
+- [Result storage design](docs/cx/RESULT_STORAGE_DESIGN.md): storage-design memo for result and estimate artifacts.
+
+Operational specifications:
+
+- [Audit log specification](docs/cx/AUDIT_LOG_SPEC.md): result-server audit log events and handling rules.
 
 ## Developer Reference
 

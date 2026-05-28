@@ -3,6 +3,20 @@
 このドキュメントは、BenchKit に新しいアプリ（プログラム）を追加する手順を開発者向けにまとめたものです。
 サンプルアプリ `qws` を参考に、新しいアプリ `<code>` を追加して PR を作成するまでを説明します。
 
+## このガイドでの app 担当の責務
+
+app 担当は、アプリ固有の build / run / result emission / app-side estimation declaration を主に担当します。
+拠点の queue や runner の運用設定は `config/system.csv` / `config/queue.csv` 側の責務であり、推定 package の model metadata や fallback policy は `scripts/estimation/` 側の責務です。
+
+つまり、`programs/<code>/` では次を決めます。
+
+- どの source を取得し、どう build するか
+- どの system / node / process / thread 条件で走らせたいか
+- `run.sh` からどの FOM、section、overlap、source_info を出すか
+- 推定を使う場合、`estimate.sh` でどの top-level package と section / overlap package を選ぶか
+
+既存の `programs/*` とこのガイドを参照して追加してください。
+
 ## 目次
 
 1. [リポジトリの準備](#1-リポジトリの準備)
