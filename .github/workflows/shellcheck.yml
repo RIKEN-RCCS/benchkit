@@ -6,6 +6,8 @@ on:
       - "scripts/*.sh"
       - "scripts/**/*.sh"
       - "programs/**/*.sh"
+      - "benchpark-bridge/scripts/*.sh"
+      - "benchpark-bridge/scripts/**/*.sh"
       - ".github/workflows/shellcheck.yml"
   push:
     branches:
@@ -14,6 +16,8 @@ on:
       - "scripts/*.sh"
       - "scripts/**/*.sh"
       - "programs/**/*.sh"
+      - "benchpark-bridge/scripts/*.sh"
+      - "benchpark-bridge/scripts/**/*.sh"
       - ".github/workflows/shellcheck.yml"
   workflow_dispatch:
 
@@ -35,11 +39,11 @@ jobs:
       - name: Install shellcheck-py
         run: python -m pip install --quiet shellcheck-py
 
-      - name: Run shellcheck on scripts/ and programs/ at error level
+      - name: Run shellcheck on shell entrypoints at error level
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(find scripts/ programs/ -name "*.sh" 2>/dev/null | sort)
+          mapfile -t files < <(find scripts/ programs/ benchpark-bridge/scripts/ -name "*.sh" 2>/dev/null | sort)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No shell files found; nothing to check."
             exit 0
