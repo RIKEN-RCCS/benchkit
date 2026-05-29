@@ -19,9 +19,9 @@ AOBA_B,cross,aoba_ab_login,aoba_ab_jacamar,NQSV_AOBA_B,lx
 AOBA_S,cross,aoba_s_login,aoba_s_jacamar,NQSV_AOBA_VE,sxs
 Odyssey,cross,wisteria_login,wisteria-o_jacamar,PJM_WISTERIA_O,short-o
 Aquarius,cross,wisteria_login,wisteria-a_jacamar,PJM_WISTERIA_A,short-a
-Pegasus,cross,pegasus_login,pegasus_jacamar,PBS_TSUKUBA,regular
-Sirius,cross,sirius_login,sirius_jacamar,PBS_TSUKUBA,regular
-TSUBAME4,cross,tsubame4_login,tsubame4_jacamar,AGE_TSUBAME4,node_f
+Pegasus,cross,pegasus_login,pegasus_jacamar,PBS_PEGASUS,gpu
+Sirius,cross,sirius_login,sirius_jacamar,PBS_SIRIUS,mcrp
+TSUBAME4,cross,tsubame4_login,tsubame4_jacamar,AGE_TSUBAME4,cpu_4
 Camphor3,cross,camphor3_login,camphor3_jacamar,SLURM_CAMPHOR3,jha
 SQUID_CPU,cross,squid_login,squid_jacamar,NQSV_OSAKA_CPU,SQUID
 SQUID_GPU,cross,squid_login,squid_jacamar,NQSV_OSAKA_GPU,SQUID

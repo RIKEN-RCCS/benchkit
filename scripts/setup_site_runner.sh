@@ -20,6 +20,9 @@ install_systemd=1
 start_service=1
 libseccomp_mode="auto"
 jacamar_pbs_tools=""
+jacamar_make_jobs="${JACAMAR_BUILD_MAKE_JOBS:-1}"
+jacamar_gomaxprocs="${JACAMAR_BUILD_GOMAXPROCS:-1}"
+jacamar_goflags="${JACAMAR_BUILD_GOFLAGS:--p=1 -gcflags=all=-dwarf=false}"
 unrestricted_cmd_line=false
 runner_proxy=""
 runner_no_proxy=""
@@ -64,6 +67,12 @@ Options:
   --no-systemd             Do not create a systemd user service.
   --no-start               Create and enable service, but do not start it.
   -h, --help               Show this help.
+
+Environment overrides:
+  JACAMAR_BUILD_MAKE_JOBS  Jacamar build make parallelism. Default: 1.
+  JACAMAR_BUILD_GOMAXPROCS Jacamar build Go scheduler threads. Default: 1.
+  JACAMAR_BUILD_GOFLAGS    Jacamar build Go flags.
+                           Default: -p=1 -gcflags=all=-dwarf=false.
 
 Example:
   curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/setup_site_runner.sh \
@@ -297,7 +306,10 @@ if [[ ! -x "$jacamar_bin" ]]; then
   (
     cd "${work_dir}/jacamar-ci"
     export CC=gcc CXX=g++ CGO_ENABLED=1
-    make build
+    export GOMAXPROCS="${GOMAXPROCS:-$jacamar_gomaxprocs}"
+    export GOFLAGS="${GOFLAGS:-$jacamar_goflags}"
+    info "Using Jacamar build limits: make -j${jacamar_make_jobs}, GOMAXPROCS=${GOMAXPROCS}, GOFLAGS=${GOFLAGS}"
+    make -j"$jacamar_make_jobs" build
     make install PREFIX="$base_dir"
   )
 else
@@ -349,11 +361,40 @@ set -euo pipefail
 exit 0
 EOF
 
-cat > "${base_dir}/run.sh" <<'EOF'
+cat > "${base_dir}/runner-env.sh" <<'EOF'
 #!/usr/bin/env bash
-source ~/.bashrc
+
+source_if_readable() {
+  local file="$1"
+  if [[ -r "$file" ]]; then
+    # shellcheck disable=SC1090
+    source "$file" || true
+  fi
+}
+
+source_if_readable /etc/profile
+source_if_readable /etc/bashrc
+
+if ! type module >/dev/null 2>&1; then
+  source_if_readable /etc/profile.d/modules.sh
+  source_if_readable /etc/profile.d/z00_lmod.sh
+fi
+
+source_if_readable "${HOME}/.bashrc"
+
+unset -f source_if_readable
+EOF
+
+cat > "${base_dir}/run.sh" <<EOF
+#!/usr/bin/env bash
+RUNNER_ENV="\${CUSTOM_DIR:-${base_dir}}/runner-env.sh"
+if [[ -r "\${RUNNER_ENV}" ]]; then
+  source "\${RUNNER_ENV}"
+elif [[ -r "\${HOME}/.bashrc" ]]; then
+  source "\${HOME}/.bashrc"
+fi
 set -eo pipefail
-exec "$@"
+exec "\$@"
 EOF
 
 cat > "${base_dir}/cleanup.sh" <<EOF
@@ -378,7 +419,7 @@ esac
 echo "CLEANUP DONE at \$(date)" >> "\$LOGFILE"
 EOF
 
-chmod +x "${base_dir}/config.sh" "${base_dir}/prepare.sh" "${base_dir}/run.sh" "${base_dir}/cleanup.sh"
+chmod +x "${base_dir}/config.sh" "${base_dir}/prepare.sh" "${base_dir}/runner-env.sh" "${base_dir}/run.sh" "${base_dir}/cleanup.sh"
 
 info "Writing Jacamar config"
 cat > "${base_dir}/custom-config.toml" <<EOF

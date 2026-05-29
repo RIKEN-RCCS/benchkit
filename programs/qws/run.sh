@@ -171,8 +171,22 @@ case "$system" in
         mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
+    Pegasus)
+        qws_numproc=$((nodes * numproc_node))
+        module load intel/2025.3.1 intmpi/2025.3.1
+        mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    Sirius)
+        qws_numproc=$((nodes * numproc_node))
+        module load aocc/5.0.0 openmpi/5.0.10/aocc5.0.0
+        mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
     TSUBAME4)
         qws_numproc=$((nodes * numproc_node))
+        module load openmpi/5.0.10-gcc aocc/4.1.0
+        export OMPI_CC=clang OMPI_CXX=clang++ OMPI_FC=flang
         mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;

@@ -109,6 +109,8 @@ ARM64 ログインノードでは `--arch arm64` を指定します。
 - `--no-systemd` / `--no-start`
   - systemd user service を作らない、または作るだけで起動しない場合に使います
 
+Jacamar-CI のビルドは、ログインノードのプロセス数・メモリ制限に当たりにくいよう、既定で `make -j1`、`GOMAXPROCS=1`、`GOFLAGS="-p=1 -gcflags=all=-dwarf=false"` を使います。余裕のある環境では `JACAMAR_BUILD_MAKE_JOBS`、`JACAMAR_BUILD_GOMAXPROCS`、`JACAMAR_BUILD_GOFLAGS` で上書きできます。
+
 このスクリプトは `config.toml` の `environment` に `PATH=$BASE_DIR/bin:...` を登録時点で入れるため、アーティファクト保存時に `gitlab-runner` が見つからない問題も避けられます。以下の手動手順は、スクリプトが失敗した場合の切り分けや、サイト固有に調整したい場合の参照として使ってください。
 
 ---
@@ -144,6 +146,7 @@ $BASE_DIR/
 ├── custom-config.toml    # Jacamar 設定ファイル
 ├── config.sh             # カスタムランナー: config
 ├── prepare.sh            # カスタムランナー: prepare
+├── runner-env.sh         # カスタムランナー: 共通環境初期化
 ├── run.sh                # カスタムランナー: run
 └── cleanup.sh            # カスタムランナー: cleanup
 ```
@@ -202,8 +205,10 @@ cd jacamar-ci
 export CC=gcc
 export CXX=g++
 export CGO_ENABLED=1
+export GOMAXPROCS=1
+export GOFLAGS="-p=1 -gcflags=all=-dwarf=false"
 
-make build
+make -j1 build
 make install PREFIX="$BASE_DIR"
 
 # 後片付け
@@ -233,7 +238,9 @@ git clone https://gitlab.com/ecp-ci/jacamar-ci.git
 cp tools.go jacamar-ci/internal/executors/pbs/
 
 cd jacamar-ci
-make build
+export GOMAXPROCS=1
+export GOFLAGS="-p=1 -gcflags=all=-dwarf=false"
+make -j1 build
 make install PREFIX="$BASE_DIR"
 ```
 
@@ -290,7 +297,9 @@ export CPATH="${SEC_PREFIX}/include:${CPATH:-}"
 git clone https://gitlab.com/ecp-ci/jacamar-ci.git
 cd jacamar-ci
 export CC=gcc CXX=g++ CGO_ENABLED=1
-make build
+export GOMAXPROCS=1
+export GOFLAGS="-p=1 -gcflags=all=-dwarf=false"
+make -j1 build
 make install PREFIX="${WORKDIR}"
 
 # --- 5. 後片付け ---
@@ -347,10 +356,19 @@ set -euo pipefail
 exit 0
 ```
 
+### `runner-env.sh` - 共通環境初期化
+
+`run.sh` から source される共通環境初期化ファイルです。非対話 shell でも site の module catalog やユーザの基本環境が見えるように、`/etc/profile`、`/etc/bashrc`、module 初期化ファイル、`~/.bashrc` を順に読みます。アプリごとの `build.sh` / `run.sh` は、原則として site の shell 初期化そのものではなく、必要な `module load` と実行コマンドだけを持ちます。
+
 ### `run.sh` - ジョブ実行
 ```bash
 #!/usr/bin/env bash
-source ~/.bashrc
+RUNNER_ENV="${CUSTOM_DIR:-/path/to/gitlab-runner_jacamar-ci_amd}/runner-env.sh"
+if [[ -r "${RUNNER_ENV}" ]]; then
+  source "${RUNNER_ENV}"
+elif [[ -r "${HOME}/.bashrc" ]]; then
+  source "${HOME}/.bashrc"
+fi
 set -eo pipefail
 exec "$@"
 ```
