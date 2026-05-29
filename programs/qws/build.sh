@@ -89,8 +89,20 @@ case "$system" in
 	source /work/opt/local/x86_64/cores/intel/2023.0.0/mpi/latest/env/vars.sh
 	make compiler=intel arch=skylake rdma= -j8
 	;;
+    Pegasus)
+	module load intel/2025.3.1 intmpi/2025.3.1
+	make compiler=intel arch=skylake mpi=1 omp=1 rdma=
+	;;
+    Sirius)
+	module load aocc/5.0.0 openmpi/5.0.10/aocc5.0.0
+	make -j4 compiler=aocc arch=zen4 rdma= mpi=1 omp=1 profiler=timing \
+	    AMD_MARCH=-march=znver4 cppflags="-DARCH_AVX512" main
+	;;
     TSUBAME4)
-	make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpic++
+	module load openmpi/5.0.10-gcc aocc/4.1.0
+	export OMPI_CC=clang OMPI_CXX=clang++ OMPI_FC=flang
+	make -j4 compiler=aocc arch=zen4 rdma= mpi=1 omp=1 profiler=timing \
+	    AMD_MARCH=-march=znver4 cppflags="-DARCH_AVX512" main
 	;;
     Camphor3)
 	camphor3_modulepath="${MODULEPATH:-}"

@@ -142,17 +142,23 @@ case "$system" in
          --mpi proc=$proc --omp thread=$nthreads \
          script.sh
     ;;
-  Pegasus|Sirius)
-    echo qsub -q $queue_group \
-         -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads} \
+  Pegasus)
+    echo qsub -q $queue_group -A CNTBENCH \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
+    qsub -q $queue_group -A CNTBENCH \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
+    ;;
+  Sirius)
+    echo qsub -q $queue_group -A CNTBENCH -W group_list=CNTBENCH \
+         -l select=${nodes}:ncpus=24:mem=124gb:ngpus=1 \
          -l walltime=${elapse} script.sh
-    qsub -q $queue_group \
-         -l select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads} \
+    qsub -q $queue_group -A CNTBENCH -W group_list=CNTBENCH \
+         -l select=${nodes}:ncpus=24:mem=124gb:ngpus=1 \
          -l walltime=${elapse} script.sh
     ;;
   TSUBAME4)
-    echo qsub -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
-    qsub -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
+    echo qsub -g jh260034 -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
+    qsub -g jh260034 -l ${queue_group}=${nodes} -l h_rt=${elapse} script.sh
     ;;
   Camphor3)
     proc=$((nodes * numproc_node))
