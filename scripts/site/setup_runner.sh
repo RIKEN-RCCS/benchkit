@@ -30,7 +30,7 @@ runner_no_proxy=""
 usage() {
   cat <<'EOF'
 Usage:
-  setup_site_runner.sh --site SITE --gitlab-url URL --login-token TOKEN --jacamar-token TOKEN [options]
+  setup_runner.sh --site SITE --gitlab-url URL --login-token TOKEN --jacamar-token TOKEN [options]
 
 Required:
   --site SITE              Site prefix used for tags if tags are omitted.
@@ -56,9 +56,11 @@ Options:
   --jacamar-pbs-tools PATH Copy PATH to jacamar-ci/internal/executors/pbs/tools.go before build.
   --unrestricted-cmd-line Allow Jacamar to keep runner generated Git/token commands
                            on the command line. Useful when GIT_ASKPASS fails.
-  --proxy URL              Set http_proxy/https_proxy for the runner systemd service.
+  --proxy URL              Set http_proxy/https_proxy in both the runner
+                           config.toml environment and systemd user service.
                            If URL has no scheme, http:// is prepended.
-  --no-proxy LIST          Set no_proxy/NO_PROXY for the runner systemd service.
+  --no-proxy LIST          Set no_proxy/NO_PROXY in both the runner
+                           config.toml environment and systemd user service.
   --libseccomp auto|system|local|none
                            Default: auto. Use system libseccomp if available,
                            build local gperf/libseccomp if missing.
@@ -75,7 +77,7 @@ Environment overrides:
                            Default: -p=1 -gcflags=all=-dwarf=false.
 
 Example:
-  curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/setup_site_runner.sh \
+  curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/site/setup_runner.sh \
     | bash -s -- --arch amd64 --site genkai \
         --gitlab-url https://gitlab.example.jp \
         --login-token "$LOGIN_TOKEN" --jacamar-token "$JACAMAR_TOKEN" \
@@ -99,12 +101,26 @@ systemd_env_escape() {
   printf '%s' "$value"
 }
 
+toml_string_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "$value"
+}
+
 write_systemd_env() {
   local unit_path="$1"
   local name="$2"
   local value="$3"
   [[ -n "$value" ]] || return 0
   printf 'Environment="%s=%s"\n' "$name" "$(systemd_env_escape "$value")" >> "$unit_path"
+}
+
+append_runner_env() {
+  local name="$1"
+  local value="$2"
+  [[ -n "$value" ]] || return 0
+  runner_env_entries+=", \"${name}=$(toml_string_escape "$value")\""
 }
 
 while [[ $# -gt 0 ]]; do
@@ -438,13 +454,24 @@ command_delay = "${command_delay}"
 EOF
 
 runner_path_env="PATH=${base_dir}/bin:/usr/local/bin:/usr/bin:/bin"
+runner_env_entries="\"$(toml_string_escape "$runner_path_env")\""
+if [[ -n "$runner_proxy" ]]; then
+  append_runner_env "http_proxy" "$runner_proxy"
+  append_runner_env "https_proxy" "$runner_proxy"
+  append_runner_env "HTTP_PROXY" "$runner_proxy"
+  append_runner_env "HTTPS_PROXY" "$runner_proxy"
+fi
+if [[ -n "$runner_no_proxy" ]]; then
+  append_runner_env "no_proxy" "$runner_no_proxy"
+  append_runner_env "NO_PROXY" "$runner_no_proxy"
+fi
 login_template="${base_dir}/login-runner.template.toml"
 jacamar_template="${base_dir}/jacamar-runner.template.toml"
 
 cat > "$login_template" <<EOF
 [[runners]]
   shell = "bash"
-  environment = ["${runner_path_env}"]
+  environment = [${runner_env_entries}]
   [runners.custom]
     config_exec = "${base_dir}/config.sh"
     prepare_exec = "${base_dir}/prepare.sh"
@@ -455,7 +482,7 @@ EOF
 cat > "$jacamar_template" <<EOF
 [[runners]]
   shell = "bash"
-  environment = ["${runner_path_env}"]
+  environment = [${runner_env_entries}]
   [runners.custom]
     config_exec = "${jacamar_bin}"
     config_args = ["--no-auth", "config", "--configuration", "${base_dir}/custom-config.toml"]
@@ -541,5 +568,8 @@ info "Login tag: ${login_tag}"
 info "Jacamar tag: ${jacamar_tag}"
 info "Jacamar unrestricted_cmd_line: ${unrestricted_cmd_line}"
 if [[ -n "$runner_proxy" ]]; then
-  info "Runner proxy: ${runner_proxy}"
+  info "Runner proxy: ${runner_proxy} (config.toml environment + systemd service)"
+fi
+if [[ -n "$runner_no_proxy" ]]; then
+  info "Runner no_proxy: ${runner_no_proxy} (config.toml environment + systemd service)"
 fi

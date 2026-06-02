@@ -33,13 +33,36 @@ GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD 
 
 ## クイックセットアップ（推奨）
 
-通常は `scripts/setup_site_runner.sh` を使えば、GitLab Runner の取得、Jacamar-CI のビルド、frontend runner と Jacamar runner の登録、`custom-config.toml` / `config.toml` 相当の設定、systemd user service の作成までまとめて実行できます。
+通常は `scripts/site/setup_runner.sh` を使えば、GitLab Runner の取得、Jacamar-CI のビルド、frontend runner と Jacamar runner の登録、`custom-config.toml` / `config.toml` 相当の設定、systemd user service の作成までまとめて実行できます。
 
 `--login-token` と `--jacamar-token` には、GitLab で作成した各 runner の authentication token を指定します。URL は両 runner で共通です。
 
 ### 実行前の疎通確認
 
 セットアップ前に、対象ログインノードから GitLab サーバへ到達できるか確認します。GitLab Runner は GitLab 側から接続されるのではなく、ログインノード上の常駐プロセスが GitLab へ job を取りに行きます。
+
+まず軽量な preflight script を実行します。この script は scheduler job を投入せず、ログインノード上で `gitlab.com`、`github.com`、CI 用 GitLab への direct/proxy 接続、proxy 候補探索、`systemctl --user`、`loginctl` の状態を確認します。proxy 候補は現在の環境変数、shell profile、system profile、既存 runner の systemd unit、`config.toml` から探索し、疎通した候補を `setup_runner.sh --proxy` の推奨値として表示します。
+
+```bash
+GITLAB_URL="https://YOUR_GITLAB_SERVER"
+
+scripts/site/preflight_runner.sh \
+  --site your_site \
+  --gitlab-url "$GITLAB_URL"
+```
+
+benchkit リポジトリをまだ clone していない場合:
+
+```bash
+GITLAB_URL="https://YOUR_GITLAB_SERVER"
+
+curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/site/preflight_runner.sh \
+  | bash -s -- \
+      --site your_site \
+      --gitlab-url "$GITLAB_URL"
+```
+
+preflight が `Suggested setup option: --proxy ...` を表示した場合は、その値を `setup_runner.sh --proxy` に渡します。以下は手動で同じ観点を確認したい場合のコマンドです。
 
 ```bash
 GITLAB_URL="https://YOUR_GITLAB_SERVER"
@@ -62,12 +85,12 @@ RUNNER_PROXY="http://PROXY_HOST:PORT"
 curl -I --connect-timeout 5 -x "$RUNNER_PROXY" "$GITLAB_URL"
 ```
 
-proxy 経由でだけ成功する場合は、`setup_site_runner.sh` 実行時に `--proxy "$RUNNER_PROXY"` を指定します。`systemd --user` のサービスはログインシェルの proxy 環境変数を継承しないことがあるため、proxy は runner の systemd unit に明示しておくのが安全です。
+proxy 経由でだけ成功する場合は、`setup_runner.sh` 実行時に `--proxy "$RUNNER_PROXY"` を指定します。スクリプトは安全のため、proxy を runner の `config.toml` の `environment` と `systemd --user` unit の `Environment=` の両方に設定します。`systemd --user` のサービスはログインシェルの proxy 環境変数を継承しないことがあり、Jacamar から `qsub -v http_proxy,...` で計算ノードへ渡す変数は `config.toml` の runner environment を継承元にする必要があるためです。
 
 AMD64 ログインノードの例：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/setup_site_runner.sh \
+curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/site/setup_runner.sh \
   | bash -s -- \
       --arch amd64 \
       --site your_site \
@@ -103,15 +126,15 @@ ARM64 ログインノードでは `--arch arm64` を指定します。
 - `--unrestricted-cmd-line`
   - Jacamar の `GIT_ASKPASS` credential helper が効かず、`get_sources` で `fatal: unable to get password from user` になる場合の回避策です。runner generated command line に job token が現れる可能性があるため、単一ユーザ運用や `/proc` の閲覧制限がある環境で使ってください
 - `--proxy http://PROXY_HOST:PORT`
-  - runner の systemd user service に `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を設定します。`http://` または `https://` を省略した場合は `http://` を補います
+  - runner の `config.toml` の `environment` と systemd user service の両方に `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を設定します。`http://` または `https://` を省略した場合は `http://` を補います
 - `--no-proxy LIST`
-  - runner の systemd user service に `no_proxy` / `NO_PROXY` を設定します
+  - runner の `config.toml` の `environment` と systemd user service の両方に `no_proxy` / `NO_PROXY` を設定します
 - `--no-systemd` / `--no-start`
   - systemd user service を作らない、または作るだけで起動しない場合に使います
 
 Jacamar-CI のビルドは、ログインノードのプロセス数・メモリ制限に当たりにくいよう、既定で `make -j1`、`GOMAXPROCS=1`、`GOFLAGS="-p=1 -gcflags=all=-dwarf=false"` を使います。余裕のある環境では `JACAMAR_BUILD_MAKE_JOBS`、`JACAMAR_BUILD_GOMAXPROCS`、`JACAMAR_BUILD_GOFLAGS` で上書きできます。
 
-このスクリプトは `config.toml` の `environment` に `PATH=$BASE_DIR/bin:...` を登録時点で入れるため、アーティファクト保存時に `gitlab-runner` が見つからない問題も避けられます。以下の手動手順は、スクリプトが失敗した場合の切り分けや、サイト固有に調整したい場合の参照として使ってください。
+このスクリプトは `config.toml` の `environment` に `PATH=$BASE_DIR/bin:...` を登録時点で入れるため、アーティファクト保存時に `gitlab-runner` が見つからない問題も避けられます。`--proxy` / `--no-proxy` を指定した場合は proxy / no_proxy も `config.toml` に入れるため、Jacamar が投入する計算ノードジョブで `qsub -v http_proxy,...` を使う場合の継承元にもなります。以下の手動手順は、スクリプトが失敗した場合の切り分けや、サイト固有に調整したい場合の参照として使ってください。
 
 ---
 
@@ -485,9 +508,15 @@ command_delay = "30s"
 ```toml
 [[runners]]
   environment = [
-    "PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:/usr/local/bin:/usr/bin:/bin"
+    "PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:/usr/local/bin:/usr/bin:/bin",
+    "http_proxy=http://PROXY_HOST:PORT",
+    "https_proxy=http://PROXY_HOST:PORT",
+    "HTTP_PROXY=http://PROXY_HOST:PORT",
+    "HTTPS_PROXY=http://PROXY_HOST:PORT"
   ]
 ```
+
+`qsub -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY` は qsub 実行プロセスの環境変数を計算ノードへ継承します。Jacamar の custom executor では systemd unit の `Environment=` だけでは計算ノードジョブの継承元として不足することがあるため、proxy が必要な拠点では `config.toml` の runner `environment` にも同じ値を入れてください。`setup_runner.sh --proxy` はこの二重設定を自動で行います。
 
 ### Jacamar 用ランナーの `[runners.custom]` セクション
 
@@ -736,7 +765,7 @@ environment = ["PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:..."]
 
 ### ランナーが GitLab に接続できない
 - ログインノードから GitLab サーバへの HTTPS 通信が可能か確認
-- プロキシ設定が必要な場合は `setup_site_runner.sh --proxy` で systemd user service に proxy を明示
+- プロキシ設定が必要な場合は `setup_runner.sh --proxy` で `config.toml` と systemd user service の両方に proxy を明示
 
 ログインシェルでは `curl -I https://gitlab.swc.r-ccs.riken.jp` が成功するのに、常駐ランナーが
 `Checking for jobs... failed` や `lookup gitlab.swc.r-ccs.riken.jp on [::1]:53` で失敗する場合は、
@@ -767,6 +796,14 @@ systemctl --user daemon-reload
 systemctl --user restart gitlab-runner-<site>-amd.service
 systemctl --user show gitlab-runner-<site>-amd.service -p Environment
 ```
+
+一方で、計算ノード上の `git clone` や `curl` が GitHub などへ直結して timeout する場合は、`config.toml` の該当 runner の `environment` に proxy が入っているか確認します。NQSV などで `qsub -v http_proxy,...` を使う場合、変数名だけを指定した proxy は qsub 実行時の runner/Jacamar 環境から継承されます。
+
+```bash
+grep -nA8 -B2 'environment = ' /path/to/gitlab-runner_jacamar-ci_amd/config.toml
+```
+
+手動で修正する場合は、該当する `[[runners]]` に systemd unit と同じ proxy を追加してから runner を再起動します。
 
 ### 計算ノードに `git` がない場合
 
