@@ -18,4 +18,8 @@ SLURM_CAMPHOR3,sbatch,"-p ${queue_group} -t ${elapse} --rsc p=${proc}:t=${nthrea
 NQSV_OSAKA_CPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads}"
 NQSV_OSAKA_GPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node}"
 NQSV_OSAKA_VE,qsub,"-q ${queue_group} --venode ${proc} -l elapstim_req=${elapse}"
+NQSV_SQUID_CPU,qsub,"-q ${queue_group} --group=jh260034 -T intmpi -b ${nodes} -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads}"
+NQSV_SQUID_GPU,qsub,"-q ${queue_group} --group=jh260034 -T openmpi -l elapstim_req=${elapse},gpunum_job=${nodes} -v OMP_NUM_THREADS=${nthreads}"
+NQSV_SQUID_VECTOR,qsub,"-q ${queue_group} --group=jh260034 -T necmpi --venode=${proc} -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads}"
+NQSV_OCTOPUS,qsub,"-q ${queue_group} --group=jh260034 -l elapstim_req=${elapse} -b ${nodes} -v OMP_NUM_THREADS=${nthreads},http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY"
 none,none,none
