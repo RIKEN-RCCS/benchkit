@@ -149,6 +149,39 @@ case "$system" in
         mpirun -np ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
+    SQUID_CPU)
+        qws_numproc=$((nodes * numproc_node))
+        qws_mpi_opts=()
+        if [[ -n "${NQSII_MPIOPTS:-}" ]]; then
+            read -r -a qws_mpi_opts <<< "${NQSII_MPIOPTS}"
+        fi
+        module load BaseCPU
+        export OMP_NUM_THREADS="${nthreads}"
+        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    SQUID_GPU)
+        qws_numproc=$((nodes * numproc_node))
+        qws_mpi_opts=()
+        if [[ -n "${NQSII_MPIOPTS:-}" ]]; then
+            read -r -a qws_mpi_opts <<< "${NQSII_MPIOPTS}"
+        fi
+        module load BaseGPU
+        export OMP_NUM_THREADS="${nthreads}"
+        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} --bind-to none ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    SQUID_VECTOR)
+        qws_numproc=$((nodes * numproc_node))
+        qws_mpi_opts=()
+        if [[ -n "${NQSII_MPIOPTS:-}" ]]; then
+            read -r -a qws_mpi_opts <<< "${NQSII_MPIOPTS}"
+        fi
+        module load BaseVEC
+        export OMP_NUM_THREADS="${nthreads}"
+        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
     Odyssey)
         if [[ -r /etc/profile.d/modules.sh ]]; then
             source /etc/profile.d/modules.sh
@@ -187,6 +220,15 @@ case "$system" in
         qws_numproc=$((nodes * numproc_node))
         module load openmpi/5.0.10-gcc aocc/4.1.0
         export OMPI_CC=clang OMPI_CXX=clang++ OMPI_FC=flang
+        mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
+        print_results CASE0 CASE0 ${numproc_node} >> ../results/result
+        ;;
+    OCTOPUS)
+        qws_numproc=$((nodes * numproc_node))
+        module load BaseCPU inteloneAPI
+        export OMP_NUM_THREADS="${nthreads}"
+        export OMP_PROC_BIND=close
+        export OMP_PLACES=cores
         mpirun -n ${qws_numproc} ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;

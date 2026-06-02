@@ -23,8 +23,8 @@ Pegasus,cross,pegasus_login,pegasus_jacamar,PBS_PEGASUS,gpu
 Sirius,cross,sirius_login,sirius_jacamar,PBS_SIRIUS,mcrp
 TSUBAME4,cross,tsubame4_login,tsubame4_jacamar,AGE_TSUBAME4,cpu_4
 Camphor3,cross,camphor3_login,camphor3_jacamar,SLURM_CAMPHOR3,jha
-SQUID_CPU,cross,squid_login,squid_jacamar,NQSV_OSAKA_CPU,SQUID
-SQUID_GPU,cross,squid_login,squid_jacamar,NQSV_OSAKA_GPU,SQUID
-SQUID_VECTOR,cross,squid_login,squid_jacamar,NQSV_OSAKA_VE,SQUID
-OCTOPUS,cross,octopus_login,octopus_jacamar,NQSV_OSAKA_CPU,OCT
+SQUID_CPU,cross,squid_login,squid_jacamar,NQSV_SQUID_CPU,DBG
+SQUID_GPU,cross,squid_login,squid_jacamar,NQSV_SQUID_GPU,DBG
+SQUID_VECTOR,cross,squid_login,squid_jacamar,NQSV_SQUID_VECTOR,SQUID
+OCTOPUS,cross,octopus_login,octopus_jacamar,NQSV_OCTOPUS,DBG
 FNCX,native,,fncx-curl-jq,none,small

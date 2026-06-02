@@ -79,6 +79,18 @@ case "$system" in
     AOBA_B)
 	make -j 8 fugaku_benchmark= omp=1 compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi= CC=mpicc CXX=mpic++
 	;;
+    SQUID_CPU)
+	module load BaseCPU
+	make compiler=intel arch=skylake mpi=1 rdma= omp=1 -j8
+	;;
+    SQUID_GPU)
+	module load BaseGPU
+	make compiler=nvhpc-hpcx arch=skylake mpi=1 rdma= omp=1 -j8
+	;;
+    SQUID_VECTOR)
+	module load BaseVEC
+	make compiler=nec arch=sx mpi=1 rdma= omp=1 -j8
+	;;
     Odyssey)
 	module load odyssey
 	make compiler=fujitsu_cross arch=postk -j 8
@@ -103,6 +115,10 @@ case "$system" in
 	export OMPI_CC=clang OMPI_CXX=clang++ OMPI_FC=flang
 	make -j4 compiler=aocc arch=zen4 rdma= mpi=1 omp=1 profiler=timing \
 	    AMD_MARCH=-march=znver4 cppflags="-DARCH_AVX512" main
+	;;
+    OCTOPUS)
+	module load BaseCPU inteloneAPI
+	make -j8 compiler=intel arch=skylake mpi=1 omp=1 rdma=
 	;;
     Camphor3)
 	camphor3_modulepath="${MODULEPATH:-}"

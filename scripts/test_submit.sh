@@ -195,25 +195,34 @@ case "$system" in
     qsub -Z -v http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY -q $queue_group -T intmpi -b $nodes \
          -l elapstim_req=$elapse script.sh
     ;;
-  SQUID_CPU|OCTOPUS)
-    echo qsub -q $queue_group -b $nodes \
-         -l elapstim_req=${elapse},cpunum_job=${nthreads} script.sh
-    qsub -q $queue_group -b $nodes \
-         -l elapstim_req=${elapse},cpunum_job=${nthreads} script.sh
+  SQUID_CPU)
+    echo qsub -q $queue_group --group=jh260034 -T intmpi -b $nodes \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
+    qsub -q $queue_group --group=jh260034 -T intmpi -b $nodes \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
+    ;;
+  OCTOPUS)
+    echo qsub -q $queue_group --group=jh260034 \
+         -l elapstim_req=${elapse} -b $nodes \
+         -v OMP_NUM_THREADS=${nthreads},http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY script.sh
+    qsub -q $queue_group --group=jh260034 \
+         -l elapstim_req=${elapse} -b $nodes \
+         -v OMP_NUM_THREADS=${nthreads},http_proxy,https_proxy,HTTP_PROXY,HTTPS_PROXY script.sh
     ;;
   SQUID_GPU)
-    gpu_per_node=$(get_system_gpu_per_node "$system")
-    echo qsub -q $queue_group -b $nodes \
-         -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node} script.sh
-    qsub -q $queue_group -b $nodes \
-         -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node} script.sh
+    echo qsub -q $queue_group --group=jh260034 -T openmpi \
+         -l elapstim_req=${elapse},gpunum_job=${nodes} \
+         -v OMP_NUM_THREADS=${nthreads} script.sh
+    qsub -q $queue_group --group=jh260034 -T openmpi \
+         -l elapstim_req=${elapse},gpunum_job=${nodes} \
+         -v OMP_NUM_THREADS=${nthreads} script.sh
     ;;
   SQUID_VECTOR)
     proc=$((nodes * numproc_node))
-    echo qsub -q $queue_group --venode $proc \
-         -l elapstim_req=${elapse} script.sh
-    qsub -q $queue_group --venode $proc \
-         -l elapstim_req=${elapse} script.sh
+    echo qsub -q $queue_group --group=jh260034 -T necmpi --venode=$proc \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
+    qsub -q $queue_group --group=jh260034 -T necmpi --venode=$proc \
+         -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
     ;;
   AI4SS)
     echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
