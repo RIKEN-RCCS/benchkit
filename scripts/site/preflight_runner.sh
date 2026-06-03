@@ -4,6 +4,10 @@ set -euo pipefail
 site=""
 arch=""
 gitlab_url=""
+runner_version="v18.5.0"
+go_version="1.25.0"
+scheduler="pbs"
+jacamar_repo=""
 base_dir=""
 service_host=""
 explicit_proxy=""
@@ -19,6 +23,12 @@ Options:
   --site SITE              Site prefix used for runner service lookup.
   --arch amd64|arm64       Target architecture. Default: auto-detect.
   --gitlab-url URL         CI GitLab URL to test in addition to gitlab.com/github.com.
+  --runner-version VER     GitLab Runner version used by setup_runner.sh. Default: v18.5.0.
+  --go-version VER         Go version used by setup_runner.sh. Default: 1.25.0.
+  --scheduler pbs|slurm|pjm
+                           Scheduler used to infer the default Jacamar-CI repository.
+  --jacamar-repo URL       Jacamar-CI repository. Default: PJM fork for
+                           --scheduler pjm, upstream otherwise.
   --base-dir DIR           Default: $HOME/gitlab-runner_jacamar-ci_{amd,arm}
   --service-host HOST      Default: hostname -s.
   --proxy URL              Add an explicit proxy candidate to test.
@@ -82,6 +92,10 @@ while [[ $# -gt 0 ]]; do
     --site) site="${2:-}"; shift 2 ;;
     --arch) arch="${2:-}"; shift 2 ;;
     --gitlab-url) gitlab_url="${2:-}"; shift 2 ;;
+    --runner-version) runner_version="${2:-}"; shift 2 ;;
+    --go-version) go_version="${2:-}"; shift 2 ;;
+    --scheduler) scheduler="${2:-}"; shift 2 ;;
+    --jacamar-repo) jacamar_repo="${2:-}"; shift 2 ;;
     --base-dir) base_dir="${2:-}"; shift 2 ;;
     --service-host) service_host="${2:-}"; shift 2 ;;
     --proxy) explicit_proxy="${2:-}"; shift 2 ;;
@@ -104,10 +118,23 @@ if [[ -z "$arch" ]]; then
 fi
 
 case "$arch" in
-  amd64) arch_suffix="amd" ;;
-  arm64) arch_suffix="arm" ;;
+  amd64) arch_suffix="amd"; runner_arch="amd64"; go_arch="amd64" ;;
+  arm64) arch_suffix="arm"; runner_arch="arm64"; go_arch="arm64" ;;
   *) die "--arch must be amd64 or arm64" ;;
 esac
+
+case "$scheduler" in
+  pbs|slurm|pjm) ;;
+  *) die "--scheduler must be pbs, slurm, or pjm" ;;
+esac
+
+if [[ -z "$jacamar_repo" ]]; then
+  if [[ "$scheduler" == "pjm" ]]; then
+    jacamar_repo="https://gitlab.com/yoshifuminakamura/jacamar-ci.git"
+  else
+    jacamar_repo="https://gitlab.com/ecp-ci/jacamar-ci.git"
+  fi
+fi
 
 if [[ -z "$base_dir" ]]; then
   base_dir="${HOME}/gitlab-runner_jacamar-ci_${arch_suffix}"
@@ -197,7 +224,7 @@ curl_probe() {
   local proxy="${2:-}"
   local output status
   if [[ -n "$proxy" ]]; then
-    output=$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    output=$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u no_proxy -u NO_PROXY \
       curl -I -L -sS -o /dev/null -w '%{http_code}' \
         --connect-timeout "$connect_timeout" --max-time "$max_time" \
         -x "$proxy" "$url" 2>&1) || {
@@ -205,7 +232,7 @@ curl_probe() {
       return 1
     }
   else
-    output=$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    output=$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u no_proxy -u NO_PROXY \
       curl -I -L -sS -o /dev/null -w '%{http_code}' \
         --connect-timeout "$connect_timeout" --max-time "$max_time" \
         "$url" 2>&1) || {
@@ -289,7 +316,23 @@ print_proxy_candidates() {
 }
 
 test_connectivity() {
-  local urls=("https://gitlab.com" "https://github.com" "$gitlab_url")
+  local runner_url go_pkg go_url
+  runner_url="https://gitlab-runner-downloads.s3.amazonaws.com/${runner_version}/binaries/gitlab-runner-linux-${runner_arch}"
+  go_pkg="go${go_version}.linux-${go_arch}.tar.gz"
+  go_url="https://go.dev/dl/${go_pkg}"
+  local urls=(
+    "https://gitlab.com"
+    "https://github.com"
+    "$gitlab_url"
+    "$runner_url"
+    "$go_url"
+    "https://ftp.gnu.org/gnu/gperf/gperf-3.1.tar.gz"
+    "https://github.com/seccomp/libseccomp/releases/download/v2.5.5/libseccomp-2.5.5.tar.gz"
+  )
+  case "$jacamar_repo" in
+    http://*|https://*) urls+=("$jacamar_repo") ;;
+    *) warn "skipping non-HTTP Jacamar repo connectivity check: ${jacamar_repo}" ;;
+  esac
   declare -A seen_url=()
   declare -a unique_urls=()
   local url
