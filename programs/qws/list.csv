@@ -20,7 +20,7 @@ AOBA_S,yes,1,1,8,0:10:00
 AOBA_B,yes,1,1,128,0:10:00
 Odyssey,yes,1,1,12,0:10:00
 Aquarius,yes,1,1,8,0:10:00
-Pegasus,yes,1,1,96,00:10:00
+Pegasus,yes,1,1,48,00:10:00
 Sirius,yes,1,1,24,0:10:00
 TSUBAME4,yes,1,1,4,0:10:00
 SQUID_CPU,yes,1,1,8,00:10:00
