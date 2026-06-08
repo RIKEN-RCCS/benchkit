@@ -27,4 +27,3 @@ SQUID_CPU,cross,squid_login,squid_jacamar,NQSV_SQUID_CPU,DBG
 SQUID_GPU,cross,squid_login,squid_jacamar,NQSV_SQUID_GPU,DBG
 SQUID_VECTOR,cross,squid_login,squid_jacamar,NQSV_SQUID_VECTOR,SQUID
 OCTOPUS,cross,octopus_login,octopus_jacamar,NQSV_OCTOPUS,DBG
-FNCX,native,,fncx-curl-jq,none,small
