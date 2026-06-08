@@ -41,7 +41,7 @@ GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD 
 
 セットアップ前に、対象ログインノードから GitLab サーバへ到達できるか確認します。GitLab Runner は GitLab 側から接続されるのではなく、ログインノード上の常駐プロセスが GitLab へ job を取りに行きます。
 
-まず軽量な preflight script を実行します。この script は scheduler job を投入せず、ログインノード上で `gitlab.com`、`github.com`、CI 用 GitLab への direct/proxy 接続、proxy 候補探索、`systemctl --user`、`loginctl` の状態を確認します。proxy 候補は現在の環境変数、shell profile、system profile、既存 runner の systemd unit、`config.toml` から探索し、疎通した候補を `setup_runner.sh --proxy` の推奨値として表示します。
+まず軽量な preflight script を実行します。この script は scheduler job を投入せず、ログインノード上で `gitlab.com`、`github.com`、CI 用 GitLab に加えて、`setup_runner.sh` が取得する GitLab Runner binary、Go、gperf、libseccomp、Jacamar-CI repo への direct/proxy 接続を確認します。あわせて proxy 候補探索、`systemctl --user`、`loginctl` の状態も確認します。proxy 候補は現在の環境変数、shell profile、system profile、既存 runner の systemd unit、`config.toml` から探索し、疎通した候補を `setup_runner.sh --proxy` の推奨値として表示します。
 
 ```bash
 GITLAB_URL="https://YOUR_GITLAB_SERVER"
@@ -62,7 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/RIKEN-RCCS/benchkit/main/scripts/si
       --gitlab-url "$GITLAB_URL"
 ```
 
-preflight が `Suggested setup option: --proxy ...` を表示した場合は、その値を `setup_runner.sh --proxy` に渡します。以下は手動で同じ観点を確認したい場合のコマンドです。
+preflight が `Suggested setup option: --proxy ...` を表示した場合は、その値を `setup_runner.sh --proxy` に渡します。以下は手動で CI 用 GitLab への接続を確認したい場合の最小コマンドです。実際の preflight は、この確認に加えて runner setup に必要な download endpoint も検査します。
 
 ```bash
 GITLAB_URL="https://YOUR_GITLAB_SERVER"

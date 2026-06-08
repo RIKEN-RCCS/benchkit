@@ -31,11 +31,6 @@ case "$system" in
 	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
 	#gcc -v
 	;;
-    FNCX)
-	# Dummy build for Docker runner testing (no compiler needed)
-	echo "Dummy build for FNCX Docker runner test"
-	echo aaaa > main
-	;;
     AI4SS)
 	module load nvhpc-hpcx/26.3
 	make -j 8 omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1

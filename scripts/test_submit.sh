@@ -100,7 +100,7 @@ echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script
 
 # --- システム別ジョブ投入 ---
 case "$system" in
-  FugakuLN|FNCX)
+  FugakuLN)
     echo "Notice: system=$system → submit test will NOT be performed."
     exit 1
     ;;
@@ -250,7 +250,7 @@ case "$system" in
     ;;
   *)
     echo "Error: Unknown system '$system'"
-    echo "Supported systems: AI4SS, Fugaku, FugakuCN, FugakuLN, FNCX, GenkaiA, GenkaiB, GenkaiC, Odyssey, Aquarius, Pegasus, Sirius, TSUBAME4, Camphor3, SQUID_CPU, SQUID_GPU, SQUID_VECTOR, OCTOPUS, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700, MiyabiC, MiyabiG"
+    echo "Supported systems: AI4SS, Fugaku, FugakuCN, FugakuLN, GenkaiA, GenkaiB, GenkaiC, Odyssey, Aquarius, Pegasus, Sirius, TSUBAME4, Camphor3, SQUID_CPU, SQUID_GPU, SQUID_VECTOR, OCTOPUS, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700, MiyabiC, MiyabiG"
     exit 1
     ;;
 esac

@@ -80,10 +80,6 @@ case "$system" in
         bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         emit_qws_dummy_padata ../results/padata0.tgz
         ;;
-    FNCX)
-        echo 'dummy call for FNCX Docker runner test'
-        bk_emit_result --fom 99.99 --fom-version dummy --exp FNCXTest --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-        ;;
     AI4SS)
         module load nvhpc-hpcx/26.3
         export OMP_NUM_THREADS=72
