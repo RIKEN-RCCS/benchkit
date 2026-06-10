@@ -1,0 +1,5 @@
+# Minimal PerfTools MLP_NN/v1.5-style prediction fixture for CI plumbing tests.
+kernel_name,src_gpu,tgt_gpu,Execution Time [ns],Memory Throughput [%],Achieved Occupancy,brk_memory,brk_pipeline_contention,brk_sync,brk_scheduling_overhead,t_mem_ns,t_comp_ns,t_roof_ns,efficiency_eta
+qws_smoke_kernel_0,A100,H100,1500000,48.0,0.72,0.42,0.28,0.20,0.10,700000,650000,700000,0.54
+qws_smoke_kernel_1,A100,H100,2500000,53.0,0.77,0.46,0.24,0.20,0.10,1200000,900000,1200000,0.62
+qws_smoke_kernel_2,A100,H100,2000000,58.0,0.81,0.50,0.20,0.20,0.10,1000000,780000,1000000,0.68

@@ -278,12 +278,15 @@ emit_estimate_job() {
     local run_job="$3"
     local code="$4"
     local output="$5"
+    local estimate_runner_tag="${BK_ESTIMATE_RUNNER_TAG:-fncx-estimate-python}"
+
+    estimate_runner_tag=$(printf '%s' "$estimate_runner_tag" | sed 's/"/\\"/g')
 
     echo "
 ${job_prefix}_estimate:
   stage: estimate
   needs: [\"${depends_on}\"]
-  tags: [fncx-curl-jq]
+  tags: [\"${estimate_runner_tag}\"]
   environment:
     name: \$CI_COMMIT_BRANCH
   script:

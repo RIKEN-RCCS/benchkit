@@ -43,6 +43,7 @@
   - `counter_papi_detailed.sh`
   - `trace_mpi_basic.sh`
   - `overlap_max_basic.sh`
+  - `gpu_kernel_mlp_v15.sh`
 
 ## 3. top-level package の責務
 
@@ -66,6 +67,55 @@ section package はもっと小さくてかまいません。
 - 1 区間の変換結果
 
 ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は BenchKit 共通層や top-level package 側へ寄せる方が自然です。
+
+GPU kernel 単位の外部推定ツールは、通常は section package として扱います。
+たとえば `gpu_kernel_mlp_v15` は、PerfTools の `MLP_NN/v1.5` を「GPU 区間だけを変換する package」として接続します。
+top-level package は `instrumented_app_sections_dummy` などのままにして、GPU 区間にだけ `gpu_kernel_mlp_v15` を割り当てます。
+
+```bash
+bk_declare_section --side future gpu_kernel_region gpu_kernel_mlp_v15
+bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_inputs/gpu_kernel_region_input.csv
+```
+
+PerfTools 本体は BenchKit に vendoring せず、実行時に次の環境変数で渡します。
+
+```bash
+export BK_GPU_MLP_PERFTOOLS_ROOT=/path/to/PerfTools
+export BK_GPU_MLP_PYTHON=python3
+```
+
+section artifact は PerfTools 側の static GPU spec sheet から作られた prepared CSV を想定します。
+BenchKit 実行時に GPU spec を動的採取しません。
+テストやデバッグでは、既に作成済みの prediction CSV を使えます。
+
+```bash
+export BK_GPU_MLP_ARTIFACT_MODE=prediction
+# or section-specific override:
+export BK_GPU_MLP_PREDICTION_CSV_GPU_KERNEL_REGION=/path/to/pred.csv
+```
+
+section package は prediction CSV の `Execution Time [ns]` を合算し、その section の future-side `time` にします。
+
+qws を使って CI 配管だけを確認する場合は、実際の qws が GPU 化されていなくても GPU MLP smoke test を有効にできます。
+`BK_QWS_GPU_MLP_SMOKE_MODE=prediction` では、同梱のサンプル prediction CSV を使い、run job が `gpu_kernel_region` section と prediction CSV artifact を結果に埋め込みます。
+`BK_QWS_GPU_MLP_SMOKE_MODE=perftools` では、estimate job が PerfTools repo を checkout し、`MLP_NN/examples/example_input_mixed-src_20kernels.csv` を `predict_v15.py` に渡して prediction CSV を生成します。
+どちらのモードでも、estimate job が `gpu_kernel_mlp_v15` section package を通して Estimate JSON へ変換できることを確認します。
+qws の推定スクリプト単体では既定無効ですが、GPU estimator integration の立ち上げ期間中は GitLab CI 側の既定を一時的に有効化しています。
+
+```bash
+export BK_QWS_GPU_MLP_SMOKE=true
+export BK_QWS_GPU_MLP_SMOKE_MODE=perftools
+export BK_ESTIMATE_RUNNER_TAG=<python-and-jq-estimator-runner-tag>
+export BK_GPU_MLP_PERFTOOLS_REPO=https://github.com/masaaki-kondo/PerfTools.git
+export BK_GPU_MLP_PERFTOOLS_REF=main
+```
+
+これらの変数は、GPU estimator integration の立ち上げ期間だけの暫定スイッチです。
+`BK_QWS_GPU_MLP_SMOKE` は qws を使った配管確認用、`BK_QWS_GPU_MLP_SMOKE_MODE` は prediction fixture 取り込みと PerfTools 実行の切り替え用、`BK_ESTIMATE_RUNNER_TAG` は推定用 runner/container を手動で逃がすためのものです。
+実際の GPU profiling input と推定 runner の運用が固まったら、専用の package/runner 設定へ置き換え、これらの暫定変数は削除対象として見直してください。
+
+`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続、Python 3.11、numpy/pandas/torch が必要です。
+実運用では smoke mode ではなく、推定 runner/container に PerfTools checkout を用意し、section artifact として実アプリ由来の prepared input CSV を渡してください。
 
 ## 5. metadata に持たせるもの
 
