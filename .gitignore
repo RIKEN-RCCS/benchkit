@@ -23,6 +23,9 @@ benchpark/
 # BenchPark workspace (generated during CI)
 benchpark-workspace/
 
+# Estimator tool checkouts prepared during CI/local smoke tests
+.benchkit_estimation_tools/
+
 # Dev mode data and config (NEVER commit)
 result_server/_dev_data/
 result_server/config/allowed_emails.json
