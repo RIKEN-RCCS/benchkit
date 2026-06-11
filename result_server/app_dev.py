@@ -50,12 +50,12 @@ def setup_dev_environment(base_dir):
     for sub in [
         "main/received",
         "main/received_padata",
-        "main/received_estimation_inputs",
+        "main/received_estimation_artifacts",
         "main/estimated_results",
         "main/flask_session",
         "dev1/received",
         "dev1/received_padata",
-        "dev1/received_estimation_inputs",
+        "dev1/received_estimation_artifacts",
         "dev1/estimated_results",
         "dev1/flask_session",
     ]:
@@ -209,16 +209,16 @@ def create_dev_app(base_dir):
 
     received_dir = os.path.join(base_dir, "main", "received")
     received_padata_dir = os.path.join(base_dir, "main", "received_padata")
-    received_estimation_inputs_dir = os.path.join(base_dir, "main", "received_estimation_inputs")
+    received_estimation_artifacts_dir = os.path.join(base_dir, "main", "received_estimation_artifacts")
     estimated_dir = os.path.join(base_dir, "main", "estimated_results")
     os.makedirs(received_dir, exist_ok=True)
     os.makedirs(received_padata_dir, exist_ok=True)
-    os.makedirs(received_estimation_inputs_dir, exist_ok=True)
+    os.makedirs(received_estimation_artifacts_dir, exist_ok=True)
     os.makedirs(estimated_dir, exist_ok=True)
 
     app.config["RECEIVED_DIR"] = received_dir
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
-    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
+    app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
 
     # Home routes and loaders pull everything from current_app.config.

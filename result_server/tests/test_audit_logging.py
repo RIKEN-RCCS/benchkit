@@ -74,16 +74,16 @@ class _Store:
 def _api_app():
     received = tempfile.mkdtemp()
     received_padata = tempfile.mkdtemp()
-    received_estimation_inputs = tempfile.mkdtemp()
+    received_estimation_artifacts = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
     app = build_api_route_app(
         received_dir=received,
         received_padata_dir=received_padata,
-        received_estimation_inputs_dir=received_estimation_inputs,
+        received_estimation_artifacts_dir=received_estimation_artifacts,
         estimated_dir=estimated,
     )
     app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
-    return app, (received, received_padata, received_estimation_inputs, estimated)
+    return app, (received, received_padata, received_estimation_artifacts, estimated)
 
 
 def _portal_app():

@@ -24,8 +24,8 @@ qws_emit_estimation_data_from_fom 10 > ../results/result
 popd >/dev/null
 
 grep -q '^SECTION:gpu_kernel_region ' results/result
-test -f results/estimation_inputs/qws_gpu_kernel_mlp_v15_pred.csv
-grep -q 'qws_smoke_kernel_0' results/estimation_inputs/qws_gpu_kernel_mlp_v15_pred.csv
+test -f results/estimation_artifacts/qws_gpu_kernel_mlp_v15_pred.csv
+grep -q 'qws_smoke_kernel_0' results/estimation_artifacts/qws_gpu_kernel_mlp_v15_pred.csv
 
 rm -rf results
 mkdir -p results qws
@@ -35,8 +35,8 @@ qws_emit_estimation_data_from_fom 10 > ../results/result
 popd >/dev/null
 
 grep -q '^SECTION:gpu_kernel_region ' results/result
-test -f results/estimation_inputs/qws_gpu_kernel_mlp_v15_input.csv
-grep -q 'qws_smoke_uses_perftools_example' results/estimation_inputs/qws_gpu_kernel_mlp_v15_input.csv
+test -f results/estimation_artifacts/qws_gpu_kernel_mlp_v15_input.csv
+grep -q 'qws_smoke_uses_perftools_example' results/estimation_artifacts/qws_gpu_kernel_mlp_v15_input.csv
 popd >/dev/null
 
 echo "qws gpu mlp smoke estimation test passed"

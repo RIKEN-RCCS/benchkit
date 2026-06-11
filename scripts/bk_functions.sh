@@ -908,6 +908,8 @@ bk_profiler_write_meta() {
           else
             _bk_meta_ncu_report_path=""
           fi
+          _bk_meta_ncu_raw_csv_path="raw/${_bk_meta_name}/profile_raw.csv"
+          _bk_meta_ncu_raw_csv_abs="${_bk_meta_stage_dir}/${_bk_meta_ncu_raw_csv_path}"
           ;;
         *)
           _bk_meta_text_path=""
@@ -963,6 +965,13 @@ bk_profiler_write_meta() {
           printf ',\n'
         fi
         printf '        {"kind": "ncu_report", "path": "%s"}' "$_bk_meta_ncu_report_path"
+        _bk_meta_has_report=1
+      fi
+      if [ "${_bk_meta_tool}" = "ncu" ] && [ -f "${_bk_meta_ncu_raw_csv_abs:-}" ]; then
+        if [ "$_bk_meta_has_report" -eq 1 ]; then
+          printf ',\n'
+        fi
+        printf '        {"kind": "ncu_raw_csv", "path": "%s"}' "$_bk_meta_ncu_raw_csv_path"
         _bk_meta_has_report=1
       fi
       if [ "$_bk_meta_has_report" -eq 1 ]; then
@@ -1141,6 +1150,19 @@ bk_profiler() {
       else
         echo "bk_profiler[ncu]: failed ${_bk_ncu_rep_name} level=${_bk_profiler_level} status=${_bk_profiler_status}" >&2
       fi
+      case "${BK_PROFILER_NCU_RAW_CSV:-false}" in
+        1|true|TRUE|yes|YES|on|ON)
+          _bk_ncu_report_file=$(bk_profiler_find_ncu_report "$_bk_ncu_rep_dir" || true)
+          if [ -n "$_bk_ncu_report_file" ]; then
+            ncu --import "$_bk_ncu_report_file" \
+              --page raw \
+              --csv \
+              --print-units base \
+              --print-fp \
+              > "${_bk_ncu_rep_dir}/profile_raw.csv" 2> "${_bk_ncu_rep_dir}/profile_raw.csv.log" || true
+          fi
+          ;;
+      esac
       cp -R "$_bk_ncu_rep_dir" "$_bk_stage_dir/raw/${_bk_ncu_rep_name}"
       _bk_profiler_run_names="${_bk_ncu_rep_name}"
       _bk_profiler_run_events="${_bk_profiler_level}"

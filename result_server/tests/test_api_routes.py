@@ -25,24 +25,24 @@ def tmp_dirs():
     """Create temporary directories used by the API tests."""
     received = tempfile.mkdtemp()
     received_padata = tempfile.mkdtemp()
-    received_estimation_inputs = tempfile.mkdtemp()
+    received_estimation_artifacts = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
-    yield received, received_padata, received_estimation_inputs, estimated
+    yield received, received_padata, received_estimation_artifacts, estimated
     shutil.rmtree(received)
     shutil.rmtree(received_padata)
-    shutil.rmtree(received_estimation_inputs)
+    shutil.rmtree(received_estimation_artifacts)
     shutil.rmtree(estimated)
 
 
 @pytest.fixture
 def app(tmp_dirs):
     """Build a Flask app configured for API route tests."""
-    received, received_padata, received_estimation_inputs, estimated = tmp_dirs
+    received, received_padata, received_estimation_artifacts, estimated = tmp_dirs
 
     app = build_api_route_app(
         received_dir=received,
         received_padata_dir=received_padata,
-        received_estimation_inputs_dir=received_estimation_inputs,
+        received_estimation_artifacts_dir=received_estimation_artifacts,
         estimated_dir=estimated,
     )
     app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
@@ -126,11 +126,11 @@ class TestIngestResult:
         """RESULT_SERVER_KEY should remain valid as the default runner fallback."""
         monkeypatch.delenv("RESULT_SERVER_KEYS", raising=False)
         monkeypatch.setenv("RESULT_SERVER_KEY", "legacy-key-12345678901234567890")
-        received, received_padata, received_estimation_inputs, estimated = tmp_dirs
+        received, received_padata, received_estimation_artifacts, estimated = tmp_dirs
         app = build_api_route_app(
             received_dir=received,
             received_padata_dir=received_padata,
-            received_estimation_inputs_dir=received_estimation_inputs,
+            received_estimation_artifacts_dir=received_estimation_artifacts,
             estimated_dir=estimated,
         )
 
@@ -419,9 +419,9 @@ class TestEstimationInputs:
             json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
         return os.path.splitext(filename)[0]
 
-    def test_ingest_estimation_inputs_expands_under_result_stem(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_expands_under_result_stem(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        estimation_inputs_dir = tmp_dirs[2]
+        estimation_artifacts_dir = tmp_dirs[2]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         result_stem = self._seed_result(received, uuid_value)
 
@@ -434,16 +434,16 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 200
-        saved_path = os.path.join(estimation_inputs_dir, result_stem, "prepare_rhs_interval.json")
+        saved_path = os.path.join(estimation_artifacts_dir, result_stem, "prepare_rhs_interval.json")
         assert os.path.exists(saved_path)
 
-    def test_ingest_estimation_inputs_rejects_parent_path_entry(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_rejects_parent_path_entry(self, client, tmp_dirs):
         received = tmp_dirs[0]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         self._seed_result(received, uuid_value)
@@ -457,19 +457,19 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 400
 
-    def test_ingest_estimation_inputs_keeps_existing_data_on_bad_archive(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_keeps_existing_data_on_bad_archive(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        estimation_inputs_dir = tmp_dirs[2]
+        estimation_artifacts_dir = tmp_dirs[2]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         result_stem = self._seed_result(received, uuid_value)
-        target_dir = os.path.join(estimation_inputs_dir, result_stem)
+        target_dir = os.path.join(estimation_artifacts_dir, result_stem)
         os.makedirs(target_dir, exist_ok=True)
         existing_path = os.path.join(target_dir, "existing.json")
         with open(existing_path, "w", encoding="utf-8") as f:
@@ -484,15 +484,15 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 400
         assert os.path.exists(existing_path)
 
-    def test_ingest_estimation_inputs_rejects_absolute_path_entry(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_rejects_absolute_path_entry(self, client, tmp_dirs):
         received = tmp_dirs[0]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         self._seed_result(received, uuid_value)
@@ -506,14 +506,14 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 400
 
-    def test_ingest_estimation_inputs_rejects_absolute_symlink(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_rejects_absolute_symlink(self, client, tmp_dirs):
         received = tmp_dirs[0]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         self._seed_result(received, uuid_value)
@@ -527,14 +527,14 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 400
 
-    def test_ingest_estimation_inputs_rejects_absolute_hardlink(self, client, tmp_dirs):
+    def test_ingest_estimation_artifacts_rejects_absolute_hardlink(self, client, tmp_dirs):
         received = tmp_dirs[0]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         self._seed_result(received, uuid_value)
@@ -548,25 +548,25 @@ class TestEstimationInputs:
         archive_bytes.seek(0)
 
         resp = client.post(
-            "/api/ingest/estimation-inputs",
-            data={"id": uuid_value, "file": (archive_bytes, "estimation_inputs.tgz")},
+            "/api/ingest/estimation-artifacts",
+            data={"id": uuid_value, "file": (archive_bytes, "estimation_artifacts.tgz")},
             headers={"X-API-Key": API_KEY},
             content_type="multipart/form-data",
         )
         assert resp.status_code == 400
 
-    def test_query_estimation_inputs_returns_archive(self, client, tmp_dirs):
+    def test_query_estimation_artifacts_returns_archive(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        estimation_inputs_dir = tmp_dirs[2]
+        estimation_artifacts_dir = tmp_dirs[2]
         uuid_value = "12345678-1234-1234-1234-123456789abc"
         result_stem = self._seed_result(received, uuid_value)
-        target_dir = os.path.join(estimation_inputs_dir, result_stem)
+        target_dir = os.path.join(estimation_artifacts_dir, result_stem)
         os.makedirs(target_dir, exist_ok=True)
         with open(os.path.join(target_dir, "compute_solver_papi.tgz"), "wb") as f:
             f.write(b"dummy")
 
         resp = client.get(
-            f"/api/query/estimation-inputs?uuid={uuid_value}",
+            f"/api/query/estimation-artifacts?uuid={uuid_value}",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200

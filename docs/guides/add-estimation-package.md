@@ -74,7 +74,7 @@ top-level package は `instrumented_app_sections_dummy` などのままにして
 
 ```bash
 bk_declare_section --side future gpu_kernel_region gpu_kernel_mlp_v15
-bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_inputs/gpu_kernel_region_input.csv
+bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_artifacts/gpu_kernel_region_input.csv
 ```
 
 PerfTools 本体は BenchKit に vendoring せず、実行時に次の環境変数で渡します。
@@ -114,7 +114,7 @@ export BK_GPU_MLP_PERFTOOLS_REF=main
 `BK_QWS_GPU_MLP_SMOKE` は qws を使った配管確認用、`BK_QWS_GPU_MLP_SMOKE_MODE` は prediction fixture 取り込みと PerfTools 実行の切り替え用、`BK_ESTIMATE_RUNNER_TAG` は推定用 runner/container を手動で逃がすためのものです。
 実際の GPU profiling input と推定 runner の運用が固まったら、専用の package/runner 設定へ置き換え、これらの暫定変数は削除対象として見直してください。
 
-`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続、Python 3.11、numpy/pandas/torch が必要です。
+`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続、Python 3.12 以上、numpy/pandas/torch が必要です。
 実運用では smoke mode ではなく、推定 runner/container に PerfTools checkout を用意し、section artifact として実アプリ由来の prepared input CSV を渡してください。
 
 ## 5. metadata に持たせるもの
