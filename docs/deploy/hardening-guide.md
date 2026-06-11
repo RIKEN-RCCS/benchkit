@@ -10,13 +10,13 @@ The portal enforces an application-level request body limit:
 RESULT_SERVER_MAX_UPLOAD_MB=512
 ```
 
-Large estimation input archives are also checked per member:
+Large estimation artifact archives are also checked per member:
 
 ```text
 RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB=1024
 ```
 
-Set these values to match the largest expected PA Data or estimation input
+Set these values to match the largest expected PA Data or estimation artifact
 archive. Keep the reverse proxy body limit at or below the Flask limit so that
 oversized uploads are rejected before they consume worker memory.
 

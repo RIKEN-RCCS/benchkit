@@ -184,6 +184,17 @@ mkdir -p "$ncu_detailed_extract"
 tar -xzf "$ncu_detailed_archive" -C "$ncu_detailed_extract"
 grep -q '"ncu_options": \["--target-processes", "all", "--set", "full", "--nvtx"\]' "${ncu_detailed_extract}/bk_profiler_artifact/meta.json"
 
+ncu_raw_csv_archive="${TMP_DIR}/ncu_raw_csv.tgz"
+ncu_raw_csv_extract="${TMP_DIR}/ncu_raw_csv_extract"
+ncu_raw_csv_raw="${TMP_DIR}/ncu_raw_csv_pa"
+export BK_PROFILER_NCU_RAW_CSV=true
+bk_profiler ncu --level single --archive "$ncu_raw_csv_archive" --raw-dir "$ncu_raw_csv_raw" -- bash -c 'printf "ncu raw csv target\n"'
+unset BK_PROFILER_NCU_RAW_CSV
+mkdir -p "$ncu_raw_csv_extract"
+tar -xzf "$ncu_raw_csv_archive" -C "$ncu_raw_csv_extract"
+test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile_raw.csv"
+grep -q '"kind": "ncu_raw_csv"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
+
 fapp_fail_archive="${TMP_DIR}/fapp_fail.tgz"
 fapp_fail_extract="${TMP_DIR}/fapp_fail_extract"
 fapp_fail_raw="${TMP_DIR}/fapp_fail_pa"

@@ -58,6 +58,36 @@ build_profile_data_summary() {
   ' 2>/dev/null || true
 }
 
+upload_padata_archive() {
+  local tgz_file="$1"
+  local uuid="$2"
+  local timestamp="$3"
+  local response
+
+  echo "Uploading $tgz_file with UUID $uuid"
+  if response=$(curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/padata" \
+    -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+    -F "id=${uuid}" \
+    -F "timestamp=${timestamp}" \
+    -F "file=@${tgz_file}" 2>&1); then
+    if [[ -n "$response" ]]; then
+      echo "$response"
+    fi
+    echo "Uploaded $tgz_file"
+    return 0
+  fi
+
+  if printf '%s\n' "$response" | grep -q '413'; then
+    echo "WARNING: Skipping padata upload because the server rejected ${tgz_file} as too large (HTTP 413)." >&2
+    echo "WARNING: Result JSON was already ingested; the padata archive remains available as a GitLab artifact for downstream jobs." >&2
+    return 0
+  fi
+
+  echo "ERROR: Failed to upload ${tgz_file}" >&2
+  echo "$response" >&2
+  return 1
+}
+
 # Loop over all result*.json files
 for json_file in results/result*.json; do
   [[ ! -f "$json_file" ]] && continue
@@ -136,29 +166,9 @@ for json_file in results/result*.json; do
   
   # Upload TGZ if it exists
   if [[ -f "$tgz_file" ]]; then
-    echo "Uploading $tgz_file with UUID $uuid"
-    curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/padata" \
-      -H "X-API-Key: ${RESULT_SERVER_KEY}" \
-      -F "id=${uuid}" \
-      -F "timestamp=${timestamp}" \
-      -F "file=@${tgz_file}"
-    echo "Uploaded $tgz_file"
+    upload_padata_archive "$tgz_file" "$uuid" "$timestamp"
   else
     echo "No matching TGZ found for $json_file (expected: $tgz_file). Skipping upload."
-  fi
-
-  if [[ -d "results/estimation_inputs" ]] && compgen -G "results/estimation_inputs/*" > /dev/null; then
-    estimation_inputs_archive="results/estimation_inputs_${uuid}.tgz"
-    tar -C "results/estimation_inputs" -czf "$estimation_inputs_archive" .
-    echo "Uploading $estimation_inputs_archive with UUID $uuid"
-    curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/estimation-inputs" \
-      -H "X-API-Key: ${RESULT_SERVER_KEY}" \
-      -F "id=${uuid}" \
-      -F "file=@${estimation_inputs_archive}"
-    rm -f "$estimation_inputs_archive"
-    echo "Uploaded estimation inputs for $json_file"
-  else
-    echo "No estimation_inputs directory found for $json_file. Skipping estimation input upload."
   fi
 
 done

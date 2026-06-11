@@ -361,10 +361,11 @@ def ingest_padata():
     return response, 200
 
 
+@api_bp.route("/api/ingest/estimation-artifacts", methods=["POST"])
 @api_bp.route("/api/ingest/estimation-inputs", methods=["POST"])
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
-def ingest_estimation_inputs():
-    """Estimation input archive (tgz) upload and expansion."""
+def ingest_estimation_artifacts():
+    """Estimation artifact archive (tgz) upload and expansion."""
     runner_id = require_api_key()
 
     uuid_str = request.form.get("id")
@@ -381,10 +382,10 @@ def ingest_estimation_inputs():
         abort(404, description=f"No result found for uuid={uuid_str}")
 
     result_stem = os.path.splitext(result_filename)[0]
-    inputs_root = current_app.config["RECEIVED_ESTIMATION_INPUTS_DIR"]
-    os.makedirs(inputs_root, exist_ok=True)
-    target_dir = os.path.join(inputs_root, result_stem)
-    temp_dir = tempfile.mkdtemp(prefix=f".{result_stem}.", dir=inputs_root)
+    artifacts_root = current_app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"]
+    os.makedirs(artifacts_root, exist_ok=True)
+    target_dir = os.path.join(artifacts_root, result_stem)
+    temp_dir = tempfile.mkdtemp(prefix=f".{result_stem}.", dir=artifacts_root)
     try:
         _safe_extract_tar_bytes(uploaded_file, temp_dir)
         replaced = _replace_directory_after_success(temp_dir, target_dir)
@@ -393,7 +394,7 @@ def ingest_estimation_inputs():
             shutil.rmtree(temp_dir)
         raise
 
-    print(f"Saved estimation inputs: {target_dir}", flush=True)
+    print(f"Saved estimation artifacts: {target_dir}", flush=True)
     response = {
         "status": "uploaded",
         "id": uuid_str,
@@ -406,7 +407,7 @@ def ingest_estimation_inputs():
         target=result_stem,
         result="success",
         details={
-            "ingest_type": "estimation_inputs",
+            "ingest_type": "estimation_artifacts",
             "id": uuid_str,
             "replaced": replaced,
         },
@@ -508,10 +509,11 @@ def query_result():
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
 
 
+@api_bp.route("/api/query/estimation-artifacts", methods=["GET"])
 @api_bp.route("/api/query/estimation-inputs", methods=["GET"])
 @rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
-def query_estimation_inputs():
-    """Return estimation input artifacts for a result UUID as a tar.gz archive."""
+def query_estimation_artifacts():
+    """Return estimation artifacts for a result UUID as a tar.gz archive."""
     runner_id = require_api_key()
 
     uuid_value = request.args.get("uuid")
@@ -526,16 +528,16 @@ def query_estimation_inputs():
 
     result_stem = os.path.splitext(result_filename)[0]
     source_dir = os.path.join(
-        current_app.config["RECEIVED_ESTIMATION_INPUTS_DIR"], result_stem
+        current_app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"], result_stem
     )
     if not os.path.isdir(source_dir):
-        abort(404, description=f"No estimation inputs found for uuid={uuid_value}")
+        abort(404, description=f"No estimation artifacts found for uuid={uuid_value}")
 
     audit_event(
         "api_query_accepted",
         actor=runner_id,
         result="success",
-        details={"query_type": "estimation_inputs"},
+        details={"query_type": "estimation_artifacts"},
     )
 
     buffer = io.BytesIO()
@@ -551,7 +553,7 @@ def query_estimation_inputs():
         buffer,
         mimetype="application/gzip",
         as_attachment=True,
-        download_name=f"estimation_inputs_{result_stem}.tgz",
+        download_name=f"estimation_artifacts_{result_stem}.tgz",
     )
 
 

@@ -199,7 +199,7 @@ However, when those artifacts do not exist on the server:
 
 - estimate result UUID で estimate JSON を返す取得 API
 - estimate JSON に記録された `source_result_uuid` に基づいて Result JSON を返す取得 API
-- `source_result_uuid` に対応する estimation input artifact を返す取得 API
+- `source_result_uuid` に対応する estimation artifact bundle を返す取得 API
 
 現時点では、再推定の shell フローと取得口自体は実装済みである。
 一方で、取得 API の公開方針と認証条件、ならびに compare UI や portal からの再推定起動導線は文書としてまだ十分に整理されていない。
@@ -216,7 +216,18 @@ Re-estimation from `estimate_result_uuid` requires retrieval paths for:
 
 - Estimate JSON by estimate-result UUID
 - Result JSON through the resolved `source_result_uuid`
-- estimation-input artifacts associated with that source result
+- estimation artifact bundles associated with that source result
+
+The canonical artifact endpoints are:
+
+- `POST /api/ingest/estimation-artifacts`
+- `GET /api/query/estimation-artifacts?uuid=<source_result_uuid>`
+
+The older `estimation-inputs` endpoints remain as compatibility aliases during
+the transition, but new clients should use `estimation-artifacts`. The artifact
+bundle may contain prepared estimation inputs, prediction outputs, and logs; it
+must not be used to duplicate large profiler archives such as PA Data or
+`*.ncu-rep`.
 
 At present, the shell-side re-estimation flow and these retrieval endpoints exist, but the exposure rules, authentication conditions, and portal-facing documentation are not yet fixed clearly enough in the documents.
 
@@ -296,23 +307,23 @@ Re-estimation in BenchKit should preferably satisfy at least:
 4. different estimation methods can coexist for the same benchmark result
 5. `weakscaling`-based minimum estimation and detailed estimation can be compared along the same comparison axis
 6. insufficient inputs can be reported explicitly as not applicable, fallback, or re-measurement required
-7. detailed re-estimation should be able to restore estimation-input artifacts associated with the source result
+7. detailed re-estimation should be able to restore estimation artifacts associated with the source result
 
-## 8.1 estimation input artifact の復元 / Restoration of Estimation Input Artifacts
+## 8.1 estimation artifact の復元 / Restoration of Estimation Artifacts
 
 当面の再推定では、artifact 復元を次の流れで扱う。
 
 1. `estimate_result_uuid` から開始し、estimate JSON から `source_result_uuid` を解決する
 2. source result JSON を取得する
-3. `received_estimation_inputs/<result-stem>/` が存在する場合は、その内容を `results/estimation_inputs/` に復元する
-4. server 側に estimation input artifact が無い場合は、artifact 不要な推定のみを許可し、必要な推定は `not_applicable` とする
+3. `received_estimation_artifacts/<result-stem>/` が存在する場合は、その内容を `results/estimation_artifacts/` に復元する
+4. server 側に estimation artifact が無い場合は、artifact 不要な推定のみを許可し、必要な推定は `not_applicable` とする
 
 Current restoration should follow this flow:
 
 1. if starting from `estimate_result_uuid`, resolve `source_result_uuid` from the estimate JSON
 2. fetch the source result JSON
-3. if `received_estimation_inputs/<result-stem>/` exists, restore its contents into `results/estimation_inputs/`
-4. if no stored estimation inputs exist, allow only methods that do not require them; otherwise terminate as `not_applicable`
+3. if `received_estimation_artifacts/<result-stem>/` exists, restore its contents into `results/estimation_artifacts/`
+4. if no stored estimation artifacts exist, allow only methods that do not require them; otherwise terminate as `not_applicable`
 
 ## 9. 次の実装候補 / Next Implementation Candidates
 
@@ -337,7 +348,7 @@ Candidate next steps include:
 - 利用者向け入口として `estimate_result_uuid` を使える
 - `estimate_result_uuid` から stored estimate JSON を取得し、そこから `source_result_uuid` を解決できる
 - source result JSON を結果サーバから再取得できる
-- `received_estimation_inputs/<result-stem>/` から detailed estimation input artifact を復元できる
+- `received_estimation_artifacts/<result-stem>/` から detailed estimation artifact bundle を復元できる
 - 復元した artifact を使って detailed re-estimation を実行できる
 - 保存済み estimate JSON に `reestimation` ブロックを持てる
 - `reestimation` の既定値として `scope=both` と `baseline_policy=reuse-recorded-baseline` を持てる

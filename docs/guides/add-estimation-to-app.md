@@ -192,13 +192,13 @@ bk_emit_declared_section \
 bk_emit_declared_section \
   --side future \
   compute_solver 1.03 \
-  results/estimation_inputs/compute_solver_papi.tgz \
+  results/estimation_artifacts/compute_solver_papi.tgz \
   >> results/result
 
 bk_emit_declared_overlap \
   --side future \
   compute_hopping,halo_exchange 0.23 \
-  results/estimation_inputs/compute_halo_overlap.json \
+  results/estimation_artifacts/compute_halo_overlap.json \
   >> results/result
 ```
 
@@ -288,7 +288,7 @@ app 側では、まず section 名と `estimation_package` を決めることを
 
 特に PAPI のように複数回実行が必要になる採取は、app 側に細かく書かせすぎると重くなります。package 側は「`papi` が必要」と定義し、BenchKit 側が採取や保存の共通処理を引き受ける形が自然です。
 
-現状の参照実装では `results/estimation_inputs/` を使う例がありますが、これは将来も app 側が細かく書き続けるべきという意味ではありません。
+現状の参照実装では `results/estimation_artifacts/` を使う例がありますが、これは将来も app 側が細かく書き続けるべきという意味ではありません。
 
 `bk_emit_section` や `bk_emit_overlap` は残してよく、`estimate.sh` 内の宣言と共存できます。宣言は package 割当てを先に示し、`bk_emit_*` は実際に得られた値を Result JSON に流し込む手段として使います。
 

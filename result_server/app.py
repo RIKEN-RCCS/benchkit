@@ -77,7 +77,7 @@ def _configure_result_directories(app, base_dir):
     dir_map = {
         "RECEIVED_DIR": os.path.join(base_dir, "received"),
         "RECEIVED_PADATA_DIR": os.path.join(base_dir, "received_padata"),
-        "RECEIVED_ESTIMATION_INPUTS_DIR": os.path.join(base_dir, "received_estimation_inputs"),
+        "RECEIVED_ESTIMATION_ARTIFACTS_DIR": os.path.join(base_dir, "received_estimation_artifacts"),
         "ESTIMATED_DIR": os.path.join(base_dir, "estimated_results"),
     }
     for path in dir_map.values():

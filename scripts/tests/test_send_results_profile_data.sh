@@ -59,6 +59,10 @@ if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
   exit 0
 fi
 if printf '%s\n' "$*" | grep -q '/api/ingest/padata'; then
+  if [ "${FAKE_PADATA_STATUS:-200}" = "413" ]; then
+    echo "curl: (22) The requested URL returned error: 413" >&2
+    exit 22
+  fi
   printf '%s\n' '{"status":"uploaded"}'
   exit 0
 fi
@@ -212,5 +216,19 @@ grep -Eq '"ncu_options":[[:space:]]*\[' "${TMP_DIR}/results/result0.json"
 grep -Eq '"ncu_report"' "${TMP_DIR}/results/result0.json"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/results/result0.json"
 grep -q '"result0.json"' "${TMP_DIR}/results/server_result_meta.json"
+
+mkdir -p "${TMP_DIR}/case413/results"
+cp "${TMP_DIR}/results/result0.json" "${TMP_DIR}/case413/results/result0.json"
+cp "${TMP_DIR}/results/padata0.tgz" "${TMP_DIR}/case413/results/padata0.tgz"
+
+export FAKE_PADATA_STATUS=413
+pushd "${TMP_DIR}/case413" >/dev/null
+bash "${REPO_DIR}/scripts/result_server/send_results.sh" > send_results_413.log 2>&1
+popd >/dev/null
+unset FAKE_PADATA_STATUS
+
+grep -q 'HTTP 413' "${TMP_DIR}/case413/send_results_413.log"
+grep -q 'All done.' "${TMP_DIR}/case413/send_results_413.log"
+grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/case413/results/result0.json"
 
 echo "send_results profile_data test passed"

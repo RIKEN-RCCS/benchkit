@@ -71,7 +71,7 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 
 `result_server/` provides:
 
-- ingest APIs for results, estimates, profiler archives, and estimation inputs
+- ingest APIs for results, estimates, profiler archives, and estimation artifacts
 - public and confidential result views
 - detailed result and estimate pages
 - usage reporting
@@ -100,6 +100,21 @@ The supported baseline is that contributors can add apps, sites, and estimation 
   Login, setup, logout, and TOTP flow.
 - `result_server/routes/admin.py`
   Admin-only user management.
+
+### Main API Endpoints
+
+The canonical estimation artifact endpoints are:
+
+- `POST /api/ingest/estimation-artifacts`
+  Upload a lightweight estimation artifact bundle associated with a source result UUID.
+- `GET /api/query/estimation-artifacts?uuid=<source_result_uuid>`
+  Download the stored estimation artifact bundle for re-estimation.
+
+The older `estimation-inputs` endpoint names remain as compatibility aliases
+only. New client code and documentation should use `estimation-artifacts`.
+Estimation artifact bundles may contain prepared estimator inputs, prediction
+outputs, and logs, but should not duplicate large profiler archives such as PA
+Data or `*.ncu-rep`.
 
 ### Main Templates
 

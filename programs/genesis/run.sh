@@ -8,13 +8,16 @@ nthreads="$4"
 numproc=$(( numproc_node * nodes ))
 
 source "${PWD}/scripts/bk_functions.sh"
+source "${PWD}/programs/genesis/estimate.sh"
 
 SCRIPT_DIR="${PWD}"
+export GENESIS_BENCHKIT_ROOT="$SCRIPT_DIR"
 REPO_DIR="genesis_benchmark_input"
 REPO_URL="https://github.com/genesis-release-r-ccs/${REPO_DIR}.git"
 BRANCH="main"
 dir_path="npt/genesis2.0beta_3.5fs/apoa1"
 header=p8
+exp="${BK_GENESIS_EXP:-$header}"
 input=${header}.inp
 resultsdir=${SCRIPT_DIR}/results
 artifactsdir=${SCRIPT_DIR}/artifacts
@@ -152,7 +155,15 @@ run_genesis_gh200_gpu() {
     fi
 
     genesis_profiler_tool=$(bk_get_profiler_tool "$genesis_profiler_requested") || return 1
-    genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-single}}"
+    local genesis_default_profiler_level="single"
+    case "${BK_GENESIS_GPU_MLP_PROFILE:-false}" in
+      1|true|TRUE|yes|YES|on|ON)
+        genesis_default_profiler_level="detailed"
+        export BK_PROFILER_NCU_RAW_CSV="${BK_PROFILER_NCU_RAW_CSV:-true}"
+        export BK_PROFILER_ARGS="${BK_PROFILER_ARGS:---launch-count ${BK_GPU_MLP_NCU_LAUNCH_COUNT:-20}}"
+        ;;
+    esac
+    genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-${genesis_default_profiler_level}}}"
     if [ -n "$genesis_profiler_tool" ]; then
         if [ "$genesis_profiler_tool" = "ncu" ] && ! command -v ncu >/dev/null 2>&1; then
             if [ "$genesis_profiler_explicit" -eq 1 ]; then
@@ -223,14 +234,17 @@ fom_val=$(awk -F'=' '/^[[:space:]]*dynamics[[:space:]]*=/ {
 			print $2;
 			exit
 			}' ${output})
-cd - > /dev/null
+cd "$SCRIPT_DIR" > /dev/null
 
 if [[ -z "$fom_val" ]]; then
     echo "Warning: FOM value not found in ${output}" >&2
     fom_val="nan"   # or 0.0
 fi
 
-bk_emit_result --fom "$fom_val" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
+{
+    bk_emit_result --fom "$fom_val" --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+    genesis_emit_estimation_data_from_fom "$fom_val"
+} >> ${resultsdir}/result
 # if information is requierd
 #printf "%-10s nodes=%2d numproc=%3d  FOM: %.3f\n" \
 #    "$system" "$nodes" "$numproc" "$fom_val" >> ../results/result

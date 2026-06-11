@@ -111,13 +111,13 @@ def test_admin_post_with_invalid_csrf_token_is_rejected():
 def test_api_ingest_is_exempt_from_csrf():
     received = tempfile.mkdtemp()
     received_padata = tempfile.mkdtemp()
-    received_estimation_inputs = tempfile.mkdtemp()
+    received_estimation_artifacts = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
     try:
         app = build_api_route_app(
             received_dir=received,
             received_padata_dir=received_padata,
-            received_estimation_inputs_dir=received_estimation_inputs,
+            received_estimation_artifacts_dir=received_estimation_artifacts,
             estimated_dir=estimated,
         )
         app.secret_key = "test-secret"
@@ -136,5 +136,5 @@ def test_api_ingest_is_exempt_from_csrf():
 
         assert resp.status_code == 200
     finally:
-        for path in (received, received_padata, received_estimation_inputs, estimated):
+        for path in (received, received_padata, received_estimation_artifacts, estimated):
             shutil.rmtree(path)

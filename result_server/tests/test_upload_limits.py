@@ -20,16 +20,16 @@ API_KEY = "test-api-key-12345678901234567890"
 def _api_app():
     received = tempfile.mkdtemp()
     received_padata = tempfile.mkdtemp()
-    received_estimation_inputs = tempfile.mkdtemp()
+    received_estimation_artifacts = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
     app = build_api_route_app(
         received_dir=received,
         received_padata_dir=received_padata,
-        received_estimation_inputs_dir=received_estimation_inputs,
+        received_estimation_artifacts_dir=received_estimation_artifacts,
         estimated_dir=estimated,
     )
     app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
-    return app, (received, received_padata, received_estimation_inputs, estimated)
+    return app, (received, received_padata, received_estimation_artifacts, estimated)
 
 
 def _cleanup(paths):
@@ -58,7 +58,7 @@ def test_padata_upload_over_max_content_length_returns_413():
         _cleanup(temp_dirs)
 
 
-def test_estimation_inputs_rejects_archive_member_over_limit():
+def test_estimation_artifacts_rejects_archive_member_over_limit():
     app, temp_dirs = _api_app()
     received = temp_dirs[0]
     app.config["MAX_ARCHIVE_MEMBER_SIZE"] = 3
@@ -78,7 +78,7 @@ def test_estimation_inputs_rejects_archive_member_over_limit():
     try:
         with app.test_client() as client:
             resp = client.post(
-                "/api/ingest/estimation-inputs",
+                "/api/ingest/estimation-artifacts",
                 data={"id": uuid_value, "file": (archive_bytes, "inputs.tgz")},
                 headers={"X-API-Key": API_KEY},
                 content_type="multipart/form-data",

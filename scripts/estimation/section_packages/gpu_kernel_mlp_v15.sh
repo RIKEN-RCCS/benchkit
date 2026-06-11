@@ -17,7 +17,8 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
   "required_result_fields": ["name", "time or bench_time"],
   "required_artifact_kinds": [
     "PerfTools MLP_NN/v1.5 prepared input CSV",
-    "or precomputed prediction CSV"
+    "precomputed prediction CSV",
+    "or BenchKit padata archive with Nsight Compute raw CSV"
   ],
   "acquisition_mode": "external",
   "output_fields": [
@@ -30,6 +31,7 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
   "not_applicable_when": [
     "item kind is not section",
     "neither section artifact nor BK_GPU_MLP_INPUT_CSV/BK_GPU_MLP_PREDICTION_CSV is available",
+    "padata artifact mode is requested but the archive has no Nsight Compute raw CSV",
     "PerfTools checkout is not available when running the external predictor",
     "Python runtime for CSV parsing or external inference is not available",
     "prediction CSV does not contain a recognized execution-time column"
@@ -141,6 +143,46 @@ _bk_gpu_mlp_resolve_section_input_csv() {
   printf '%s\n' ""
 }
 
+_bk_gpu_mlp_artifact_mode() {
+  case "${BK_GPU_MLP_ARTIFACT_MODE:-input}" in
+    ncu|padata|profiler|profile) printf 'ncu\n' ;;
+    prediction) printf 'prediction\n' ;;
+    *) printf 'input\n' ;;
+  esac
+}
+
+_bk_gpu_mlp_resolve_section_ncu_archive() {
+  local item_json="$1"
+  local section_name="$2"
+  local scoped_var
+  local value
+  local artifact_path
+
+  scoped_var=$(_bk_gpu_mlp_section_var "BK_GPU_MLP_NCU_ARCHIVE" "$section_name")
+  value=$(_bk_gpu_mlp_env_value "$scoped_var")
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ -n "${BK_GPU_MLP_NCU_ARCHIVE:-}" ]]; then
+    printf '%s\n' "$BK_GPU_MLP_NCU_ARCHIVE"
+    return 0
+  fi
+
+  artifact_path=$(_bk_gpu_mlp_first_artifact_path "$item_json")
+  if [[ -n "$artifact_path" ]]; then
+    case "$(_bk_gpu_mlp_artifact_mode):${artifact_path}" in
+      ncu:*|*:*.tgz|*:*.tar.gz)
+        printf '%s\n' "$artifact_path"
+        return 0
+        ;;
+    esac
+  fi
+
+  printf '%s\n' ""
+}
+
 _bk_gpu_mlp_resolve_section_prediction_csv() {
   local item_json="$1"
   local section_name="$2"
@@ -181,6 +223,7 @@ bk_section_package_check_applicability_gpu_kernel_mlp_v15() {
   local section_name
   local prediction_csv
   local input_csv
+  local ncu_archive
   local root
   local predictor
   local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
@@ -196,6 +239,7 @@ EOF
   section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
   prediction_csv=$(_bk_gpu_mlp_resolve_section_prediction_csv "$item_json" "$section_name")
   input_csv=$(_bk_gpu_mlp_resolve_section_input_csv "$item_json" "$section_name")
+  ncu_archive=$(_bk_gpu_mlp_resolve_section_ncu_archive "$item_json" "$section_name")
 
   if ! _bk_gpu_mlp_python_exists "$python_bin"; then
     missing+=("\"python:${python_bin}\"")
@@ -209,8 +253,14 @@ EOF
     root=$(_bk_gpu_mlp_perftools_root)
     predictor=$(_bk_gpu_mlp_predictor "$root")
 
-    if [[ -z "$input_csv" || ! -f "$input_csv" ]]; then
+    if [[ -z "$input_csv" && -z "$ncu_archive" ]]; then
       missing+=('"gpu_mlp_input_csv"')
+    fi
+    if [[ -n "$input_csv" && ! -f "$input_csv" ]]; then
+      missing+=("\"input_csv:${input_csv}\"")
+    fi
+    if [[ -n "$ncu_archive" && ! -f "$ncu_archive" ]]; then
+      missing+=("\"ncu_archive:${ncu_archive}\"")
     fi
     if [[ -z "$root" || ! -d "$root" ]]; then
       missing+=('"BK_GPU_MLP_PERFTOOLS_ROOT"')
@@ -361,12 +411,40 @@ print(json.dumps({
 PY
 }
 
+_bk_gpu_mlp_prepare_input_from_ncu() {
+  local ncu_archive="$1"
+  local section_name="$2"
+  local root="$3"
+  local output_dir="$4"
+  local slug="$5"
+  local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
+  local source_gpu="${BK_GPU_MLP_SOURCE_GPU:-${BK_GPU_MLP_SRC_GPU:-H100}}"
+  local kernel_count="${BK_GPU_MLP_KERNEL_COUNT:-20}"
+  local prepared_csv="${output_dir}/${slug}_input.csv"
+  local script_path="scripts/estimation/prepare_gpu_mlp_ncu_input.py"
+  local archive_abs
+  local prepared_abs
+
+  archive_abs=$(_bk_gpu_mlp_abs_existing_path "$ncu_archive")
+  prepared_abs=$(_bk_gpu_mlp_abs_existing_path "$prepared_csv")
+
+  "$python_bin" "$script_path" \
+    --padata "$archive_abs" \
+    --perftools-root "$root" \
+    --source-gpu "$source_gpu" \
+    --kernel-count "$kernel_count" \
+    --out-csv "$prepared_abs" >&2
+
+  printf '%s\n' "$prepared_csv"
+}
+
 _bk_gpu_mlp_run_predictor() {
   local item_json="$1"
   local section_name="$2"
   local root
   local input_csv
-  local output_dir="${BK_GPU_MLP_OUTPUT_DIR:-results/estimation_inputs/gpu_kernel_mlp_v15}"
+  local ncu_archive
+  local output_dir="${BK_GPU_MLP_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_mlp_v15}"
   local prediction_csv
   local prediction_log
   local input_csv_abs
@@ -377,9 +455,14 @@ _bk_gpu_mlp_run_predictor() {
 
   root=$(_bk_gpu_mlp_perftools_root)
   input_csv=$(_bk_gpu_mlp_resolve_section_input_csv "$item_json" "$section_name")
+  ncu_archive=$(_bk_gpu_mlp_resolve_section_ncu_archive "$item_json" "$section_name")
   slug=$(_bk_gpu_mlp_section_slug "$section_name")
 
   mkdir -p "$output_dir"
+  if [[ -z "$input_csv" && -n "$ncu_archive" ]]; then
+    input_csv=$(_bk_gpu_mlp_prepare_input_from_ncu "$ncu_archive" "$section_name" "$root" "$output_dir" "$slug")
+  fi
+
   prediction_csv="${output_dir}/${slug}_pred.csv"
   prediction_log="${output_dir}/${slug}.log"
   input_csv_abs=$(_bk_gpu_mlp_abs_existing_path "$input_csv")

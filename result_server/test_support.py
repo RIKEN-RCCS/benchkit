@@ -152,14 +152,14 @@ def build_api_route_app(
     *,
     received_dir,
     received_padata_dir,
-    received_estimation_inputs_dir,
+    received_estimation_artifacts_dir,
     estimated_dir,
 ):
     """Build a Flask app with the API, results, and estimated blueprints for API tests."""
     app = Flask(__name__)
     app.config["RECEIVED_DIR"] = received_dir
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
-    app.config["RECEIVED_ESTIMATION_INPUTS_DIR"] = received_estimation_inputs_dir
+    app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
     app.config["TESTING"] = True
 

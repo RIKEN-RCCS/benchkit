@@ -37,6 +37,10 @@ variables:
   BK_ESTIMATE_RUNNER_TAG: "fncx-estimate-python"
   BK_GPU_MLP_PERFTOOLS_REPO: "https://github.com/masaaki-kondo/PerfTools.git"
   BK_GPU_MLP_PERFTOOLS_REF: "main"
+  BK_GENESIS_GPU_MLP_PROFILE: "true"
+  BK_GPU_MLP_NCU_LAUNCH_COUNT: "20"
+  BK_GPU_MLP_SOURCE_GPU: "H100"
+  BK_GPU_MLP_KERNEL_COUNT: "20"
 
 # Extract system and code filters from API variables or commit message
 .filters: &filters

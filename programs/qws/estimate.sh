@@ -77,7 +77,7 @@ qws_create_gpu_mlp_smoke_artifact() {
 
   mode=$(qws_gpu_mlp_smoke_mode)
   if [[ "$mode" == "perftools" ]]; then
-    rel_path="estimation_inputs/qws_gpu_kernel_mlp_v15_input.csv"
+    rel_path="estimation_artifacts/qws_gpu_kernel_mlp_v15_input.csv"
     full_path="$(qws_results_dir)/${rel_path}"
     mkdir -p "$(dirname "$full_path")"
     cat > "$full_path" <<'EOF'
@@ -88,7 +88,7 @@ EOF
     return 0
   fi
 
-  rel_path="estimation_inputs/qws_gpu_kernel_mlp_v15_pred.csv"
+  rel_path="estimation_artifacts/qws_gpu_kernel_mlp_v15_pred.csv"
   root=$(qws_repo_root)
   fixture_path="${root}/programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
   full_path="$(qws_results_dir)/${rel_path}"
@@ -121,24 +121,24 @@ qws_emit_estimation_data_from_fom() {
     gpu_mlp_artifact=$(qws_create_gpu_mlp_smoke_artifact)
   fi
 
-  qws_create_dummy_estimation_artifact "estimation_inputs/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
-  qws_create_dummy_estimation_artifact "estimation_inputs/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
-  qws_create_dummy_estimation_artifact "estimation_inputs/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
-  qws_create_dummy_estimation_artifact "estimation_inputs/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
-  qws_create_dummy_estimation_artifact "estimation_inputs/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
-  qws_create_dummy_estimation_artifact "estimation_inputs/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
-  qws_create_dummy_estimation_artifact "estimation_inputs/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
+  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
 
-  bk_emit_declared_section --side future prepare_rhs "$section_prepare_rhs" results/estimation_inputs/prepare_rhs_interval.json
-  bk_emit_declared_section --side future compute_hopping "$section_compute_hopping" results/estimation_inputs/compute_hopping_papi.tgz
-  bk_emit_declared_section --side future compute_solver "$section_compute_solver" results/estimation_inputs/compute_solver_papi.tgz
-  bk_emit_declared_section --side future halo_exchange "$section_halo_exchange" results/estimation_inputs/halo_exchange_trace.tgz
-  bk_emit_declared_section --side future allreduce "$section_allreduce" results/estimation_inputs/allreduce_trace.tgz
-  bk_emit_declared_section --side future write_result "$section_write_result" results/estimation_inputs/write_result_interval.json
+  bk_emit_declared_section --side future prepare_rhs "$section_prepare_rhs" results/estimation_artifacts/prepare_rhs_interval.json
+  bk_emit_declared_section --side future compute_hopping "$section_compute_hopping" results/estimation_artifacts/compute_hopping_papi.tgz
+  bk_emit_declared_section --side future compute_solver "$section_compute_solver" results/estimation_artifacts/compute_solver_papi.tgz
+  bk_emit_declared_section --side future halo_exchange "$section_halo_exchange" results/estimation_artifacts/halo_exchange_trace.tgz
+  bk_emit_declared_section --side future allreduce "$section_allreduce" results/estimation_artifacts/allreduce_trace.tgz
+  bk_emit_declared_section --side future write_result "$section_write_result" results/estimation_artifacts/write_result_interval.json
   if qws_gpu_mlp_smoke_enabled; then
     bk_emit_declared_section --side future gpu_kernel_region "$section_gpu_kernel_region" "$gpu_mlp_artifact"
   fi
-  bk_emit_declared_overlap --side future compute_hopping,halo_exchange "$overlap_compute_halo" results/estimation_inputs/compute_halo_overlap.json
+  bk_emit_declared_overlap --side future compute_hopping,halo_exchange "$overlap_compute_halo" results/estimation_artifacts/compute_halo_overlap.json
 }
 
 source scripts/bk_functions.sh
