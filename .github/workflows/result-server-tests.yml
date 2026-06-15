@@ -7,9 +7,17 @@ on:
       - "scripts/bk_functions.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
+      - "scripts/estimation/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
+      - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
+      - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
+      - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
+      - "programs/genesis/estimate.sh"
+      - "programs/qws/estimate.sh"
+      - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -23,9 +31,17 @@ on:
       - "scripts/bk_functions.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
+      - "scripts/estimation/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
+      - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
+      - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
+      - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
+      - "programs/genesis/estimate.sh"
+      - "programs/qws/estimate.sh"
+      - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -72,8 +88,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Run profiler and profile-data shell tests
+      - name: Run profiler, profile-data, and estimation shell tests
         run: |
           bash scripts/tests/test_bk_profiler.sh
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_send_results_profile_data.sh
+          bash scripts/tests/test_send_estimate_artifacts.sh
+          bash scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh
+          bash scripts/tests/test_genesis_gpu_mlp_estimation.sh
+          bash scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh
