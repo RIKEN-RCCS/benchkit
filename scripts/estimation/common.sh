@@ -291,6 +291,9 @@ bk_estimation_run_recorded_current_with_weakscaling() {
   if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
     baseline_breakdown="$est_input_fom_breakdown"
   fi
+  if declare -F bk_estimation_package_normalize_recorded_current_breakdown >/dev/null 2>&1; then
+    baseline_breakdown=$(bk_estimation_package_normalize_recorded_current_breakdown "$baseline_breakdown")
+  fi
 
   est_current_system="$baseline_system"
   est_current_target_nodes="$current_target_nodes"

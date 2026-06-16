@@ -111,4 +111,38 @@ popd >/dev/null
 grep -q "PerfTools LightGBM_model/1.0 inference failed" "${TMP_DIR}/lightgbm_failure.err"
 grep -q "section package gpu_kernel_lightgbm_v10 failed" "${TMP_DIR}/lightgbm_failure.err"
 
+cat > "${TMP_DIR}/weak_breakdown.json" <<'EOF'
+{
+  "sections": [
+    {
+      "name": "gpu_kernel_region",
+      "bench_time": 10,
+      "estimation_package": "gpu_kernel_lightgbm_v10"
+    },
+    {
+      "name": "comm",
+      "bench_time": 2,
+      "estimation_package": "logp"
+    }
+  ],
+  "overlaps": []
+}
+EOF
+
+pushd "${REPO_DIR}" >/dev/null
+source scripts/estimation/packages/weakscaling.sh
+normalized=$(bk_estimation_package_normalize_recorded_current_breakdown "$(cat "${TMP_DIR}/weak_breakdown.json")")
+current_breakdown=$(bk_top_level_transform_breakdown "$normalized" "1" "1" "1" "identity" "identity")
+popd >/dev/null
+
+echo "$current_breakdown" | jq -e '
+  .sections[0].name == "gpu_kernel_region" and
+  .sections[0].estimation_package == "identity" and
+  .sections[0].time == 10 and
+  (.sections[0].requested_estimation_package // "") == "" and
+  (.sections[0].fallback_used // "") == "" and
+  .sections[1].name == "comm" and
+  .sections[1].estimation_package == "logp"
+' >/dev/null
+
 echo "gpu_kernel_lightgbm_v10 section estimation test passed"
