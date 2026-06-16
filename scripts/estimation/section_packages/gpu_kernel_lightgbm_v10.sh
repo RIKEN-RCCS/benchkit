@@ -480,7 +480,7 @@ _bk_gpu_lightgbm_run_predictor() {
   prediction_csv_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_csv")
   prediction_log_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_log")
 
-  (
+  if ! (
     cd "$model_dir"
     "$python_bin" AI_model/run_inference.py \
       --src_gpu="$source_gpu" \
@@ -488,7 +488,15 @@ _bk_gpu_lightgbm_run_predictor() {
       --ncu_csv="$input_csv_abs" \
       --out="$prediction_csv_abs" \
       --log="$prediction_log_abs"
-  ) >/dev/null
+  ) >/dev/null; then
+    echo "ERROR: PerfTools LightGBM_model/1.0 inference failed" >&2
+    return 1
+  fi
+
+  if [[ ! -s "$prediction_csv_abs" ]]; then
+    echo "ERROR: PerfTools LightGBM_model/1.0 did not create prediction CSV: ${prediction_csv_abs}" >&2
+    return 1
+  fi
 
   printf '%s\t%s\t%s\n' "$prediction_csv" "$input_csv" "$prediction_log"
 }

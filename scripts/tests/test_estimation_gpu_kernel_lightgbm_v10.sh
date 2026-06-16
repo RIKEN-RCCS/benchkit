@@ -71,4 +71,44 @@ echo "$transformed" | jq -e '
   .sections[1].time == 0.001
 ' >/dev/null
 
+FAKE_PERFTOOLS="${TMP_DIR}/PerfTools"
+mkdir -p "${FAKE_PERFTOOLS}/LightGBM_model/1.0/AI_model"
+cat > "${FAKE_PERFTOOLS}/LightGBM_model/1.0/AI_model/run_inference.py" <<'PY'
+raise SystemExit(7)
+PY
+
+cat > "${TMP_DIR}/input.csv" <<'EOF'
+Kernel Name,Duration [ns]
+probe_kernel,1000
+EOF
+
+cat > "${TMP_DIR}/breakdown_input.json" <<EOF
+{
+  "sections": [
+    {
+      "name": "gpu_kernel_region",
+      "bench_time": 0.011,
+      "estimation_package": "gpu_kernel_lightgbm_v10",
+      "artifacts": [
+        {"path": "${TMP_DIR}/input.csv"}
+      ]
+    }
+  ],
+  "overlaps": []
+}
+EOF
+
+pushd "${REPO_DIR}" >/dev/null
+export BK_GPU_LIGHTGBM_ARTIFACT_MODE="input"
+export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
+export BK_GPU_LIGHTGBM_OUTPUT_DIR="${TMP_DIR}/lightgbm_outputs"
+if bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_input.json")" "1" "1" "1" "identity" "identity" >/tmp/benchkit-lightgbm-unexpected.out 2>"${TMP_DIR}/lightgbm_failure.err"; then
+  echo "expected failing LightGBM predictor to fail the transform" >&2
+  cat /tmp/benchkit-lightgbm-unexpected.out >&2
+  exit 1
+fi
+popd >/dev/null
+grep -q "PerfTools LightGBM_model/1.0 inference failed" "${TMP_DIR}/lightgbm_failure.err"
+grep -q "section package gpu_kernel_lightgbm_v10 failed" "${TMP_DIR}/lightgbm_failure.err"
+
 echo "gpu_kernel_lightgbm_v10 section estimation test passed"
