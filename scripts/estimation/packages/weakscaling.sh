@@ -126,6 +126,30 @@ bk_estimation_package_check_applicability() {
   return 0
 }
 
+_bk_weakscaling_normalize_breakdown_packages() {
+  local breakdown_json="$1"
+
+  echo "$breakdown_json" | jq -c '
+    .
+    | .sections = ((.sections // []) | map(
+        if (.estimation_package // "") == "logp" then
+          .
+        else
+          (. + {estimation_package: "identity"}
+           | del(.requested_estimation_package, .fallback_used, .package_applicability, .scaling_method, .model, .metrics))
+        end
+      ))
+    | .overlaps = ((.overlaps // []) | map(
+        . + {estimation_package: "identity"}
+        | del(.requested_estimation_package, .fallback_used, .package_applicability, .scaling_method, .model, .metrics)
+      ))
+  '
+}
+
+bk_estimation_package_normalize_recorded_current_breakdown() {
+  _bk_weakscaling_normalize_breakdown_packages "$1"
+}
+
 bk_estimation_package_run() {
   local current_system="${BK_ESTIMATION_CURRENT_SYSTEM:-$est_system}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-$est_system}"
@@ -146,7 +170,7 @@ bk_estimation_package_run() {
   est_current_bench_numproc_node="$est_numproc_node"
   est_current_bench_timestamp="$est_timestamp"
   est_current_bench_uuid="$est_uuid"
-  est_current_fom_breakdown=$(bk_top_level_transform_breakdown "$est_input_fom_breakdown" "$current_target_nodes" "$est_node_count" "1" "identity" "identity")
+  est_current_fom_breakdown=$(bk_top_level_transform_breakdown "$(_bk_weakscaling_normalize_breakdown_packages "$est_input_fom_breakdown")" "$current_target_nodes" "$est_node_count" "1" "identity" "identity")
   est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
 
   est_future_system="$future_system"
@@ -158,7 +182,7 @@ bk_estimation_package_run() {
   est_future_bench_numproc_node="$est_numproc_node"
   est_future_bench_timestamp="$est_timestamp"
   est_future_bench_uuid="$est_uuid"
-  est_future_fom_breakdown=$(bk_top_level_transform_breakdown "$est_input_fom_breakdown" "$future_target_nodes" "$est_node_count" "1" "identity" "identity")
+  est_future_fom_breakdown=$(bk_top_level_transform_breakdown "$(_bk_weakscaling_normalize_breakdown_packages "$est_input_fom_breakdown")" "$future_target_nodes" "$est_node_count" "1" "identity" "identity")
   est_future_fom=$(bk_top_level_breakdown_total_time "$est_future_fom_breakdown")
 
   applicability_issues_json=$(jq -cn \
