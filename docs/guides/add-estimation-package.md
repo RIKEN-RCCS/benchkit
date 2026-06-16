@@ -70,17 +70,31 @@ section package はもっと小さくてかまいません。
 ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は BenchKit 共通層や top-level package 側へ寄せる方が自然です。
 
 GPU kernel 単位の外部推定ツールは、通常は section package として扱います。
-たとえば `gpu_kernel_mlp_v15` は PerfTools の `MLP_NN/v1.5`、`gpu_kernel_lightgbm_v10` は PerfTools の `LightGBM_model/1.0` を「GPU 区間だけを変換する package」として接続します。
+たとえば次の package は、PerfTools の各モデルを「GPU 区間だけを変換する package」として接続します。
+
+- `gpu_kernel_mlp_v15`
+  - PerfTools `MLP_NN/v1.5`
+  - 主な依存: numpy/pandas/torch
+- `gpu_kernel_lightgbm_v10`
+  - PerfTools `LightGBM_model/1.0`
+  - 主な依存: numpy/pandas/lightgbm/pyyaml と `libgomp`
+
 top-level package は `instrumented_app_sections_dummy` などのままにして、GPU 区間にだけ GPU kernel section package を割り当てます。
+どの section package を既定で使うかは app 側の bring-up 状況や CI runner/container に依存するため、このガイドでは特定の package を正解として固定しません。
+新しい package を追加した場合は、この一覧と app 側の切り替え変数から選択肢として見えるようにしてください。
 
 ```bash
-bk_declare_section --side future gpu_kernel_region gpu_kernel_mlp_v15
+gpu_section_package="${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10}"
+bk_declare_section --side future gpu_kernel_region "$gpu_section_package"
 bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_artifacts/gpu_kernel_region_input.csv
 ```
 
-GENESIS では既定は `gpu_kernel_mlp_v15` ですが、LightGBM を試す場合は次のように切り替えられます。
+GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で切り替えられます。
+未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
 
 ```bash
+export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15
+# or
 export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_lightgbm_v10
 ```
 
@@ -111,6 +125,7 @@ qws を使って CI 配管だけを確認する場合は、実際の qws が GPU
 `BK_QWS_GPU_MLP_SMOKE_MODE=prediction` では、同梱のサンプル prediction CSV を使い、run job が `gpu_kernel_region` section と prediction CSV artifact を結果に埋め込みます。
 `BK_QWS_GPU_MLP_SMOKE_MODE=perftools` では、estimate job が PerfTools repo を checkout し、`MLP_NN/examples/example_input_mixed-src_20kernels.csv` を `predict_v15.py` に渡して prediction CSV を生成します。
 どちらのモードでも、estimate job が `gpu_kernel_mlp_v15` section package を通して Estimate JSON へ変換できることを確認します。
+LightGBM など別の GPU kernel section package は、GENESIS の `BK_GENESIS_GPU_SECTION_PACKAGE` のように app 側の切り替え変数や専用テストで確認します。
 qws の推定スクリプト単体では既定無効ですが、GPU estimator integration の立ち上げ期間中は GitLab CI 側の既定を一時的に有効化しています。
 
 ```bash
@@ -125,8 +140,9 @@ export BK_GPU_MLP_PERFTOOLS_REF=main
 `BK_QWS_GPU_MLP_SMOKE` は qws を使った配管確認用、`BK_QWS_GPU_MLP_SMOKE_MODE` は prediction fixture 取り込みと PerfTools 実行の切り替え用、`BK_ESTIMATE_RUNNER_TAG` は推定用 runner/container を手動で逃がすためのものです。
 実際の GPU profiling input と推定 runner の運用が固まったら、専用の package/runner 設定へ置き換え、これらの暫定変数は削除対象として見直してください。
 
-`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続、Python 3.12 以上が必要です。
-MLP package には numpy/pandas/torch、LightGBM package には numpy/pandas/lightgbm/pyyaml が必要です。
+`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続が必要です。
+Python とライブラリは、選択した PerfTools モデル側の要件に合わせます。
+MLP package には Python 3.11 以上と numpy/pandas/torch、LightGBM package には Python 3.11 以上と numpy/pandas/lightgbm/pyyaml、さらに LightGBM 実行用の `libgomp` が必要です。
 実運用では smoke mode ではなく、推定 runner/container に PerfTools checkout を用意し、section artifact として実アプリ由来の prepared input CSV を渡してください。
 
 ## 5. metadata に持たせるもの
