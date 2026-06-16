@@ -248,8 +248,10 @@ For production portal deployments:
 - Set `FLASK_SECRET_KEY` to a strong secret and run `result_server/app.py`, not `app_dev.py`.
 - `app.py` binds to `127.0.0.1:8800` by default; set `RESULT_SERVER_HOST` and `RESULT_SERVER_PORT` explicitly when the deployment requires a different bind address.
 - Set runner-scoped ingest keys with `RESULT_SERVER_KEYS=runner-a:<RUNNER_A_KEY>,runner-b:<RUNNER_B_KEY>`.
+- `RESULT_SERVER_KEYS` is the server-side registry of accepted posting/query keys. It is intentionally broader than the current single-key CI setup so the portal can later accept results from multiple trusted CI sources such as main BenchKit CI, site-managed runners, collaborator forks, or estimator-only pipelines.
+- Each client job still receives a single `RESULT_SERVER_KEY` secret for its own upload/query operations, usually through GitLab CI/CD variables or another CI secret store. That client-side key must match one entry in server-side `RESULT_SERVER_KEYS`.
 - `FLASK_SECRET_KEY` and each ingest key must be at least 32 characters and must not use known insecure examples such as `dev-api-key`, `changeme`, or `secret`; production startup refuses these values.
-- The legacy `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but should be rotated to `RESULT_SERVER_KEYS`.
+- The legacy server-side `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but production portal deployments should rotate the accepted-key registry to `RESULT_SERVER_KEYS`.
 - See `docs/deploy/key-management.md` for generation and rotation guidance.
 - `REDIS_URL` must point to a monitored Redis instance; production authentication refuses login when Redis is unavailable.
 - Login verification, API ingest/query, and admin write endpoints use Redis-backed rate limits by default; set `RESULT_SERVER_MAX_UPLOAD_MB` and `RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB` when deployment-specific upload limits are needed.
