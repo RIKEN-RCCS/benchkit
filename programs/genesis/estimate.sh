@@ -2,6 +2,8 @@
 # estimate.sh — GENESIS estimation entrypoint and run-time section metadata.
 
 genesis_declare_estimation_layout() {
+  local gpu_section_package="${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10}"
+
   bk_clear_estimation_defaults
   bk_clear_estimation_declarations
   bk_define_current_estimation_package weakscaling
@@ -11,7 +13,7 @@ genesis_declare_estimation_layout() {
   bk_define_future_system "${BK_ESTIMATION_FUTURE_SYSTEM:-GPU_MLP_TARGET}"
   bk_define_current_target_nodes "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1}"
   bk_define_future_target_nodes "${BK_ESTIMATION_FUTURE_TARGET_NODES:-1}"
-  bk_declare_section --side future gpu_kernel_region gpu_kernel_mlp_v15
+  bk_declare_section --side future gpu_kernel_region "$gpu_section_package"
 }
 
 genesis_emit_estimation_data_from_fom() {
@@ -42,9 +44,13 @@ BK_ESTIMATION_SECTION_DEFAULT_FACTOR="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-1.
 BK_GPU_MLP_ARTIFACT_MODE="${BK_GPU_MLP_ARTIFACT_MODE:-ncu}"
 BK_GPU_MLP_SOURCE_GPU="${BK_GPU_MLP_SOURCE_GPU:-H100}"
 BK_GPU_MLP_KERNEL_COUNT="${BK_GPU_MLP_KERNEL_COUNT:-20}"
+BK_GPU_LIGHTGBM_ARTIFACT_MODE="${BK_GPU_LIGHTGBM_ARTIFACT_MODE:-ncu}"
+BK_GPU_LIGHTGBM_SOURCE_GPU="${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU}}"
 export BK_GPU_MLP_ARTIFACT_MODE
 export BK_GPU_MLP_SOURCE_GPU
 export BK_GPU_MLP_KERNEL_COUNT
+export BK_GPU_LIGHTGBM_ARTIFACT_MODE
+export BK_GPU_LIGHTGBM_SOURCE_GPU
 
 genesis_declare_estimation_layout
 bk_estimation_apply_declared_defaults

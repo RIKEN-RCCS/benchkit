@@ -49,6 +49,7 @@ bk_profiler <tool> [options] -- <command ...>
 - `BK_PROFILER_REPORT_ARGS`
 - `BK_PROFILER_DIR`
 - `BK_PROFILER_STAGE_DIR`
+- `BK_PROFILER_ARCHIVE_NCU_REPORT`
 
 ## 3. 共通語彙としての level
 
@@ -86,7 +87,10 @@ BenchKit は「CSV があること」を共通必須にはしない。
 - `detailed` → `--set full --nvtx`
 
 既定の report format は `text` とする。
-raw report は archive 内の `bk_profiler_artifact/raw/rep1/profile*.ncu-rep` または Nsight Compute の出力形式に従う report file として保存し、可能な場合は `ncu --import ... --page details` の出力を `bk_profiler_artifact/reports/ncu_import_rep1.txt` に保存する。
+`padata*.tgz` の肥大化を避けるため、Nsight Compute の binary report (`*.ncu-rep` など) は既定では archive から除外する。
+可能な場合は `ncu --import ... --page details` の出力を `bk_profiler_artifact/reports/ncu_import_rep1.txt` に保存する。
+`BK_PROFILER_NCU_RAW_CSV=true` の場合は、推定 package が使う raw CSV を `bk_profiler_artifact/raw/rep1/profile_raw.csv` に保存する。
+binary report も保存したいデバッグ用途では、`BK_PROFILER_ARCHIVE_NCU_REPORT=true` を明示する。
 
 MPI launcher 経由の GPU application では、既定で `--target-processes all` を付けて child process も採取対象にする。
 追加の kernel filter、section set、NVTX filter などは `BK_PROFILER_ARGS` で `ncu` に渡す。

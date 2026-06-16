@@ -402,7 +402,8 @@ bk_profiler ncu --level single --archive ../results/padata0.tgz --raw-dir ncu --
 ```
 
 `ncu` の既定 level は `single` です。最初は採取時間を抑えるため、`single` または `simple` から始めてください。
-raw report は `padata*.tgz` 内の `bk_profiler_artifact/raw/rep1/` に保存され、可能な場合は `bk_profiler_artifact/reports/ncu_import_rep1.txt` に text report が保存されます。
+`padata*.tgz` には、可能な場合は `bk_profiler_artifact/reports/ncu_import_rep1.txt` に text report、`BK_PROFILER_NCU_RAW_CSV=true` の場合は `bk_profiler_artifact/raw/rep1/profile_raw.csv` に raw CSV が保存されます。
+Nsight Compute の binary report (`*.ncu-rep` など) は重いため既定では `padata*.tgz` から除外されます。デバッグ目的で保存したい場合だけ `BK_PROFILER_ARCHIVE_NCU_REPORT=true` を明示してください。
 site の既定 module に `ncu` が含まれない場合は、アプリ側で module を load するか、system 固有の module 変数を用意してください。
 Genesis GH200 参照実装では `GENESIS_MIYABIG_MODULE` / `GENESIS_GH200_MODULE` で module を上書きできます。
 既定の `ncu` が PATH にない場合は warning を出して profiler なしで benchmark 本体を実行しますが、`GENESIS_MIYABIG_PROFILER_TOOL=ncu`、`GENESIS_GH200_PROFILER_TOOL=ncu`、または `GENESIS_PROFILER_TOOL=ncu` を明示した場合は採取不能として失敗します。

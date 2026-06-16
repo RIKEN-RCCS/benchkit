@@ -170,11 +170,22 @@ bk_profiler ncu --level single --archive "$ncu_archive" --raw-dir "$ncu_raw" -- 
 mkdir -p "$ncu_extract"
 tar -xzf "$ncu_archive" -C "$ncu_extract"
 test -f "${ncu_extract}/bk_profiler_artifact/meta.json"
-test -f "${ncu_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
+! test -f "${ncu_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
 test -f "${ncu_extract}/bk_profiler_artifact/reports/ncu_import_rep1.txt"
 grep -q '"tool": "ncu"' "${ncu_extract}/bk_profiler_artifact/meta.json"
-grep -q '"kind": "ncu_report"' "${ncu_extract}/bk_profiler_artifact/meta.json"
+! grep -q '"kind": "ncu_report"' "${ncu_extract}/bk_profiler_artifact/meta.json"
 grep -q '"ncu_options": \["--target-processes", "all", "--set", "basic", "--launch-count", "1"\]' "${ncu_extract}/bk_profiler_artifact/meta.json"
+
+ncu_report_archive="${TMP_DIR}/ncu_report.tgz"
+ncu_report_extract="${TMP_DIR}/ncu_report_extract"
+ncu_report_raw="${TMP_DIR}/ncu_report_pa"
+export BK_PROFILER_ARCHIVE_NCU_REPORT=true
+bk_profiler ncu --level single --archive "$ncu_report_archive" --raw-dir "$ncu_report_raw" -- bash -c 'printf "ncu report target\n"'
+unset BK_PROFILER_ARCHIVE_NCU_REPORT
+mkdir -p "$ncu_report_extract"
+tar -xzf "$ncu_report_archive" -C "$ncu_report_extract"
+test -f "${ncu_report_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
+grep -q '"kind": "ncu_report"' "${ncu_report_extract}/bk_profiler_artifact/meta.json"
 
 ncu_detailed_archive="${TMP_DIR}/ncu_detailed.tgz"
 ncu_detailed_extract="${TMP_DIR}/ncu_detailed_extract"
@@ -193,7 +204,9 @@ unset BK_PROFILER_NCU_RAW_CSV
 mkdir -p "$ncu_raw_csv_extract"
 tar -xzf "$ncu_raw_csv_archive" -C "$ncu_raw_csv_extract"
 test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile_raw.csv"
+! test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
 grep -q '"kind": "ncu_raw_csv"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
+! grep -q '"kind": "ncu_report"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
 
 fapp_fail_archive="${TMP_DIR}/fapp_fail.tgz"
 fapp_fail_extract="${TMP_DIR}/fapp_fail_extract"
@@ -226,6 +239,6 @@ test "$ncu_fail_status" -eq 42
 mkdir -p "$ncu_fail_extract"
 tar -xzf "$ncu_fail_archive" -C "$ncu_fail_extract"
 test -f "${ncu_fail_extract}/bk_profiler_artifact/meta.json"
-test -f "${ncu_fail_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
+! test -f "${ncu_fail_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
 
 echo "bk_profiler tests passed"

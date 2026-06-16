@@ -9,6 +9,7 @@ on:
       - "scripts/result_server/**"
       - "scripts/estimation/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
       - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
@@ -33,6 +34,7 @@ on:
       - "scripts/result_server/**"
       - "scripts/estimation/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
       - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
@@ -102,6 +104,7 @@ jobs:
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_send_results_profile_data.sh
           bash scripts/tests/test_send_estimate_artifacts.sh
+          bash scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh
           bash scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh
           bash scripts/tests/test_genesis_gpu_mlp_estimation.sh
           bash scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh

@@ -24,6 +24,10 @@ bk_estimation_gpu_mlp_perftools_needed() {
     return 0
   fi
 
+  if bk_estimation_bool_enabled "${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS:-false}"; then
+    return 0
+  fi
+
   if [[ "${code:-}" == "genesis" ]] && bk_estimation_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}"; then
     return 0
   fi
@@ -58,14 +62,14 @@ bk_estimation_prepare_gpu_mlp_perftools() {
     use_genesis_ncu=1
   fi
 
-  if [[ ! -f "${root}/MLP_NN/v1.5/predict_v15.py" ]]; then
+  if [[ ! -f "${root}/MLP_NN/v1.5/predict_v15.py" && ! -f "${root}/LightGBM_model/1.0/AI_model/run_inference.py" ]]; then
     if ! command -v git >/dev/null 2>&1; then
-      echo "ERROR: git is required to fetch PerfTools for GPU MLP estimation" >&2
+      echo "ERROR: git is required to fetch PerfTools for GPU estimation" >&2
       return 1
     fi
 
     mkdir -p "$(dirname "$root")"
-    echo "Fetching PerfTools for GPU MLP estimation: ${repo} (${ref})"
+    echo "Fetching PerfTools for GPU estimation: ${repo} (${ref})"
     git clone --depth 1 "$repo" "$root"
     if [[ "$ref" != "main" && "$ref" != "master" ]]; then
       git -C "$root" fetch --depth 1 origin "$ref" || true
@@ -74,12 +78,16 @@ bk_estimation_prepare_gpu_mlp_perftools() {
   fi
 
   export BK_GPU_MLP_PERFTOOLS_ROOT="$root"
+  export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT="${BK_GPU_LIGHTGBM_PERFTOOLS_ROOT:-$root}"
   export BK_GPU_MLP_OUTPUT_DIR="${BK_GPU_MLP_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_mlp_v15}"
+  export BK_GPU_LIGHTGBM_OUTPUT_DIR="${BK_GPU_LIGHTGBM_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_lightgbm_v10}"
 
-  echo "GPU MLP estimator root: ${BK_GPU_MLP_PERFTOOLS_ROOT}"
+  echo "GPU estimator root: ${BK_GPU_MLP_PERFTOOLS_ROOT}"
   if [[ "$use_genesis_ncu" -eq 1 ]]; then
     export BK_GPU_MLP_ARTIFACT_MODE="${BK_GPU_MLP_ARTIFACT_MODE:-ncu}"
+    export BK_GPU_LIGHTGBM_ARTIFACT_MODE="${BK_GPU_LIGHTGBM_ARTIFACT_MODE:-ncu}"
     echo "GPU MLP estimator artifact mode: ${BK_GPU_MLP_ARTIFACT_MODE}"
+    echo "GPU LightGBM estimator artifact mode: ${BK_GPU_LIGHTGBM_ARTIFACT_MODE}"
   elif [[ "$use_qws_example" -eq 1 ]]; then
     input_csv="${BK_GPU_MLP_INPUT_CSV:-${root}/MLP_NN/examples/example_input_mixed-src_20kernels.csv}"
     if [[ ! -f "$input_csv" ]]; then

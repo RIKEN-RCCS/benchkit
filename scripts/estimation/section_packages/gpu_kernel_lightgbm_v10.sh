@@ -1,0 +1,543 @@
+#!/bin/bash
+# gpu_kernel_lightgbm_v10.sh - Section package for PerfTools LightGBM_model/1.0.
+
+bk_section_package_metadata_gpu_kernel_lightgbm_v10() {
+  cat <<'EOF'
+{
+  "name": "gpu_kernel_lightgbm_v10",
+  "fallback_target": "identity",
+  "source_system_scope": {
+    "kind": "benchmark_system",
+    "accepted_values": ["any"]
+  },
+  "target_system_scope": {
+    "accepted_values": ["any"]
+  },
+  "item_kind_scope": ["section"],
+  "required_result_fields": ["name", "time or bench_time"],
+  "required_artifact_kinds": [
+    "PerfTools LightGBM_model/1.0 compatible NCU CSV",
+    "precomputed prediction CSV",
+    "or BenchKit padata archive with Nsight Compute raw CSV"
+  ],
+  "acquisition_mode": "external",
+  "output_fields": [
+    "time",
+    "bench_time",
+    "scaling_method",
+    "metrics",
+    "package_applicability"
+  ],
+  "not_applicable_when": [
+    "item kind is not section",
+    "neither section artifact nor BK_GPU_LIGHTGBM_INPUT_CSV/BK_GPU_LIGHTGBM_PREDICTION_CSV is available",
+    "padata artifact mode is requested but the archive has no Nsight Compute raw CSV",
+    "PerfTools checkout is not available when running the external predictor",
+    "Python runtime for CSV parsing or external inference is not available",
+    "prediction CSV does not contain a recognized execution-time column"
+  ]
+}
+EOF
+}
+
+_bk_gpu_lightgbm_section_key() {
+  local section_name="$1"
+  printf '%s' "$section_name" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9' '_'
+}
+
+_bk_gpu_lightgbm_section_var() {
+  local prefix="$1"
+  local section_name="$2"
+  local key
+
+  key=$(_bk_gpu_lightgbm_section_key "$section_name")
+  printf '%s_%s\n' "$prefix" "$key"
+}
+
+_bk_gpu_lightgbm_env_value() {
+  local var_name="$1"
+  eval "printf '%s\n' \"\${${var_name}:-}\""
+}
+
+_bk_gpu_lightgbm_perftools_root() {
+  printf '%s\n' "${BK_GPU_LIGHTGBM_PERFTOOLS_ROOT:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-}}}"
+}
+
+_bk_gpu_lightgbm_model_dir() {
+  local root="$1"
+
+  if [[ -z "$root" ]]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  printf '%s\n' "${root}/LightGBM_model/1.0"
+}
+
+_bk_gpu_lightgbm_predictor() {
+  local root="$1"
+  local model_dir
+
+  model_dir=$(_bk_gpu_lightgbm_model_dir "$root")
+  if [[ -z "$model_dir" ]]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  printf '%s\n' "${model_dir}/AI_model/run_inference.py"
+}
+
+_bk_gpu_lightgbm_python_exists() {
+  local python_bin="$1"
+
+  if [[ "$python_bin" == */* ]]; then
+    [[ -x "$python_bin" ]]
+    return $?
+  fi
+
+  command -v "$python_bin" >/dev/null 2>&1
+}
+
+_bk_gpu_lightgbm_abs_path() {
+  local path="$1"
+  local dir
+  local base
+
+  if [[ -z "$path" ]]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  dir=$(dirname "$path")
+  base=$(basename "$path")
+  if [[ -d "$dir" ]]; then
+    (cd "$dir" && printf '%s/%s\n' "$PWD" "$base")
+  else
+    printf '%s/%s\n' "$PWD" "$path"
+  fi
+}
+
+_bk_gpu_lightgbm_first_artifact_path() {
+  local item_json="$1"
+
+  echo "$item_json" | jq -r '(.artifacts // [])[0].path // empty'
+}
+
+_bk_gpu_lightgbm_artifact_mode() {
+  case "${BK_GPU_LIGHTGBM_ARTIFACT_MODE:-input}" in
+    ncu|padata|profiler|profile) printf 'ncu\n' ;;
+    prediction) printf 'prediction\n' ;;
+    *) printf 'input\n' ;;
+  esac
+}
+
+_bk_gpu_lightgbm_resolve_section_input_csv() {
+  local item_json="$1"
+  local section_name="$2"
+  local scoped_var
+  local value
+  local artifact_path
+
+  scoped_var=$(_bk_gpu_lightgbm_section_var "BK_GPU_LIGHTGBM_INPUT_CSV" "$section_name")
+  value=$(_bk_gpu_lightgbm_env_value "$scoped_var")
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ -n "${BK_GPU_LIGHTGBM_INPUT_CSV:-}" ]]; then
+    printf '%s\n' "$BK_GPU_LIGHTGBM_INPUT_CSV"
+    return 0
+  fi
+
+  artifact_path=$(_bk_gpu_lightgbm_first_artifact_path "$item_json")
+  if [[ -n "$artifact_path" && "$(_bk_gpu_lightgbm_artifact_mode)" == "input" ]]; then
+    printf '%s\n' "$artifact_path"
+    return 0
+  fi
+
+  printf '%s\n' ""
+}
+
+_bk_gpu_lightgbm_resolve_section_ncu_archive() {
+  local item_json="$1"
+  local section_name="$2"
+  local scoped_var
+  local value
+  local artifact_path
+
+  scoped_var=$(_bk_gpu_lightgbm_section_var "BK_GPU_LIGHTGBM_NCU_ARCHIVE" "$section_name")
+  value=$(_bk_gpu_lightgbm_env_value "$scoped_var")
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ -n "${BK_GPU_LIGHTGBM_NCU_ARCHIVE:-}" ]]; then
+    printf '%s\n' "$BK_GPU_LIGHTGBM_NCU_ARCHIVE"
+    return 0
+  fi
+
+  artifact_path=$(_bk_gpu_lightgbm_first_artifact_path "$item_json")
+  if [[ -n "$artifact_path" ]]; then
+    case "$(_bk_gpu_lightgbm_artifact_mode):${artifact_path}" in
+      ncu:*|*:*.tgz|*:*.tar.gz)
+        printf '%s\n' "$artifact_path"
+        return 0
+        ;;
+    esac
+  fi
+
+  printf '%s\n' ""
+}
+
+_bk_gpu_lightgbm_resolve_section_prediction_csv() {
+  local item_json="$1"
+  local section_name="$2"
+  local scoped_var
+  local value
+  local artifact_path
+
+  scoped_var=$(_bk_gpu_lightgbm_section_var "BK_GPU_LIGHTGBM_PREDICTION_CSV" "$section_name")
+  value=$(_bk_gpu_lightgbm_env_value "$scoped_var")
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ -n "${BK_GPU_LIGHTGBM_PREDICTION_CSV:-}" ]]; then
+    printf '%s\n' "$BK_GPU_LIGHTGBM_PREDICTION_CSV"
+    return 0
+  fi
+
+  artifact_path=$(_bk_gpu_lightgbm_first_artifact_path "$item_json")
+  if [[ -n "$artifact_path" && "$(_bk_gpu_lightgbm_artifact_mode)" == "prediction" ]]; then
+    printf '%s\n' "$artifact_path"
+    return 0
+  fi
+
+  printf '%s\n' ""
+}
+
+_bk_gpu_lightgbm_section_slug() {
+  local section_name="$1"
+  printf '%s_%s_%s' "${est_code:-unknown}" "$section_name" "${est_uuid:-local}" |
+    tr -c 'A-Za-z0-9._-' '_'
+}
+
+bk_section_package_check_applicability_gpu_kernel_lightgbm_v10() {
+  local item_json="$1"
+  local item_kind="$2"
+  local section_name
+  local prediction_csv
+  local input_csv
+  local ncu_archive
+  local root
+  local predictor
+  local python_bin="${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}"
+  local missing=()
+
+  if [[ "$item_kind" != "section" ]]; then
+    cat <<'EOF'
+{"status":"not_applicable","missing_inputs":["item_kind:section_required"]}
+EOF
+    return 1
+  fi
+
+  section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
+  prediction_csv=$(_bk_gpu_lightgbm_resolve_section_prediction_csv "$item_json" "$section_name")
+  input_csv=$(_bk_gpu_lightgbm_resolve_section_input_csv "$item_json" "$section_name")
+  ncu_archive=$(_bk_gpu_lightgbm_resolve_section_ncu_archive "$item_json" "$section_name")
+
+  if ! _bk_gpu_lightgbm_python_exists "$python_bin"; then
+    missing+=("\"python:${python_bin}\"")
+  fi
+
+  if [[ -n "$prediction_csv" ]]; then
+    if [[ ! -f "$prediction_csv" ]]; then
+      missing+=("\"prediction_csv:${prediction_csv}\"")
+    fi
+  else
+    root=$(_bk_gpu_lightgbm_perftools_root)
+    predictor=$(_bk_gpu_lightgbm_predictor "$root")
+
+    if [[ -z "$input_csv" && -z "$ncu_archive" ]]; then
+      missing+=('"gpu_lightgbm_input_csv"')
+    fi
+    if [[ -n "$input_csv" && ! -f "$input_csv" ]]; then
+      missing+=("\"input_csv:${input_csv}\"")
+    fi
+    if [[ -n "$ncu_archive" && ! -f "$ncu_archive" ]]; then
+      missing+=("\"ncu_archive:${ncu_archive}\"")
+    fi
+    if [[ -z "$root" || ! -d "$root" ]]; then
+      missing+=('"BK_GPU_LIGHTGBM_PERFTOOLS_ROOT"')
+    fi
+    if [[ -z "$predictor" || ! -f "$predictor" ]]; then
+      missing+=('"PerfTools LightGBM_model/1.0/AI_model/run_inference.py"')
+    fi
+  fi
+
+  if (( ${#missing[@]} > 0 )); then
+    printf '{"status":"not_applicable","missing_inputs":[%s]}\n' "$(IFS=,; echo "${missing[*]}")"
+    return 1
+  fi
+
+  cat <<'EOF'
+{"status":"applicable","missing_inputs":[]}
+EOF
+}
+
+_bk_gpu_lightgbm_parse_prediction_csv() {
+  local prediction_csv="$1"
+  local package_name="$2"
+  local model_version="$3"
+  local python_bin="${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}"
+
+  "$python_bin" - "$prediction_csv" "$package_name" "$model_version" <<'PY'
+import csv
+import json
+import math
+import sys
+
+prediction_csv, package_name, model_version = sys.argv[1:4]
+
+time_columns = [
+    "O-Execution Time",
+    "O-Execution Time [ns]",
+    "Execution Time [ns]",
+    "Predicted Execution Time [ns]",
+    "predicted_execution_time_ns",
+]
+name_columns = ["meta-kernel", "kernel_name", "Kernel Name", "kernel", "Kernel", "name", "Name"]
+source_columns = ["meta-src_gpu", "src_gpu", "source_gpu"]
+target_columns = ["meta-tgt_gpu", "tgt_gpu", "target_gpu"]
+metric_columns = [
+    "O-Memory Throughput [%]",
+    "O-Achieved Occupancy",
+    "O-breakdown_memory",
+    "O-breakdown_pipeline_contention",
+    "O-breakdown_sync",
+    "O-breakdown_scheduling_overhead",
+]
+
+
+def cleaned_lines(path):
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        for line in handle:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            yield line
+
+
+def as_number(value):
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    if math.isnan(number) or math.isinf(number):
+        return None
+    return number
+
+
+reader = csv.DictReader(cleaned_lines(prediction_csv))
+if not reader.fieldnames:
+    raise SystemExit(f"prediction CSV has no header: {prediction_csv}")
+
+time_column = next((col for col in time_columns if col in reader.fieldnames), None)
+if time_column is None:
+    raise SystemExit(
+        "prediction CSV does not contain a supported execution-time column: "
+        + ", ".join(time_columns)
+    )
+
+kernels = []
+source_gpus = []
+target_gpus = []
+total_seconds = 0.0
+
+for idx, row in enumerate(reader, start=1):
+    predicted_ns = as_number(row.get(time_column))
+    if predicted_ns is None:
+        raise SystemExit(f"row {idx} has no numeric predicted execution time in {time_column}")
+
+    raw_name = next((row.get(col, "").strip() for col in name_columns if row.get(col, "").strip()), "")
+    source_gpu = next((row.get(col, "").strip() for col in source_columns if row.get(col, "").strip()), "")
+    target_gpu = next((row.get(col, "").strip() for col in target_columns if row.get(col, "").strip()), "")
+    if source_gpu:
+        source_gpus.append(source_gpu)
+    if target_gpu:
+        target_gpus.append(target_gpu)
+
+    seconds = predicted_ns / 1e9
+    total_seconds += seconds
+
+    metrics = {
+        key: as_number(row.get(key))
+        for key in metric_columns
+        if key in row and as_number(row.get(key)) is not None
+    }
+    kernel = {
+        "name": raw_name or f"kernel_{idx}",
+        "predicted_time_ns": predicted_ns,
+        "predicted_time": seconds,
+    }
+    if source_gpu:
+        kernel["source_gpu"] = source_gpu
+    if target_gpu:
+        kernel["target_gpu"] = target_gpu
+    if metrics:
+        kernel["metrics"] = metrics
+    kernels.append(kernel)
+
+print(json.dumps({
+    "time": total_seconds,
+    "metrics": {
+        "kernel_count": len(kernels),
+        "time_column": time_column,
+        "total_predicted_time_ns": total_seconds * 1e9,
+        "source_gpus": sorted(set(source_gpus)),
+        "target_gpus": sorted(set(target_gpus)),
+        "kernels": kernels,
+    },
+    "package_applicability": {
+        "status": "applicable",
+        "missing_inputs": [],
+    },
+    "model": {
+        "type": "cross_gpu_kernel_prediction_model",
+        "name": "PerfTools LightGBM_model/1.0",
+        "version": model_version,
+        "repository": "https://github.com/masaaki-kondo/PerfTools",
+    },
+    "estimation_package": package_name,
+}))
+PY
+}
+
+_bk_gpu_lightgbm_prepare_input_from_ncu() {
+  local ncu_archive="$1"
+  local _section_name="$2"
+  local output_dir="$3"
+  local slug="$4"
+  local python_bin="${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}"
+  local source_gpu="${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU:-H100}}"
+  local prepared_csv="${output_dir}/${slug}_lightgbm_input.csv"
+  local script_path="scripts/estimation/prepare_gpu_lightgbm_ncu_input.py"
+  local archive_abs
+  local prepared_abs
+
+  archive_abs=$(_bk_gpu_lightgbm_abs_path "$ncu_archive")
+  prepared_abs=$(_bk_gpu_lightgbm_abs_path "$prepared_csv")
+
+  "$python_bin" "$script_path" \
+    --padata "$archive_abs" \
+    --source-gpu "$source_gpu" \
+    --out-csv "$prepared_abs" >&2
+
+  printf '%s\n' "$prepared_csv"
+}
+
+_bk_gpu_lightgbm_run_predictor() {
+  local item_json="$1"
+  local section_name="$2"
+  local root
+  local model_dir
+  local input_csv
+  local ncu_archive
+  local output_dir="${BK_GPU_LIGHTGBM_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_lightgbm_v10}"
+  local prediction_csv
+  local prediction_log
+  local input_csv_abs
+  local prediction_csv_abs
+  local prediction_log_abs
+  local python_bin="${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}"
+  local source_gpu="${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU:-H100}}"
+  local target_gpu="${BK_GPU_LIGHTGBM_TARGET_GPU:-${BK_GPU_MLP_TARGET_GPU:-A100}}"
+  local slug
+
+  root=$(_bk_gpu_lightgbm_perftools_root)
+  model_dir=$(_bk_gpu_lightgbm_model_dir "$root")
+  input_csv=$(_bk_gpu_lightgbm_resolve_section_input_csv "$item_json" "$section_name")
+  ncu_archive=$(_bk_gpu_lightgbm_resolve_section_ncu_archive "$item_json" "$section_name")
+  slug=$(_bk_gpu_lightgbm_section_slug "$section_name")
+
+  mkdir -p "$output_dir"
+  if [[ -z "$input_csv" && -n "$ncu_archive" ]]; then
+    input_csv=$(_bk_gpu_lightgbm_prepare_input_from_ncu "$ncu_archive" "$section_name" "$output_dir" "$slug")
+  fi
+
+  prediction_csv="${output_dir}/${slug}_pred.csv"
+  prediction_log="${output_dir}/${slug}.log"
+  input_csv_abs=$(_bk_gpu_lightgbm_abs_path "$input_csv")
+  prediction_csv_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_csv")
+  prediction_log_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_log")
+
+  (
+    cd "$model_dir"
+    "$python_bin" AI_model/run_inference.py \
+      --src_gpu="$source_gpu" \
+      --tgt_gpu="$target_gpu" \
+      --ncu_csv="$input_csv_abs" \
+      --out="$prediction_csv_abs" \
+      --log="$prediction_log_abs"
+  ) >/dev/null
+
+  printf '%s\t%s\t%s\n' "$prediction_csv" "$input_csv" "$prediction_log"
+}
+
+bk_section_package_transform_gpu_kernel_lightgbm_v10() {
+  local item_json="$1"
+  local _target_nodes="$2"
+  local _bench_nodes="$3"
+  local _default_factor="$4"
+  local _item_kind="$5"
+  local section_name
+  local prediction_csv
+  local input_csv=""
+  local prediction_log=""
+  local run_outputs
+  local parsed_json
+  local package_name="gpu_kernel_lightgbm_v10"
+  local model_version="${BK_GPU_LIGHTGBM_MODEL_VERSION:-1.0}"
+
+  section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
+  prediction_csv=$(_bk_gpu_lightgbm_resolve_section_prediction_csv "$item_json" "$section_name")
+
+  if [[ -z "$prediction_csv" ]]; then
+    run_outputs=$(_bk_gpu_lightgbm_run_predictor "$item_json" "$section_name")
+    IFS=$'\t' read -r prediction_csv input_csv prediction_log <<< "$run_outputs"
+  fi
+
+  parsed_json=$(_bk_gpu_lightgbm_parse_prediction_csv "$prediction_csv" "$package_name" "$model_version")
+
+  echo "$item_json" | jq -c \
+    --arg prediction_csv "$prediction_csv" \
+    --arg input_csv "$input_csv" \
+    --arg prediction_log "$prediction_log" \
+    --argjson parsed "$parsed_json" '
+    .
+    + {
+        time: $parsed.time,
+        bench_time: (.bench_time // .time // null),
+        scaling_method: "gpu-kernel-lightgbm-v1.0",
+        estimation_package: $parsed.estimation_package,
+        package_applicability: $parsed.package_applicability,
+        model: $parsed.model,
+        metrics: $parsed.metrics
+      }
+    | .artifacts = (
+        (.artifacts // [])
+        + [{kind: "gpu_lightgbm_prediction_csv", path: $prediction_csv}]
+        + (if $input_csv != "" then [{kind: "gpu_lightgbm_input_csv", path: $input_csv}] else [] end)
+        + (if $prediction_log != "" then [{kind: "gpu_lightgbm_log", path: $prediction_log}] else [] end)
+      )
+  '
+}
