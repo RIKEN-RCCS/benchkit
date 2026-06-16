@@ -802,7 +802,12 @@ bk_profiler_find_ncu_report() {
     -name '*.ncu-rep' -o \
     -name '*.nsight-cuprof' -o \
     -name 'profile*' \
-  \) | head -n 1
+  \) \
+    ! -name 'profile_raw.csv' \
+    ! -name 'profile_raw.csv.log' \
+    ! -name '*.csv' \
+    ! -name '*.log' \
+    | head -n 1
 }
 
 bk_json_escape() {
@@ -1164,6 +1169,15 @@ bk_profiler() {
           ;;
       esac
       cp -R "$_bk_ncu_rep_dir" "$_bk_stage_dir/raw/${_bk_ncu_rep_name}"
+      case "${BK_PROFILER_ARCHIVE_NCU_REPORT:-false}" in
+        1|true|TRUE|yes|YES|on|ON) ;;
+        *)
+          find "$_bk_stage_dir/raw/${_bk_ncu_rep_name}" -maxdepth 1 -type f \( \
+            -name '*.ncu-rep' -o \
+            -name '*.nsight-cuprof' \
+          \) -delete
+          ;;
+      esac
       _bk_profiler_run_names="${_bk_ncu_rep_name}"
       _bk_profiler_run_events="${_bk_profiler_level}"
       ;;

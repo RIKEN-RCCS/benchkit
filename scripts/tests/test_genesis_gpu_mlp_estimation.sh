@@ -28,8 +28,13 @@ grep -q 'profiler archive was not found' results/no_archive.err
 
 touch results/padata0.tgz
 genesis_emit_estimation_data_from_fom 10 > results/with_archive.result
-grep -q '^SECTION:gpu_kernel_region ' results/with_archive.result
+grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_lightgbm_v10 ' results/with_archive.result
 grep -q 'artifact:results/padata0.tgz' results/with_archive.result
+
+BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15 \
+  bash -c 'source programs/genesis/estimate.sh; genesis_emit_estimation_data_from_fom 10' \
+  > results/with_mlp_archive.result
+grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_mlp_v15 ' results/with_mlp_archive.result
 
 mkdir -p genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1
 GENESIS_BENCHKIT_ROOT="$PWD" \
