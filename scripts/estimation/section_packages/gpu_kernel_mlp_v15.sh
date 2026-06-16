@@ -469,14 +469,22 @@ _bk_gpu_mlp_run_predictor() {
   prediction_csv_abs=$(_bk_gpu_mlp_abs_existing_path "$prediction_csv")
   prediction_log_abs=$(_bk_gpu_mlp_abs_existing_path "$prediction_log")
 
-  (
+  if ! (
     cd "$root"
     "$python_bin" MLP_NN/v1.5/predict_v15.py \
       --csv "$input_csv_abs" \
       --row "${BK_GPU_MLP_ROW:-all}" \
       --out "$prediction_csv_abs" \
       --log "$prediction_log_abs"
-  ) >/dev/null
+  ) >/dev/null; then
+    echo "ERROR: PerfTools MLP_NN/v1.5 inference failed" >&2
+    return 1
+  fi
+
+  if [[ ! -s "$prediction_csv_abs" ]]; then
+    echo "ERROR: PerfTools MLP_NN/v1.5 did not create prediction CSV: ${prediction_csv_abs}" >&2
+    return 1
+  fi
 
   printf '%s\n' "$prediction_csv"
 }

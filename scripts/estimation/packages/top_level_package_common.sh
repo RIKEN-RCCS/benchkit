@@ -100,6 +100,7 @@ bk_top_level_dispatch_bound_item() {
   local fallback_target
   local check_result
   local missing_inputs_json
+  local transformed_item
 
   package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
   if [[ -z "$package_name" ]]; then
@@ -122,7 +123,11 @@ bk_top_level_dispatch_bound_item() {
       check_result=$(bk_top_level_unsupported_bound_package_result "$package_name" "$item_kind")
     fi
     if declare -F "$fn_name" >/dev/null 2>&1 && [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" == "applicable" ]]; then
-      "$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"
+      if ! transformed_item=$("$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"); then
+        echo "ERROR: section package ${package_name} failed for ${item_kind}" >&2
+        return 1
+      fi
+      printf '%s\n' "$transformed_item"
       return 0
     fi
 
@@ -163,6 +168,7 @@ bk_top_level_transform_breakdown() {
   local sections_out=()
   local overlaps_out=()
   local item_json
+  local transformed_item
 
   if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
     echo ""
@@ -171,16 +177,18 @@ bk_top_level_transform_breakdown() {
 
   while IFS= read -r item_json; do
     [[ -z "$item_json" ]] && continue
-    sections_out+=("$(
-      bk_top_level_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "section" "$default_section_package"
-    )")
+    if ! transformed_item=$(bk_top_level_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "section" "$default_section_package"); then
+      return 1
+    fi
+    sections_out+=("$transformed_item")
   done < <(echo "$breakdown_json" | jq -c '.sections // [] | .[]')
 
   while IFS= read -r item_json; do
     [[ -z "$item_json" ]] && continue
-    overlaps_out+=("$(
-      bk_top_level_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "overlap" "$default_overlap_package"
-    )")
+    if ! transformed_item=$(bk_top_level_dispatch_bound_item "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "overlap" "$default_overlap_package"); then
+      return 1
+    fi
+    overlaps_out+=("$transformed_item")
   done < <(echo "$breakdown_json" | jq -c '.overlaps // [] | .[]')
 
   jq -cn \
