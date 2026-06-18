@@ -118,6 +118,28 @@ ESTIMATE_RESULT = {
                     "time": 7.312,
                     "estimation_package": "logp",
                     "scaling_method": "logP",
+                },
+                {
+                    "name": "gpu_kernel_region",
+                    "time": 18.333333333333336,
+                    "estimation_package": "gpu_kernel_ensemble_average",
+                    "scaling_method": "gpu-kernel-ensemble-average",
+                    "candidate_estimates": [
+                        {
+                            "estimation_package": "gpu_kernel_lightgbm_v10",
+                            "time": 10.0,
+                            "scaling_method": "gpu-kernel-lightgbm-v10",
+                            "package_applicability": {"status": "applicable"},
+                            "metrics": {"time_ratio_predicted_over_source": 1.0},
+                        },
+                        {
+                            "estimation_package": "gpu_kernel_mlp_v15",
+                            "time": 26.666666666666668,
+                            "scaling_method": "gpu-kernel-mlp-v15",
+                            "package_applicability": {"status": "applicable"},
+                            "metrics": {"time_ratio_predicted_over_source": 2.6666666667},
+                        },
+                    ],
                 }
             ],
             "overlaps": [],
@@ -206,3 +228,8 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Required Actions" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html
+    assert "Candidate estimates" in html
+    assert "Time Ratio" in html
+    assert "gpu_kernel_ensemble_average" in html
+    assert "gpu_kernel_lightgbm_v10" in html
+    assert "gpu_kernel_mlp_v15" in html

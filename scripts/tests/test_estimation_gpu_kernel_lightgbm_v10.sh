@@ -82,7 +82,7 @@ unset BK_GPU_LIGHTGBM_INPUT_CSV
 echo "$transformed" | jq -e '
   (.sections | length == 2) and
   .sections[0].name == "gpu_kernel_region" and
-  .sections[0].time == 0.000003 and
+  .sections[0].time == 0.009 and
   .sections[0].bench_time == 0.009 and
   .sections[0].scaling_method == "gpu-kernel-lightgbm-v1.0" and
   .sections[0].estimation_package == "gpu_kernel_lightgbm_v10" and
@@ -92,6 +92,9 @@ echo "$transformed" | jq -e '
   .sections[0].metrics.source_time_column == "Duration [ns]" and
   .sections[0].metrics.total_source_time_ns == 3000 and
   .sections[0].metrics.total_predicted_time_ns == 3000 and
+  .sections[0].metrics.sample_predicted_time == 0.000003 and
+  .sections[0].metrics.app_gpu_section_time == 0.009 and
+  .sections[0].metrics.section_time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.speedup_factor_source_over_predicted == 1 and
   .sections[0].metrics.source_gpus == ["H100"] and

@@ -16,63 +16,93 @@ cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
 pushd "${TMP_DIR}" >/dev/null
 source programs/genesis/estimate.sh
 test "${BK_ESTIMATION_BASELINE_EXP}" = "p8"
+test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
+test "${BK_ESTIMATION_FUTURE_SYSTEM}" = "FugakuNEXT"
 
-export BK_GENESIS_GPU_MLP_PROFILE=false
-genesis_emit_estimation_data_from_fom 10 > results/no_profile.result
-! grep -q '^SECTION:gpu_kernel_region ' results/no_profile.result
-
-export BK_GENESIS_GPU_MLP_PROFILE=true
-genesis_emit_estimation_data_from_fom 10 > results/no_archive.result 2> results/no_archive.err
-! grep -q '^SECTION:gpu_kernel_region ' results/no_archive.result
-grep -q 'profiler archive was not found' results/no_archive.err
-
-touch results/padata0.tgz
-genesis_emit_estimation_data_from_fom 10 > results/with_archive.result
-grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_lightgbm_v10 ' results/with_archive.result
-grep -q 'artifact:results/padata0.tgz' results/with_archive.result
-
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15 \
-  bash -c 'source programs/genesis/estimate.sh; genesis_emit_estimation_data_from_fom 10' \
-  > results/with_mlp_archive.result
-grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_mlp_v15 ' results/with_mlp_archive.result
-
-BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_mlp_v15,gpu_kernel_lightgbm_v10 \
-  bash -c 'source programs/genesis/estimate.sh; export BK_GENESIS_GPU_MLP_PROFILE=true; genesis_emit_estimation_data_from_fom 10' \
-  > results/with_package_list.result
-grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_mlp_v15 ' results/with_package_list.result
-
-cat > results/input_lightgbm.json <<'EOF'
+cat > results/no_breakdown_input.json <<'EOF'
 {
   "code": "genesis",
   "Exp": "p8",
   "system": "MiyabiG",
-  "FOM": 10,
+  "FOM": 50.5,
   "node_count": 1,
-  "fom_breakdown": {
-    "sections": [
-      {
-        "name": "gpu_kernel_region",
-        "time": 10,
-        "estimation_package": "gpu_kernel_lightgbm_v10"
-      },
-      {
-        "name": "other",
-        "time": 1,
-        "estimation_package": "identity"
-      }
-    ]
-  }
+  "numproc_node": 8
 }
 EOF
-bash -c 'source programs/genesis/estimate.sh; genesis_write_estimation_input_for_gpu_package results/input_lightgbm.json gpu_kernel_mlp_v15 results/input_mlp.json'
+! genesis_input_has_fom_breakdown results/no_breakdown_input.json
+genesis_write_total_identity_breakdown_input results/no_breakdown_input.json results/total_breakdown_input.json
+genesis_input_has_fom_breakdown results/total_breakdown_input.json
 jq -e '
-  .fom_breakdown.sections[0].estimation_package == "gpu_kernel_mlp_v15" and
-  .fom_breakdown.sections[1].estimation_package == "identity"
-' results/input_mlp.json >/dev/null
+  .fom_breakdown.sections[0].name == "total" and
+  .fom_breakdown.sections[0].time == 50.5 and
+  .fom_breakdown.sections[0].estimation_package == "identity" and
+  .fom_breakdown.overlaps == []
+' results/total_breakdown_input.json >/dev/null
+
+cat > results/log_p8.txt <<'EOF'
+  total time      =      51.892
+    setup         =       3.030
+    dynamics      =      48.862
+      energy      =      23.692
+      integrator  =      15.567
+      pairlist    =       3.755 (       3.618,       3.923)
+  energy
+    bond          =       0.074 (       0.067,       0.089)
+    angle         =       0.505 (       0.471,       0.543)
+    dihedral      =       1.373 (       1.283,       1.477)
+    nonbond       =      22.568 (      20.941,      23.765)
+      pme real    =      22.566 (      20.940,      23.763)
+      pme recip   =       4.203 (       4.181,       4.235)
+  integrator
+    constraint    =       1.219 (       1.196,       1.270)
+    update        =       4.611 (       4.456,       4.877)
+    comm_coord    =       2.668 (       2.329,       2.914)
+    comm_force    =      11.186 (       9.988,      12.805)
+    comm_migrate  =       0.121 (       0.095,       0.140)
+EOF
+
+genesis_extract_dynamics_sections results/log_p8.txt 48.862 > results/genesis_sections.tsv
+test "$(wc -l < results/genesis_sections.tsv)" = "8"
+awk '
+  { sum += $2 }
+  END {
+    diff = sum - 48.862
+    if (diff < 0) diff = -diff
+    exit(diff < 0.000001 ? 0 : 1)
+  }
+' results/genesis_sections.tsv
+grep -q '^pairlist ' results/genesis_sections.tsv
+grep -q '^pme_real ' results/genesis_sections.tsv
+grep -q '^integrator ' results/genesis_sections.tsv
+awk '$1 == "other" {
+  diff = $2 - 0.819
+  if (diff < 0) diff = -diff
+  found = diff < 0.000001
+}
+END { exit(found ? 0 : 1) }' results/genesis_sections.tsv
+
+genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_no_archive.result
+test "$(grep -c '^SECTION:' results/sections_no_archive.result)" = "8"
+grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_ensemble_average' results/sections_no_archive.result
+grep -q '^SECTION:pme_real .* estimation_package:gpu_kernel_ensemble_average' results/sections_no_archive.result
+grep -q '^SECTION:bond .* estimation_package:identity' results/sections_no_archive.result
+grep -q '^SECTION:integrator .* estimation_package:identity' results/sections_no_archive.result
+grep -q '^SECTION:other .* estimation_package:identity' results/sections_no_archive.result
+! grep -q 'artifact:results/padata0.tgz' results/sections_no_archive.result
+
+touch results/padata0.tgz
+genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_with_archive.result
+grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata0.tgz' results/sections_with_archive.result
+grep -q '^SECTION:pme_real .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata0.tgz' results/sections_with_archive.result
+
+BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15 \
+  bash -c 'source programs/genesis/estimate.sh; genesis_emit_estimation_data_from_log results/log_p8.txt 48.862' \
+  > results/sections_with_mlp_archive.result
+grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_mlp_v15 artifact:results/padata0.tgz' results/sections_with_mlp_archive.result
 
 mkdir -p genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1
 GENESIS_BENCHKIT_ROOT="$PWD" \
-  bash -c 'source programs/genesis/estimate.sh; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; export BK_GENESIS_GPU_MLP_PROFILE=true; genesis_emit_estimation_data_from_fom 10' \
+  bash -c 'source programs/genesis/estimate.sh; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; genesis_emit_estimation_data_from_log "$GENESIS_BENCHKIT_ROOT/results/log_p8.txt" 48.862' \
   > results/from_subdir.result
 grep -q 'artifact:results/padata0.tgz' results/from_subdir.result
 popd >/dev/null

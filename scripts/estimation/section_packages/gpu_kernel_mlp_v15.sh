@@ -14,7 +14,7 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
     "accepted_values": ["any"]
   },
   "item_kind_scope": ["section"],
-  "required_result_fields": ["name", "time or bench_time"],
+  "required_result_fields": ["name", "app-side GPU section time as time or bench_time"],
   "required_artifact_kinds": [
     "PerfTools MLP_NN/v1.5 prepared input CSV",
     "precomputed prediction CSV",
@@ -34,7 +34,9 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
     "padata artifact mode is requested but the archive has no Nsight Compute raw CSV",
     "PerfTools checkout is not available when running the external predictor",
     "Python 3.11+ runtime for CSV parsing or external inference is not available",
-    "prediction CSV does not contain a recognized execution-time column"
+    "prediction CSV does not contain a recognized execution-time column",
+    "prediction/input pair does not provide a source-kernel time ratio",
+    "app-side GPU section time is not available"
   ]
 }
 EOF
@@ -610,14 +612,34 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
     --arg prediction_log "$prediction_log" \
     --argjson parsed "$parsed_json" '
     .
+    | ((.time // .bench_time // null) | if . == null then null else tonumber? end) as $source_section_time
+    | ($parsed.metrics.time_ratio_predicted_over_source // null) as $time_ratio
+    | (($parsed.package_applicability.missing_inputs // [])
+        + (if $source_section_time == null then ["app_gpu_section_time"] else [] end)
+        + (if $time_ratio == null then ["gpu_kernel_time_ratio_predicted_over_source"] else [] end)
+      ) as $missing_inputs
+    | .
     + {
-        time: $parsed.time,
-        bench_time: (.bench_time // .time // null),
+        time: (if $source_section_time != null and $time_ratio != null then ($source_section_time * $time_ratio) else null end),
+        bench_time: $source_section_time,
         scaling_method: "gpu-kernel-mlp-v1.5",
         estimation_package: $parsed.estimation_package,
-        package_applicability: $parsed.package_applicability,
+        package_applicability: (
+          if ($missing_inputs | length) == 0 then
+            $parsed.package_applicability
+          else
+            {status: "not_applicable", missing_inputs: ($missing_inputs | unique)}
+          end
+        ),
         model: $parsed.model,
-        metrics: $parsed.metrics
+        metrics: (
+          $parsed.metrics
+          + {
+              sample_predicted_time: $parsed.time,
+              app_gpu_section_time: $source_section_time,
+              section_time_ratio_predicted_over_source: $time_ratio
+            }
+        )
       }
     | .artifacts = (
         (.artifacts // [])
