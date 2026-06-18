@@ -238,23 +238,25 @@ bk_estimation_package_run() {
   est_future_bench_uuid="$est_uuid"
 
   est_current_system="$baseline_system"
-  fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
-  baseline_breakdown="$est_current_fom_breakdown"
-  if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
-    baseline_breakdown="$est_input_fom_breakdown"
-  elif ! echo "$baseline_breakdown" | jq -e --arg pkg "$logp_package_name" '.sections // [] | any((.estimation_package // "") == $pkg)' >/dev/null; then
-    baseline_breakdown="$est_input_fom_breakdown"
-  fi
+  if [[ "${BK_ESTIMATION_SKIP_TOP_LEVEL_CURRENT_BREAKDOWN:-false}" != "true" ]]; then
+    fetch_current_fom "$baseline_system" "$est_code" "$baseline_exp"
+    baseline_breakdown="$est_current_fom_breakdown"
+    if [[ -z "$baseline_breakdown" || "$baseline_breakdown" == "null" ]]; then
+      baseline_breakdown="$est_input_fom_breakdown"
+    elif ! echo "$baseline_breakdown" | jq -e --arg pkg "$logp_package_name" '.sections // [] | any((.estimation_package // "") == $pkg)' >/dev/null; then
+      baseline_breakdown="$est_input_fom_breakdown"
+    fi
 
-  if [[ -n "$baseline_breakdown" && "$baseline_breakdown" != "null" ]]; then
-    breakdown_template=$(bk_top_level_scale_breakdown_to_total "$baseline_breakdown" "$est_current_fom" "instrumented-app-sections-dummy")
-    est_current_fom_breakdown=$(_bk_transform_bound_breakdown \
-      "$breakdown_template" \
-      "$current_target_nodes" \
-      "${est_current_bench_nodes:-1}" \
-      "$default_section_factor")
-    est_current_fom_breakdown=$(bk_top_level_attach_default_package_name "$est_current_fom_breakdown" "instrumented_app_sections_dummy")
-    est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
+    if [[ -n "$baseline_breakdown" && "$baseline_breakdown" != "null" ]]; then
+      breakdown_template=$(bk_top_level_scale_breakdown_to_total "$baseline_breakdown" "$est_current_fom" "instrumented-app-sections-dummy")
+      est_current_fom_breakdown=$(_bk_transform_bound_breakdown \
+        "$breakdown_template" \
+        "$current_target_nodes" \
+        "${est_current_bench_nodes:-1}" \
+        "$default_section_factor")
+      est_current_fom_breakdown=$(bk_top_level_attach_default_package_name "$est_current_fom_breakdown" "instrumented_app_sections_dummy")
+      est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
+    fi
   fi
   est_current_target_nodes="$current_target_nodes"
   est_current_scaling_method="$model_name"

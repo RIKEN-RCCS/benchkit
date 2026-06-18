@@ -307,17 +307,19 @@ EOF
 
 _bk_gpu_mlp_parse_prediction_csv() {
   local prediction_csv="$1"
-  local package_name="$2"
-  local model_version="$3"
+  local input_csv="$2"
+  local package_name="$3"
+  local model_version="$4"
   local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
 
-  "$python_bin" - "$prediction_csv" "$package_name" "$model_version" <<'PY'
+  "$python_bin" - "$prediction_csv" "$input_csv" "$package_name" "$model_version" <<'PY'
 import csv
 import json
 import math
+from pathlib import Path
 import sys
 
-prediction_csv, package_name, model_version = sys.argv[1:4]
+prediction_csv, input_csv, package_name, model_version = sys.argv[1:5]
 
 time_columns = [
     "Execution Time [ns]",
@@ -327,6 +329,12 @@ time_columns = [
     "predicted_execution_time_ns",
 ]
 name_columns = ["kernel_name", "Kernel Name", "kernel", "Kernel", "name", "Name"]
+source_time_columns = [
+    "Duration [ns]",
+    "Execution Time",
+    "Execution Time [ns]",
+    "gpu__time_duration.sum",
+]
 metric_columns = [
     "Memory Throughput [%]",
     "Achieved Occupancy",
@@ -361,6 +369,31 @@ def as_number(value):
     return number
 
 
+def read_csv_rows(path):
+    reader = csv.DictReader(cleaned_lines(path))
+    if not reader.fieldnames:
+        return [], []
+    return list(reader), reader.fieldnames
+
+
+def source_time_by_row(path):
+    if not path:
+        return [], None
+    candidate = Path(path)
+    if not candidate.is_file():
+        return [], None
+
+    rows, fieldnames = read_csv_rows(path)
+    if not fieldnames:
+        return [], None
+
+    time_column = next((col for col in source_time_columns if col in fieldnames), None)
+    if time_column is None:
+        return [None] * len(rows), None
+
+    return [as_number(row.get(time_column)) for row in rows], time_column
+
+
 reader = csv.DictReader(cleaned_lines(prediction_csv))
 if not reader.fieldnames:
     raise SystemExit(f"prediction CSV has no header: {prediction_csv}")
@@ -376,6 +409,9 @@ kernels = []
 source_gpus = []
 target_gpus = []
 total_seconds = 0.0
+source_times_ns, source_time_column = source_time_by_row(input_csv)
+total_source_seconds = 0.0
+source_time_count = 0
 
 for idx, row in enumerate(reader, start=1):
     predicted_ns = as_number(row.get(time_column))
@@ -392,6 +428,11 @@ for idx, row in enumerate(reader, start=1):
 
     seconds = predicted_ns / 1e9
     total_seconds += seconds
+    source_ns = source_times_ns[idx - 1] if idx - 1 < len(source_times_ns) else None
+    source_seconds = source_ns / 1e9 if source_ns is not None else None
+    if source_seconds is not None:
+        total_source_seconds += source_seconds
+        source_time_count += 1
 
     metrics = {
         key: as_number(row.get(key))
@@ -403,6 +444,13 @@ for idx, row in enumerate(reader, start=1):
         "predicted_time_ns": predicted_ns,
         "predicted_time": seconds,
     }
+    if source_ns is not None:
+        kernel["source_time_ns"] = source_ns
+        kernel["source_time"] = source_seconds
+        if source_ns != 0:
+            kernel["time_ratio_predicted_over_source"] = predicted_ns / source_ns
+        if predicted_ns != 0:
+            kernel["speedup_factor_source_over_predicted"] = source_ns / predicted_ns
     if source_gpu:
         kernel["source_gpu"] = source_gpu
     if target_gpu:
@@ -411,16 +459,32 @@ for idx, row in enumerate(reader, start=1):
         kernel["metrics"] = metrics
     kernels.append(kernel)
 
+summary_metrics = {
+    "kernel_count": len(kernels),
+    "time_column": time_column,
+    "total_predicted_time_ns": total_seconds * 1e9,
+    "source_gpus": sorted(set(source_gpus)),
+    "target_gpus": sorted(set(target_gpus)),
+    "kernels": kernels,
+}
+if source_time_column is not None:
+    total_source_ns = total_source_seconds * 1e9
+    summary_metrics["source_time_column"] = source_time_column
+    summary_metrics["source_time_kernel_count"] = source_time_count
+    summary_metrics["total_source_time_ns"] = total_source_ns
+    summary_metrics["total_source_time"] = total_source_seconds
+    if total_source_ns != 0:
+        summary_metrics["time_ratio_predicted_over_source"] = (
+            summary_metrics["total_predicted_time_ns"] / total_source_ns
+        )
+    if summary_metrics["total_predicted_time_ns"] != 0:
+        summary_metrics["speedup_factor_source_over_predicted"] = (
+            total_source_ns / summary_metrics["total_predicted_time_ns"]
+        )
+
 print(json.dumps({
     "time": total_seconds,
-    "metrics": {
-        "kernel_count": len(kernels),
-        "time_column": time_column,
-        "total_predicted_time_ns": total_seconds * 1e9,
-        "source_gpus": sorted(set(source_gpus)),
-        "target_gpus": sorted(set(target_gpus)),
-        "kernels": kernels,
-    },
+    "metrics": summary_metrics,
     "package_applicability": {
         "status": "applicable",
         "missing_inputs": [],
@@ -511,7 +575,7 @@ _bk_gpu_mlp_run_predictor() {
     return 1
   fi
 
-  printf '%s\n' "$prediction_csv"
+  printf '%s\t%s\t%s\n' "$prediction_csv" "$input_csv" "$prediction_log"
 }
 
 bk_section_package_transform_gpu_kernel_mlp_v15() {
@@ -522,21 +586,28 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   local _item_kind="$5"
   local section_name
   local prediction_csv
+  local input_csv=""
+  local prediction_log=""
+  local run_outputs
   local parsed_json
   local package_name="gpu_kernel_mlp_v15"
   local model_version="${BK_GPU_MLP_MODEL_VERSION:-v1.5}"
 
   section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
   prediction_csv=$(_bk_gpu_mlp_resolve_section_prediction_csv "$item_json" "$section_name")
+  input_csv=$(_bk_gpu_mlp_resolve_section_input_csv "$item_json" "$section_name")
 
   if [[ -z "$prediction_csv" ]]; then
-    prediction_csv=$(_bk_gpu_mlp_run_predictor "$item_json" "$section_name")
+    run_outputs=$(_bk_gpu_mlp_run_predictor "$item_json" "$section_name")
+    IFS=$'\t' read -r prediction_csv input_csv prediction_log <<< "$run_outputs"
   fi
 
-  parsed_json=$(_bk_gpu_mlp_parse_prediction_csv "$prediction_csv" "$package_name" "$model_version")
+  parsed_json=$(_bk_gpu_mlp_parse_prediction_csv "$prediction_csv" "$input_csv" "$package_name" "$model_version")
 
   echo "$item_json" | jq -c \
     --arg prediction_csv "$prediction_csv" \
+    --arg input_csv "$input_csv" \
+    --arg prediction_log "$prediction_log" \
     --argjson parsed "$parsed_json" '
     .
     + {
@@ -548,6 +619,11 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
         model: $parsed.model,
         metrics: $parsed.metrics
       }
-    | .artifacts = ((.artifacts // []) + [{kind: "gpu_mlp_prediction_csv", path: $prediction_csv}])
+    | .artifacts = (
+        (.artifacts // [])
+        + [{kind: "gpu_mlp_prediction_csv", path: $prediction_csv}]
+        + (if $input_csv != "" then [{kind: "gpu_mlp_input_csv", path: $input_csv}] else [] end)
+        + (if $prediction_log != "" then [{kind: "gpu_mlp_log", path: $prediction_log}] else [] end)
+      )
   '
 }
