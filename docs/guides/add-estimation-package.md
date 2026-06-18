@@ -86,20 +86,40 @@ top-level package は `instrumented_app_sections_dummy` などのままにして
 ```bash
 gpu_section_package="${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10}"
 bk_declare_section --side future pairlist "$gpu_section_package"
-bk_declare_section --side future pme_real "$gpu_section_package"
-bk_emit_declared_section --side future pairlist "$measured_pairlist_time" results/padata0.tgz
-bk_emit_declared_section --side future pme_real "$measured_pme_real_time" results/padata0.tgz
+bk_declare_section --side future pme_real_wait identity
+bk_declare_section --side future pme_real_inter "$gpu_section_package"
+bk_declare_section --side future pme_real_intra "$gpu_section_package"
+bk_declare_section --side future pme_recip identity
+bk_declare_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip identity
+bk_emit_declared_section --side future pairlist "$measured_pairlist_time" results/padata_pairlist.tgz
+bk_emit_declared_section --side future pme_real_wait "$pme_real_wait_time"
+bk_emit_declared_section --side future pme_real_inter "$pme_real_inter_time" results/padata_inter.tgz
+bk_emit_declared_section --side future pme_real_intra "$pme_real_intra_time" results/padata_intra.tgz
+bk_emit_declared_section --side future pme_recip "$pme_recip_time"
+bk_emit_declared_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip "$pme_real_recip_overlap_time"
 ```
 
 GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で単発指定できます。
 複数の推定 package を比較したい場合は、`BK_GENESIS_GPU_SECTION_PACKAGES` にカンマ区切りで指定します。
 複数指定時は `gpu_kernel_ensemble_average` wrapper package が同じ GPU section に対して各 package を実行し、候補結果を同一 Estimate JSON の `candidate_estimates` に保持します。
 GENESIS の既定の推定設定では `current_system=Fugaku`、`future_system=FugakuNEXT` として扱います。
-GENESIS の FOM はログ上の `dynamics` 時間で、現時点では `pairlist`, `bond`, `angle`, `dihedral`, `pme_real`, `pme_recip`, `integrator` の7区間をログ値のまま登録し、取り切れていない差分を `other` として追加して `dynamics` を再構成します。
-このうち `pairlist` と `pme_real` は GPU kernel section package の候補に紐づき、その他の区間と `other` は当面 `identity` です。
+GENESIS の FOM はログ上の `dynamics` 時間です。
+現時点では `pairlist`, `bond`, `angle`, `dihedral`, `pme_real_wait`, `pme_real_inter`, `pme_real_intra`, `pme_recip`, `integrator` を登録し、取り切れていない正の差分を `other` として追加して `dynamics` を再構成します。
+`pme real` と `pme recip` は同じ `nonbond` 内で overlap しているため、`pme_real_wait,pme_real_inter,pme_real_intra,pme_recip` の overlap を登録し、`nonbond` 相当が概ね `max(pme_real, pme_recip)` になるように扱います。
+`pme_real` は暫定的に 0.8 を待ち/CPU/通信相当の `identity` (`pme_real_wait`)、0.1 を `inter_cell` (`pme_real_inter`)、0.1 を `intra_cell` (`pme_real_intra`) として分割します。
+この比率は `BK_GENESIS_PME_REAL_IDENTITY_FRACTION`, `BK_GENESIS_PME_REAL_INTER_FRACTION`, `BK_GENESIS_PME_REAL_INTRA_FRACTION` で調整できます。
+単純和が `dynamics` を超える場合は、超過分を負の `other` にはせず、全主要区間に対する追加 `overlap` として登録します。
+このうち `pairlist`, `pme_real_inter`, `pme_real_intra` は GPU kernel section package の候補に紐づき、その他の区間と `other` は当面 `identity` です。
+GENESIS の `current_system` 側は Fugaku baseline の全体 FOM を weakscaling として扱い、MiyabiG 側の section breakdown は `future_system` 側の投影にだけ使います。
 NCU 由来の GPU kernel profile は通常アプリ全体の一部の kernel launch だけを含むため、その合計時間を直接 FOM 合成には使いません。
 各 GPU package は kernel sample の `predicted/source` 時間比を計算し、その比をアプリ側で採取した GPU section time に掛けて section time を作ります。
-FOM 合成に使う section time は、当面は適用できた候補 package の投影後 section time の平均値です。
+NCU は section 内の全 kernel 構成比ではなく、採取開始から指定 launch 数の kernel sample を取るため、NCU sample 内の時間割合をそのまま section 内の時間割合として FOM 合成に使ってはいけません。
+GPU kernel estimator を FOM 合成へ使うには、その section をどの kernel family の `predicted/source` ratio でスケールするかを突合せできる必要があります。
+section と kernel の対応は `BK_GPU_KERNEL_SECTION_<SECTION>_REGEX` または `BK_GPU_KERNEL_SECTION_<SECTION>_NAME` で指定できます。
+例えば `pairlist` は既定で `BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX=build_pairlist` として扱い、`results/padata_pairlist.tgz` を優先して参照します。
+`pme_real_inter` は既定で `BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX=force_inter_cell` として `results/padata_inter.tgz` を参照し、`pme_real_intra` は `BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX=force_intra_cell` として `results/padata_intra.tgz` を参照します。
+複数 package を使う場合、`gpu_kernel_ensemble_average` は同じ section に対応した kernel family について package 間の `predicted/source` ratio を平均し、app-side section time に掛けます。
+kernel selector が無く複数 kernel family が混在している場合、候補 package の出力は `candidate_estimates` に残しますが、ensemble 本体は `identity` fallback として扱います。
 これにより、将来 CPU/GPU/通信の各 section package を同じ JSON 内で合成しつつ、GPU estimator だけを複数候補として比較できます。
 アプリ側 GPU section time が未取得の場合、GPU kernel estimator は FOM 合成には使えず、まずアプリログ、NVTX、または別のアプリ側計時で掛け先となる section time を用意する必要があります。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。

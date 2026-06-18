@@ -84,10 +84,14 @@ echo "$transformed" | jq -e '
   .sections[0].name == "gpu_kernel_region" and
   .sections[0].time == 0.009 and
   .sections[0].bench_time == 0.009 and
-  .sections[0].scaling_method == "gpu-kernel-lightgbm-v1.0" and
-  .sections[0].estimation_package == "gpu_kernel_lightgbm_v10" and
-  .sections[0].package_applicability.status == "applicable" and
+  .sections[0].scaling_method == "identity" and
+  .sections[0].estimation_package == "identity" and
+  .sections[0].requested_estimation_package == "gpu_kernel_lightgbm_v10" and
+  .sections[0].fallback_used == "identity" and
+  .sections[0].package_applicability.status == "fallback" and
+  (.sections[0].package_applicability.missing_inputs | index("gpu_kernel_section_kernel_selector_required")) and
   .sections[0].metrics.kernel_count == 2 and
+  .sections[0].metrics.unique_kernel_count == 2 and
   .sections[0].metrics.time_column == "O-Execution Time" and
   .sections[0].metrics.source_time_column == "Duration [ns]" and
   .sections[0].metrics.total_source_time_ns == 3000 and

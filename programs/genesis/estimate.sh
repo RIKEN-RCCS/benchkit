@@ -24,6 +24,9 @@ genesis_primary_gpu_section_package() {
   genesis_gpu_section_packages | head -n 1
 }
 
+GENESIS_PME_OVERLAP_SECTION_MEMBERS="pme_real_wait,pme_real_inter,pme_real_intra,pme_recip"
+GENESIS_DYNAMICS_SECTION_MEMBERS="pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator"
+
 genesis_gpu_section_package_binding() {
   if [[ -n "${BK_GENESIS_GPU_SECTION_PACKAGE:-}" && -z "${BK_GENESIS_GPU_SECTION_PACKAGES:-}" ]]; then
     printf '%s\n' "$BK_GENESIS_GPU_SECTION_PACKAGE"
@@ -49,23 +52,35 @@ genesis_declare_estimation_layout() {
   bk_declare_section --side future bond identity
   bk_declare_section --side future angle identity
   bk_declare_section --side future dihedral identity
-  bk_declare_section --side future pme_real "$gpu_section_package"
+  bk_declare_section --side future pme_real_wait identity
+  bk_declare_section --side future pme_real_inter "$gpu_section_package"
+  bk_declare_section --side future pme_real_intra "$gpu_section_package"
   bk_declare_section --side future pme_recip identity
   bk_declare_section --side future integrator identity
   bk_declare_section --side future other identity
+  bk_declare_overlap --side future "$GENESIS_PME_OVERLAP_SECTION_MEMBERS" identity
+  bk_declare_overlap --side future "$GENESIS_DYNAMICS_SECTION_MEMBERS" identity
 }
 
 genesis_extract_dynamics_sections() {
   local log_file="$1"
   local dynamics_time="$2"
+  local pme_real_identity_fraction="${BK_GENESIS_PME_REAL_IDENTITY_FRACTION:-0.8}"
+  local pme_real_inter_fraction="${BK_GENESIS_PME_REAL_INTER_FRACTION:-0.1}"
+  local pme_real_intra_fraction="${BK_GENESIS_PME_REAL_INTRA_FRACTION:-0.1}"
 
-  awk -v dynamics="$dynamics_time" '
+  awk \
+    -v dynamics="$dynamics_time" \
+    -v pme_real_identity_fraction="$pme_real_identity_fraction" \
+    -v pme_real_inter_fraction="$pme_real_inter_fraction" \
+    -v pme_real_intra_fraction="$pme_real_intra_fraction" '
     function value(line, rest, parts) {
       rest = line
       sub(/^[^=]*=[[:space:]]*/, "", rest)
       split(rest, parts, /[[:space:]]+/)
       return parts[1] + 0
     }
+    function min(a, b) { return a < b ? a : b }
     /^[[:space:]]*pairlist[[:space:]]*=/ { pairlist = value($0); found_pairlist = 1 }
     /^[[:space:]]*bond[[:space:]]*=/ { bond = value($0); found_bond = 1 }
     /^[[:space:]]*angle[[:space:]]*=/ { angle = value($0); found_angle = 1 }
@@ -74,19 +89,37 @@ genesis_extract_dynamics_sections() {
     /^[[:space:]]*pme recip[[:space:]]*=/ { pme_recip = value($0); found_pme_recip = 1 }
     /^[[:space:]]*integrator[[:space:]]*=/ { integrator = value($0); found_integrator = 1 }
     END {
-      total = pairlist + bond + angle + dihedral + pme_real + pme_recip + integrator
+      pme_real_wait = pme_real * pme_real_identity_fraction
+      pme_real_inter = pme_real * pme_real_inter_fraction
+      pme_real_intra = pme_real * pme_real_intra_fraction
+      pme_real_total = pme_real_wait + pme_real_inter + pme_real_intra
+      pme_overlap = min(pme_real_total, pme_recip)
+      total = pairlist + bond + angle + dihedral + pme_real_total + pme_recip - pme_overlap + integrator
       if (total <= 0) {
         exit 1
       }
       other = dynamics - total
-      printf "pairlist %.12g\n", pairlist
-      printf "bond %.12g\n", bond
-      printf "angle %.12g\n", angle
-      printf "dihedral %.12g\n", dihedral
-      printf "pme_real %.12g\n", pme_real
-      printf "pme_recip %.12g\n", pme_recip
-      printf "integrator %.12g\n", integrator
-      printf "other %.12g\n", other
+      dynamics_overlap = 0
+      if (other < 0) {
+        dynamics_overlap = -other
+        other = 0
+      }
+      printf "section pairlist %.12g\n", pairlist
+      printf "section bond %.12g\n", bond
+      printf "section angle %.12g\n", angle
+      printf "section dihedral %.12g\n", dihedral
+      printf "section pme_real_wait %.12g\n", pme_real_wait
+      printf "section pme_real_inter %.12g\n", pme_real_inter
+      printf "section pme_real_intra %.12g\n", pme_real_intra
+      printf "section pme_recip %.12g\n", pme_recip
+      printf "section integrator %.12g\n", integrator
+      printf "section other %.12g\n", other
+      if (pme_overlap > 0) {
+        printf "overlap pme_real_wait,pme_real_inter,pme_real_intra,pme_recip %.12g\n", pme_overlap
+      }
+      if (dynamics_overlap > 0) {
+        printf "overlap pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator %.12g\n", dynamics_overlap
+      }
       missing = 0
       missing += !found_pairlist
       missing += !found_bond
@@ -102,13 +135,83 @@ genesis_extract_dynamics_sections() {
   ' "$log_file"
 }
 
+genesis_section_key() {
+  printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
+}
+
+genesis_artifact_file_exists() {
+  local rel_path="$1"
+
+  [[ -n "$rel_path" ]] || return 1
+  if [[ -f "$rel_path" ]]; then
+    return 0
+  fi
+  if [[ -n "${GENESIS_BENCHKIT_ROOT:-}" && -f "${GENESIS_BENCHKIT_ROOT}/${rel_path}" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+genesis_section_artifact_path() {
+  local section_name="$1"
+  local section_key
+  local env_var
+  local explicit_artifact
+  local candidate
+
+  section_key=$(genesis_section_key "$section_name")
+  env_var="BK_GENESIS_SECTION_${section_key}_ARTIFACT"
+  explicit_artifact="${!env_var:-}"
+  if [[ -n "$explicit_artifact" ]]; then
+    if genesis_artifact_file_exists "$explicit_artifact"; then
+      printf '%s\n' "$explicit_artifact"
+      return 0
+    fi
+    echo "GENESIS section artifact was requested but not found: ${env_var}=${explicit_artifact}" >&2
+    return 1
+  fi
+
+  case "$section_name" in
+    pairlist)
+      for candidate in "results/padata_pairlist.tgz" "results/padata0.tgz"; do
+        if genesis_artifact_file_exists "$candidate"; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    pme_real_inter)
+      candidate="results/padata_inter.tgz"
+      if genesis_artifact_file_exists "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+      ;;
+    pme_real_intra)
+      candidate="results/padata_intra.tgz"
+      if genesis_artifact_file_exists "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+      ;;
+    *)
+      candidate="results/padata_${section_name}.tgz"
+      if genesis_artifact_file_exists "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+      ;;
+  esac
+
+  return 1
+}
+
 genesis_emit_estimation_data_from_log() {
   local log_file="$1"
   local fom="$2"
-  local artifact_path="results/padata0.tgz"
-  local padata_path="$artifact_path"
-  local section_name
-  local section_time
+  local item_kind
+  local item_name
+  local item_time
   local section_artifact=""
 
   if [[ ! -f "$log_file" ]]; then
@@ -116,21 +219,22 @@ genesis_emit_estimation_data_from_log() {
     return 0
   fi
 
-  if [[ -n "${GENESIS_BENCHKIT_ROOT:-}" ]]; then
-    padata_path="${GENESIS_BENCHKIT_ROOT}/${artifact_path}"
-  fi
-
-  while read -r section_name section_time; do
-    [[ -n "$section_name" && -n "$section_time" ]] || continue
+  while read -r item_kind item_name item_time; do
+    [[ -n "$item_kind" && -n "$item_name" && -n "$item_time" ]] || continue
     section_artifact=""
-    case "$section_name" in
-      pairlist|pme_real)
-        if [[ -f "$padata_path" ]]; then
-          section_artifact="$artifact_path"
-        fi
+    case "$item_kind" in
+      section)
+        case "$item_name" in
+          pairlist|pme_real_inter|pme_real_intra)
+            section_artifact=$(genesis_section_artifact_path "$item_name" || true)
+            ;;
+        esac
+        bk_emit_declared_section --side future "$item_name" "$item_time" "$section_artifact"
+        ;;
+      overlap)
+        bk_emit_declared_overlap --side future "$item_name" "$item_time"
         ;;
     esac
-    bk_emit_declared_section --side future "$section_name" "$section_time" "$section_artifact"
   done < <(genesis_extract_dynamics_sections "$log_file" "$fom")
 }
 
@@ -186,12 +290,18 @@ BK_GPU_MLP_KERNEL_COUNT="${BK_GPU_MLP_KERNEL_COUNT:-20}"
 BK_GPU_LIGHTGBM_ARTIFACT_MODE="${BK_GPU_LIGHTGBM_ARTIFACT_MODE:-ncu}"
 BK_GPU_LIGHTGBM_SOURCE_GPU="${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU}}"
 BK_GPU_KERNEL_ENSEMBLE_PACKAGES="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-$(genesis_gpu_section_packages | paste -sd, -)}"
+BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX="${BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX:-build_pairlist}"
+BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX="${BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX:-force_inter_cell}"
+BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX="${BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX:-force_intra_cell}"
 export BK_GPU_MLP_ARTIFACT_MODE
 export BK_GPU_MLP_SOURCE_GPU
 export BK_GPU_MLP_KERNEL_COUNT
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE
 export BK_GPU_LIGHTGBM_SOURCE_GPU
 export BK_GPU_KERNEL_ENSEMBLE_PACKAGES
+export BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX
+export BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX
+export BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX
 
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   genesis_declare_estimation_layout
@@ -221,10 +331,12 @@ genesis_run_single_estimate() {
   BK_ESTIMATION_SKIP_TOP_LEVEL_CURRENT_BREAKDOWN=true \
     bk_estimation_run_declared_future_package "$BK_ESTIMATION_INPUT_JSON"
   bk_estimation_run_recorded_current_with_weakscaling \
-    "${BK_ESTIMATION_BASELINE_SYSTEM:-MiyabiG}" \
+    "${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}" \
     "${BK_ESTIMATION_BASELINE_EXP:-}" \
     "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1}" \
     "${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
+  est_current_fom="${est_current_bench_fom:-$est_current_fom}"
+  est_current_fom_breakdown=""
 
   if [[ "$synthetic_breakdown" -eq 1 ]]; then
     genesis_mark_gpu_section_time_missing

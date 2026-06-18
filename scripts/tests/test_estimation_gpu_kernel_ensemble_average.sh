@@ -40,19 +40,33 @@ cp "${REPO_DIR}/scripts/result_server/api.sh" "${TMP_DIR}/scripts/result_server/
 cp -R "${REPO_DIR}/scripts/estimation/packages" "${TMP_DIR}/scripts/estimation/packages"
 cp -R "${REPO_DIR}/scripts/estimation/section_packages" "${TMP_DIR}/scripts/estimation/section_packages"
 
-cat > "${TMP_DIR}/lightgbm_pred.csv" <<'EOF'
+cat > "${TMP_DIR}/lightgbm_pred_single.csv" <<'EOF'
 meta-kernel,meta-src_gpu,meta-tgt_gpu,O-Execution Time,O-Memory Throughput [%]
 kern_a,H100,A100,1000,50
-kern_b,H100,A100,2000,40
 EOF
 
-cat > "${TMP_DIR}/mlp_pred.csv" <<'EOF'
+cat > "${TMP_DIR}/mlp_pred_single.csv" <<'EOF'
+kernel_name,src_gpu,tgt_gpu,Execution Time [ns],Memory Throughput [%]
+kern_a,H100,A100,3000,30
+EOF
+
+cat > "${TMP_DIR}/source_input_single.csv" <<'EOF'
+Kernel Name,Duration [ns]
+kern_a,1000
+EOF
+
+cat > "${TMP_DIR}/lightgbm_pred_mixed.csv" <<'EOF'
+meta-kernel,meta-src_gpu,meta-tgt_gpu,O-Execution Time,O-Memory Throughput [%]
+kern_a,H100,A100,1000,50
+EOF
+
+cat > "${TMP_DIR}/mlp_pred_mixed.csv" <<'EOF'
 kernel_name,src_gpu,tgt_gpu,Execution Time [ns],Memory Throughput [%]
 kern_a,H100,A100,3000,30
 kern_b,H100,A100,5000,20
 EOF
 
-cat > "${TMP_DIR}/source_input.csv" <<'EOF'
+cat > "${TMP_DIR}/source_input_mixed.csv" <<'EOF'
 Kernel Name,Duration [ns]
 kern_a,1000
 kern_b,2000
@@ -78,38 +92,92 @@ source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_KERNEL_ENSEMBLE_PACKAGES="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
-export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred.csv"
-export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/source_input.csv"
+export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred_single.csv"
+export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/source_input_single.csv"
 export BK_GPU_LIGHTGBM_PYTHON="$PYTHON_BIN"
 export BK_GPU_MLP_ARTIFACT_MODE="prediction"
-export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred.csv"
-export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input.csv"
+export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_single.csv"
+export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_single.csv"
 export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
-transformed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+
+export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred_mixed.csv"
+export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/source_input_mixed.csv"
+export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_mixed.csv"
+export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_mixed.csv"
+
+transformed_mixed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+
+export BK_GPU_KERNEL_SECTION_GPU_KERNEL_REGION_REGEX="kern_a"
+transformed_selected=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 popd >/dev/null
 
-if ! echo "$transformed" | jq -e '
+if ! echo "$transformed_single" | jq -e '
   def near($a; $b):
     (($a - $b) | if . < 0 then -. else . end) < 0.000000000001;
 
   (.sections | length == 1) and
   .sections[0].estimation_package == "gpu_kernel_ensemble_average" and
-  near(.sections[0].time; 18.333333333333336) and
+  near(.sections[0].time; 20) and
   .sections[0].scaling_method == "gpu-kernel-ensemble-average" and
-  .sections[0].metrics.aggregation == "mean" and
+  .sections[0].metrics.aggregation == "single-kernel-package-ratio-mean" and
   .sections[0].metrics.candidate_count == 2 and
   .sections[0].metrics.applicable_candidate_count == 2 and
   .sections[0].metrics.candidate_packages == ["gpu_kernel_lightgbm_v10", "gpu_kernel_mlp_v15"] and
-  near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 1.8333333333333333) and
+  near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 2) and
+  .sections[0].metrics.unique_kernel_count == 1 and
+  .sections[0].metrics.kernel_names == ["kern_a"] and
   (.sections[0].candidate_estimates | length == 2) and
   near(.sections[0].candidate_estimates[0].time; 10) and
-  near(.sections[0].candidate_estimates[1].time; 26.666666666666668) and
+  near(.sections[0].candidate_estimates[1].time; 30) and
   near(.sections[0].candidate_estimates[0].metrics.time_ratio_predicted_over_source; 1) and
-  near(.sections[0].candidate_estimates[1].metrics.time_ratio_predicted_over_source; 2.6666666666666665)
+  near(.sections[0].candidate_estimates[1].metrics.time_ratio_predicted_over_source; 3)
 ' >/dev/null; then
-  echo "Unexpected ensemble transform output:" >&2
-  echo "$transformed" | jq . >&2
+  echo "Unexpected single-kernel ensemble transform output:" >&2
+  echo "$transformed_single" | jq . >&2
+  exit 1
+fi
+
+if ! echo "$transformed_mixed" | jq -e '
+  (.sections | length == 1) and
+  .sections[0].estimation_package == "identity" and
+  .sections[0].requested_estimation_package == "gpu_kernel_ensemble_average" and
+  .sections[0].fallback_used == "identity" and
+  .sections[0].time == 10 and
+  .sections[0].scaling_method == "identity" and
+  .sections[0].package_applicability.status == "fallback" and
+  (.sections[0].package_applicability.missing_inputs | index("gpu_kernel_section_kernel_selector_required")) and
+  .sections[0].metrics.unique_kernel_count == 2 and
+  .sections[0].metrics.kernel_names == ["kern_a", "kern_b"] and
+  (.sections[0].candidate_estimates | length == 2)
+' >/dev/null; then
+  echo "Unexpected mixed-kernel ensemble transform output:" >&2
+  echo "$transformed_mixed" | jq . >&2
+  exit 1
+fi
+
+if ! echo "$transformed_selected" | jq -e '
+  def near($a; $b):
+    (($a - $b) | if . < 0 then -. else . end) < 0.000000000001;
+
+  (.sections | length == 1) and
+  .sections[0].estimation_package == "gpu_kernel_ensemble_average" and
+  near(.sections[0].time; 20) and
+  .sections[0].scaling_method == "gpu-kernel-ensemble-average" and
+  .sections[0].package_applicability.status == "applicable" and
+  .sections[0].metrics.unique_kernel_count == 1 and
+  .sections[0].metrics.kernel_names == ["kern_a"] and
+  near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 2) and
+  (.sections[0].metrics.kernel_candidate_ratios[0].candidate_ratios | length == 2) and
+  (.sections[0].candidate_estimates | length == 2) and
+  .sections[0].candidate_estimates[0].metrics.kernel_selector.kind == "regex" and
+  .sections[0].candidate_estimates[0].metrics.kernel_selector.value == "kern_a" and
+  .sections[0].candidate_estimates[1].metrics.kernel_selector.kind == "regex" and
+  .sections[0].candidate_estimates[1].metrics.kernel_selector.value == "kern_a"
+' >/dev/null; then
+  echo "Unexpected selected-kernel ensemble transform output:" >&2
+  echo "$transformed_selected" | jq . >&2
   exit 1
 fi
 

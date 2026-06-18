@@ -37,6 +37,7 @@ bk_estimation_package_metadata() {
     "logp"
   ],
   "supported_overlap_packages": [
+    "identity",
     "half",
     "quarter",
     "overlap_max_basic"
