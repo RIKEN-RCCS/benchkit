@@ -85,13 +85,23 @@ top-level package は `instrumented_app_sections_dummy` などのままにして
 
 ```bash
 gpu_section_package="${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10}"
-bk_declare_section --side future gpu_kernel_region "$gpu_section_package"
-bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_artifacts/gpu_kernel_region_input.csv
+bk_declare_section --side future pairlist "$gpu_section_package"
+bk_declare_section --side future pme_real "$gpu_section_package"
+bk_emit_declared_section --side future pairlist "$measured_pairlist_time" results/padata0.tgz
+bk_emit_declared_section --side future pme_real "$measured_pme_real_time" results/padata0.tgz
 ```
 
 GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で単発指定できます。
 複数の推定 package を比較したい場合は、`BK_GENESIS_GPU_SECTION_PACKAGES` にカンマ区切りで指定します。
-複数指定時は同じ benchmark result から package ごとに別々の Estimate JSON を作るため、1つの FOM 内で同じ GPU 区間を二重計上しません。
+複数指定時は `gpu_kernel_ensemble_average` wrapper package が同じ GPU section に対して各 package を実行し、候補結果を同一 Estimate JSON の `candidate_estimates` に保持します。
+GENESIS の既定の推定設定では `current_system=Fugaku`、`future_system=FugakuNEXT` として扱います。
+GENESIS の FOM はログ上の `dynamics` 時間で、現時点では `pairlist`, `bond`, `angle`, `dihedral`, `pme_real`, `pme_recip`, `integrator` の7区間をログ値のまま登録し、取り切れていない差分を `other` として追加して `dynamics` を再構成します。
+このうち `pairlist` と `pme_real` は GPU kernel section package の候補に紐づき、その他の区間と `other` は当面 `identity` です。
+NCU 由来の GPU kernel profile は通常アプリ全体の一部の kernel launch だけを含むため、その合計時間を直接 FOM 合成には使いません。
+各 GPU package は kernel sample の `predicted/source` 時間比を計算し、その比をアプリ側で採取した GPU section time に掛けて section time を作ります。
+FOM 合成に使う section time は、当面は適用できた候補 package の投影後 section time の平均値です。
+これにより、将来 CPU/GPU/通信の各 section package を同じ JSON 内で合成しつつ、GPU estimator だけを複数候補として比較できます。
+アプリ側 GPU section time が未取得の場合、GPU kernel estimator は FOM 合成には使えず、まずアプリログ、NVTX、または別のアプリ側計時で掛け先となる section time を用意する必要があります。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
 
 ```bash

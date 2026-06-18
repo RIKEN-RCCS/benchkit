@@ -32,6 +32,31 @@
                 <td><span class="fallback-value">{{ item.get('fallback_used') or '-' }}</span></td>
                 <td>{{ render_applicability_cell(item.get('package_applicability', {})) }}</td>
             </tr>
+            {% if item.get('candidate_estimates') %}
+            <tr>
+                <td colspan="6">
+                    <div class="candidate-estimates">
+                        <div class="candidate-estimates-title">Candidate estimates; mean time is used for FOM composition.</div>
+                        <table class="candidate-estimates-table">
+                            <thead>
+                                <tr><th>Package</th><th>Time</th><th>Scaling</th><th>Status</th><th>Time Ratio</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for candidate in item.get('candidate_estimates', []) %}
+                                <tr>
+                                    <td>{{ candidate.get('estimation_package', 'N/A') }}</td>
+                                    <td>{{ candidate.get('time', 'N/A') }}</td>
+                                    <td>{{ candidate.get('scaling_method', 'N/A') }}</td>
+                                    <td>{{ candidate.get('package_applicability', {}).get('status', 'N/A') }}</td>
+                                    <td>{{ candidate.get('metrics', {}).get('time_ratio_predicted_over_source', 'N/A') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
         {% endfor %}
         </tbody>
     </table>

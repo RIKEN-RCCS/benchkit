@@ -31,6 +31,7 @@ bk_estimation_package_metadata() {
     "quarter",
     "counter_papi_detailed",
     "trace_mpi_basic",
+    "gpu_kernel_ensemble_average",
     "gpu_kernel_lightgbm_v10",
     "gpu_kernel_mlp_v15",
     "logp"

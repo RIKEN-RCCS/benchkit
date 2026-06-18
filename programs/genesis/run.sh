@@ -251,7 +251,7 @@ fi
 
 {
     bk_emit_result --fom "$fom_val" --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
-    genesis_emit_estimation_data_from_fom "$fom_val"
+    genesis_emit_estimation_data_from_log "$output" "$fom_val"
 } >> ${resultsdir}/result
 # if information is requierd
 #printf "%-10s nodes=%2d numproc=%3d  FOM: %.3f\n" \

@@ -82,7 +82,7 @@ unset BK_GPU_MLP_INPUT_CSV
 echo "$transformed" | jq -e '
   (.sections | length == 2) and
   .sections[0].name == "gpu_kernel_region" and
-  .sections[0].time == 0.006 and
+  .sections[0].time == 0.009 and
   .sections[0].bench_time == 0.009 and
   .sections[0].scaling_method == "gpu-kernel-mlp-v1.5" and
   .sections[0].estimation_package == "gpu_kernel_mlp_v15" and
@@ -91,6 +91,9 @@ echo "$transformed" | jq -e '
   .sections[0].metrics.source_time_column == "Execution Time" and
   .sections[0].metrics.total_source_time_ns == 6000000 and
   .sections[0].metrics.total_predicted_time_ns == 6000000 and
+  .sections[0].metrics.sample_predicted_time == 0.006 and
+  .sections[0].metrics.app_gpu_section_time == 0.009 and
+  .sections[0].metrics.section_time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.speedup_factor_source_over_predicted == 1 and
   .sections[0].metrics.kernels[0].source_time_ns == 1500000 and
@@ -158,12 +161,15 @@ popd >/dev/null
 echo "$transformed_from_input" | jq -e '
   (.sections | length == 1) and
   .sections[0].name == "gpu_kernel_region" and
-  .sections[0].time == 0.004 and
+  .sections[0].time == 0.022 and
   .sections[0].bench_time == 0.011 and
   .sections[0].scaling_method == "gpu-kernel-mlp-v1.5" and
   .sections[0].metrics.kernel_count == 1 and
   .sections[0].metrics.total_source_time_ns == 2000000 and
   .sections[0].metrics.total_predicted_time_ns == 4000000 and
+  .sections[0].metrics.sample_predicted_time == 0.004 and
+  .sections[0].metrics.app_gpu_section_time == 0.011 and
+  .sections[0].metrics.section_time_ratio_predicted_over_source == 2 and
   .sections[0].metrics.time_ratio_predicted_over_source == 2 and
   .sections[0].metrics.speedup_factor_source_over_predicted == 0.5 and
   .sections[0].metrics.kernels[0].name == "probe_kernel" and

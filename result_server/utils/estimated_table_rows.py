@@ -11,6 +11,7 @@ SCALING_SHORT_NAMES = {
 }
 
 PACKAGE_SHORT_NAMES = {
+    "gpu_kernel_ensemble_average": "gpu_ensemble",
     "instrumented_app_sections_dummy": "instr_app_sec",
     "lightweight_fom_scaling": "weakscaling",
     "weakscaling": "weakscaling",
