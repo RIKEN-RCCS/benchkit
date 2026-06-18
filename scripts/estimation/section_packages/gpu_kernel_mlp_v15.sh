@@ -33,7 +33,7 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
     "neither section artifact nor BK_GPU_MLP_INPUT_CSV/BK_GPU_MLP_PREDICTION_CSV is available",
     "padata artifact mode is requested but the archive has no Nsight Compute raw CSV",
     "PerfTools checkout is not available when running the external predictor",
-    "Python runtime for CSV parsing or external inference is not available",
+    "Python 3.11+ runtime for CSV parsing or external inference is not available",
     "prediction CSV does not contain a recognized execution-time column"
   ]
 }
@@ -83,6 +83,29 @@ _bk_gpu_mlp_python_exists() {
   fi
 
   command -v "$python_bin" >/dev/null 2>&1
+}
+
+_bk_gpu_mlp_default_python() {
+  local candidate
+
+  for candidate in python3.12 python3.11 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "python3"
+}
+
+_bk_gpu_mlp_python_compatible() {
+  local python_bin="$1"
+
+  _bk_gpu_mlp_python_exists "$python_bin" || return 1
+  "$python_bin" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+PY
 }
 
 _bk_gpu_mlp_abs_existing_path() {
@@ -226,7 +249,7 @@ bk_section_package_check_applicability_gpu_kernel_mlp_v15() {
   local ncu_archive
   local root
   local predictor
-  local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
+  local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
   local missing=()
 
   if [[ "$item_kind" != "section" ]]; then
@@ -243,6 +266,8 @@ EOF
 
   if ! _bk_gpu_mlp_python_exists "$python_bin"; then
     missing+=("\"python:${python_bin}\"")
+  elif ! _bk_gpu_mlp_python_compatible "$python_bin"; then
+    missing+=("\"python>=3.11:${python_bin}\"")
   fi
 
   if [[ -n "$prediction_csv" ]]; then
@@ -284,7 +309,7 @@ _bk_gpu_mlp_parse_prediction_csv() {
   local prediction_csv="$1"
   local package_name="$2"
   local model_version="$3"
-  local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
+  local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
 
   "$python_bin" - "$prediction_csv" "$package_name" "$model_version" <<'PY'
 import csv
@@ -417,7 +442,7 @@ _bk_gpu_mlp_prepare_input_from_ncu() {
   local root="$3"
   local output_dir="$4"
   local slug="$5"
-  local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
+  local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
   local source_gpu="${BK_GPU_MLP_SOURCE_GPU:-${BK_GPU_MLP_SRC_GPU:-H100}}"
   local kernel_count="${BK_GPU_MLP_KERNEL_COUNT:-20}"
   local prepared_csv="${output_dir}/${slug}_input.csv"
@@ -450,7 +475,7 @@ _bk_gpu_mlp_run_predictor() {
   local input_csv_abs
   local prediction_csv_abs
   local prediction_log_abs
-  local python_bin="${BK_GPU_MLP_PYTHON:-python3}"
+  local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
   local slug
 
   root=$(_bk_gpu_mlp_perftools_root)
