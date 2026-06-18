@@ -159,8 +159,16 @@ run_genesis_gh200_gpu() {
     case "${BK_GENESIS_GPU_MLP_PROFILE:-false}" in
       1|true|TRUE|yes|YES|on|ON)
         genesis_default_profiler_level="detailed"
+        local genesis_ncu_kernel_regex
+        local genesis_ncu_launch_skip
+        local genesis_ncu_launch_count
+        local genesis_default_ncu_args
         export BK_PROFILER_NCU_RAW_CSV="${BK_PROFILER_NCU_RAW_CSV:-true}"
-        export BK_PROFILER_ARGS="${BK_PROFILER_ARGS:---launch-count ${BK_GPU_MLP_NCU_LAUNCH_COUNT:-20}}"
+        genesis_ncu_kernel_regex="${BK_GENESIS_NCU_KERNEL_REGEX:-regex:.*(inter_cell|intra_cell|build_pairlist).*}"
+        genesis_ncu_launch_skip="${BK_GENESIS_NCU_LAUNCH_SKIP:-100}"
+        genesis_ncu_launch_count="${BK_GENESIS_NCU_LAUNCH_COUNT:-${BK_GPU_MLP_NCU_LAUNCH_COUNT:-10}}"
+        genesis_default_ncu_args="--kernel-name-base demangled --kernel-name ${genesis_ncu_kernel_regex} --launch-skip ${genesis_ncu_launch_skip} --launch-count ${genesis_ncu_launch_count}"
+        export BK_PROFILER_ARGS="${BK_PROFILER_ARGS:-${genesis_default_ncu_args}}"
         ;;
     esac
     genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-${genesis_default_profiler_level}}}"
