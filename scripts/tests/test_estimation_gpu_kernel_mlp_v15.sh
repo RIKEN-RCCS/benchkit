@@ -39,6 +39,13 @@ if [[ ! -f "$PREDICTION_FIXTURE" ]]; then
   exit 1
 fi
 
+cat > "${TMP_DIR}/mlp_input.csv" <<'EOF'
+kernel_name,Execution Time
+qws_smoke_kernel_0,1500000
+qws_smoke_kernel_1,2500000
+qws_smoke_kernel_2,2000000
+EOF
+
 cat > "${TMP_DIR}/breakdown.json" <<EOF
 {
   "sections": [
@@ -65,10 +72,12 @@ source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_MLP_ARTIFACT_MODE="prediction"
+export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/mlp_input.csv"
 export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
 transformed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 popd >/dev/null
+unset BK_GPU_MLP_INPUT_CSV
 
 echo "$transformed" | jq -e '
   (.sections | length == 2) and
@@ -79,6 +88,13 @@ echo "$transformed" | jq -e '
   .sections[0].estimation_package == "gpu_kernel_mlp_v15" and
   .sections[0].package_applicability.status == "applicable" and
   .sections[0].metrics.kernel_count == 3 and
+  .sections[0].metrics.source_time_column == "Execution Time" and
+  .sections[0].metrics.total_source_time_ns == 6000000 and
+  .sections[0].metrics.total_predicted_time_ns == 6000000 and
+  .sections[0].metrics.time_ratio_predicted_over_source == 1 and
+  .sections[0].metrics.speedup_factor_source_over_predicted == 1 and
+  .sections[0].metrics.kernels[0].source_time_ns == 1500000 and
+  .sections[0].metrics.kernels[0].time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.kernels[0].metrics."Memory Throughput [%]" == 48 and
   .sections[1].time == 0.001
 ' >/dev/null
@@ -111,8 +127,8 @@ if args.log:
 PY
 
 cat > "${TMP_DIR}/input.csv" <<'EOF'
-kernel_name,src_gpu,tgt_gpu
-probe_kernel,A100,H100
+kernel_name,src_gpu,tgt_gpu,Execution Time
+probe_kernel,A100,H100,2000000
 EOF
 
 cat > "${TMP_DIR}/breakdown_input.json" <<EOF
@@ -146,8 +162,16 @@ echo "$transformed_from_input" | jq -e '
   .sections[0].bench_time == 0.011 and
   .sections[0].scaling_method == "gpu-kernel-mlp-v1.5" and
   .sections[0].metrics.kernel_count == 1 and
+  .sections[0].metrics.total_source_time_ns == 2000000 and
+  .sections[0].metrics.total_predicted_time_ns == 4000000 and
+  .sections[0].metrics.time_ratio_predicted_over_source == 2 and
+  .sections[0].metrics.speedup_factor_source_over_predicted == 0.5 and
   .sections[0].metrics.kernels[0].name == "probe_kernel" and
-  .sections[0].artifacts[-1].kind == "gpu_mlp_prediction_csv"
+  .sections[0].metrics.kernels[0].source_time_ns == 2000000 and
+  .sections[0].metrics.kernels[0].time_ratio_predicted_over_source == 2 and
+  (.sections[0].artifacts | map(.kind) | index("gpu_mlp_prediction_csv") != null) and
+  (.sections[0].artifacts | map(.kind) | index("gpu_mlp_input_csv") != null) and
+  (.sections[0].artifacts | map(.kind) | index("gpu_mlp_log") != null)
 ' >/dev/null
 
 test -f "${TMP_DIR}/mlp_outputs/unknown_gpu_kernel_region_local_pred.csv"

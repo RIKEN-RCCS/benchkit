@@ -36,6 +36,40 @@ BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15 \
   > results/with_mlp_archive.result
 grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_mlp_v15 ' results/with_mlp_archive.result
 
+BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_mlp_v15,gpu_kernel_lightgbm_v10 \
+  bash -c 'source programs/genesis/estimate.sh; export BK_GENESIS_GPU_MLP_PROFILE=true; genesis_emit_estimation_data_from_fom 10' \
+  > results/with_package_list.result
+grep -q '^SECTION:gpu_kernel_region time:10 estimation_package:gpu_kernel_mlp_v15 ' results/with_package_list.result
+
+cat > results/input_lightgbm.json <<'EOF'
+{
+  "code": "genesis",
+  "Exp": "p8",
+  "system": "MiyabiG",
+  "FOM": 10,
+  "node_count": 1,
+  "fom_breakdown": {
+    "sections": [
+      {
+        "name": "gpu_kernel_region",
+        "time": 10,
+        "estimation_package": "gpu_kernel_lightgbm_v10"
+      },
+      {
+        "name": "other",
+        "time": 1,
+        "estimation_package": "identity"
+      }
+    ]
+  }
+}
+EOF
+bash -c 'source programs/genesis/estimate.sh; genesis_write_estimation_input_for_gpu_package results/input_lightgbm.json gpu_kernel_mlp_v15 results/input_mlp.json'
+jq -e '
+  .fom_breakdown.sections[0].estimation_package == "gpu_kernel_mlp_v15" and
+  .fom_breakdown.sections[1].estimation_package == "identity"
+' results/input_mlp.json >/dev/null
+
 mkdir -p genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1
 GENESIS_BENCHKIT_ROOT="$PWD" \
   bash -c 'source programs/genesis/estimate.sh; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; export BK_GENESIS_GPU_MLP_PROFILE=true; genesis_emit_estimation_data_from_fom 10' \

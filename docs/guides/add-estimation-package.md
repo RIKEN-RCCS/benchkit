@@ -89,13 +89,17 @@ bk_declare_section --side future gpu_kernel_region "$gpu_section_package"
 bk_emit_declared_section --side future gpu_kernel_region "$measured_gpu_time" results/estimation_artifacts/gpu_kernel_region_input.csv
 ```
 
-GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で切り替えられます。
+GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で単発指定できます。
+複数の推定 package を比較したい場合は、`BK_GENESIS_GPU_SECTION_PACKAGES` にカンマ区切りで指定します。
+複数指定時は同じ benchmark result から package ごとに別々の Estimate JSON を作るため、1つの FOM 内で同じ GPU 区間を二重計上しません。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
 
 ```bash
 export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15
 # or
 export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_lightgbm_v10
+# or compare multiple packages from the same GENESIS result
+export BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15
 ```
 
 PerfTools 本体は BenchKit に vendoring せず、実行時に次の環境変数で渡します。
@@ -120,6 +124,8 @@ export BK_GPU_MLP_PREDICTION_CSV_GPU_KERNEL_REGION=/path/to/pred.csv
 
 section package は prediction CSV の推定実行時間を合算し、その section の future-side `time` にします。
 MLP package は `Execution Time [ns]`、LightGBM package は `O-Execution Time` を主な入力列として扱います。
+prepared input CSV から source-side の kernel 実測時間を読める場合は、Estimate JSON の metrics に `source_time_ns`, `predicted_time_ns`, `time_ratio_predicted_over_source`, `speedup_factor_source_over_predicted` を出します。
+`ncu` の採取 window はアプリ全体の GPU 区間時間ではなく限定された kernel sample なので、実運用ではこの source/target 比を、profiler overhead のないアプリ区間 timing に掛けて FOM を再構築する想定です。
 
 qws を使って CI 配管だけを確認する場合は、実際の qws が GPU 化されていなくても GPU MLP smoke test を有効にできます。
 `BK_QWS_GPU_MLP_SMOKE_MODE=prediction` では、同梱のサンプル prediction CSV を使い、run job が `gpu_kernel_region` section と prediction CSV artifact を結果に埋め込みます。

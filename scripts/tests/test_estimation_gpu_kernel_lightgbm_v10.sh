@@ -40,6 +40,12 @@ kern_inter,H100,A100,1000,51.5,70.1,0.5,0.2,0.1,0.2
 kern_intra,H100,A100,2000,48.0,69.0,0.4,0.3,0.1,0.2
 EOF
 
+cat > "${TMP_DIR}/lightgbm_input.csv" <<'EOF'
+Kernel Name,Duration [ns]
+kern_inter,1000
+kern_intra,2000
+EOF
+
 cat > "${TMP_DIR}/breakdown.json" <<EOF
 {
   "sections": [
@@ -66,10 +72,12 @@ source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
+export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/lightgbm_input.csv"
 export BK_GPU_LIGHTGBM_PYTHON="$PYTHON_BIN"
 
 transformed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 popd >/dev/null
+unset BK_GPU_LIGHTGBM_INPUT_CSV
 
 echo "$transformed" | jq -e '
   (.sections | length == 2) and
@@ -81,11 +89,19 @@ echo "$transformed" | jq -e '
   .sections[0].package_applicability.status == "applicable" and
   .sections[0].metrics.kernel_count == 2 and
   .sections[0].metrics.time_column == "O-Execution Time" and
+  .sections[0].metrics.source_time_column == "Duration [ns]" and
+  .sections[0].metrics.total_source_time_ns == 3000 and
+  .sections[0].metrics.total_predicted_time_ns == 3000 and
+  .sections[0].metrics.time_ratio_predicted_over_source == 1 and
+  .sections[0].metrics.speedup_factor_source_over_predicted == 1 and
   .sections[0].metrics.source_gpus == ["H100"] and
   .sections[0].metrics.target_gpus == ["A100"] and
   .sections[0].metrics.kernels[0].name == "kern_inter" and
+  .sections[0].metrics.kernels[0].source_time_ns == 1000 and
+  .sections[0].metrics.kernels[0].time_ratio_predicted_over_source == 1 and
   .sections[0].metrics.kernels[0].metrics."O-Memory Throughput [%]" == 51.5 and
-  .sections[0].artifacts[-1].kind == "gpu_lightgbm_prediction_csv" and
+  (.sections[0].artifacts | map(.kind) | index("gpu_lightgbm_prediction_csv") != null) and
+  (.sections[0].artifacts | map(.kind) | index("gpu_lightgbm_input_csv") != null) and
   .sections[1].time == 0.001
 ' >/dev/null
 
