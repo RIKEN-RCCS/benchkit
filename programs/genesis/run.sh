@@ -171,9 +171,55 @@ genesis_default_ncu_launch_count() {
         printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_COUNT_PAIRLIST:-${BK_GENESIS_NCU_PAIRLIST_LAUNCH_COUNT:-10}}"
         ;;
       *)
-        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_COUNT:-${BK_GPU_MLP_NCU_LAUNCH_COUNT:-10}}"
+        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_COUNT:-10}"
         ;;
     esac
+}
+
+genesis_prepare_ncu_input() {
+    local source_input="$1"
+    local profile_name="$2"
+    local profile_slug="$3"
+    local profile_key="$4"
+    local nsteps_var="BK_GENESIS_NCU_${profile_key}_NSTEPS"
+    local nsteps="${!nsteps_var:-${BK_GENESIS_NCU_NSTEPS:-600}}"
+    local target_input
+
+    case "$nsteps" in
+      ""|0|none|NONE|off|OFF)
+        printf '%s\n' "$source_input"
+        return 0
+        ;;
+    esac
+
+    if [[ ! "$nsteps" =~ ^[0-9]+$ ]]; then
+        echo "GENESIS NCU profile '${profile_name}' has invalid nsteps: ${nsteps}" >&2
+        echo "Set ${nsteps_var} or BK_GENESIS_NCU_NSTEPS to a positive integer, or off to reuse the benchmark input." >&2
+        return 1
+    fi
+
+    target_input="${source_input%.sub}.ncu_${profile_slug}.sub"
+    awk -v nsteps="$nsteps" '
+      {
+        if ($0 ~ /(^|[[:space:]])nsteps[[:space:]]*=/) {
+          sub(/nsteps[[:space:]]*=[[:space:]]*[0-9]+/, "nsteps          =       " nsteps)
+          changed = 1
+        }
+        print
+      }
+      END {
+        if (!changed) {
+          exit 2
+        }
+      }
+    ' "$source_input" > "$target_input" || {
+        echo "GENESIS NCU profile '${profile_name}' failed to prepare ${target_input} from ${source_input}" >&2
+        echo "The input must contain an nsteps assignment, or set BK_GENESIS_NCU_NSTEPS=off." >&2
+        return 1
+    }
+
+    echo "Prepared GENESIS NCU profile '${profile_name}' input ${target_input} with nsteps=${nsteps}" >&2
+    printf '%s\n' "$target_input"
 }
 
 genesis_run_ncu_profile() {
@@ -246,6 +292,9 @@ genesis_run_ncu_profiles() {
     local kernel_regex
     local launch_skip
     local launch_count
+    local profile_cmd
+    local last_index
+    local profile_input
 
     profile_names=$(genesis_ncu_profile_names)
     for profile_name in $profile_names; do
@@ -270,7 +319,16 @@ genesis_run_ncu_profiles() {
             return 1
         fi
 
-        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$@"
+        profile_cmd=("$@")
+        last_index=$((${#profile_cmd[@]} - 1))
+        if [ "$last_index" -lt 0 ]; then
+            echo "GENESIS NCU profile '${profile_name}' has no command to run." >&2
+            return 1
+        fi
+        profile_input=$(genesis_prepare_ncu_input "${profile_cmd[$last_index]}" "$profile_name" "$profile_slug" "$profile_key")
+        profile_cmd[$last_index]="$profile_input"
+
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "${profile_cmd[@]}"
     done
 }
 
