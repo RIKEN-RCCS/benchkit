@@ -11,8 +11,26 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "jq not found; skipping gpu_kernel_lightgbm_v10 estimation test"
   exit 0
 fi
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 not found; skipping gpu_kernel_lightgbm_v10 estimation test"
+
+PYTHON_BIN="${BK_TEST_ESTIMATION_PYTHON:-}"
+if [[ -z "$PYTHON_BIN" ]]; then
+  for candidate in python3.12 python3.11 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PYTHON_BIN=$(command -v "$candidate")
+      break
+    fi
+  done
+fi
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "Python 3.11+ not found; skipping gpu_kernel_lightgbm_v10 estimation test"
+  exit 0
+fi
+if ! "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+PY
+then
+  echo "Python 3.11+ not found; skipping gpu_kernel_lightgbm_v10 estimation test"
   exit 0
 fi
 
@@ -48,7 +66,7 @@ source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
-export BK_GPU_LIGHTGBM_PYTHON="python3"
+export BK_GPU_LIGHTGBM_PYTHON="$PYTHON_BIN"
 
 transformed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 popd >/dev/null

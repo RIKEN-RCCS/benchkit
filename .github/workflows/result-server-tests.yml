@@ -16,6 +16,7 @@ on:
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
+      - "scripts/test_estimate_submit.sh"
       - "programs/genesis/estimate.sh"
       - "programs/qws/estimate.sh"
       - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
@@ -41,6 +42,7 @@ on:
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
+      - "scripts/test_estimate_submit.sh"
       - "programs/genesis/estimate.sh"
       - "programs/qws/estimate.sh"
       - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
@@ -97,6 +99,18 @@ jobs:
           jq --version
           command -v python3
           python3 --version
+          estimation_python=""
+          for candidate in python3.12 python3.11 python3; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              estimation_python=$(command -v "$candidate")
+              break
+            fi
+          done
+          test -n "$estimation_python"
+          "$estimation_python" - <<'PY'
+          import sys
+          raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+          PY
 
       - name: Run profiler, profile-data, and estimation shell tests
         run: |

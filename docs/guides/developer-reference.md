@@ -229,8 +229,9 @@ Typical requirements include:
 - Bash and standard shell tooling
 - GitLab CI runner support
 - site-specific scheduler/runtime support
-- Python 3.12 or later for result shaping, estimation support, and portal components
+- Python 3.12 or later for result shaping and portal components
 - Flask-related Python packages for `result_server`
+- package-specific runtimes for external estimation tools
 - optional profiler tools depending on system support
 
 For local portal work, see the route, template, and utility layout under `result_server/`.
