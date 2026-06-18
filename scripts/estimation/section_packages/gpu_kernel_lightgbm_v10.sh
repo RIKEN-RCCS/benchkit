@@ -56,6 +56,43 @@ _bk_gpu_lightgbm_section_var() {
   printf '%s_%s\n' "$prefix" "$key"
 }
 
+_bk_gpu_lightgbm_resolve_section_kernel_selector() {
+  local item_json="$1"
+  local section_name="$2"
+  local key
+  local value
+
+  key=$(_bk_gpu_lightgbm_section_key "$section_name")
+  for var_name in \
+    "BK_GPU_LIGHTGBM_KERNEL_REGEX_${key}" \
+    "BK_GPU_KERNEL_SECTION_${key}_REGEX" \
+    "BK_GPU_LIGHTGBM_KERNEL_NAME_${key}" \
+    "BK_GPU_KERNEL_SECTION_${key}_NAME"; do
+    value=$(_bk_gpu_lightgbm_env_value "$var_name")
+    if [[ -n "$value" ]]; then
+      case "$var_name" in
+        *REGEX*) printf 'regex\t%s\n' "$value" ;;
+        *) printf 'name\t%s\n' "$value" ;;
+      esac
+      return 0
+    fi
+  done
+
+  value=$(echo "$item_json" | jq -r '.kernel_regex // .gpu_kernel_regex // empty')
+  if [[ -n "$value" ]]; then
+    printf 'regex\t%s\n' "$value"
+    return 0
+  fi
+
+  value=$(echo "$item_json" | jq -r '.kernel_name // .gpu_kernel_name // empty')
+  if [[ -n "$value" ]]; then
+    printf 'name\t%s\n' "$value"
+    return 0
+  fi
+
+  printf '\t\n'
+}
+
 _bk_gpu_lightgbm_env_value() {
   local var_name="$1"
   eval "printf '%s\n' \"\${${var_name}:-}\""
@@ -606,8 +643,13 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
   local parsed_json
   local package_name="gpu_kernel_lightgbm_v10"
   local model_version="${BK_GPU_LIGHTGBM_MODEL_VERSION:-1.0}"
+  local selector_kind=""
+  local selector_value=""
+  local selector
 
   section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
+  selector=$(_bk_gpu_lightgbm_resolve_section_kernel_selector "$item_json" "$section_name")
+  IFS=$'\t' read -r selector_kind selector_value <<< "$selector"
   prediction_csv=$(_bk_gpu_lightgbm_resolve_section_prediction_csv "$item_json" "$section_name")
   input_csv=$(_bk_gpu_lightgbm_resolve_section_input_csv "$item_json" "$section_name")
 
@@ -622,22 +664,56 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
     --arg prediction_csv "$prediction_csv" \
     --arg input_csv "$input_csv" \
     --arg prediction_log "$prediction_log" \
+    --arg selector_kind "$selector_kind" \
+    --arg selector_value "$selector_value" \
     --argjson parsed "$parsed_json" '
+    def selector_matches($kind; $value):
+      if $kind == "" or $value == "" then true
+      elif $kind == "regex" then ((.name // "") | test($value))
+      else ((.name // "") == $value)
+      end;
+    def ratio_from_kernels($kernels):
+      ($kernels | map(.source_time_ns // null) | map(select(. != null)) | add // null) as $source_ns
+      | ($kernels | map(.predicted_time_ns // null) | map(select(. != null)) | add // null) as $predicted_ns
+      | if ($source_ns != null and $source_ns != 0 and $predicted_ns != null) then ($predicted_ns / $source_ns) else null end;
     .
     | ((.time // .bench_time // null) | if . == null then null else tonumber? end) as $source_section_time
-    | ($parsed.metrics.time_ratio_predicted_over_source // null) as $time_ratio
+    | (($parsed.metrics.kernels // []) | map(select(selector_matches($selector_kind; $selector_value)))) as $matched_kernels
+    | ($matched_kernels | map(.name // "") | unique | sort) as $kernel_names
+    | ($kernel_names | length) as $unique_kernel_count
+    | ($parsed.metrics.kernels // [] | map(.name // "") | unique | sort) as $available_kernel_names
+    | (
+        if $unique_kernel_count == 1 then ratio_from_kernels($matched_kernels)
+        else null
+        end
+      ) as $matched_time_ratio
+    | ($matched_time_ratio // $parsed.metrics.time_ratio_predicted_over_source // null) as $time_ratio
     | (($parsed.package_applicability.missing_inputs // [])
         + (if $source_section_time == null then ["app_gpu_section_time"] else [] end)
         + (if $time_ratio == null then ["gpu_kernel_time_ratio_predicted_over_source"] else [] end)
+        + (if $unique_kernel_count == 0 then ["gpu_kernel_section_kernel_selector_no_match"] else [] end)
+        + (if (($selector_kind == "" or $selector_value == "") and (($parsed.metrics.kernels // []) | map(.name // "") | unique | length) > 1) then ["gpu_kernel_section_kernel_selector_required"] else [] end)
+        + (if $unique_kernel_count > 1 then ["gpu_kernel_section_kernel_selector_ambiguous"] else [] end)
       ) as $missing_inputs
+    | ($source_section_time != null and $time_ratio != null and $unique_kernel_count == 1) as $can_project_section
+    | ($source_section_time != null and $time_ratio != null and $unique_kernel_count != 1) as $can_identity_fallback
     | .
     + {
-        time: (if $source_section_time != null and $time_ratio != null then ($source_section_time * $time_ratio) else null end),
+        time: (
+          if $can_project_section then ($source_section_time * $time_ratio)
+          elif $can_identity_fallback then $source_section_time
+          else null
+          end
+        ),
         bench_time: $source_section_time,
-        scaling_method: "gpu-kernel-lightgbm-v1.0",
-        estimation_package: $parsed.estimation_package,
+        scaling_method: (if $can_identity_fallback then "identity" else "gpu-kernel-lightgbm-v1.0" end),
+        estimation_package: (if $can_identity_fallback then "identity" else $parsed.estimation_package end),
+        requested_estimation_package: (if $can_identity_fallback then $parsed.estimation_package else (.requested_estimation_package // $parsed.estimation_package) end),
+        fallback_used: (if $can_identity_fallback then "identity" else null end),
         package_applicability: (
-          if ($missing_inputs | length) == 0 then
+          if $can_identity_fallback then
+            {status: "fallback", missing_inputs: ($missing_inputs | unique)}
+          elif ($missing_inputs | length) == 0 then
             $parsed.package_applicability
           else
             {status: "not_applicable", missing_inputs: ($missing_inputs | unique)}
@@ -649,10 +725,19 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
           + {
               sample_predicted_time: $parsed.time,
               app_gpu_section_time: $source_section_time,
+              unique_kernel_count: $unique_kernel_count,
+              kernel_names: $kernel_names,
+              available_kernel_names: $available_kernel_names,
+              kernel_selector: {
+                kind: (if $selector_kind == "" then null else $selector_kind end),
+                value: (if $selector_value == "" then null else $selector_value end)
+              },
+              matched_kernels: $matched_kernels,
               section_time_ratio_predicted_over_source: $time_ratio
             }
         )
       }
+    | if .fallback_used == null then del(.fallback_used) else . end
     | .artifacts = (
         (.artifacts // [])
         + [{kind: "gpu_lightgbm_prediction_csv", path: $prediction_csv}]

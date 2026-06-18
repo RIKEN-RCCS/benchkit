@@ -108,6 +108,172 @@ if [[ ! -f ${inputdir}/apoa1.rst ]]; then
 fi
 cp ${inputdir}/apoa1.rst  .
 
+genesis_bool_enabled() {
+    case "${1:-}" in
+      1|true|TRUE|yes|YES|on|ON)
+        return 0
+        ;;
+    esac
+    return 1
+}
+
+genesis_profile_key() {
+    printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
+}
+
+genesis_profile_slug() {
+    local slug
+    slug=$(printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/_/g; s/^_*//; s/_*$//')
+    printf '%s\n' "${slug:-profile}"
+}
+
+genesis_ncu_profile_names() {
+    if [ -n "${BK_GENESIS_NCU_PROFILE_NAMES:-}" ]; then
+        printf '%s\n' "$BK_GENESIS_NCU_PROFILE_NAMES" | tr ',;' '  '
+    elif [ -n "${BK_GENESIS_NCU_KERNEL_REGEX:-}" ]; then
+        printf '%s\n' "custom"
+    else
+        printf '%s\n' "inter intra pairlist"
+    fi
+}
+
+genesis_default_ncu_kernel_regex() {
+    case "$1" in
+      inter)
+        printf '%s\n' 'regex:.*force_inter_cell.*'
+        ;;
+      intra)
+        printf '%s\n' 'regex:.*force_intra_cell.*'
+        ;;
+      pairlist)
+        printf '%s\n' 'regex:.*build_pairlist.*'
+        ;;
+      custom)
+        printf '%s\n' "${BK_GENESIS_NCU_KERNEL_REGEX:-}"
+        ;;
+    esac
+}
+
+genesis_default_ncu_launch_skip() {
+    case "$1" in
+      pairlist)
+        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_SKIP_PAIRLIST:-${BK_GENESIS_NCU_PAIRLIST_LAUNCH_SKIP:-10}}"
+        ;;
+      *)
+        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_SKIP:-100}"
+        ;;
+    esac
+}
+
+genesis_default_ncu_launch_count() {
+    case "$1" in
+      pairlist)
+        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_COUNT_PAIRLIST:-${BK_GENESIS_NCU_PAIRLIST_LAUNCH_COUNT:-10}}"
+        ;;
+      *)
+        printf '%s\n' "${BK_GENESIS_NCU_LAUNCH_COUNT:-${BK_GPU_MLP_NCU_LAUNCH_COUNT:-10}}"
+        ;;
+    esac
+}
+
+genesis_run_ncu_profile() {
+    local profile_name="$1"
+    local profile_slug="$2"
+    local kernel_regex="$3"
+    local launch_skip="$4"
+    local launch_count="$5"
+    local profiler_level="$6"
+    shift 6
+
+    local archive_path="${resultsdir}/padata_${profile_slug}.tgz"
+    local raw_dir="ncu_${profile_slug}"
+    local profile_log="${resultsdir}/log_${header}_ncu_${profile_slug}.txt"
+    local ncu_args
+    local profile_status
+    local old_profiler_args="${BK_PROFILER_ARGS:-}"
+    local old_profiler_raw_csv="${BK_PROFILER_NCU_RAW_CSV:-}"
+    local had_profiler_args=0
+    local had_profiler_raw_csv=0
+
+    if [ "${BK_PROFILER_ARGS+x}" ]; then
+        had_profiler_args=1
+    fi
+    if [ "${BK_PROFILER_NCU_RAW_CSV+x}" ]; then
+        had_profiler_raw_csv=1
+    fi
+
+    ncu_args="--kernel-name-base demangled --kernel-name ${kernel_regex} --launch-skip ${launch_skip} --launch-count ${launch_count}"
+    export BK_PROFILER_ARGS="$ncu_args"
+    export BK_PROFILER_NCU_RAW_CSV=true
+
+    echo "Running GENESIS NCU profile '${profile_name}' kernel='${kernel_regex}' skip=${launch_skip} count=${launch_count}"
+    set +e
+    bk_profiler ncu \
+        --level "$profiler_level" \
+        --archive "$archive_path" \
+        --raw-dir "$raw_dir" \
+        -- "$@" 2>&1 | tee "$profile_log"
+    profile_status=${PIPESTATUS[0]}
+    set -e
+
+    if [ "$had_profiler_args" -eq 1 ]; then
+        export BK_PROFILER_ARGS="$old_profiler_args"
+    else
+        unset BK_PROFILER_ARGS
+    fi
+    if [ "$had_profiler_raw_csv" -eq 1 ]; then
+        export BK_PROFILER_NCU_RAW_CSV="$old_profiler_raw_csv"
+    else
+        unset BK_PROFILER_NCU_RAW_CSV
+    fi
+
+    if [ "$profile_status" -ne 0 ]; then
+        echo "GENESIS NCU profile '${profile_name}' failed with status ${profile_status}" >&2
+        return "$profile_status"
+    fi
+}
+
+genesis_run_ncu_profiles() {
+    local profiler_level="$1"
+    shift
+    local profile_names
+    local profile_name
+    local profile_key
+    local profile_slug
+    local regex_var
+    local skip_var
+    local count_var
+    local kernel_regex
+    local launch_skip
+    local launch_count
+
+    profile_names=$(genesis_ncu_profile_names)
+    for profile_name in $profile_names; do
+        case "$profile_name" in
+          ""|none|NONE|off|OFF)
+            continue
+            ;;
+        esac
+
+        profile_key=$(genesis_profile_key "$profile_name")
+        profile_slug=$(genesis_profile_slug "$profile_name")
+        regex_var="BK_GENESIS_NCU_${profile_key}_KERNEL_REGEX"
+        skip_var="BK_GENESIS_NCU_${profile_key}_LAUNCH_SKIP"
+        count_var="BK_GENESIS_NCU_${profile_key}_LAUNCH_COUNT"
+
+        kernel_regex="${!regex_var:-$(genesis_default_ncu_kernel_regex "$profile_name")}"
+        launch_skip="${!skip_var:-$(genesis_default_ncu_launch_skip "$profile_name")}"
+        launch_count="${!count_var:-$(genesis_default_ncu_launch_count "$profile_name")}"
+
+        if [ -z "$kernel_regex" ]; then
+            echo "GENESIS NCU profile '${profile_name}' has no kernel regex. Set ${regex_var} or BK_GENESIS_NCU_KERNEL_REGEX." >&2
+            return 1
+        fi
+
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$@"
+    done
+}
+
 # Shared GH200-class run path. The env_prefix pattern mirrors build.sh so each
 # site can override modules, MPI launcher, GPU visibility, and profiler policy
 # independently while keeping the benchmark invocation identical.
@@ -139,64 +305,54 @@ run_genesis_gh200_gpu() {
         export CUDA_VISIBLE_DEVICES="${!cuda_visible_devices_var}"
     fi
 
-    local genesis_profiler_requested=""
+    local genesis_profiler_requested="none"
     local genesis_profiler_explicit=0
-    # GH200 systems default to Nsight Compute because the GPU path is the new
-    # behavior being validated. Explicit requests are strict; the default falls
-    # back to an unprofiled run when ncu is unavailable.
+    local genesis_profile_enabled=0
     if [ -n "${!profiler_tool_var:-}" ]; then
         genesis_profiler_requested="${!profiler_tool_var}"
         genesis_profiler_explicit=1
     elif [ -n "${GENESIS_PROFILER_TOOL:-}" ]; then
         genesis_profiler_requested="${GENESIS_PROFILER_TOOL}"
         genesis_profiler_explicit=1
-    else
+    elif genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}"; then
         genesis_profiler_requested="ncu"
+    fi
+
+    if [ "$genesis_profiler_requested" = "none" ]; then
+        genesis_profile_enabled=0
+    elif genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}" || [ "$genesis_profiler_requested" != "none" ]; then
+        genesis_profile_enabled=1
     fi
 
     genesis_profiler_tool=$(bk_get_profiler_tool "$genesis_profiler_requested") || return 1
     local genesis_default_profiler_level="single"
-    case "${BK_GENESIS_GPU_MLP_PROFILE:-false}" in
-      1|true|TRUE|yes|YES|on|ON)
+    if genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}"; then
         genesis_default_profiler_level="detailed"
-        local genesis_ncu_kernel_regex
-        local genesis_ncu_launch_skip
-        local genesis_ncu_launch_count
-        local genesis_default_ncu_args
-        export BK_PROFILER_NCU_RAW_CSV="${BK_PROFILER_NCU_RAW_CSV:-true}"
-        genesis_ncu_kernel_regex="${BK_GENESIS_NCU_KERNEL_REGEX:-regex:.*(inter_cell|intra_cell|build_pairlist).*}"
-        genesis_ncu_launch_skip="${BK_GENESIS_NCU_LAUNCH_SKIP:-100}"
-        genesis_ncu_launch_count="${BK_GENESIS_NCU_LAUNCH_COUNT:-${BK_GPU_MLP_NCU_LAUNCH_COUNT:-10}}"
-        genesis_default_ncu_args="--kernel-name-base demangled --kernel-name ${genesis_ncu_kernel_regex} --launch-skip ${genesis_ncu_launch_skip} --launch-count ${genesis_ncu_launch_count}"
-        export BK_PROFILER_ARGS="${BK_PROFILER_ARGS:-${genesis_default_ncu_args}}"
-        ;;
-    esac
+    fi
     genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-${genesis_default_profiler_level}}}"
     if [ -n "$genesis_profiler_tool" ]; then
         if [ "$genesis_profiler_tool" = "ncu" ] && ! command -v ncu >/dev/null 2>&1; then
-            if [ "$genesis_profiler_explicit" -eq 1 ]; then
+            if [ "$genesis_profiler_explicit" -eq 1 ] || [ "$genesis_profile_enabled" -eq 1 ]; then
                 echo "Genesis ${system_name}: ncu profiler requested but ncu is not in PATH." >&2
                 echo "Load Nsight Compute with ${module_var}, or set ${profiler_tool_var}=none / GENESIS_PROFILER_TOOL=none to run without profiling." >&2
                 return 1
             fi
-            echo "Genesis ${system_name}: default ncu profiler is not in PATH; running without profiling." >&2
-            echo "Set ${profiler_tool_var}=ncu or GENESIS_PROFILER_TOOL=ncu to require Nsight Compute profiling." >&2
             genesis_profiler_tool=""
             genesis_profiler_requested="none"
+            genesis_profile_enabled=0
         fi
     fi
 
-    echo "Running ${system_name} as Grace-Hopper GPU run with profiler=${genesis_profiler_requested:-none} level=${genesis_profiler_level}"
-    if [ -n "$genesis_profiler_tool" ]; then
-        # set -o pipefail at script entry keeps profiler or MPI failures visible
-        # even though stdout/stderr are also streamed through tee for artifacts.
-        bk_profiler "$genesis_profiler_tool" \
-            --level "$genesis_profiler_level" \
-            --archive "${resultsdir}/padata0.tgz" \
-            --raw-dir ncu \
-            -- "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
-    else
-        "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+    echo "Running ${system_name} as Grace-Hopper GPU benchmark run without profiler"
+    "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+
+    if [ "$genesis_profile_enabled" -eq 1 ]; then
+        if [ "$genesis_profiler_tool" != "ncu" ]; then
+            echo "Genesis ${system_name}: only ncu is supported for separate GENESIS GPU profile acquisition." >&2
+            return 1
+        fi
+        echo "Running ${system_name} additional NCU acquisition profiles level=${genesis_profiler_level}"
+        genesis_run_ncu_profiles "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub
     fi
 }
 
