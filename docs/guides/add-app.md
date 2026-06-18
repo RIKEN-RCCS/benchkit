@@ -409,6 +409,9 @@ Genesis GH200 参照実装では `GENESIS_MIYABIG_MODULE` / `GENESIS_GH200_MODUL
 既定の `ncu` が PATH にない場合は warning を出して profiler なしで benchmark 本体を実行しますが、`GENESIS_MIYABIG_PROFILER_TOOL=ncu`、`GENESIS_GH200_PROFILER_TOOL=ncu`、または `GENESIS_PROFILER_TOOL=ncu` を明示した場合は採取不能として失敗します。
 profiler なしを明示する場合は `GENESIS_MIYABIG_PROFILER_TOOL=none`、`GENESIS_GH200_PROFILER_TOOL=none`、または `GENESIS_PROFILER_TOOL=none` を使えます。
 level は `GENESIS_MIYABIG_PROFILER_LEVEL` / `GENESIS_GH200_PROFILER_LEVEL`、または共通の `GENESIS_PROFILER_LEVEL` で上書きできます。
+`BK_GENESIS_GPU_MLP_PROFILE=true` の場合は、GENESIS の主要 GPU kernel を採取するために `--kernel-name-base demangled --kernel-name regex:.*(inter_cell|intra_cell|build_pairlist).* --launch-skip 100 --launch-count 10` を既定で追加します。
+kernel filter や採取 window は `BK_GENESIS_NCU_KERNEL_REGEX`, `BK_GENESIS_NCU_LAUNCH_SKIP`, `BK_GENESIS_NCU_LAUNCH_COUNT` で調整できます。
+完全に手動指定したい場合は `BK_PROFILER_ARGS` を設定してください。
 
 ---
 
