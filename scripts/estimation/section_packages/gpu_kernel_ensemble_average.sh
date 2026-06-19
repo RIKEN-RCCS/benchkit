@@ -165,7 +165,10 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   target_gpu: ($kernel.target_gpu // null),
                   estimation_package: ($candidate.estimation_package // ""),
                   predicted_time_ns: ($kernel.predicted_time_ns // null),
-                  time_ratio_predicted_over_source: $time_ratio
+                  time_ratio_predicted_over_source: $time_ratio,
+                  source_metrics: ($kernel.source_metrics // {}),
+                  predicted_metrics: ($kernel.metrics // {}),
+                  metric_comparisons: ($kernel.metric_comparisons // [])
                 }
             )
         )
@@ -177,6 +180,35 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
     | (blocking_candidates | length) as $blocking_count
     | ($candidates | length) as $candidate_count
     | ($usable | map(candidate_time_ratio) | map(select(. != null and . > 0))) as $usable_ratios
+    | (.bench_time // .time // null) as $app_section_time
+    | (
+        $candidates
+        | map(
+            . as $candidate
+            | (candidate_time_ratio) as $ratio
+            | {
+                estimation_package: ($candidate.estimation_package // ""),
+                scaling_method: ($candidate.scaling_method // ""),
+                applicability_status: ($candidate.package_applicability.status // ""),
+                source_section_time: $app_section_time,
+                projected_section_time: ($candidate.time // null),
+                time_ratio_predicted_over_source: $ratio,
+                source_gpus: ($candidate.metrics.source_gpus // []),
+                target_gpus: ($candidate.metrics.target_gpus // []),
+                kernel_count: ($candidate.metrics.kernel_count // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | length)),
+                unique_kernel_count: (($candidate.metrics.kernel_names // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | map(.name // "") | unique)) | length),
+                kernel_names: ($candidate.metrics.kernel_names // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | map(.name // "") | unique)),
+                ncu_sample: {
+                  kernel_count: ($candidate.metrics.kernel_count // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | length)),
+                  source_time: ($candidate.metrics.total_source_time // (if ($candidate.metrics.total_source_time_ns // null) != null then ($candidate.metrics.total_source_time_ns / 1000000000) else null end)),
+                  source_time_ns: ($candidate.metrics.total_source_time_ns // null),
+                  predicted_time: ($candidate.metrics.sample_predicted_time // (if ($candidate.metrics.total_predicted_time_ns // null) != null then ($candidate.metrics.total_predicted_time_ns / 1000000000) else null end)),
+                  predicted_time_ns: ($candidate.metrics.total_predicted_time_ns // null)
+                },
+                artifacts: ($candidate.artifacts // [])
+              }
+          )
+      ) as $package_summaries
     | ($usable | candidate_kernel_records) as $kernel_records
     | ($kernel_records | map(.name) | unique | sort) as $kernel_names
     | ($kernel_names | length) as $unique_kernel_count
@@ -207,14 +239,69 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
               }
           )
       ) as $kernel_means
+    | (
+        $kernel_records
+        | sort_by(.name)
+        | group_by(.name)
+        | map(
+            . as $kernel_group
+            | {
+                name: $kernel_group[0].name,
+                package_summaries: (
+                  $kernel_group
+                  | sort_by(.estimation_package)
+                  | group_by(.estimation_package)
+                  | map(
+                      . as $package_group
+                      | ($package_group | map(.source_time_ns) | map(select(. != null))) as $source_times_ns
+                      | ($package_group | map(.predicted_time_ns) | map(select(. != null))) as $predicted_times_ns
+                      | ($package_group | map(.time_ratio_predicted_over_source) | map(select(. != null))) as $ratios
+                      | (
+                          $package_group
+                          | map(.metric_comparisons // [])
+                          | add // []
+                          | sort_by(.name)
+                          | group_by(.name)
+                          | map(
+                              . as $metric_group
+                              | ($metric_group | map(.source_value // null) | map(select(. != null))) as $source_values
+                              | ($metric_group | map(.predicted_value // null) | map(select(. != null))) as $predicted_values
+                              | ($metric_group | map(.ratio_predicted_over_source // null) | map(select(. != null))) as $metric_ratios
+                              | {
+                                  name: $metric_group[0].name,
+                                  sample_count: ($metric_group | length),
+                                  source_value_mean: (if ($source_values | length) > 0 then (($source_values | add) / ($source_values | length)) else null end),
+                                  predicted_value_mean: (if ($predicted_values | length) > 0 then (($predicted_values | add) / ($predicted_values | length)) else null end),
+                                  ratio_predicted_over_source_mean: (if ($metric_ratios | length) > 0 then (($metric_ratios | add) / ($metric_ratios | length)) else null end),
+                                  samples: $metric_group
+                                }
+                            )
+                        ) as $metric_comparisons
+                      | {
+                          estimation_package: $package_group[0].estimation_package,
+                          sample_count: ($package_group | length),
+                          source_gpus: ($package_group | map(.source_gpu // empty) | unique | sort),
+                          target_gpus: ($package_group | map(.target_gpu // empty) | unique | sort),
+                          source_time_ns_total: (if ($source_times_ns | length) > 0 then ($source_times_ns | add) else null end),
+                          source_time_ns_mean: (if ($source_times_ns | length) > 0 then (($source_times_ns | add) / ($source_times_ns | length)) else null end),
+                          predicted_time_ns_total: (if ($predicted_times_ns | length) > 0 then ($predicted_times_ns | add) else null end),
+                          predicted_time_ns_mean: (if ($predicted_times_ns | length) > 0 then (($predicted_times_ns | add) / ($predicted_times_ns | length)) else null end),
+                          mean_time_ratio_predicted_over_source: (if ($ratios | length) > 0 then (($ratios | add) / ($ratios | length)) else null end),
+                          metric_comparisons: $metric_comparisons
+                        }
+                    )
+                )
+              }
+          )
+      ) as $kernel_summaries
     | (if ($usable_ratios | length) > 0 then (($usable_ratios | add) / ($usable_ratios | length)) else null end) as $mean_ratio
-    | (.bench_time // .time // null) as $app_section_time
     | ($blocking_count == 0 and $usable_count > 0 and $unique_kernel_count == 1 and $mean_ratio != null and $app_section_time != null) as $can_project_section
     | (if $can_project_section then ($app_section_time * $mean_ratio) else $app_section_time end) as $output_time
     | .
     + {
         estimation_package: (if $can_project_section then "gpu_kernel_ensemble_average" else "identity" end),
         requested_estimation_package: (.requested_estimation_package // "gpu_kernel_ensemble_average"),
+        bench_time: $app_section_time,
         time: $output_time,
         scaling_method: (if $can_project_section then "gpu-kernel-ensemble-average" else "identity" end),
         package_applicability: {
@@ -262,9 +349,11 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
             time_ratio_predicted_over_source: candidate_time_ratio,
             applicability_status: (.package_applicability.status // "")
           })),
+          package_summaries: $package_summaries,
           kernel_count: ($kernel_records | length),
           unique_kernel_count: $unique_kernel_count,
           kernel_names: $kernel_names,
+          kernel_summaries: $kernel_summaries,
           kernel_candidate_ratios: $kernel_means,
           app_gpu_section_time: $app_section_time,
           mean_time: (if $can_project_section then $output_time else null end),

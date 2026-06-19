@@ -20,6 +20,7 @@ source programs/genesis/estimate.sh
 test "${BK_ESTIMATION_BASELINE_EXP}" = "p8"
 test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
 test "${BK_ESTIMATION_FUTURE_SYSTEM}" = "FugakuNEXT"
+test "${BK_GPU_KERNEL_ENSEMBLE_PACKAGES}" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41"
 
 cat > results/no_breakdown_input.json <<'EOF'
 {

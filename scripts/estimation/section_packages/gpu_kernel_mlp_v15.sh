@@ -1,5 +1,6 @@
 #!/bin/bash
-# gpu_kernel_mlp_v15.sh - Section package for the PerfTools MLP_NN/v1.5 GPU estimator.
+# gpu_kernel_mlp_v15.sh - Section package and shared implementation for
+# PerfTools MLP_NN GPU estimators.
 
 bk_section_package_metadata_gpu_kernel_mlp_v15() {
   cat <<'EOF'
@@ -143,7 +144,7 @@ _bk_gpu_mlp_ensure_perftools_root() {
 
     mkdir -p "$(dirname "$root")"
     if [[ ! -d "$root/.git" ]]; then
-      echo "Fetching PerfTools for gpu_kernel_mlp_v15: ${repo} (${ref})" >&2
+      echo "Fetching PerfTools for ${BK_GPU_MLP_PACKAGE_NAME:-gpu_kernel_mlp_v15}: ${repo} (${ref})" >&2
       git clone --depth 1 "$repo" "$root" >&2 || {
         printf '%s\n' "$root"
         return 0
@@ -161,13 +162,15 @@ _bk_gpu_mlp_ensure_perftools_root() {
 
 _bk_gpu_mlp_predictor() {
   local root="$1"
+  local version_dir="${BK_GPU_MLP_VERSION_DIR:-v1.5}"
+  local predictor_script="${BK_GPU_MLP_PREDICT_SCRIPT:-predict_v15.py}"
 
   if [[ -z "$root" ]]; then
     printf '%s\n' ""
     return 0
   fi
 
-  printf '%s\n' "${root}/MLP_NN/v1.5/predict_v15.py"
+  printf '%s\n' "${root}/MLP_NN/${version_dir}/${predictor_script}"
 }
 
 _bk_gpu_mlp_python_exists() {
@@ -346,6 +349,7 @@ bk_section_package_check_applicability_gpu_kernel_mlp_v15() {
   local root
   local predictor
   local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
+  local predictor_rel="MLP_NN/${BK_GPU_MLP_VERSION_DIR:-v1.5}/${BK_GPU_MLP_PREDICT_SCRIPT:-predict_v15.py}"
   local missing=()
 
   if [[ "$item_kind" != "section" ]]; then
@@ -387,7 +391,7 @@ EOF
       missing+=('"BK_GPU_MLP_PERFTOOLS_ROOT"')
     fi
     if [[ -z "$predictor" || ! -f "$predictor" ]]; then
-      missing+=('"PerfTools MLP_NN/v1.5/predict_v15.py"')
+      missing+=("\"PerfTools predictor:${predictor_rel}\"")
     fi
   fi
 
@@ -490,6 +494,58 @@ def source_time_by_row(path):
     return [as_number(row.get(time_column)) for row in rows], time_column
 
 
+def source_metric_candidates(metric_name):
+    candidates = [metric_name]
+    if metric_name.startswith("O-"):
+        candidates.append(metric_name[2:])
+    if metric_name.startswith("brk_"):
+        candidates.append("breakdown_" + metric_name[4:])
+    if metric_name.startswith("breakdown_"):
+        candidates.append("brk_" + metric_name[len("breakdown_"):])
+    return list(dict.fromkeys(candidates))
+
+
+def source_metrics_by_row(path):
+    if not path:
+        return []
+    candidate = Path(path)
+    if not candidate.is_file():
+        return []
+
+    rows, fieldnames = read_csv_rows(path)
+    if not fieldnames:
+        return []
+
+    source_rows = []
+    for row in rows:
+        source_metrics = {}
+        for metric_name in metric_columns:
+            for source_name in source_metric_candidates(metric_name):
+                if source_name in fieldnames:
+                    value = as_number(row.get(source_name))
+                    if value is not None:
+                        source_metrics[metric_name] = value
+                        break
+        source_rows.append(source_metrics)
+    return source_rows
+
+
+def metric_comparisons(source_metrics, predicted_metrics):
+    comparisons = []
+    for metric_name in sorted(set(source_metrics) | set(predicted_metrics)):
+        item = {"name": metric_name}
+        source_value = source_metrics.get(metric_name)
+        predicted_value = predicted_metrics.get(metric_name)
+        if source_value is not None:
+            item["source_value"] = source_value
+        if predicted_value is not None:
+            item["predicted_value"] = predicted_value
+        if source_value not in (None, 0) and predicted_value is not None:
+            item["ratio_predicted_over_source"] = predicted_value / source_value
+        comparisons.append(item)
+    return comparisons
+
+
 reader = csv.DictReader(cleaned_lines(prediction_csv))
 if not reader.fieldnames:
     raise SystemExit(f"prediction CSV has no header: {prediction_csv}")
@@ -506,6 +562,7 @@ source_gpus = []
 target_gpus = []
 total_seconds = 0.0
 source_times_ns, source_time_column = source_time_by_row(input_csv)
+source_metrics_rows = source_metrics_by_row(input_csv)
 total_source_seconds = 0.0
 source_time_count = 0
 nonpositive_prediction_count = 0
@@ -528,6 +585,7 @@ for idx, row in enumerate(reader, start=1):
     seconds = predicted_ns / 1e9
     total_seconds += seconds
     source_ns = source_times_ns[idx - 1] if idx - 1 < len(source_times_ns) else None
+    source_metrics = source_metrics_rows[idx - 1] if idx - 1 < len(source_metrics_rows) else {}
     source_seconds = source_ns / 1e9 if source_ns is not None else None
     if source_seconds is not None:
         total_source_seconds += source_seconds
@@ -556,6 +614,11 @@ for idx, row in enumerate(reader, start=1):
         kernel["target_gpu"] = target_gpu
     if metrics:
         kernel["metrics"] = metrics
+    if source_metrics:
+        kernel["source_metrics"] = source_metrics
+    comparisons = metric_comparisons(source_metrics, metrics)
+    if comparisons:
+        kernel["metric_comparisons"] = comparisons
     kernels.append(kernel)
 
 summary_metrics = {
@@ -572,7 +635,7 @@ if nonpositive_prediction_count:
         "severity": "warning",
         "reason": "nonpositive_predicted_execution_time",
         "message": (
-            "PerfTools MLP_NN/v1.5 returned non-positive predicted execution "
+            f"PerfTools MLP_NN/{model_version} returned non-positive predicted execution "
             "time for one or more kernel rows. Check target GPU selection and "
             "required NCU feature coverage."
         ),
@@ -601,7 +664,7 @@ print(json.dumps({
     },
     "model": {
         "type": "cross_gpu_kernel_prediction_model",
-        "name": "PerfTools MLP_NN/v1.5",
+        "name": "PerfTools MLP_NN/" + model_version,
         "version": model_version,
         "repository": "https://github.com/masaaki-kondo/PerfTools",
     },
@@ -645,7 +708,10 @@ _bk_gpu_mlp_run_predictor() {
   local root
   local input_csv
   local ncu_archive
-  local output_dir="${BK_GPU_MLP_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_mlp_v15}"
+  local package_name="${BK_GPU_MLP_PACKAGE_NAME:-gpu_kernel_mlp_v15}"
+  local version_dir="${BK_GPU_MLP_VERSION_DIR:-v1.5}"
+  local predictor_script="${BK_GPU_MLP_PREDICT_SCRIPT:-predict_v15.py}"
+  local output_dir="${BK_GPU_MLP_OUTPUT_DIR:-results/estimation_artifacts/${package_name}}"
   local prediction_csv
   local prediction_log
   local input_csv_abs
@@ -672,18 +738,18 @@ _bk_gpu_mlp_run_predictor() {
 
   if ! (
     cd "$root"
-    "$python_bin" MLP_NN/v1.5/predict_v15.py \
+    "$python_bin" "MLP_NN/${version_dir}/${predictor_script}" \
       --csv "$input_csv_abs" \
       --row "${BK_GPU_MLP_ROW:-all}" \
       --out "$prediction_csv_abs" \
       --log "$prediction_log_abs"
   ) >/dev/null; then
-    echo "ERROR: PerfTools MLP_NN/v1.5 inference failed" >&2
+    echo "ERROR: PerfTools MLP_NN/${version_dir} inference failed" >&2
     return 1
   fi
 
   if [[ ! -s "$prediction_csv_abs" ]]; then
-    echo "ERROR: PerfTools MLP_NN/v1.5 did not create prediction CSV: ${prediction_csv_abs}" >&2
+    echo "ERROR: PerfTools MLP_NN/${version_dir} did not create prediction CSV: ${prediction_csv_abs}" >&2
     return 1
   fi
 
@@ -702,8 +768,9 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   local prediction_log=""
   local run_outputs
   local parsed_json
-  local package_name="gpu_kernel_mlp_v15"
+  local package_name="${BK_GPU_MLP_PACKAGE_NAME:-gpu_kernel_mlp_v15}"
   local model_version="${BK_GPU_MLP_MODEL_VERSION:-v1.5}"
+  local scaling_method="${BK_GPU_MLP_SCALING_METHOD:-gpu-kernel-mlp-${model_version}}"
   local selector_kind=""
   local selector_value=""
   local selector
@@ -727,6 +794,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
     --arg prediction_log "$prediction_log" \
     --arg selector_kind "$selector_kind" \
     --arg selector_value "$selector_value" \
+    --arg scaling_method "$scaling_method" \
     --argjson parsed "$parsed_json" '
     def selector_matches($kind; $value):
       if $kind == "" or $value == "" then true
@@ -767,7 +835,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
           end
         ),
         bench_time: $source_section_time,
-        scaling_method: (if $can_identity_fallback then "identity" else "gpu-kernel-mlp-v1.5" end),
+        scaling_method: (if $can_identity_fallback then "identity" else $scaling_method end),
         estimation_package: (if $can_identity_fallback then "identity" else $parsed.estimation_package end),
         requested_estimation_package: (if $can_identity_fallback then $parsed.estimation_package else (.requested_estimation_package // $parsed.estimation_package) end),
         fallback_used: (if $can_identity_fallback then "identity" else null end),

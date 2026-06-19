@@ -133,6 +133,16 @@ if args.log:
         handle.write("fake predictor called\n")
 PY
 
+for version_script in \
+  "v2.1 predict_v21.py" \
+  "v4.0 predict_v40.py" \
+  "v4.1 predict_v41.py"; do
+  read -r version_dir script_name <<< "$version_script"
+  mkdir -p "${FAKE_PERFTOOLS}/MLP_NN/${version_dir}"
+  cp "${FAKE_PERFTOOLS}/MLP_NN/v1.5/predict_v15.py" \
+    "${FAKE_PERFTOOLS}/MLP_NN/${version_dir}/${script_name}"
+done
+
 cat > "${TMP_DIR}/input.csv" <<'EOF'
 kernel_name,src_gpu,tgt_gpu,Execution Time
 probe_kernel,A100,H100,2000000
@@ -190,5 +200,54 @@ echo "$transformed_from_input" | jq -e '
 
 test -f "${TMP_DIR}/mlp_outputs/unknown_gpu_kernel_region_local_pred.csv"
 test -f "${TMP_DIR}/mlp_outputs/unknown_gpu_kernel_region_local.log"
+
+unset BK_GPU_MLP_OUTPUT_DIR
+for package_version in \
+  "gpu_kernel_mlp_v21 v2.1" \
+  "gpu_kernel_mlp_v40 v4.0" \
+  "gpu_kernel_mlp_v41 v4.1"; do
+  read -r package_name version_label <<< "$package_version"
+  cat > "${TMP_DIR}/breakdown_${package_name}.json" <<EOF
+{
+  "sections": [
+    {
+      "name": "gpu_kernel_region",
+      "bench_time": 0.011,
+      "estimation_package": "${package_name}",
+      "artifacts": [
+        {"path": "${TMP_DIR}/input.csv"}
+      ]
+    }
+  ],
+  "overlaps": []
+}
+EOF
+
+  pushd "${REPO_DIR}" >/dev/null
+  export BK_GPU_MLP_ARTIFACT_MODE="input"
+  export BK_GPU_MLP_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
+  export BK_GPU_MLP_OUTPUT_DIR="${TMP_DIR}/${package_name}_outputs"
+  transformed_family=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_${package_name}.json")" "1" "1" "1" "identity" "identity")
+  popd >/dev/null
+
+  echo "$transformed_family" | jq -e \
+    --arg package_name "$package_name" \
+    --arg version_label "$version_label" '
+    (.sections | length == 1) and
+    .sections[0].name == "gpu_kernel_region" and
+    .sections[0].time == 0.022 and
+    .sections[0].bench_time == 0.011 and
+    .sections[0].scaling_method == ("gpu-kernel-mlp-" + $version_label) and
+    .sections[0].estimation_package == $package_name and
+    .sections[0].model.name == ("PerfTools MLP_NN/" + $version_label) and
+    .sections[0].model.version == $version_label and
+    .sections[0].metrics.kernel_count == 1 and
+    .sections[0].metrics.total_source_time_ns == 2000000 and
+    .sections[0].metrics.total_predicted_time_ns == 4000000
+  ' >/dev/null
+
+  test -f "${TMP_DIR}/${package_name}_outputs/unknown_gpu_kernel_region_local_pred.csv"
+  test -f "${TMP_DIR}/${package_name}_outputs/unknown_gpu_kernel_region_local.log"
+done
 
 echo "gpu_kernel_mlp_v15 section estimation test passed"

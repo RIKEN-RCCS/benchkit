@@ -56,8 +56,8 @@ kern_a,H100,A100,0,30
 EOF
 
 cat > "${TMP_DIR}/source_input_single.csv" <<'EOF'
-Kernel Name,Duration [ns]
-kern_a,1000
+Kernel Name,Duration [ns],Memory Throughput [%],Achieved Occupancy
+kern_a,1000,25,10
 EOF
 
 cat > "${TMP_DIR}/lightgbm_pred_mixed.csv" <<'EOF'
@@ -72,9 +72,9 @@ kern_b,H100,A100,5000,20
 EOF
 
 cat > "${TMP_DIR}/source_input_mixed.csv" <<'EOF'
-Kernel Name,Duration [ns]
-kern_a,1000
-kern_b,2000
+Kernel Name,Duration [ns],Memory Throughput [%],Achieved Occupancy
+kern_a,1000,25,10
+kern_b,2000,40,20
 EOF
 
 cat > "${TMP_DIR}/breakdown.json" <<'EOF'
@@ -129,10 +129,39 @@ if ! echo "$transformed_single" | jq -e '
   .sections[0].estimation_package == "gpu_kernel_ensemble_average" and
   near(.sections[0].time; 20) and
   .sections[0].scaling_method == "gpu-kernel-ensemble-average" and
+  .sections[0].bench_time == 10 and
   .sections[0].metrics.aggregation == "single-kernel-package-ratio-mean" and
   .sections[0].metrics.candidate_count == 2 and
   .sections[0].metrics.applicable_candidate_count == 2 and
   .sections[0].metrics.candidate_packages == ["gpu_kernel_lightgbm_v10", "gpu_kernel_mlp_v15"] and
+  (.sections[0].metrics.package_summaries | length == 2) and
+  .sections[0].metrics.package_summaries[0].estimation_package == "gpu_kernel_lightgbm_v10" and
+  .sections[0].metrics.package_summaries[0].source_section_time == 10 and
+  near(.sections[0].metrics.package_summaries[0].projected_section_time; 10) and
+  near(.sections[0].metrics.package_summaries[0].time_ratio_predicted_over_source; 1) and
+  .sections[0].metrics.package_summaries[0].source_gpus == ["H100"] and
+  .sections[0].metrics.package_summaries[0].target_gpus == ["A100"] and
+  .sections[0].metrics.package_summaries[0].ncu_sample.kernel_count == 1 and
+  .sections[0].metrics.package_summaries[0].ncu_sample.source_time_ns == 1000 and
+  .sections[0].metrics.package_summaries[0].ncu_sample.predicted_time_ns == 1000 and
+  .sections[0].metrics.package_summaries[1].estimation_package == "gpu_kernel_mlp_v15" and
+  near(.sections[0].metrics.package_summaries[1].projected_section_time; 30) and
+  near(.sections[0].metrics.package_summaries[1].time_ratio_predicted_over_source; 3) and
+  (.sections[0].metrics.kernel_summaries | length == 1) and
+  .sections[0].metrics.kernel_summaries[0].name == "kern_a" and
+  (.sections[0].metrics.kernel_summaries[0].package_summaries | length == 2) and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].estimation_package == "gpu_kernel_lightgbm_v10" and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].sample_count == 1 and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].source_gpus == ["H100"] and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].target_gpus == ["A100"] and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].source_time_ns_total == 1000 and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].predicted_time_ns_total == 1000 and
+  near(.sections[0].metrics.kernel_summaries[0].package_summaries[0].mean_time_ratio_predicted_over_source; 1) and
+  (.sections[0].metrics.kernel_summaries[0].package_summaries[0].metric_comparisons | length >= 2) and
+  (.sections[0].metrics.kernel_summaries[0].package_summaries[0].metric_comparisons | map(select(.name == "O-Memory Throughput [%]" and .source_value_mean == 25 and .predicted_value_mean == 50 and .ratio_predicted_over_source_mean == 2)) | length == 1) and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[1].estimation_package == "gpu_kernel_mlp_v15" and
+  near(.sections[0].metrics.kernel_summaries[0].package_summaries[1].mean_time_ratio_predicted_over_source; 3) and
+  (.sections[0].metrics.kernel_summaries[0].package_summaries[1].metric_comparisons | map(select(.name == "Memory Throughput [%]" and .source_value_mean == 25 and .predicted_value_mean == 30 and .ratio_predicted_over_source_mean == 1.2)) | length == 1) and
   near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 2) and
   .sections[0].metrics.unique_kernel_count == 1 and
   .sections[0].metrics.kernel_names == ["kern_a"] and

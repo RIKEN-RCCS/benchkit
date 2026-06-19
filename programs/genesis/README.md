@@ -124,13 +124,19 @@ Single-package selection:
 ```bash
 BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15
 # or
+BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v21
+# or
+BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v40
+# or
+BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v41
+# or
 BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_lightgbm_v10
 ```
 
 Multiple-package comparison:
 
 ```bash
-BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15
+BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41
 ```
 
 When multiple packages are selected, the app wrapper asks for

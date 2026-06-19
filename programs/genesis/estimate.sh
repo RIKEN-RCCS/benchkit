@@ -9,7 +9,7 @@ genesis_gpu_section_packages() {
   elif [[ -n "${BK_GENESIS_GPU_SECTION_PACKAGE:-}" ]]; then
     raw="$BK_GENESIS_GPU_SECTION_PACKAGE"
   else
-    raw="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
+    raw="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41"
   fi
 
   printf '%s\n' "$raw" |
