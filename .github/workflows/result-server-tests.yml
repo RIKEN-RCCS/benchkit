@@ -12,8 +12,8 @@ on:
       - "scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh"
       - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
+      - "scripts/tests/fixtures/**"
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
-      - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
@@ -21,7 +21,6 @@ on:
       - "programs/genesis/estimate.sh"
       - "programs/genesis/run.sh"
       - "programs/qws/estimate.sh"
-      - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -40,8 +39,8 @@ on:
       - "scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh"
       - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
+      - "scripts/tests/fixtures/**"
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
-      - "scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
@@ -49,7 +48,6 @@ on:
       - "programs/genesis/estimate.sh"
       - "programs/genesis/run.sh"
       - "programs/qws/estimate.sh"
-      - "programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
       - "config/system.csv"
       - "config/queue.csv"
       - "config/system_info.csv"
@@ -126,4 +124,3 @@ jobs:
           bash scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh
           bash scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh
           bash scripts/tests/test_genesis_gpu_mlp_estimation.sh
-          bash scripts/tests/test_qws_gpu_mlp_smoke_estimation.sh
