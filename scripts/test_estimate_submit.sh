@@ -8,7 +8,7 @@ Usage:
   scripts/test_estimate_submit.sh <code> <line_number> --estimate-only
 
 The first form submits a local scheduler job that runs the benchmark with
-GPU-MLP profiler settings and creates results/result*.json.  The second form
+its app-defined estimation artifact settings and creates results/result*.json.  The second form
 runs the estimation step from the existing results directory.  When SIF or
 BK_ESTIMATE_APPTAINER_IMAGE is set, --estimate-only runs inside Apptainer.
 EOF
@@ -56,12 +56,11 @@ if [[ "$enable" != "yes" ]]; then
 fi
 
 if [[ "$mode" == "--estimate-only" ]]; then
-  export BK_GPU_MLP_PERFTOOLS_ROOT="${BK_GPU_MLP_PERFTOOLS_ROOT:-${PERFTOOLS:-}}"
   image="${BK_ESTIMATE_APPTAINER_IMAGE:-${SIF:-}}"
   if [[ -n "$image" ]]; then
     binds="${PWD}:${PWD},/tmp:/tmp"
-    if [[ -n "${BK_GPU_MLP_PERFTOOLS_ROOT:-}" ]]; then
-      binds="${binds},${BK_GPU_MLP_PERFTOOLS_ROOT}:${BK_GPU_MLP_PERFTOOLS_ROOT}"
+    if [[ -n "${BK_ESTIMATE_APPTAINER_BINDS:-}" ]]; then
+      binds="${binds},${BK_ESTIMATE_APPTAINER_BINDS}"
     fi
     apptainer exec --bind "$binds" --pwd "$PWD" "$image" \
       bash scripts/estimation/run.sh "$code"
@@ -88,12 +87,6 @@ cd "$PWD"
 
 rm -rf results
 mkdir -p results
-
-export BK_GENESIS_GPU_MLP_PROFILE="\${BK_GENESIS_GPU_MLP_PROFILE:-true}"
-export BK_GENESIS_GPU_SECTION_PACKAGES="\${BK_GENESIS_GPU_SECTION_PACKAGES:-\${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15}}"
-export BK_GPU_MLP_NCU_LAUNCH_COUNT="\${BK_GPU_MLP_NCU_LAUNCH_COUNT:-20}"
-export BK_GPU_MLP_SOURCE_GPU="\${BK_GPU_MLP_SOURCE_GPU:-H100}"
-export BK_GPU_MLP_KERNEL_COUNT="\${BK_GPU_MLP_KERNEL_COUNT:-20}"
 
 bash programs/${code}/run.sh ${system} ${nodes} ${numproc_node} ${nthreads}
 bash scripts/result.sh ${code} ${system} local-estimate "" test_estimate_submit ""
@@ -124,5 +117,6 @@ After the scheduler job finishes, run:
   scripts/test_estimate_submit.sh ${code} ${list_csv_line_num} --estimate-only
 
 Set SIF or BK_ESTIMATE_APPTAINER_IMAGE to run the estimate step in Apptainer.
-Set PERFTOOLS or BK_GPU_MLP_PERFTOOLS_ROOT to the PerfTools checkout.
+Set BK_ESTIMATE_APPTAINER_BINDS to comma-separated extra bind mounts required
+by the selected app or estimation package.
 EOF

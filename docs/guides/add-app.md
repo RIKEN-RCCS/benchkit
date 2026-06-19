@@ -405,13 +405,9 @@ bk_profiler ncu --level single --archive ../results/padata0.tgz --raw-dir ncu --
 `padata*.tgz` には、可能な場合は `bk_profiler_artifact/reports/ncu_import_rep1.txt` に text report、`BK_PROFILER_NCU_RAW_CSV=true` の場合は `bk_profiler_artifact/raw/rep1/profile_raw.csv` に raw CSV が保存されます。
 Nsight Compute の binary report (`*.ncu-rep` など) は重いため既定では `padata*.tgz` から除外されます。デバッグ目的で保存したい場合だけ `BK_PROFILER_ARCHIVE_NCU_REPORT=true` を明示してください。
 site の既定 module に `ncu` が含まれない場合は、アプリ側で module を load するか、system 固有の module 変数を用意してください。
-Genesis GH200 参照実装では `GENESIS_MIYABIG_MODULE` / `GENESIS_GH200_MODULE` で module を上書きできます。
-既定の `ncu` が PATH にない場合は warning を出して profiler なしで benchmark 本体を実行しますが、`GENESIS_MIYABIG_PROFILER_TOOL=ncu`、`GENESIS_GH200_PROFILER_TOOL=ncu`、または `GENESIS_PROFILER_TOOL=ncu` を明示した場合は採取不能として失敗します。
-profiler なしを明示する場合は `GENESIS_MIYABIG_PROFILER_TOOL=none`、`GENESIS_GH200_PROFILER_TOOL=none`、または `GENESIS_PROFILER_TOOL=none` を使えます。
-level は `GENESIS_MIYABIG_PROFILER_LEVEL` / `GENESIS_GH200_PROFILER_LEVEL`、または共通の `GENESIS_PROFILER_LEVEL` で上書きできます。
-`BK_GENESIS_GPU_MLP_PROFILE=true` の場合は、GENESIS の主要 GPU kernel を採取するために `--kernel-name-base demangled --kernel-name regex:.*(inter_cell|intra_cell|build_pairlist).* --launch-skip 100 --launch-count 10` を既定で追加します。
-kernel filter や採取 window は `BK_GENESIS_NCU_KERNEL_REGEX`, `BK_GENESIS_NCU_LAUNCH_SKIP`, `BK_GENESIS_NCU_LAUNCH_COUNT` で調整できます。
-完全に手動指定したい場合は `BK_PROFILER_ARGS` を設定してください。
+app 固有の GPU kernel window、短縮 input、module override、profiler override を持つ場合、その既定は共通 CI/matrix ではなく app wrapper 側に置きます。
+具体的な設定例は `programs/<code>/` 配下の app-local documentation に置きます。GENESIS の現在の例は `programs/genesis/README.md` を参照してください。
+完全に手動指定したい場合は app wrapper の規約に加えて `BK_PROFILER_ARGS` を使えます。
 
 ---
 

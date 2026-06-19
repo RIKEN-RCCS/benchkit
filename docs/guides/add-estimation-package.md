@@ -83,54 +83,11 @@ top-level package は `instrumented_app_sections_dummy` などのままにして
 どの section package を既定で使うかは app 側の bring-up 状況や CI runner/container に依存するため、このガイドでは特定の package を正解として固定しません。
 新しい package を追加した場合は、この一覧と app 側の切り替え変数から選択肢として見えるようにしてください。
 
-```bash
-gpu_section_package="${BK_GENESIS_GPU_SECTION_PACKAGE:-gpu_kernel_lightgbm_v10}"
-bk_declare_section --side future pairlist "$gpu_section_package"
-bk_declare_section --side future pme_real_wait identity
-bk_declare_section --side future pme_real_inter "$gpu_section_package"
-bk_declare_section --side future pme_real_intra "$gpu_section_package"
-bk_declare_section --side future pme_recip identity
-bk_declare_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip identity
-bk_emit_declared_section --side future pairlist "$measured_pairlist_time" results/padata_pairlist.tgz
-bk_emit_declared_section --side future pme_real_wait "$pme_real_wait_time"
-bk_emit_declared_section --side future pme_real_inter "$pme_real_inter_time" results/padata_inter.tgz
-bk_emit_declared_section --side future pme_real_intra "$pme_real_intra_time" results/padata_intra.tgz
-bk_emit_declared_section --side future pme_recip "$pme_recip_time"
-bk_emit_declared_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip "$pme_real_recip_overlap_time"
-```
-
-GENESIS の GPU kernel section package は `BK_GENESIS_GPU_SECTION_PACKAGE` で単発指定できます。
-複数の推定 package を比較したい場合は、`BK_GENESIS_GPU_SECTION_PACKAGES` にカンマ区切りで指定します。
-複数指定時は `gpu_kernel_ensemble_average` wrapper package が同じ GPU section に対して各 package を実行し、候補結果を同一 Estimate JSON の `candidate_estimates` に保持します。
-GENESIS の既定の推定設定では `current_system=Fugaku`、`future_system=FugakuNEXT` として扱います。
-GENESIS の FOM はログ上の `dynamics` 時間です。
-現時点では `pairlist`, `bond`, `angle`, `dihedral`, `pme_real_wait`, `pme_real_inter`, `pme_real_intra`, `pme_recip`, `integrator` を登録し、取り切れていない正の差分を `other` として追加して `dynamics` を再構成します。
-`pme real` と `pme recip` は同じ `nonbond` 内で overlap しているため、`pme_real_wait,pme_real_inter,pme_real_intra,pme_recip` の overlap を登録し、`nonbond` 相当が概ね `max(pme_real, pme_recip)` になるように扱います。
-`pme_real` は暫定的に 0.8 を待ち/CPU/通信相当の `identity` (`pme_real_wait`)、0.1 を `inter_cell` (`pme_real_inter`)、0.1 を `intra_cell` (`pme_real_intra`) として分割します。
-この比率は `BK_GENESIS_PME_REAL_IDENTITY_FRACTION`, `BK_GENESIS_PME_REAL_INTER_FRACTION`, `BK_GENESIS_PME_REAL_INTRA_FRACTION` で調整できます。
-単純和が `dynamics` を超える場合は、超過分を負の `other` にはせず、全主要区間に対する追加 `overlap` として登録します。
-このうち `pairlist`, `pme_real_inter`, `pme_real_intra` は GPU kernel section package の候補に紐づき、その他の区間と `other` は当面 `identity` です。
-GENESIS の `current_system` 側は Fugaku baseline の全体 FOM を weakscaling として扱い、MiyabiG 側の section breakdown は `future_system` 側の投影にだけ使います。
-NCU 由来の GPU kernel profile は通常アプリ全体の一部の kernel launch だけを含むため、その合計時間を直接 FOM 合成には使いません。
-各 GPU package は kernel sample の `predicted/source` 時間比を計算し、その比をアプリ側で採取した GPU section time に掛けて section time を作ります。
-NCU は section 内の全 kernel 構成比ではなく、採取開始から指定 launch 数の kernel sample を取るため、NCU sample 内の時間割合をそのまま section 内の時間割合として FOM 合成に使ってはいけません。
-GPU kernel estimator を FOM 合成へ使うには、その section をどの kernel family の `predicted/source` ratio でスケールするかを突合せできる必要があります。
-section と kernel の対応は `BK_GPU_KERNEL_SECTION_<SECTION>_REGEX` または `BK_GPU_KERNEL_SECTION_<SECTION>_NAME` で指定できます。
-例えば `pairlist` は既定で `BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX=build_pairlist` として扱い、`results/padata_pairlist.tgz` を優先して参照します。
-`pme_real_inter` は既定で `BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX=force_inter_cell` として `results/padata_inter.tgz` を参照し、`pme_real_intra` は `BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX=force_intra_cell` として `results/padata_intra.tgz` を参照します。
 複数 package を使う場合、`gpu_kernel_ensemble_average` は同じ section に対応した kernel family について package 間の `predicted/source` ratio を平均し、app-side section time に掛けます。
 kernel selector が無く複数 kernel family が混在している場合、候補 package の出力は `candidate_estimates` に残しますが、ensemble 本体は `identity` fallback として扱います。
 これにより、将来 CPU/GPU/通信の各 section package を同じ JSON 内で合成しつつ、GPU estimator だけを複数候補として比較できます。
 アプリ側 GPU section time が未取得の場合、GPU kernel estimator は FOM 合成には使えず、まずアプリログ、NVTX、または別のアプリ側計時で掛け先となる section time を用意する必要があります。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
-
-```bash
-export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15
-# or
-export BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_lightgbm_v10
-# or compare multiple packages from the same GENESIS result
-export BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15
-```
 
 PerfTools 本体は BenchKit に vendoring せず、実行時に次の環境変数で渡します。
 
@@ -157,26 +114,9 @@ MLP package は `Execution Time [ns]`、LightGBM package は `O-Execution Time` 
 prepared input CSV から source-side の kernel 実測時間を読める場合は、Estimate JSON の metrics に `source_time_ns`, `predicted_time_ns`, `time_ratio_predicted_over_source`, `speedup_factor_source_over_predicted` を出します。
 `ncu` の採取 window はアプリ全体の GPU 区間時間ではなく限定された kernel sample なので、実運用ではこの source/target 比を、profiler overhead のないアプリ区間 timing に掛けて FOM を再構築する想定です。
 
-qws を使って CI 配管だけを確認する場合は、実際の qws が GPU 化されていなくても GPU MLP smoke test を有効にできます。
-`BK_QWS_GPU_MLP_SMOKE_MODE=prediction` では、同梱のサンプル prediction CSV を使い、run job が `gpu_kernel_region` section と prediction CSV artifact を結果に埋め込みます。
-`BK_QWS_GPU_MLP_SMOKE_MODE=perftools` では、estimate job が PerfTools repo を checkout し、`MLP_NN/examples/example_input_mixed-src_20kernels.csv` を `predict_v15.py` に渡して prediction CSV を生成します。
-どちらのモードでも、estimate job が `gpu_kernel_mlp_v15` section package を通して Estimate JSON へ変換できることを確認します。
-LightGBM など別の GPU kernel section package は、GENESIS の `BK_GENESIS_GPU_SECTION_PACKAGE` のように app 側の切り替え変数や専用テストで確認します。
-qws の推定スクリプト単体では既定無効ですが、GPU estimator integration の立ち上げ期間中は GitLab CI 側の既定を一時的に有効化しています。
+CI 配管や app 固有の smoke test は、`programs/<code>/estimate.sh` や `scripts/tests/` 側で扱います。
+推定 package は、どの app の smoke test で呼ばれるかを知らず、自分が要求する input CSV / prediction CSV / profiler archive だけを見て applicability を判定します。
 
-```bash
-export BK_QWS_GPU_MLP_SMOKE=true
-export BK_QWS_GPU_MLP_SMOKE_MODE=perftools
-export BK_ESTIMATE_RUNNER_TAG=<python-and-jq-estimator-runner-tag>
-export BK_GPU_MLP_PERFTOOLS_REPO=https://github.com/masaaki-kondo/PerfTools.git
-export BK_GPU_MLP_PERFTOOLS_REF=main
-```
-
-これらの変数は、GPU estimator integration の立ち上げ期間だけの暫定スイッチです。
-`BK_QWS_GPU_MLP_SMOKE` は qws を使った配管確認用、`BK_QWS_GPU_MLP_SMOKE_MODE` は prediction fixture 取り込みと PerfTools 実行の切り替え用、`BK_ESTIMATE_RUNNER_TAG` は推定用 runner/container を手動で逃がすためのものです。
-実際の GPU profiling input と推定 runner の運用が固まったら、専用の package/runner 設定へ置き換え、これらの暫定変数は削除対象として見直してください。
-
-`perftools` smoke mode は GitHub から PerfTools を取得するため、推定 runner/container には `git` と外部接続が必要です。
 Python とライブラリは、選択した PerfTools モデル側の要件に合わせます。
 Result Server/portal の runtime は Python 3.12 以上ですが、GPU estimator runner は外部推定ツールの runtime です。
 MLP package には Python 3.11 以上と numpy/pandas/torch、LightGBM package には Python 3.11 以上と numpy/pandas/lightgbm/pyyaml、さらに LightGBM 実行用の `libgomp` が必要です。
