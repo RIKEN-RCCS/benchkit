@@ -72,6 +72,7 @@ source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
+export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=false
 export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/lightgbm_input.csv"
 export BK_GPU_LIGHTGBM_PYTHON="$PYTHON_BIN"
 
