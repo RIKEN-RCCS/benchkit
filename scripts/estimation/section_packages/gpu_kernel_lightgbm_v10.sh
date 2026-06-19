@@ -649,7 +649,7 @@ _bk_gpu_lightgbm_run_predictor() {
   local target_gpu="${BK_GPU_LIGHTGBM_TARGET_GPU:-${BK_GPU_MLP_TARGET_GPU:-A100}}"
   local slug
 
-  root=$(_bk_gpu_lightgbm_perftools_root)
+  root=$(_bk_gpu_lightgbm_ensure_perftools_root)
   model_dir=$(_bk_gpu_lightgbm_model_dir "$root")
   input_csv=$(_bk_gpu_lightgbm_resolve_section_input_csv "$item_json" "$section_name")
   ncu_archive=$(_bk_gpu_lightgbm_resolve_section_ncu_archive "$item_json" "$section_name")
