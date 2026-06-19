@@ -10,9 +10,11 @@ and `padata*.tgz`.
 ## GH200 GPU Run And NCU Collection
 
 For MiyabiG and RC_GH200, `run.sh` first runs GENESIS without a profiler and
-uses that run to measure the app FOM and section timings. Optional NCU runs are
-additional acquisition passes used only to derive GPU kernel source/target time
-ratios for estimation.
+uses that run to measure the app FOM and section timings. It then runs
+additional NCU acquisition passes by default; those passes are used only to
+derive GPU kernel source/target time ratios for estimation. Set
+`BK_GENESIS_NCU_PROFILE=false` or `GENESIS_PROFILER_TOOL=none` to skip the
+additional profiler runs.
 
 The current GENESIS wrapper can collect multiple NCU windows as separate
 archives:
@@ -26,6 +28,7 @@ results/padata_pairlist.tgz
 The default profile names are:
 
 ```bash
+BK_GENESIS_NCU_PROFILE=true
 BK_GENESIS_NCU_PROFILE_NAMES="inter intra pairlist"
 ```
 

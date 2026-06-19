@@ -6,7 +6,7 @@ REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
-PREDICTION_FIXTURE="${REPO_DIR}/programs/qws/fixtures/gpu_kernel_mlp_v15_pred.csv"
+PREDICTION_FIXTURE="${REPO_DIR}/scripts/tests/fixtures/gpu_kernel_mlp_v15_pred.csv"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq not found; skipping gpu_kernel_mlp_v15 estimation test"

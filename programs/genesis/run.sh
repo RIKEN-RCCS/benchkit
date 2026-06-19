@@ -117,6 +117,17 @@ genesis_bool_enabled() {
     return 1
 }
 
+genesis_ncu_profile_enabled() {
+    if [ -n "${BK_GENESIS_NCU_PROFILE:-}" ]; then
+        genesis_bool_enabled "$BK_GENESIS_NCU_PROFILE"
+        return $?
+    fi
+
+    # GH200-class GENESIS runs always keep the unprofiled application run for
+    # FOM/section timing, then collect extra NCU windows for GPU-kernel ratios.
+    return 0
+}
+
 genesis_profile_key() {
     printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
 }
@@ -372,19 +383,19 @@ run_genesis_gh200_gpu() {
     elif [ -n "${GENESIS_PROFILER_TOOL:-}" ]; then
         genesis_profiler_requested="${GENESIS_PROFILER_TOOL}"
         genesis_profiler_explicit=1
-    elif genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}"; then
+    elif genesis_ncu_profile_enabled; then
         genesis_profiler_requested="ncu"
     fi
 
     if [ "$genesis_profiler_requested" = "none" ]; then
         genesis_profile_enabled=0
-    elif genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}" || [ "$genesis_profiler_requested" != "none" ]; then
+    elif genesis_ncu_profile_enabled || [ "$genesis_profiler_requested" != "none" ]; then
         genesis_profile_enabled=1
     fi
 
     genesis_profiler_tool=$(bk_get_profiler_tool "$genesis_profiler_requested") || return 1
     local genesis_default_profiler_level="single"
-    if genesis_bool_enabled "${BK_GENESIS_GPU_MLP_PROFILE:-false}"; then
+    if genesis_ncu_profile_enabled; then
         genesis_default_profiler_level="detailed"
     fi
     genesis_profiler_level="${!profiler_level_var:-${GENESIS_PROFILER_LEVEL:-${genesis_default_profiler_level}}}"
