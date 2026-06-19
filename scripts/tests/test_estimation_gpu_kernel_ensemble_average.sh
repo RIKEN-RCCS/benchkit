@@ -50,6 +50,11 @@ kernel_name,src_gpu,tgt_gpu,Execution Time [ns],Memory Throughput [%]
 kern_a,H100,A100,3000,30
 EOF
 
+cat > "${TMP_DIR}/mlp_pred_zero.csv" <<'EOF'
+kernel_name,src_gpu,tgt_gpu,Execution Time [ns],Memory Throughput [%]
+kern_a,H100,A100,0,30
+EOF
+
 cat > "${TMP_DIR}/source_input_single.csv" <<'EOF'
 Kernel Name,Duration [ns]
 kern_a,1000
@@ -102,6 +107,9 @@ export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
 transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 
+export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_zero.csv"
+transformed_zero_candidate=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+
 export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred_mixed.csv"
 export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/source_input_mixed.csv"
 export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_mixed.csv"
@@ -139,6 +147,28 @@ if ! echo "$transformed_single" | jq -e '
   exit 1
 fi
 
+if ! echo "$transformed_zero_candidate" | jq -e '
+  def near($a; $b):
+    (($a - $b) | if . < 0 then -. else . end) < 0.000000000001;
+
+  (.sections | length == 1) and
+  .sections[0].estimation_package == "gpu_kernel_ensemble_average" and
+  near(.sections[0].time; 10) and
+  .sections[0].scaling_method == "gpu-kernel-ensemble-average" and
+  .sections[0].package_applicability.status == "partially_applicable" and
+  (.sections[0].package_applicability.missing_inputs | index("gpu_kernel_ensemble_positive_candidate_ratio_required")) and
+  .sections[0].metrics.candidate_count == 2 and
+  .sections[0].metrics.applicable_candidate_count == 1 and
+  near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 1) and
+  (.sections[0].metrics.kernel_candidate_ratios[0].candidate_ratios | length == 1) and
+  .sections[0].metrics.kernel_candidate_ratios[0].candidate_ratios[0].estimation_package == "gpu_kernel_lightgbm_v10" and
+  (.sections[0].candidate_estimates | length == 2)
+' >/dev/null; then
+  echo "Unexpected zero-ratio candidate ensemble transform output:" >&2
+  echo "$transformed_zero_candidate" | jq . >&2
+  exit 1
+fi
+
 if ! echo "$transformed_mixed" | jq -e '
   (.sections | length == 1) and
   .sections[0].estimation_package == "identity" and
@@ -148,9 +178,12 @@ if ! echo "$transformed_mixed" | jq -e '
   .sections[0].scaling_method == "identity" and
   .sections[0].package_applicability.status == "fallback" and
   (.sections[0].package_applicability.missing_inputs | index("gpu_kernel_section_kernel_selector_required")) and
-  .sections[0].metrics.unique_kernel_count == 2 and
-  .sections[0].metrics.kernel_names == ["kern_a", "kern_b"] and
-  (.sections[0].candidate_estimates | length == 2)
+  (.sections[0].package_applicability.missing_inputs | index("gpu_kernel_ensemble_all_candidate_packages_required")) and
+  .sections[0].metrics.unique_kernel_count == 1 and
+  .sections[0].metrics.kernel_names == ["kern_a"] and
+  (.sections[0].candidate_estimates | length == 2) and
+  .sections[0].candidate_estimates[1].metrics.unique_kernel_count == 2 and
+  .sections[0].candidate_estimates[1].metrics.kernel_names == ["kern_a", "kern_b"]
 ' >/dev/null; then
   echo "Unexpected mixed-kernel ensemble transform output:" >&2
   echo "$transformed_mixed" | jq . >&2

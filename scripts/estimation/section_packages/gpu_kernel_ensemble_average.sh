@@ -125,16 +125,26 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
   candidates_json=$(printf '%s\n' "${candidate_items[@]}" | jq -s '.')
 
   echo "$item_json" | jq -c --argjson candidates "$candidates_json" '
+    def candidate_time_ratio:
+      (.metrics.section_time_ratio_predicted_over_source // .metrics.time_ratio_predicted_over_source // null);
+    def candidate_status:
+      (.package_applicability.status // "applicable");
     def usable_candidates:
       $candidates
       | map(select(
           (.time // null) != null
-          and ((.package_applicability.status // "applicable") != "not_applicable")
-          and ((.package_applicability.status // "applicable") != "fallback")
+          and (candidate_status != "not_applicable")
+          and (candidate_status != "fallback")
           and ((.estimation_package // "") != "identity")
+          and ((candidate_time_ratio // 0) > 0)
         ));
-    def candidate_time_ratio:
-      (.metrics.section_time_ratio_predicted_over_source // .metrics.time_ratio_predicted_over_source // null);
+    def blocking_candidates:
+      $candidates
+      | map(select(
+          (candidate_status == "not_applicable")
+          or (candidate_status == "fallback")
+          or ((.estimation_package // "") == "identity")
+        ));
     def candidate_kernel_records:
       map(
         . as $candidate
@@ -164,9 +174,10 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
 
     (usable_candidates) as $usable
     | ($usable | length) as $usable_count
+    | (blocking_candidates | length) as $blocking_count
     | ($candidates | length) as $candidate_count
-    | ($usable | map(candidate_time_ratio) | map(select(. != null))) as $usable_ratios
-    | ($candidates | candidate_kernel_records) as $kernel_records
+    | ($usable | map(candidate_time_ratio) | map(select(. != null and . > 0))) as $usable_ratios
+    | ($usable | candidate_kernel_records) as $kernel_records
     | ($kernel_records | map(.name) | unique | sort) as $kernel_names
     | ($kernel_names | length) as $unique_kernel_count
     | (
@@ -198,7 +209,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
       ) as $kernel_means
     | (if ($usable_ratios | length) > 0 then (($usable_ratios | add) / ($usable_ratios | length)) else null end) as $mean_ratio
     | (.bench_time // .time // null) as $app_section_time
-    | ($usable_count == $candidate_count and $unique_kernel_count == 1 and $mean_ratio != null and $app_section_time != null) as $can_project_section
+    | ($blocking_count == 0 and $usable_count > 0 and $unique_kernel_count == 1 and $mean_ratio != null and $app_section_time != null) as $can_project_section
     | (if $can_project_section then ($app_section_time * $mean_ratio) else $app_section_time end) as $output_time
     | .
     + {
@@ -210,9 +221,10 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
           status: (
             if $usable_count == 0 then "not_applicable"
             elif $app_section_time == null then "not_applicable"
-            elif $usable_count != $candidate_count then "fallback"
+            elif $blocking_count > 0 then "fallback"
             elif $unique_kernel_count != 1 then "fallback"
             elif $usable_count == $candidate_count then "applicable"
+            elif $usable_count > 0 then "partially_applicable"
             else "partially_applicable"
             end
           ),
@@ -223,7 +235,8 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
             | . + (if $app_section_time == null then ["app_gpu_section_time"] else [] end)
             | . + (if $unique_kernel_count == 0 then ["gpu_kernel_ensemble_kernel_time_ratios"] else [] end)
             | . + (if $unique_kernel_count > 1 then ["gpu_kernel_section_single_kernel_required"] else [] end)
-            | . + (if $usable_count != $candidate_count then ["gpu_kernel_ensemble_all_candidate_packages_required"] else [] end)
+            | . + (if $blocking_count > 0 then ["gpu_kernel_ensemble_all_candidate_packages_required"] else [] end)
+            | . + (if ($blocking_count == 0 and $usable_count != $candidate_count) then ["gpu_kernel_ensemble_positive_candidate_ratio_required"] else [] end)
             | unique
           )
         },
