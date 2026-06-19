@@ -169,6 +169,9 @@ bk_top_level_transform_breakdown() {
   local overlaps_out=()
   local item_json
   local transformed_item
+  local sections_file
+  local overlaps_file
+  local rc
 
   if [[ -z "$breakdown_json" || "$breakdown_json" == "null" ]]; then
     echo ""
@@ -191,10 +194,17 @@ bk_top_level_transform_breakdown() {
     overlaps_out+=("$transformed_item")
   done < <(echo "$breakdown_json" | jq -c '.overlaps // [] | .[]')
 
+  sections_file=$(mktemp)
+  overlaps_file=$(mktemp)
+  printf '%s\n' "${sections_out[@]}" | jq -s '.' > "$sections_file"
+  printf '%s\n' "${overlaps_out[@]}" | jq -s '.' > "$overlaps_file"
   jq -cn \
-    --argjson sections "$(printf '%s\n' "${sections_out[@]}" | jq -s '.')" \
-    --argjson overlaps "$(printf '%s\n' "${overlaps_out[@]}" | jq -s '.')" \
-    '{sections: $sections, overlaps: $overlaps}'
+    --slurpfile sections "$sections_file" \
+    --slurpfile overlaps "$overlaps_file" \
+    '{sections: $sections[0], overlaps: $overlaps[0]}'
+  rc=$?
+  rm -f "$sections_file" "$overlaps_file"
+  return "$rc"
 }
 
 bk_top_level_collect_breakdown_package_issues() {
