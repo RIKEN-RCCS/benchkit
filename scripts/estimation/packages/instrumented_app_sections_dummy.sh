@@ -217,7 +217,7 @@ _bk_set_top_level_applicability_from_breakdowns() {
 
 bk_estimation_package_run() {
   local baseline_system="${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
-  local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-CASE0}"
+  local baseline_exp="${BK_ESTIMATION_BASELINE_EXP:-${est_exp:-}}"
   local future_system="${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
   local current_target_nodes="${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}"
   local future_target_nodes="${BK_ESTIMATION_FUTURE_TARGET_NODES:-$est_node_count}"

@@ -19,6 +19,66 @@
 scaffold や自動生成は、あると便利な支援機能ですが必須ではありません。
 既存例とこのガイドを見ながら追加できる状態をまず正とし、必要になった時点で補助ツールを検討します。
 
+## 境界面として固定するもの
+
+責務分担を保つため、層をまたいで渡してよいものは境界面として定義された artifact / metadata に限定します。
+個別アプリや個別 package の環境変数を、BenchKit 共通層や別 package が知っている前提にしてはいけません。
+
+### app wrapper が共通層へ渡すもの
+
+`programs/<code>/run.sh` と `programs/<code>/estimate.sh` は、アプリ固有の採取方法や補正を内部で吸収し、共通層へは次の形で渡します。
+
+- `results/result` の `FOM:` / `SECTION:` 行
+- `SECTION:` 行の `name`, `time`, `type`, `members`, `estimation_package`, `artifact`, `candidate_estimation_packages`
+- `padata*.tgz` などの profiler archive
+- `results/estimation_artifacts/` 配下の軽量な推定補助 artifact
+- `result*.json` / `estimate*.json` に入る共通 metadata
+
+app 固有の kernel 名、入力短縮、launch window、module、compiler、site 差分は `programs/<code>/` 以下に閉じます。
+それらを共通層へ伝える必要がある場合は、app 側で共通 metadata や artifact path に変換してから渡します。
+
+### profiler helper が保証するもの
+
+`bk_profiler` は、指定された profiler を実行し、出力を共通 archive 形式に包むことだけを担当します。
+どの kernel を採取するか、何回実行するか、入力を短くするか、どの section に対応するかは app wrapper の責務です。
+
+`bk_profiler` が保証する境界面は次です。
+
+- archive path
+- `bk_profiler_artifact/meta.json`
+- raw / report の共通配置
+- `tool`, `level`, `reports[].kind`, profiler option summary などの機械判定用 metadata
+
+### 推定 package が要求するもの
+
+推定 package は、自分が必要とする入力と書式を package metadata と applicability で定義します。
+入力が足りない場合は、package 側が `fallback` / `not_applicable` / `missing_inputs` を返します。
+
+推定 package が参照してよいものは、原則として次です。
+
+- package 自身の環境変数
+- `item_json` に入った section / overlap metadata
+- `artifact` で渡された共通 artifact
+- package 自身が定義する input CSV / prediction CSV / profiler archive 書式
+- package 自身の external tool checkout / runtime
+
+推定 package は、`programs/<code>/` 固有の環境変数や app 名を直接見て分岐しないでください。
+app 固有の対応付けが必要な場合は、app wrapper が `SECTION:` metadata、artifact path、kernel selector などの package が理解できる入力に変換します。
+
+### BenchKit 共通層が担当するもの
+
+BenchKit 共通層は、app や package の内部意味を解釈せず、宣言された共通 metadata を使って処理します。
+
+- current / future flow
+- package dispatch
+- requested / applied package の記録
+- fallback / applicability の保持
+- Estimate JSON 生成
+- result / estimate / artifact upload
+- portal 表示に必要な共通 metadata の整形
+
+共通層に app 固有・package 固有の例外分岐を入れたくなった場合は、まず app wrapper または package metadata で表現できないかを検討してください。
+
 ## どこから読むか
 
 ### アプリ開発者

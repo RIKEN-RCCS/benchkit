@@ -277,7 +277,7 @@ bk_estimation_build_assumptions_json_from_metadata() {
 
 bk_estimation_run_recorded_current_with_weakscaling() {
   local baseline_system="${1:-${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}}"
-  local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-CASE0}}"
+  local baseline_exp="${2:-${BK_ESTIMATION_BASELINE_EXP:-${est_exp:-}}}"
   local current_target_nodes="${3:-${BK_ESTIMATION_CURRENT_TARGET_NODES:-$est_node_count}}"
   local current_package="${4:-${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}}"
   local current_model_version=""

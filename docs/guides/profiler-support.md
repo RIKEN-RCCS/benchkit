@@ -173,61 +173,13 @@ bk_profiler_artifact/
 
 だけを持つ。
 
-`genesis` では、MiyabiG と RC_GH200 を同じ Grace-Hopper GPU 系の計算ノードとして扱い、GPU build / run に対して、
+GPU アプリごとの kernel window、module、compiler wrapper、短縮 input、profile 回数、archive の分割方針はアプリ wrapper の責務です。
+BenchKit 共通層と推定 package 層は、これらのアプリ固有値を直接解釈しません。
+共通層が扱うのは、app wrapper が生成した `padata*.tgz`、`SECTION:` metadata、`meta.json` などの共通 artifact だけです。
 
-- build で `--enable-gpu`、`--enable-openmp`、`--with-gpuarch=sm_90` を指定する
-- MiyabiG の既定 build では外部 LAPACK を要求せず、必要な場合だけ `GENESIS_MIYABIG_LAPACK_LIBS` で有効化する
-- `.fpp` 前処理では GENESIS の traditional cpp flags を保持しつつ、GPU/single/MPI/OpenMP/FFTE の define を `PPFLAGS` 経由で明示する
-- CUDA 12.9 以降向けに `src/spdyn/gpu_sp_energy.cu` の `nvToolsExt.h` include を `nvtx3/nvToolsExt.h` に補正する
-- `mpif90` の実体が `nvfortran` の環境向けに、GENESIS の compiler 判定を NVHPC/PGI 系として補正する
-- GENESIS の古い PGI flag (`-Mcuda` など) は `configure.ac` 側で NVHPC 25.x/aarch64 向けの `-cuda -gpu=cc90` へ補正する
-- NVHPC 25.x では古い PGI pinned-array 経路の `PGICUDA` define を外し、GPU kernel 用の domain fields を保持する
-- run では、profiler なしの通常実行で FOM とアプリ section 時間を取得し、必要に応じて追加の `bk_profiler ncu --level detailed -- ...` 実行で GPU kernel 推定用 archive を採取する
-
-形を参照実装とする。ジョブ投入方式は MiyabiG が PBS、RC_GH200 が SLURM で異なるが、アプリ側の実行方法と profiler 採取方法は共通化する。
-
-CUDA prefix、compiler wrapper、module、profiler tool は site 側の module 構成に合わせて上書きできる。
-
-- build/run 共通の module: `GENESIS_MIYABIG_MODULE`, `GENESIS_GH200_MODULE`
-- build 時の CUDA/compiler/config: `GENESIS_MIYABIG_CUDA_PATH`, `GENESIS_MIYABIG_FC`, `GENESIS_MIYABIG_CC`, `GENESIS_MIYABIG_CONFIG_ARGS`
-- run 時の追加 profiler: `GENESIS_MIYABIG_PROFILER_TOOL`, `GENESIS_GH200_PROFILER_TOOL`, `GENESIS_MIYABIG_PROFILER_LEVEL`, `GENESIS_GH200_PROFILER_LEVEL`, または共通の `GENESIS_PROFILER_TOOL` / `GENESIS_PROFILER_LEVEL`
-
-GENESIS GH200 run は、FOM と section timing を必ず profiler なしの通常実行から取得する。
-`BK_GENESIS_GPU_MLP_PROFILE=true`、または `GENESIS_PROFILER_TOOL=ncu` / system 固有の `GENESIS_*_PROFILER_TOOL=ncu` を指定した場合だけ、その後に GPU kernel 推定用の NCU 採取を追加実行する。
-追加採取で `ncu` が見つからない場合は失敗させる。
-profiler 採取を明示的に行わない場合は、`GENESIS_PROFILER_TOOL=none` または system 固有の `GENESIS_*_PROFILER_TOOL=none` を指定する。
-NCU 採取は kernel ratio を得るための補助実行なので、通常実行の FOM を変えず、追加 NCU 実行だけ既定で `nsteps=600` の短縮 input を使う。
-
-`BK_GENESIS_GPU_MLP_PROFILE=true` の既定では、複数の NCU window を別々の archive として保存する。
-
-```bash
-# default profile names
-BK_GENESIS_NCU_PROFILE_NAMES="inter intra pairlist"
-
-# default profile outputs
-results/padata_inter.tgz
-results/padata_intra.tgz
-results/padata_pairlist.tgz
-```
-
-既定の kernel filter と launch window は以下で、`pairlist` は頻度が低いため小さい skip を使う。
-
-```bash
-BK_GENESIS_NCU_INTER_KERNEL_REGEX='regex:.*force_inter_cell.*'
-BK_GENESIS_NCU_INTER_LAUNCH_SKIP=100
-BK_GENESIS_NCU_INTRA_KERNEL_REGEX='regex:.*force_intra_cell.*'
-BK_GENESIS_NCU_INTRA_LAUNCH_SKIP=100
-BK_GENESIS_NCU_PAIRLIST_KERNEL_REGEX='regex:.*build_pairlist.*'
-BK_GENESIS_NCU_PAIRLIST_LAUNCH_SKIP=10
-BK_GENESIS_NCU_LAUNCH_COUNT=10
-BK_GENESIS_NCU_PAIRLIST_LAUNCH_COUNT=10
-BK_GENESIS_NCU_NSTEPS=600
-```
-
-site や入力に合わせて、`BK_GENESIS_NCU_PROFILE_NAMES` と `BK_GENESIS_NCU_<PROFILE>_KERNEL_REGEX` / `BK_GENESIS_NCU_<PROFILE>_LAUNCH_SKIP` / `BK_GENESIS_NCU_<PROFILE>_LAUNCH_COUNT` / `BK_GENESIS_NCU_<PROFILE>_NSTEPS` を調整する。
-古い単一 window の指定が必要な場合は `BK_GENESIS_NCU_KERNEL_REGEX` を指定すると `custom` profile として扱う。
-本番入力の step 数で NCU を取りたい場合は `BK_GENESIS_NCU_NSTEPS=off` を指定する。
-NCU archive は FOM そのものではなく source/target kernel time ratio を得るための補助データであり、profiler overhead のない通常実行の section timing に適用して FOM を再構成する。
+アプリ固有の環境変数は `programs/<code>/build.sh`、`programs/<code>/run.sh`、`programs/<code>/estimate.sh` の内部で、同じアプリ内の重複を減らすために使います。
+共通 CI/matrix、共通 profiler helper、推定 package は、そのアプリ固有変数が存在することを前提にしないでください。
+GENESIS の現在の GH200 GPU profiling 例は `programs/genesis/README.md` と `programs/genesis/run.sh` に置いています。
 
 ## 9. 今は固定しないこと
 
