@@ -102,6 +102,64 @@ _bk_gpu_lightgbm_perftools_root() {
   printf '%s\n' "${BK_GPU_LIGHTGBM_PERFTOOLS_ROOT:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-}}}"
 }
 
+_bk_gpu_lightgbm_bool_enabled() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_bk_gpu_lightgbm_fetch_enabled() {
+  if [[ -n "${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS:-}" ]]; then
+    _bk_gpu_lightgbm_bool_enabled "$BK_GPU_LIGHTGBM_FETCH_PERFTOOLS"
+    return $?
+  fi
+
+  return 0
+}
+
+_bk_gpu_lightgbm_ensure_perftools_root() {
+  local root
+  local repo="${BK_GPU_LIGHTGBM_PERFTOOLS_REPO:-${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}}"
+  local ref="${BK_GPU_LIGHTGBM_PERFTOOLS_REF:-${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}}"
+
+  root=$(_bk_gpu_lightgbm_perftools_root)
+  if [[ -n "$root" && -f "$(_bk_gpu_lightgbm_predictor "$root")" ]]; then
+    printf '%s\n' "$root"
+    return 0
+  fi
+
+  if ! _bk_gpu_lightgbm_fetch_enabled; then
+    printf '%s\n' "$root"
+    return 0
+  fi
+
+  root="${root:-${BK_GPU_LIGHTGBM_PERFTOOLS_ROOT:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-.benchkit_estimation_tools/PerfTools}}}}"
+  if [[ ! -f "$(_bk_gpu_lightgbm_predictor "$root")" ]]; then
+    if ! command -v git >/dev/null 2>&1; then
+      printf '%s\n' "$root"
+      return 0
+    fi
+
+    mkdir -p "$(dirname "$root")"
+    if [[ ! -d "$root/.git" ]]; then
+      echo "Fetching PerfTools for gpu_kernel_lightgbm_v10: ${repo} (${ref})" >&2
+      git clone --depth 1 "$repo" "$root" >&2 || {
+        printf '%s\n' "$root"
+        return 0
+      }
+    fi
+    if [[ "$ref" != "main" && "$ref" != "master" ]]; then
+      git -C "$root" fetch --depth 1 origin "$ref" >&2 || true
+      git -C "$root" checkout "$ref" >&2 || true
+    fi
+  fi
+
+  export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT="$root"
+  export BK_GPU_MLP_PERFTOOLS_ROOT="${BK_GPU_MLP_PERFTOOLS_ROOT:-$root}"
+  printf '%s\n' "$root"
+}
+
 _bk_gpu_lightgbm_model_dir() {
   local root="$1"
 
@@ -327,7 +385,7 @@ EOF
       missing+=("\"prediction_csv:${prediction_csv}\"")
     fi
   else
-    root=$(_bk_gpu_lightgbm_perftools_root)
+    root=$(_bk_gpu_lightgbm_ensure_perftools_root)
     predictor=$(_bk_gpu_lightgbm_predictor "$root")
 
     if [[ -z "$input_csv" && -z "$ncu_archive" ]]; then

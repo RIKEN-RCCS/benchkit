@@ -14,6 +14,8 @@ cp -R "${REPO_DIR}/scripts/estimation" "${TMP_DIR}/scripts/estimation"
 cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
 
 pushd "${TMP_DIR}" >/dev/null
+export BK_GPU_MLP_FETCH_PERFTOOLS=false
+export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=false
 source programs/genesis/estimate.sh
 test "${BK_ESTIMATION_BASELINE_EXP}" = "p8"
 test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
