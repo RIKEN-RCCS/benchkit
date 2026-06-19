@@ -319,7 +319,6 @@ genesis_run_single_estimate() {
   genesis_declare_estimation_layout
   bk_estimation_apply_declared_defaults
   BK_ESTIMATION_PACKAGE="${BK_ESTIMATION_PACKAGE:-$BK_ESTIMATION_FUTURE_PACKAGE}"
-
   if ! genesis_input_has_fom_breakdown "$input_json"; then
     package_input_json=$(mktemp "${TMPDIR:-/tmp}/benchkit-genesis-total-breakdown.XXXXXX.json")
     genesis_write_total_identity_breakdown_input "$input_json" "$package_input_json"
