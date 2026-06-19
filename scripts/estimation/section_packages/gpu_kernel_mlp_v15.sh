@@ -508,11 +508,14 @@ total_seconds = 0.0
 source_times_ns, source_time_column = source_time_by_row(input_csv)
 total_source_seconds = 0.0
 source_time_count = 0
+nonpositive_prediction_count = 0
 
 for idx, row in enumerate(reader, start=1):
     predicted_ns = as_number(row.get(time_column))
     if predicted_ns is None:
         raise SystemExit(f"row {idx} has no numeric predicted execution time in {time_column}")
+    if predicted_ns <= 0:
+        nonpositive_prediction_count += 1
 
     raw_name = next((row.get(col, "").strip() for col in name_columns if row.get(col, "").strip()), "")
     source_gpu = (row.get("src_gpu") or row.get("source_gpu") or "").strip()
@@ -563,6 +566,17 @@ summary_metrics = {
     "target_gpus": sorted(set(target_gpus)),
     "kernels": kernels,
 }
+if nonpositive_prediction_count:
+    summary_metrics["nonpositive_prediction_count"] = nonpositive_prediction_count
+    summary_metrics["diagnostics"] = {
+        "severity": "warning",
+        "reason": "nonpositive_predicted_execution_time",
+        "message": (
+            "PerfTools MLP_NN/v1.5 returned non-positive predicted execution "
+            "time for one or more kernel rows. Check target GPU selection and "
+            "required NCU feature coverage."
+        ),
+    }
 if source_time_column is not None:
     total_source_ns = total_source_seconds * 1e9
     summary_metrics["source_time_column"] = source_time_column
@@ -604,6 +618,7 @@ _bk_gpu_mlp_prepare_input_from_ncu() {
   local slug="$5"
   local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
   local source_gpu="${BK_GPU_MLP_SOURCE_GPU:-${BK_GPU_MLP_SRC_GPU:-H100}}"
+  local target_gpu="${BK_GPU_MLP_TARGET_GPU:-${BK_GPU_MLP_TGT_GPU:-A100}}"
   local kernel_count="${BK_GPU_MLP_KERNEL_COUNT:-20}"
   local prepared_csv="${output_dir}/${slug}_input.csv"
   local script_path="scripts/estimation/prepare_gpu_mlp_ncu_input.py"
@@ -617,6 +632,7 @@ _bk_gpu_mlp_prepare_input_from_ncu() {
     --padata "$archive_abs" \
     --perftools-root "$root" \
     --source-gpu "$source_gpu" \
+    --target-gpu "$target_gpu" \
     --kernel-count "$kernel_count" \
     --out-csv "$prepared_abs" >&2
 

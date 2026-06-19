@@ -66,6 +66,7 @@ def parse_args() -> argparse.Namespace:
     input_group.add_argument("--raw-csv", help="Nsight Compute raw wide CSV")
     parser.add_argument("--perftools-root", required=True)
     parser.add_argument("--source-gpu", default="H100")
+    parser.add_argument("--target-gpu", default="")
     parser.add_argument("--kernel-count", type=int, default=20)
     parser.add_argument("--out-csv", required=True)
     parser.add_argument("--work-dir")
@@ -316,8 +317,36 @@ def finalize_prepared_input(
     raw_df: pd.DataFrame,
     out_csv: Path,
     allowed_nan: set[str],
+    target_gpu: str,
 ) -> None:
     df = pd.read_csv(prepared_csv)
+
+    if target_gpu:
+        target_columns = [
+            col
+            for col in ("tgt_gpu", "target_gpu", "TGT GPU", "Target GPU")
+            if col in df.columns
+        ]
+        if not target_columns:
+            raise SystemExit(
+                "prepared input has no target GPU column; cannot enforce --target-gpu"
+            )
+        target_column = target_columns[0]
+        before_count = len(df)
+        df = df[
+            df[target_column].astype(str).str.upper() == target_gpu.upper()
+        ].copy()
+        if df.empty:
+            raise SystemExit(
+                f"prepared input has no rows for target GPU {target_gpu}; "
+                f"available targets: {sorted(pd.read_csv(prepared_csv)[target_column].dropna().astype(str).unique())}"
+            )
+        if len(df) != before_count:
+            print(
+                f"filtered prepared input to target GPU {target_gpu}: "
+                f"{len(df)}/{before_count} rows",
+                file=sys.stderr,
+            )
 
     ipc = first_numeric(
         raw_df,
@@ -380,6 +409,7 @@ def main() -> None:
             raw_df,
             out_csv,
             allowed_nan=ALLOWED_NAN_COLUMNS | set(args.allow_nan),
+            target_gpu=args.target_gpu,
         )
         print(f"wrote {out_csv}: {kernel_count} kernels")
     finally:
