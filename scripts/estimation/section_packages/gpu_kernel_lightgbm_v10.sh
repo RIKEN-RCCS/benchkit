@@ -502,6 +502,58 @@ def source_time_by_row(path):
     return [as_number(row.get(time_column)) for row in rows], time_column
 
 
+def source_metric_candidates(metric_name):
+    candidates = [metric_name]
+    if metric_name.startswith("O-"):
+        candidates.append(metric_name[2:])
+    if metric_name.startswith("brk_"):
+        candidates.append("breakdown_" + metric_name[4:])
+    if metric_name.startswith("breakdown_"):
+        candidates.append("brk_" + metric_name[len("breakdown_"):])
+    return list(dict.fromkeys(candidates))
+
+
+def source_metrics_by_row(path):
+    if not path:
+        return []
+    candidate = Path(path)
+    if not candidate.is_file():
+        return []
+
+    rows, fieldnames = read_csv_rows(path)
+    if not fieldnames:
+        return []
+
+    source_rows = []
+    for row in rows:
+        source_metrics = {}
+        for metric_name in metric_columns:
+            for source_name in source_metric_candidates(metric_name):
+                if source_name in fieldnames:
+                    value = as_number(row.get(source_name))
+                    if value is not None:
+                        source_metrics[metric_name] = value
+                        break
+        source_rows.append(source_metrics)
+    return source_rows
+
+
+def metric_comparisons(source_metrics, predicted_metrics):
+    comparisons = []
+    for metric_name in sorted(set(source_metrics) | set(predicted_metrics)):
+        item = {"name": metric_name}
+        source_value = source_metrics.get(metric_name)
+        predicted_value = predicted_metrics.get(metric_name)
+        if source_value is not None:
+            item["source_value"] = source_value
+        if predicted_value is not None:
+            item["predicted_value"] = predicted_value
+        if source_value not in (None, 0) and predicted_value is not None:
+            item["ratio_predicted_over_source"] = predicted_value / source_value
+        comparisons.append(item)
+    return comparisons
+
+
 reader = csv.DictReader(cleaned_lines(prediction_csv))
 if not reader.fieldnames:
     raise SystemExit(f"prediction CSV has no header: {prediction_csv}")
@@ -518,6 +570,7 @@ source_gpus = []
 target_gpus = []
 total_seconds = 0.0
 source_times_ns, source_time_column = source_time_by_row(input_csv)
+source_metrics_rows = source_metrics_by_row(input_csv)
 total_source_seconds = 0.0
 source_time_count = 0
 
@@ -537,6 +590,7 @@ for idx, row in enumerate(reader, start=1):
     seconds = predicted_ns / 1e9
     total_seconds += seconds
     source_ns = source_times_ns[idx - 1] if idx - 1 < len(source_times_ns) else None
+    source_metrics = source_metrics_rows[idx - 1] if idx - 1 < len(source_metrics_rows) else {}
     source_seconds = source_ns / 1e9 if source_ns is not None else None
     if source_seconds is not None:
         total_source_seconds += source_seconds
@@ -565,6 +619,11 @@ for idx, row in enumerate(reader, start=1):
         kernel["target_gpu"] = target_gpu
     if metrics:
         kernel["metrics"] = metrics
+    if source_metrics:
+        kernel["source_metrics"] = source_metrics
+    comparisons = metric_comparisons(source_metrics, metrics)
+    if comparisons:
+        kernel["metric_comparisons"] = comparisons
     kernels.append(kernel)
 
 summary_metrics = {
@@ -666,6 +725,7 @@ _bk_gpu_lightgbm_run_predictor() {
   prediction_csv_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_csv")
   prediction_log_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_log")
 
+  echo "Running PerfTools LightGBM_model/1.0 for ${section_name}: ${source_gpu}->${target_gpu}" >&2
   if ! (
     cd "$model_dir"
     "$python_bin" AI_model/run_inference.py \

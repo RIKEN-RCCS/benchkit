@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a PerfTools MLP_NN/v1.5 input CSV from an Nsight Compute archive.
+"""Prepare a PerfTools MLP_NN input CSV from an Nsight Compute archive.
 
 This is a small compatibility bridge for BenchKit.  It converts the wide
 Nsight Compute raw CSV exported from ``profile.ncu-rep`` into the CSV layout
@@ -354,7 +354,7 @@ def finalize_prepared_input(
         "TPC.TriageCompute.sm__inst_executed_realtime.avg.per_cycle_active",
     ).reset_index(drop=True)
     if "Executed Ipc Active [inst/cycle]" in df.columns:
-        df["Executed Ipc Active [inst/cycle]"] = ipc.iloc[: len(df)].to_numpy()
+        df["Executed Ipc Active [inst/cycle]"] = ipc.reindex(df.index).to_numpy()
         mean_ipc = df["Executed Ipc Active [inst/cycle]"].mean()
         df["Executed Ipc Active [inst/cycle]"] = df[
             "Executed Ipc Active [inst/cycle]"
@@ -411,7 +411,8 @@ def main() -> None:
             allowed_nan=ALLOWED_NAN_COLUMNS | set(args.allow_nan),
             target_gpu=args.target_gpu,
         )
-        print(f"wrote {out_csv}: {kernel_count} kernels")
+        final_count = len(pd.read_csv(out_csv))
+        print(f"wrote {out_csv}: {final_count} kernels")
     finally:
         if work_dir_owned and not args.keep_work:
             shutil.rmtree(work_dir, ignore_errors=True)
