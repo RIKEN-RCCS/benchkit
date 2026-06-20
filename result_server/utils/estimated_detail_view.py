@@ -20,6 +20,7 @@ def build_estimated_detail_context(result):
         "reestimation_rows": _build_reestimation_rows(reestimation),
         "current_rows": _build_system_rows(current),
         "future_rows": _build_system_rows(future),
+        "system_comparison_rows": _build_system_comparison_rows(current, future),
         "measurement_json": result.get("measurement", {}),
         "confidence_json": result.get("confidence", {}),
         "assumptions_json": result.get("assumptions", {}),
@@ -63,19 +64,31 @@ def _build_package_rows(estimate_meta, applicability):
     current_package = estimate_meta.get("current_package", {})
     future_package = estimate_meta.get("future_package", {})
     rows = build_labeled_value_rows([
-        ("Top-Level Requested", estimate_meta.get("requested_estimation_package", "N/A")),
-        ("Top-Level Applied", estimate_meta.get("estimation_package", "N/A")),
+        ("Top-Level Package", _format_package_resolution(
+            estimate_meta.get("requested_estimation_package", "N/A"),
+            estimate_meta.get("estimation_package", "N/A"),
+        )),
         ("Top-Level Fallback", applicability.get("fallback_used", "none")),
-        ("Current Requested", current_package.get("requested_estimation_package", "N/A")),
-        ("Current Applied", current_package.get("estimation_package", "N/A")),
-        ("Future Requested", future_package.get("requested_estimation_package", "N/A")),
-        ("Future Applied", future_package.get("estimation_package", "N/A")),
+        ("Current Package", _format_package_resolution(
+            current_package.get("requested_estimation_package", "N/A"),
+            current_package.get("estimation_package", "N/A"),
+        )),
+        ("Future Package", _format_package_resolution(
+            future_package.get("requested_estimation_package", "N/A"),
+            future_package.get("estimation_package", "N/A"),
+        )),
     ])
 
     _append_list_row(rows, "Missing Inputs", applicability.get("missing_inputs", []))
     _append_list_row(rows, "Required Actions", applicability.get("required_actions", []))
     _append_list_row(rows, "Incompatibilities", applicability.get("incompatibilities", []))
     return rows
+
+
+def _format_package_resolution(requested, applied):
+    if requested == applied:
+        return applied
+    return f"{applied} (requested: {requested})"
 
 
 def _build_system_rows(system_data):
@@ -94,6 +107,40 @@ def _build_system_rows(system_data):
         ("Overlaps", len(breakdown.get("overlaps", []))),
         ("Model", model.get("name", "N/A")),
         ("Model Type", model.get("type", "N/A")),
+    ])
+
+
+def _build_system_comparison_rows(current, future):
+    current_rows = _build_comparison_system_rows(current)
+    future_rows = _build_comparison_system_rows(future)
+    future_by_label = {row["label"]: row for row in future_rows}
+    rows = []
+    for current_row in current_rows:
+        label = current_row["label"]
+        future_row = future_by_label.get(label, {})
+        rows.append({
+            "label": label,
+            "current": current_row.get("value", "N/A"),
+            "future": future_row.get("value", "N/A"),
+            "current_class": current_row.get("value_class", ""),
+            "future_class": future_row.get("value_class", ""),
+        })
+    return rows
+
+
+def _build_comparison_system_rows(system_data):
+    benchmark = system_data.get("benchmark", {})
+    breakdown = system_data.get("fom_breakdown", {})
+    return build_labeled_value_rows([
+        ("System", system_data.get("system", "N/A")),
+        ("FOM", format_numeric_value(system_data.get("fom", "N/A"))),
+        ("Target Nodes", system_data.get("target_nodes", "N/A")),
+        ("Benchmark System", benchmark.get("system", "N/A")),
+        ("Benchmark FOM", format_numeric_value(benchmark.get("fom", "N/A"))),
+        ("Benchmark Nodes", benchmark.get("nodes", "N/A")),
+        ("Benchmark Processes/Node", benchmark.get("numproc_node", "N/A")),
+        ("Sections", len(breakdown.get("sections", []))),
+        ("Overlaps", len(breakdown.get("overlaps", []))),
     ])
 
 

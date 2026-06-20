@@ -14,6 +14,28 @@
         .detail-table { margin-bottom: 20px; }
         .detail-table th { text-align: left; min-width: 200px; background-color: #eef6f8; }
         .detail-table td { min-width: 260px; white-space: normal; }
+        .system-comparison-table {
+            width: 100%;
+            table-layout: fixed;
+            margin-bottom: 20px;
+        }
+        .system-comparison-table th {
+            text-align: left;
+            background-color: #eef6f8;
+        }
+        .system-comparison-table th,
+        .system-comparison-table td {
+            padding: 8px 10px;
+            border: 1px solid #d8e3e8;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .system-comparison-table th:first-child,
+        .system-comparison-table td:first-child {
+            width: 26%;
+            font-weight: 700;
+            color: #102a43;
+        }
         .applicability-summary {
             margin-bottom: 20px;
             padding: 16px 18px;
@@ -93,6 +115,63 @@
             padding: 5px 7px;
             border: 1px solid #e2e8f0;
         }
+        .kernel-comparisons {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+        .kernel-comparisons-title {
+            margin-bottom: 8px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .kernel-comparison {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .kernel-comparison:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: 0;
+        }
+        .kernel-name {
+            margin-bottom: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            color: #334155;
+            overflow-wrap: anywhere;
+        }
+        .kernel-package-table,
+        .kernel-metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .kernel-package-table th,
+        .kernel-package-table td,
+        .kernel-metrics-table th,
+        .kernel-metrics-table td {
+            padding: 5px 7px;
+            border: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+        .kernel-package-table th,
+        .kernel-metrics-table th {
+            background: #eef6f8;
+        }
+        .kernel-metrics {
+            margin-top: 8px;
+        }
+        .kernel-metrics-summary {
+            margin-bottom: 5px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+        }
         .empty-note { color: #6b7280; font-size: 13px; }
     </style>
 
@@ -121,9 +200,29 @@
             {{ render_json_block("Confidence", confidence_json) }}
         </div>
 
-        {{ render_titled_key_value_table("Current System", current_rows, "detail-table", "detail-table-wrap", "detail-card") }}
-
-        {{ render_titled_key_value_table("Future System", future_rows, "detail-table", "detail-table-wrap", "detail-card") }}
+        <div class="detail-card">
+            <h2>System Comparison</h2>
+            <div class="detail-table-wrap">
+                <table class="system-comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Current System</th>
+                            <th>Future System</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in system_comparison_rows %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td{% if row.current_class %} class="{{ row.current_class }}"{% endif %}>{{ row.current }}</td>
+                            <td{% if row.future_class %} class="{{ row.future_class }}"{% endif %}>{{ row.future }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="detail-card">

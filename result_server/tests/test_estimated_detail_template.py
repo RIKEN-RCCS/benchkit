@@ -73,7 +73,7 @@ ESTIMATE_RESULT = {
         "fom": 0.944,
         "target_nodes": "1024",
         "scaling_method": "weakscaling",
-        "benchmark": {"system": "Fugaku", "fom": 0.386, "nodes": "1"},
+        "benchmark": {"system": "Fugaku", "fom": 0.386, "nodes": "1", "numproc_node": "4"},
         "model": {"name": "weakscaling-current", "type": "intra_system_scaling_model"},
         "fom_breakdown": {
             "sections": [
@@ -109,7 +109,7 @@ ESTIMATE_RESULT = {
         "fom": 9.054,
         "target_nodes": "256",
         "scaling_method": "instrumented-app-sections-dummy",
-        "benchmark": {"system": "MiyabiG", "fom": 5.712, "nodes": "1"},
+        "benchmark": {"system": "MiyabiG", "fom": 5.712, "nodes": "1", "numproc_node": "8"},
         "model": {"name": "instrumented-app-sections-future-projection", "type": "cross_system_projection_model"},
         "fom_breakdown": {
             "sections": [
@@ -140,6 +140,51 @@ ESTIMATE_RESULT = {
                             "metrics": {"time_ratio_predicted_over_source": 2.6666666667},
                         },
                     ],
+                    "metrics": {
+                        "kernel_summaries": [
+                            {
+                                "name": "kern_build_pairlist",
+                                "package_summaries": [
+                                    {
+                                        "estimation_package": "gpu_kernel_lightgbm_v10",
+                                        "sample_count": 1,
+                                        "source_time_ns_mean": 310816,
+                                        "predicted_time_ns_mean": 294442.45,
+                                        "mean_time_ratio_predicted_over_source": 0.9473,
+                                        "source_gpus": ["H100"],
+                                        "target_gpus": ["GB200"],
+                                        "metric_comparisons": [
+                                            {
+                                                "name": "O-Memory Throughput [%]",
+                                                "sample_count": 1,
+                                                "source_value_mean": 52.12,
+                                                "predicted_value_mean": 49.10,
+                                                "ratio_predicted_over_source_mean": 0.9421,
+                                            }
+                                        ],
+                                    },
+                                    {
+                                        "estimation_package": "gpu_kernel_mlp_v15",
+                                        "sample_count": 5,
+                                        "source_time_ns_mean": 159104,
+                                        "predicted_time_ns_mean": 70311.2,
+                                        "mean_time_ratio_predicted_over_source": 0.4423,
+                                        "source_gpus": ["H100"],
+                                        "target_gpus": ["GB200"],
+                                        "metric_comparisons": [
+                                            {
+                                                "name": "Memory Throughput [%]",
+                                                "sample_count": 5,
+                                                "source_value_mean": 52.55,
+                                                "predicted_value_mean": 41.34,
+                                                "ratio_predicted_over_source_mean": 0.7866,
+                                            }
+                                        ],
+                                    },
+                                ],
+                            }
+                        ]
+                    },
                 }
             ],
             "overlaps": [],
@@ -201,8 +246,10 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Applicability Summary" in html
     assert "Package Resolution" in html
     assert "Re-Estimation Context" in html
+    assert "System Comparison" in html
     assert "Current System" in html
     assert "Future System" in html
+    assert "Benchmark Processes/Node" in html
     assert "Estimate succeeded, but part of the breakdown used fallback handling." in html
     assert "required action: collect-section-specific-package-inputs" in html
     assert "weakscaling" in html
@@ -230,6 +277,15 @@ def test_estimated_detail_template_renders_sections(app):
     assert "overlap_package_unsupported:half" in html
     assert "Candidate estimates" in html
     assert "Time Ratio" in html
+    assert "Bench Time" in html
+    assert "Estimated Time" in html
     assert "gpu_kernel_ensemble_average" in html
     assert "gpu_kernel_lightgbm_v10" in html
     assert "gpu_kernel_mlp_v15" in html
+    assert "Kernel package comparison" in html
+    assert "kern_build_pairlist" in html
+    assert "Source Mean (ns)" in html
+    assert "Predicted Mean (ns)" in html
+    assert "O-Memory Throughput [%]" in html
+    assert "Memory Throughput [%]" in html
+    assert "GB200" in html

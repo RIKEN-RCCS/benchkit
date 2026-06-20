@@ -340,7 +340,6 @@ genesis_run_single_estimate() {
     "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1}" \
     "${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}"
   est_current_fom="${est_current_bench_fom:-$est_current_fom}"
-  est_current_fom_breakdown=""
 
   if [[ "$synthetic_breakdown" -eq 1 ]]; then
     genesis_mark_gpu_section_time_missing
