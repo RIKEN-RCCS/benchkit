@@ -369,6 +369,149 @@ bk_estimation_write_output() {
   echo "Estimate written to $output_file"
 }
 
+bk_estimation_section_key() {
+  printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
+}
+
+bk_estimation_configure_gpu_kernel_defaults() {
+  local source_gpu="$1"
+  local target_gpu="$2"
+  local candidate_packages="${3:-}"
+  local kernel_count="${4:-20}"
+  local artifact_mode="${5:-ncu}"
+
+  BK_GPU_MLP_ARTIFACT_MODE="${BK_GPU_MLP_ARTIFACT_MODE:-$artifact_mode}"
+  BK_GPU_MLP_SOURCE_GPU="${BK_GPU_MLP_SOURCE_GPU:-$source_gpu}"
+  BK_GPU_MLP_TARGET_GPU="${BK_GPU_MLP_TARGET_GPU:-$target_gpu}"
+  BK_GPU_MLP_KERNEL_COUNT="${BK_GPU_MLP_KERNEL_COUNT:-$kernel_count}"
+  BK_GPU_LIGHTGBM_ARTIFACT_MODE="${BK_GPU_LIGHTGBM_ARTIFACT_MODE:-$artifact_mode}"
+  BK_GPU_LIGHTGBM_SOURCE_GPU="${BK_GPU_LIGHTGBM_SOURCE_GPU:-$source_gpu}"
+  BK_GPU_LIGHTGBM_TARGET_GPU="${BK_GPU_LIGHTGBM_TARGET_GPU:-$target_gpu}"
+  if [[ -n "$candidate_packages" ]]; then
+    BK_GPU_KERNEL_ENSEMBLE_PACKAGES="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-$candidate_packages}"
+    export BK_GPU_KERNEL_ENSEMBLE_PACKAGES
+  fi
+  export BK_GPU_MLP_ARTIFACT_MODE
+  export BK_GPU_MLP_SOURCE_GPU
+  export BK_GPU_MLP_TARGET_GPU
+  export BK_GPU_MLP_KERNEL_COUNT
+  export BK_GPU_LIGHTGBM_ARTIFACT_MODE
+  export BK_GPU_LIGHTGBM_SOURCE_GPU
+  export BK_GPU_LIGHTGBM_TARGET_GPU
+}
+
+bk_estimation_configure_gpu_kernel_section_regexes() {
+  local section_key
+  local var_name
+
+  if [[ $# -ne 1 || -z "$1" ]]; then
+    echo "bk_estimation_configure_gpu_kernel_section_regexes: requires a newline-separated section|regex list" >&2
+    return 1
+  fi
+
+  while IFS='|' read -r section_name regex; do
+    [[ -n "$section_name$regex" ]] || continue
+    case "$section_name" in
+      \#*)
+        continue
+        ;;
+    esac
+    section_key=$(bk_estimation_section_key "$section_name")
+    var_name="BK_GPU_KERNEL_SECTION_${section_key}_REGEX"
+    if [[ -z "${!var_name:-}" ]]; then
+      printf -v "$var_name" '%s' "$regex"
+    fi
+    export "$var_name"
+  done <<EOF
+$1
+EOF
+}
+
+bk_estimation_artifact_file_exists() {
+  local rel_path="$1"
+  local root="${2:-}"
+
+  [[ -n "$rel_path" ]] || return 1
+  if [[ -f "$rel_path" ]]; then
+    return 0
+  fi
+  if [[ -n "$root" && -f "${root}/${rel_path}" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+bk_estimation_resolve_section_artifact() {
+  local env_prefix="$1"
+  local root="$2"
+  local section_name="$3"
+  local section_key
+  local env_var
+  local explicit_artifact
+  local candidate
+
+  shift 3
+  section_key=$(bk_estimation_section_key "$section_name")
+  env_var="${env_prefix}_${section_key}_ARTIFACT"
+  explicit_artifact="${!env_var:-}"
+  if [[ -n "$explicit_artifact" ]]; then
+    if bk_estimation_artifact_file_exists "$explicit_artifact" "$root"; then
+      printf '%s\n' "$explicit_artifact"
+      return 0
+    fi
+    echo "Section artifact was requested but not found: ${env_var}=${explicit_artifact}" >&2
+    return 1
+  fi
+
+  for candidate in "$@"; do
+    if bk_estimation_artifact_file_exists "$candidate" "$root"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+bk_estimation_input_has_fom_breakdown() {
+  local input_json="$1"
+
+  jq -e '((.fom_breakdown.sections // []) | length) > 0' "$input_json" >/dev/null 2>&1
+}
+
+bk_estimation_write_total_identity_breakdown_input() {
+  local input_json="$1"
+  local output_json="$2"
+
+  jq '
+    .fom_breakdown = {
+      sections: [
+        {
+          name: "total",
+          time: (.FOM | tonumber),
+          estimation_package: "identity"
+        }
+      ],
+      overlaps: []
+    }
+  ' "$input_json" > "$output_json"
+}
+
+bk_estimation_mark_gpu_section_time_missing() {
+  local app_name="${1:-application}"
+
+  bk_estimation_set_applicability \
+    "partially_applicable" \
+    "" \
+    '["app_gpu_section_time"]' \
+    '["provide-app-side-gpu-section-time-to-enable-gpu-kernel-estimator-fom-composition"]'
+
+  est_notes_json=$(jq -cn --arg app_name "$app_name" '{
+    summary: ($app_name + " GPU kernel estimator data may contain profiler sample ratios, but FOM composition used a total identity section because app-side GPU section time is not available yet."),
+    gpu_kernel_estimation: "Profiler sample predicted/source ratios must be applied to app-side GPU section time before they can contribute to FOM reconstruction."
+  }')
+}
+
 # ---------------------------------------------------------------------------
 # read_values — Read benchmark Result_JSON into global variables
 #
