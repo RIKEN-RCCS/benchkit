@@ -65,8 +65,15 @@ the wrapper treats it as a `custom` profile.
 
 ## Estimation Sections
 
-GENESIS treats the log `dynamics` time as the FOM. The current wrapper maps the
-log into section metadata in `programs/genesis/estimate.sh`.
+GENESIS treats the log `dynamics` time as the FOM. The app-side parser
+`programs/genesis/parse_timing.sh` maps a GENESIS log and dynamics FOM into
+section/overlap timing rows. This parser is not estimation-specific; it can be
+used from `run.sh`, `estimate.sh`, or local diagnostics.
+
+`estimate.sh` should stay limited to GENESIS-owned decisions: section names,
+how to extract section timings from the GENESIS log, and which section package
+each section should use. Package loading, fallback, FOM composition, and
+Estimate JSON construction are handled by the shared BenchKit estimation layer.
 
 Current section names are:
 
@@ -116,32 +123,15 @@ FugakuNEXT.
 
 ## GPU Section Package Mapping
 
-GENESIS chooses GPU section packages inside `programs/genesis/estimate.sh`.
-Shared BenchKit code and section packages must not depend on these variables.
+GENESIS does not choose individual GPU estimator packages. It marks GPU-related
+sections as `gpu_kernel_ensemble_average`; the common section package decides
+which concrete GPU estimator packages to run. This keeps GENESIS-side ownership
+limited to app concepts: section names, timing extraction, artifact candidates,
+and kernel selectors.
 
-Single-package selection:
-
-```bash
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15
-# or
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v21
-# or
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v40
-# or
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v41
-# or
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_lightgbm_v10
-```
-
-Multiple-package comparison:
-
-```bash
-BK_GENESIS_GPU_SECTION_PACKAGES=gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41
-```
-
-When multiple packages are selected, the app wrapper asks for
-`gpu_kernel_ensemble_average`, and passes the candidate packages through common
-section metadata. The ensemble package does not know this is GENESIS-specific.
+BenchKit operators can override the concrete GPU estimator package set with the
+generic `BK_GPU_KERNEL_ENSEMBLE_PACKAGES` variable when needed. That knob is not
+GENESIS-specific and should not be required for normal GENESIS maintenance.
 
 Current GPU section/artifact mapping:
 
@@ -151,14 +141,16 @@ pme_real_inter -> results/padata_inter.tgz    -> force_inter_cell
 pme_real_intra -> results/padata_intra.tgz    -> force_intra_cell
 ```
 
-The app wrapper passes kernel selectors to GPU section packages through generic
-selector variables:
+`programs/genesis/run.sh` registers these artifact paths when each NCU profile
+archive is created, then writes them as `SECTION: ... artifact:...` entries in
+`results/result`. `scripts/result.sh` turns those lines into
+`fom_breakdown.sections[].artifacts[]` in the Result JSON. `estimate.sh`
+consumes that Result JSON; it should not infer profiler output paths by scanning
+the filesystem or by knowing profiler archive names.
 
-```bash
-BK_GPU_KERNEL_SECTION_PAIRLIST_REGEX=build_pairlist
-BK_GPU_KERNEL_SECTION_PME_REAL_INTER_REGEX=force_inter_cell
-BK_GPU_KERNEL_SECTION_PME_REAL_INTRA_REGEX=force_intra_cell
-```
+The app wrapper passes kernel selectors to GPU section packages through the
+common estimation helper. These selectors are GENESIS-owned because they name
+GENESIS kernels.
 
 NCU archives contain sampled kernel launches, not full application section
 timings. The GPU section packages compute source/target kernel time ratios from

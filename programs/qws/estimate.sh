@@ -32,13 +32,16 @@ qws_declare_estimation_layout() {
   bk_define_future_system FugakuNEXT
   bk_define_current_target_nodes 1024
   bk_define_future_target_nodes 256
-  bk_declare_section --side future prepare_rhs half
-  bk_declare_section --side future compute_hopping quarter
-  bk_declare_section --side future compute_solver half
-  bk_declare_section --side future halo_exchange quarter
-  bk_declare_section --side future allreduce logp
-  bk_declare_section --side future write_result half
-  bk_declare_overlap --side future compute_hopping,halo_exchange half
+  bk_declare_estimation_items --side future "$(cat <<'EOF'
+section|prepare_rhs|half
+section|compute_hopping|quarter
+section|compute_solver|half
+section|halo_exchange|quarter
+section|allreduce|logp
+section|write_result|half
+overlap|compute_hopping,halo_exchange|half
+EOF
+)"
 }
 
 qws_create_dummy_estimation_artifact() {
@@ -53,21 +56,6 @@ qws_create_dummy_estimation_artifact() {
 
 qws_emit_estimation_data_from_fom() {
   local fom="$1"
-  local section_prepare_rhs
-  local section_compute_hopping
-  local section_compute_solver
-  local section_halo_exchange
-  local section_allreduce
-  local section_write_result
-  local overlap_compute_halo
-
-  section_prepare_rhs=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.16}')
-  section_compute_hopping=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.28}')
-  section_compute_solver=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.18}')
-  section_halo_exchange=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.18}')
-  section_allreduce=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.16}')
-  section_write_result=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.08}')
-  overlap_compute_halo=$(awk -v x="$fom" 'BEGIN {printf "%.3f", x * 0.04}')
 
   qws_create_dummy_estimation_artifact "estimation_artifacts/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
   qws_create_dummy_estimation_artifact "estimation_artifacts/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
@@ -77,13 +65,16 @@ qws_emit_estimation_data_from_fom() {
   qws_create_dummy_estimation_artifact "estimation_artifacts/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
   qws_create_dummy_estimation_artifact "estimation_artifacts/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
 
-  bk_emit_declared_section --side future prepare_rhs "$section_prepare_rhs" results/estimation_artifacts/prepare_rhs_interval.json
-  bk_emit_declared_section --side future compute_hopping "$section_compute_hopping" results/estimation_artifacts/compute_hopping_papi.tgz
-  bk_emit_declared_section --side future compute_solver "$section_compute_solver" results/estimation_artifacts/compute_solver_papi.tgz
-  bk_emit_declared_section --side future halo_exchange "$section_halo_exchange" results/estimation_artifacts/halo_exchange_trace.tgz
-  bk_emit_declared_section --side future allreduce "$section_allreduce" results/estimation_artifacts/allreduce_trace.tgz
-  bk_emit_declared_section --side future write_result "$section_write_result" results/estimation_artifacts/write_result_interval.json
-  bk_emit_declared_overlap --side future compute_hopping,halo_exchange "$overlap_compute_halo" results/estimation_artifacts/compute_halo_overlap.json
+  bk_emit_declared_fractional_items --side future "$fom" "$(cat <<'EOF'
+section|prepare_rhs|0.16|results/estimation_artifacts/prepare_rhs_interval.json
+section|compute_hopping|0.28|results/estimation_artifacts/compute_hopping_papi.tgz
+section|compute_solver|0.18|results/estimation_artifacts/compute_solver_papi.tgz
+section|halo_exchange|0.18|results/estimation_artifacts/halo_exchange_trace.tgz
+section|allreduce|0.16|results/estimation_artifacts/allreduce_trace.tgz
+section|write_result|0.08|results/estimation_artifacts/write_result_interval.json
+overlap|compute_hopping,halo_exchange|0.04|results/estimation_artifacts/compute_halo_overlap.json
+EOF
+)"
 }
 
 source scripts/bk_functions.sh

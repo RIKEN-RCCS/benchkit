@@ -20,7 +20,11 @@ source programs/genesis/estimate.sh
 test "${BK_ESTIMATION_BASELINE_EXP}" = "p8"
 test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
 test "${BK_ESTIMATION_FUTURE_SYSTEM}" = "FugakuNEXT"
-test "${BK_GPU_KERNEL_ENSEMBLE_PACKAGES}" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41"
+
+source programs/genesis/parse_timing.sh
+source programs/genesis/sections.sh
+genesis_declare_estimation_layout
+bk_estimation_apply_declared_defaults
 
 cat > results/no_breakdown_input.json <<'EOF'
 {
@@ -32,9 +36,9 @@ cat > results/no_breakdown_input.json <<'EOF'
   "numproc_node": 8
 }
 EOF
-! genesis_input_has_fom_breakdown results/no_breakdown_input.json
-genesis_write_total_identity_breakdown_input results/no_breakdown_input.json results/total_breakdown_input.json
-genesis_input_has_fom_breakdown results/total_breakdown_input.json
+! bk_estimation_input_has_fom_breakdown results/no_breakdown_input.json
+bk_estimation_write_total_identity_breakdown_input results/no_breakdown_input.json results/total_breakdown_input.json
+bk_estimation_input_has_fom_breakdown results/total_breakdown_input.json
 jq -e '
   .fom_breakdown.sections[0].name == "total" and
   .fom_breakdown.sections[0].time == 50.5 and
@@ -65,6 +69,8 @@ cat > results/log_p8.txt <<'EOF'
 EOF
 
 genesis_extract_dynamics_sections results/log_p8.txt 48.862 > results/genesis_sections.tsv
+bash programs/genesis/parse_timing.sh results/log_p8.txt 48.862 > results/genesis_sections_cli.tsv
+cmp results/genesis_sections.tsv results/genesis_sections_cli.tsv
 test "$(wc -l < results/genesis_sections.tsv)" = "11"
 awk '
   $1 == "section" { sum += $3 }
@@ -165,6 +171,7 @@ genesis_emit_estimation_data_from_log results/log_p8_overlap.txt 156.531 > resul
 grep -q '^SECTION:overlap:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator .* type:overlap members:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator estimation_package:identity' results/sections_with_overlap.result
 
 touch results/padata_pairlist.tgz
+export BK_GENESIS_SECTION_PAIRLIST_ARTIFACT="results/padata_pairlist.tgz"
 genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_with_archive.result
 grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_pairlist.tgz' results/sections_with_archive.result
 grep -q '^SECTION:pme_real_inter .* estimation_package:gpu_kernel_ensemble_average$' results/sections_with_archive.result
@@ -172,18 +179,15 @@ grep -q '^SECTION:pme_real_intra .* estimation_package:gpu_kernel_ensemble_avera
 
 touch results/padata_inter.tgz
 touch results/padata_intra.tgz
+export BK_GENESIS_SECTION_PME_REAL_INTER_ARTIFACT="results/padata_inter.tgz"
+export BK_GENESIS_SECTION_PME_REAL_INTRA_ARTIFACT="results/padata_intra.tgz"
 genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_with_explicit_pme_real_archive.result
 grep -q '^SECTION:pme_real_inter .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_inter.tgz' results/sections_with_explicit_pme_real_archive.result
 grep -q '^SECTION:pme_real_intra .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_intra.tgz' results/sections_with_explicit_pme_real_archive.result
 
-BK_GENESIS_GPU_SECTION_PACKAGE=gpu_kernel_mlp_v15 \
-  bash -c 'source programs/genesis/estimate.sh; genesis_emit_estimation_data_from_log results/log_p8.txt 48.862' \
-  > results/sections_with_mlp_archive.result
-grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_mlp_v15 artifact:results/padata_pairlist.tgz' results/sections_with_mlp_archive.result
-
 mkdir -p genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1
 GENESIS_BENCHKIT_ROOT="$PWD" \
-  bash -c 'source programs/genesis/estimate.sh; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; genesis_emit_estimation_data_from_log "$GENESIS_BENCHKIT_ROOT/results/log_p8.txt" 48.862' \
+  bash -c 'source scripts/bk_functions.sh; source scripts/estimation/common.sh; source programs/genesis/parse_timing.sh; source programs/genesis/sections.sh; genesis_declare_estimation_layout; bk_estimation_apply_declared_defaults; export BK_GENESIS_SECTION_PAIRLIST_ARTIFACT=results/padata_pairlist.tgz; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; genesis_emit_estimation_data_from_log "$GENESIS_BENCHKIT_ROOT/results/log_p8.txt" 48.862' \
   > results/from_subdir.result
 grep -q 'artifact:results/padata_pairlist.tgz' results/from_subdir.result
 popd >/dev/null

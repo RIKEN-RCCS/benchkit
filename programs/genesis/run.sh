@@ -8,7 +8,12 @@ nthreads="$4"
 numproc=$(( numproc_node * nodes ))
 
 source "${PWD}/scripts/bk_functions.sh"
-source "${PWD}/programs/genesis/estimate.sh"
+source "${PWD}/scripts/estimation/common.sh"
+source "${PWD}/programs/genesis/parse_timing.sh"
+source "${PWD}/programs/genesis/sections.sh"
+
+genesis_declare_estimation_layout
+bk_estimation_apply_declared_defaults
 
 SCRIPT_DIR="${PWD}"
 export GENESIS_BENCHKIT_ROOT="$SCRIPT_DIR"
@@ -187,6 +192,35 @@ genesis_default_ncu_launch_count() {
     esac
 }
 
+genesis_profile_section_name() {
+    case "$1" in
+      inter)
+        printf '%s\n' "pme_real_inter"
+        ;;
+      intra)
+        printf '%s\n' "pme_real_intra"
+        ;;
+      pairlist)
+        printf '%s\n' "pairlist"
+        ;;
+      *)
+        printf '%s\n' "$1"
+        ;;
+    esac
+}
+
+genesis_register_section_artifact() {
+    local section_name="$1"
+    local artifact_path="$2"
+    local section_key
+    local artifact_var
+
+    section_key=$(genesis_profile_key "$section_name")
+    artifact_var="BK_GENESIS_SECTION_${section_key}_ARTIFACT"
+    printf -v "$artifact_var" '%s' "$artifact_path"
+    export "$artifact_var"
+}
+
 genesis_prepare_ncu_input() {
     local source_input="$1"
     local profile_name="$2"
@@ -243,10 +277,12 @@ genesis_run_ncu_profile() {
     shift 6
 
     local archive_path="${resultsdir}/padata_${profile_slug}.tgz"
+    local archive_rel_path="results/padata_${profile_slug}.tgz"
     local raw_dir="ncu_${profile_slug}"
     local profile_log="${resultsdir}/log_${header}_ncu_${profile_slug}.txt"
     local ncu_args
     local profile_status
+    local section_name
     local old_profiler_args="${BK_PROFILER_ARGS:-}"
     local old_profiler_raw_csv="${BK_PROFILER_NCU_RAW_CSV:-}"
     local had_profiler_args=0
@@ -288,6 +324,9 @@ genesis_run_ncu_profile() {
         echo "GENESIS NCU profile '${profile_name}' failed with status ${profile_status}" >&2
         return "$profile_status"
     fi
+
+    section_name=$(genesis_profile_section_name "$profile_name")
+    genesis_register_section_artifact "$section_name" "$archive_rel_path"
 }
 
 genesis_run_ncu_profiles() {

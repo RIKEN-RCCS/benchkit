@@ -27,7 +27,7 @@ EOF
 
 _bk_gpu_kernel_ensemble_packages() {
   local item_json="$1"
-  local raw="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-}"
+  local raw="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41}"
 
   if echo "$item_json" | jq -e '(.candidate_estimation_packages // []) | length > 0' >/dev/null 2>&1; then
     echo "$item_json" | jq -r '.candidate_estimation_packages[]'

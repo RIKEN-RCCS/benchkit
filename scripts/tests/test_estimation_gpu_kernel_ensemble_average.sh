@@ -94,6 +94,7 @@ EOF
 pushd "${TMP_DIR}" >/dev/null
 source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
+source scripts/estimation/section_packages/gpu_kernel_ensemble_average.sh
 
 export BK_GPU_KERNEL_ENSEMBLE_PACKAGES="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
@@ -106,6 +107,11 @@ export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_single.csv"
 export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
 transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+
+unset BK_GPU_KERNEL_ENSEMBLE_PACKAGES
+default_packages=$(_bk_gpu_kernel_ensemble_packages "$(cat "${TMP_DIR}/breakdown.json")" | paste -sd, -)
+test "$default_packages" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41"
+export BK_GPU_KERNEL_ENSEMBLE_PACKAGES="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
 
 export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_zero.csv"
 transformed_zero_candidate=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")

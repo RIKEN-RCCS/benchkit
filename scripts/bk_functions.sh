@@ -423,6 +423,44 @@ overlap|${_bk_decl_members}|${_bk_decl_package}"
   export BK_ESTIMATION_DECLARATIONS
 }
 
+bk_declare_estimation_items() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_declare_estimation_items: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
+  if [ $# -ne 1 ] || [ -z "$1" ]; then
+    echo "bk_declare_estimation_items: requires a newline-separated declaration list" >&2
+    return 1
+  fi
+
+  while IFS='|' read -r _bk_decl_kind _bk_decl_name _bk_decl_package; do
+    [ -n "$_bk_decl_kind$_bk_decl_name$_bk_decl_package" ] || continue
+    case "$_bk_decl_kind" in
+      section)
+        bk_declare_section --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package"
+        ;;
+      overlap)
+        bk_declare_overlap --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package"
+        ;;
+      \#*)
+        ;;
+      *)
+        echo "bk_declare_estimation_items: unsupported item kind '${_bk_decl_kind}'" >&2
+        return 1
+        ;;
+    esac
+  done <<EOF
+$1
+EOF
+}
+
 bk_lookup_declared_estimation_package() {
   _bk_lookup_side="future"
   if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
@@ -523,6 +561,89 @@ bk_emit_declared_overlap() {
   _bk_decl_ovl_package=$(bk_lookup_declared_estimation_package --side "$_bk_decl_side" overlap "$_bk_decl_ovl_members") || return 1
 
   bk_emit_overlap "$_bk_decl_ovl_members" "$_bk_decl_ovl_time" "$_bk_decl_ovl_package" "$_bk_decl_ovl_artifact"
+}
+
+bk_emit_declared_timing_items() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_emit_declared_timing_items: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
+  if [ $# -ne 1 ] || [ -z "$1" ]; then
+    echo "bk_emit_declared_timing_items: requires a newline-separated item list" >&2
+    return 1
+  fi
+
+  while IFS='|' read -r _bk_decl_kind _bk_decl_name _bk_decl_time _bk_decl_artifact; do
+    [ -n "$_bk_decl_kind$_bk_decl_name$_bk_decl_time$_bk_decl_artifact" ] || continue
+    case "$_bk_decl_kind" in
+      section)
+        bk_emit_declared_section --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_time" "$_bk_decl_artifact"
+        ;;
+      overlap)
+        bk_emit_declared_overlap --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_time" "$_bk_decl_artifact"
+        ;;
+      \#*)
+        ;;
+      *)
+        echo "bk_emit_declared_timing_items: unsupported item kind '${_bk_decl_kind}'" >&2
+        return 1
+        ;;
+    esac
+  done <<EOF
+$1
+EOF
+}
+
+bk_emit_declared_fractional_items() {
+  _bk_decl_side="future"
+  if [ $# -gt 1 ] && [ "$1" = "--side" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+      echo "bk_emit_declared_fractional_items: --side requires current or future" >&2
+      return 1
+    fi
+    _bk_decl_side="$1"
+    shift
+  fi
+
+  if [ $# -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
+    echo "bk_emit_declared_fractional_items: requires <total_time> <newline-separated fractional item list>" >&2
+    return 1
+  fi
+
+  _bk_decl_total_time="$1"
+  _bk_decl_timing_items=""
+  while IFS='|' read -r _bk_decl_kind _bk_decl_name _bk_decl_fraction _bk_decl_artifact; do
+    [ -n "$_bk_decl_kind$_bk_decl_name$_bk_decl_fraction$_bk_decl_artifact" ] || continue
+    case "$_bk_decl_kind" in
+      section|overlap)
+        _bk_decl_time=$(awk -v total="$_bk_decl_total_time" -v fraction="$_bk_decl_fraction" 'BEGIN {printf "%.3f", total * fraction}')
+        if [ -n "$_bk_decl_timing_items" ]; then
+          _bk_decl_timing_items="${_bk_decl_timing_items}
+${_bk_decl_kind}|${_bk_decl_name}|${_bk_decl_time}|${_bk_decl_artifact}"
+        else
+          _bk_decl_timing_items="${_bk_decl_kind}|${_bk_decl_name}|${_bk_decl_time}|${_bk_decl_artifact}"
+        fi
+        ;;
+      \#*)
+        ;;
+      *)
+        echo "bk_emit_declared_fractional_items: unsupported item kind '${_bk_decl_kind}'" >&2
+        return 1
+        ;;
+    esac
+  done <<EOF
+$2
+EOF
+
+  bk_emit_declared_timing_items --side "$_bk_decl_side" "$_bk_decl_timing_items"
 }
 
 bk_list_declared_estimation_packages() {
