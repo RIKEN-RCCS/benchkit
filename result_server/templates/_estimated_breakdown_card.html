@@ -10,13 +10,92 @@
     {% endif %}
 {%- endmacro %}
 
+{% macro render_kernel_package_comparisons(item) -%}
+    {% set kernel_summaries = item.get('metrics', {}).get('kernel_summaries', []) %}
+    {% if kernel_summaries %}
+    <div class="kernel-comparisons">
+        <div class="kernel-comparisons-title">Kernel package comparison; metrics are shown as reported by each package.</div>
+        {% for kernel in kernel_summaries %}
+        <div class="kernel-comparison">
+            <div class="kernel-name">{{ kernel.get('name', 'N/A') }}</div>
+            <table class="kernel-package-table">
+                <thead>
+                    <tr>
+                        <th>Package</th>
+                        <th>Samples</th>
+                        <th>Source Mean (ns)</th>
+                        <th>Predicted Mean (ns)</th>
+                        <th>Ratio</th>
+                        <th>Source GPU</th>
+                        <th>Target GPU</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for package in kernel.get('package_summaries', []) %}
+                    <tr>
+                        <td>{{ package.get('estimation_package', 'N/A') }}</td>
+                        <td>{{ package.get('sample_count', 'N/A') }}</td>
+                        <td>{{ package.get('source_time_ns_mean', 'N/A') }}</td>
+                        <td>{{ package.get('predicted_time_ns_mean', 'N/A') }}</td>
+                        <td>{{ package.get('mean_time_ratio_predicted_over_source', 'N/A') }}</td>
+                        <td>{{ package.get('source_gpus', []) | join(', ') }}</td>
+                        <td>{{ package.get('target_gpus', []) | join(', ') }}</td>
+                    </tr>
+                    {% if package.get('metric_comparisons') %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="kernel-metrics">
+                                <div class="kernel-metrics-summary">{{ package.get('estimation_package', 'N/A') }} metrics</div>
+                                <table class="kernel-metrics-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            <th>Samples</th>
+                                            <th>Source Mean</th>
+                                            <th>Predicted Mean</th>
+                                            <th>Ratio</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for metric in package.get('metric_comparisons', []) %}
+                                        <tr>
+                                            <td>{{ metric.get('name', 'N/A') }}</td>
+                                            <td>{{ metric.get('sample_count', 'N/A') }}</td>
+                                            <td>{{ metric.get('source_value_mean', 'N/A') }}</td>
+                                            <td>{{ metric.get('predicted_value_mean', 'N/A') }}</td>
+                                            <td>{{ metric.get('ratio_predicted_over_source_mean', 'N/A') }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{%- endmacro %}
+
 {% macro render_breakdown_table(heading, items, first_column_label, first_column_key, join_list_values=False) -%}
     {% if items %}
     <h3>{{ heading }}</h3>
     <div class="table-wrap">
     <table class="breakdown-table">
         <thead>
-            <tr><th>{{ first_column_label }}</th><th>Time</th><th>Package</th><th>Scaling</th><th>Fallback</th><th>Applicability</th></tr>
+            <tr>
+                <th>{{ first_column_label }}</th>
+                <th>Bench Time</th>
+                <th>Estimated Time</th>
+                <th>Package</th>
+                <th>Scaling</th>
+                <th>Fallback</th>
+                <th>Applicability</th>
+            </tr>
         </thead>
         <tbody>
         {% for item in items %}
@@ -26,6 +105,7 @@
             {% endif %}
             <tr>
                 <td>{{ first_value }}</td>
+                <td>{{ item.get('bench_time', item.get('time', 'N/A')) }}</td>
                 <td>{{ item.get('time', 'N/A') }}</td>
                 <td>{{ item.get('estimation_package', 'N/A') }}</td>
                 <td>{{ item.get('scaling_method', 'N/A') }}</td>
@@ -34,7 +114,7 @@
             </tr>
             {% if item.get('candidate_estimates') %}
             <tr>
-                <td colspan="6">
+                <td colspan="7">
                     <div class="candidate-estimates">
                         <div class="candidate-estimates-title">Candidate estimates; mean time is used for FOM composition.</div>
                         <table class="candidate-estimates-table">
@@ -54,6 +134,13 @@
                             </tbody>
                         </table>
                     </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% if item.get('metrics', {}).get('kernel_summaries') %}
+            <tr>
+                <td colspan="7">
+                    {{ render_kernel_package_comparisons(item) }}
                 </td>
             </tr>
             {% endif %}

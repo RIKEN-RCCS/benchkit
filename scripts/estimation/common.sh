@@ -282,6 +282,8 @@ bk_estimation_run_recorded_current_with_weakscaling() {
   local current_package="${4:-${BK_ESTIMATION_CURRENT_PACKAGE:-weakscaling}}"
   local current_model_version=""
   local baseline_breakdown=""
+  local current_breakdown_total=""
+  local current_breakdown_factor=""
 
   bk_estimation_load_package "$current_package"
   current_model_version="${BK_ESTIMATION_PACKAGE_VERSION:-0.1}"
@@ -305,6 +307,16 @@ bk_estimation_run_recorded_current_with_weakscaling() {
     "1" \
     "identity" \
     "identity")
+  if [[ -n "$est_current_fom_breakdown" && "$est_current_fom_breakdown" != "null" && -n "${est_current_bench_fom:-}" ]]; then
+    current_breakdown_total=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
+    if [[ -n "$current_breakdown_total" && "$current_breakdown_total" != "0" && "$current_breakdown_total" != "null" ]]; then
+      current_breakdown_factor=$(awk -v target="$est_current_bench_fom" -v source="$current_breakdown_total" 'BEGIN {printf "%.12f", target / source}')
+      est_current_fom_breakdown=$(bk_top_level_scale_breakdown_times \
+        "$est_current_fom_breakdown" \
+        "$current_breakdown_factor" \
+        "$current_package")
+    fi
+  fi
   est_current_fom=$(bk_top_level_breakdown_total_time "$est_current_fom_breakdown")
   if declare -F bk_estimation_package_build_recorded_current_model_json >/dev/null 2>&1; then
     est_current_model_json=$(bk_estimation_package_build_recorded_current_model_json "$baseline_system" "$current_model_version")
