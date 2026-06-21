@@ -37,6 +37,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 mkdir -p "${TMP_DIR}/scripts/estimation" "${TMP_DIR}/scripts/result_server"
 cp "${REPO_DIR}/scripts/estimation/common.sh" "${TMP_DIR}/scripts/estimation/common.sh"
 cp "${REPO_DIR}/scripts/estimation/declarations.sh" "${TMP_DIR}/scripts/estimation/declarations.sh"
+cp "${REPO_DIR}/scripts/estimation/result_query.sh" "${TMP_DIR}/scripts/estimation/result_query.sh"
 cp "${REPO_DIR}/scripts/result_server/api.sh" "${TMP_DIR}/scripts/result_server/api.sh"
 cp -R "${REPO_DIR}/scripts/estimation/packages" "${TMP_DIR}/scripts/estimation/packages"
 cp -R "${REPO_DIR}/scripts/estimation/section_packages" "${TMP_DIR}/scripts/estimation/section_packages"
