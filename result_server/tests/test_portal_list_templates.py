@@ -343,6 +343,60 @@ def test_usage_report_template_renders_search_box():
     assert "UNKNOWN_SYSTEM" in html
 
 
+def test_usage_report_node_hours_table_uses_explicit_column_widths():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results/usage"):
+        from flask import render_template
+
+        html = render_template(
+            "usage_report.html",
+            result={
+                "apps": ["genesis"],
+                "systems": ["AI4SS", "Fugaku"],
+                "periods": ["2026-04", "2026-05"],
+                "available_fiscal_years": [2026],
+                "table": {
+                    "genesis": {
+                        "AI4SS": {"2026-04": 0.0, "2026-05": 0.0},
+                        "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
+                    }
+                },
+                "row_totals": {"genesis": {"2026-04": 1.23, "2026-05": 0.0}},
+                "col_totals": {
+                    "AI4SS": {"2026-04": 0.0, "2026-05": 0.0},
+                    "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
+                },
+                "grand_totals": {"2026-04": 1.23, "2026-05": 0.0},
+            },
+            filtered_periods=["2026-04", "2026-05"],
+            period_type="monthly",
+            fiscal_year=2026,
+            period_filter="",
+            site_diagnostics={
+                "registered_system_count": 0,
+                "unused_systems": [],
+                "missing_system_info": [],
+                "missing_queue_definitions": [],
+                "application_count": 0,
+                "partial_support": [],
+                "application_directory_count": 0,
+                "apps_missing_files": [],
+                "apps_without_estimate": [],
+                "apps_with_estimate_count": 0,
+                "unknown_listed_systems": [],
+            },
+            coverage_systems=[],
+            app_support_rows=[],
+            result_quality_rollup={"rows": []},
+        )
+
+    assert 'class="usage-node-hours-app-col"' in html
+    assert html.count('class="usage-node-hours-period-col"') == 6
+    assert "table-layout: fixed" in html
+
+
 def test_result_compare_template_renders_headline():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),

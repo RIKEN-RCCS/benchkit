@@ -7,6 +7,17 @@
   {% if result.apps %}
   <div class="table-wrap">
     <table class="usage-table usage-node-hours-table">
+      <colgroup>
+        <col class="usage-node-hours-app-col">
+        {% for system in result.systems %}
+        {% for period in filtered_periods %}
+        <col class="usage-node-hours-period-col">
+        {% endfor %}
+        {% endfor %}
+        {% for period in filtered_periods %}
+        <col class="usage-node-hours-period-col">
+        {% endfor %}
+      </colgroup>
       <thead>
         <tr>
           <th rowspan="2" class="usage-node-hours-head"></th>
