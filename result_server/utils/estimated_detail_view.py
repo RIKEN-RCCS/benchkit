@@ -24,8 +24,8 @@ def build_estimated_detail_context(result):
         "measurement_json": result.get("measurement", {}),
         "confidence_json": result.get("confidence", {}),
         "assumptions_json": result.get("assumptions", {}),
-        "current_breakdown": current.get("fom_breakdown", {}),
-        "future_breakdown": future.get("fom_breakdown", {}),
+        "current_breakdown": _build_display_breakdown(current.get("fom_breakdown", {})),
+        "future_breakdown": _build_display_breakdown(future.get("fom_breakdown", {})),
     }
 
 
@@ -175,6 +175,126 @@ def _append_list_row(rows, label, values):
     if not values:
         return
     rows.append({"label": label, "list": values})
+
+
+def _build_display_breakdown(breakdown):
+    if not isinstance(breakdown, dict):
+        return {}
+
+    return {
+        **breakdown,
+        "sections": [
+            _build_display_breakdown_item(item)
+            for item in breakdown.get("sections", [])
+            if isinstance(item, dict)
+        ],
+        "overlaps": [
+            _build_display_breakdown_item(item)
+            for item in breakdown.get("overlaps", [])
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def _build_display_breakdown_item(item):
+    before = item.get("bench_time", item.get("time", "N/A"))
+    after = item.get("time", "N/A")
+    ratio = _get_nested(item, ("metrics", "time_ratio_predicted_over_source"))
+    if ratio in (None, "", "N/A", "null", "nan"):
+        ratio = _safe_ratio(after, before)
+
+    display_item = {
+        **item,
+        "before_scaling_display": _format_display_numeric(before),
+        "after_scaling_display": _format_display_numeric(after),
+        "time_ratio_display": _format_display_numeric(ratio),
+    }
+    if "candidate_estimates" in item:
+        display_item["candidate_estimates"] = [
+            _build_display_candidate_estimate(candidate)
+            for candidate in item.get("candidate_estimates", [])
+            if isinstance(candidate, dict)
+        ]
+    metrics = item.get("metrics", {})
+    if isinstance(metrics, dict) and metrics.get("kernel_summaries"):
+        display_item["metrics"] = {
+            **metrics,
+            "kernel_summaries": [
+                _build_display_kernel_summary(kernel)
+                for kernel in metrics.get("kernel_summaries", [])
+                if isinstance(kernel, dict)
+            ],
+        }
+    return display_item
+
+
+def _build_display_candidate_estimate(candidate):
+    ratio = _get_nested(candidate, ("metrics", "time_ratio_predicted_over_source"))
+    return {
+        **candidate,
+        "time_display": _format_display_numeric(candidate.get("time", "N/A")),
+        "time_ratio_display": _format_display_numeric(ratio),
+    }
+
+
+def _build_display_kernel_summary(kernel):
+    return {
+        **kernel,
+        "package_summaries": [
+            _build_display_kernel_package(package)
+            for package in kernel.get("package_summaries", [])
+            if isinstance(package, dict)
+        ],
+    }
+
+
+def _build_display_kernel_package(package):
+    return {
+        **package,
+        "source_time_ns_mean_display": _format_display_numeric(package.get("source_time_ns_mean", "N/A")),
+        "predicted_time_ns_mean_display": _format_display_numeric(package.get("predicted_time_ns_mean", "N/A")),
+        "mean_time_ratio_display": _format_display_numeric(package.get("mean_time_ratio_predicted_over_source", "N/A")),
+        "metric_comparisons": [
+            _build_display_metric_comparison(metric)
+            for metric in package.get("metric_comparisons", [])
+            if isinstance(metric, dict)
+        ],
+    }
+
+
+def _build_display_metric_comparison(metric):
+    return {
+        **metric,
+        "source_value_mean_display": _format_display_numeric(metric.get("source_value_mean", "N/A")),
+        "predicted_value_mean_display": _format_display_numeric(metric.get("predicted_value_mean", "N/A")),
+        "ratio_display": _format_display_numeric(metric.get("ratio_predicted_over_source_mean", "N/A")),
+    }
+
+
+def _get_nested(data, keys):
+    current = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _safe_ratio(numerator, denominator):
+    try:
+        numerator_value = float(numerator)
+        denominator_value = float(denominator)
+    except (TypeError, ValueError):
+        return "N/A"
+    if denominator_value == 0:
+        return "N/A"
+    return numerator_value / denominator_value
+
+
+def _format_display_numeric(value):
+    if value in (None, "", "N/A", "null", "nan"):
+        return "N/A"
+    return format_numeric_value(value)
 
 
 def _count_breakdown_fallbacks(system_data):

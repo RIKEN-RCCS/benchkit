@@ -275,10 +275,13 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Required Actions" in html
     assert "section_package_unsupported:half" in html
     assert "overlap_package_unsupported:half" in html
-    assert "Candidate estimates" in html
+    assert "Current Breakdown" in html
+    assert "Future Breakdown" in html
+    assert "Package Comparison" in html
+    assert "Candidate Package" in html
     assert "Time Ratio" in html
-    assert "Bench Time" in html
-    assert "Estimated Time" in html
+    assert "Before Scaling" in html
+    assert "After Scaling" in html
     assert "gpu_kernel_ensemble_average" in html
     assert "gpu_kernel_lightgbm_v10" in html
     assert "gpu_kernel_mlp_v15" in html
@@ -289,3 +292,6 @@ def test_estimated_detail_template_renders_sections(app):
     assert "O-Memory Throughput [%]" in html
     assert "Memory Throughput [%]" in html
     assert "GB200" in html
+    assert html.index("System Comparison") < html.index("Current Breakdown")
+    assert html.index("Future Breakdown") < html.index("Package Comparison")
+    assert html.index("Package Comparison") < html.index("Meta Information")
