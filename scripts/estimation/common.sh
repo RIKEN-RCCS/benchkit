@@ -9,7 +9,9 @@
 
 set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/../result_server/api.sh"
+_bk_estimation_common_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${_bk_estimation_common_dir}/../result_server/api.sh"
+source "${_bk_estimation_common_dir}/declarations.sh"
 
 # ---------------------------------------------------------------------------
 # Global variables — populated by read_values
@@ -137,23 +139,6 @@ load_reestimation_context() {
   fi
 
   est_reestimation_json=$(jq -c '.' "$context_file")
-}
-
-bk_estimation_apply_declared_defaults() {
-  BK_ESTIMATION_CURRENT_PACKAGE="${BK_ESTIMATION_CURRENT_PACKAGE:-${BK_ESTIMATION_DECLARED_CURRENT_PACKAGE:-}}"
-  BK_ESTIMATION_FUTURE_PACKAGE="${BK_ESTIMATION_FUTURE_PACKAGE:-${BK_ESTIMATION_DECLARED_FUTURE_PACKAGE:-}}"
-  BK_ESTIMATION_BASELINE_SYSTEM="${BK_ESTIMATION_BASELINE_SYSTEM:-${BK_ESTIMATION_DECLARED_BASELINE_SYSTEM:-}}"
-  BK_ESTIMATION_BASELINE_EXP="${BK_ESTIMATION_BASELINE_EXP:-${BK_ESTIMATION_DECLARED_BASELINE_EXP:-}}"
-  BK_ESTIMATION_FUTURE_SYSTEM="${BK_ESTIMATION_FUTURE_SYSTEM:-${BK_ESTIMATION_DECLARED_FUTURE_SYSTEM:-}}"
-  BK_ESTIMATION_CURRENT_TARGET_NODES="${BK_ESTIMATION_CURRENT_TARGET_NODES:-${BK_ESTIMATION_DECLARED_CURRENT_TARGET_NODES:-}}"
-  BK_ESTIMATION_FUTURE_TARGET_NODES="${BK_ESTIMATION_FUTURE_TARGET_NODES:-${BK_ESTIMATION_DECLARED_FUTURE_TARGET_NODES:-}}"
-  export BK_ESTIMATION_CURRENT_PACKAGE
-  export BK_ESTIMATION_FUTURE_PACKAGE
-  export BK_ESTIMATION_BASELINE_SYSTEM
-  export BK_ESTIMATION_BASELINE_EXP
-  export BK_ESTIMATION_FUTURE_SYSTEM
-  export BK_ESTIMATION_CURRENT_TARGET_NODES
-  export BK_ESTIMATION_FUTURE_TARGET_NODES
 }
 
 bk_estimation_load_package() {
