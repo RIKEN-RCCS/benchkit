@@ -1,23 +1,45 @@
 #!/bin/bash
 # collect_timing.sh - Collect timing information from timestamp files
-# Reads build/run/queue timestamp files and generates results/timing.env
+# Reads build/run/queue timestamp files and generates results/pipeline_timing.json
 
 BUILD_TIME=0
 QUEUE_TIME=0
 RUN_TIME=0
 
+timestamp_value() {
+  local path="$1"
+  local value=""
+
+  if [ -f "$path" ]; then
+    value=$(cat "$path")
+  fi
+
+  case "$value" in
+    ''|*[!0-9]*)
+      printf ''
+      ;;
+    *)
+      printf '%s' "$value"
+      ;;
+  esac
+}
+
 # Build time = build_end - build_start
 if [ -f results/build_start ] && [ -f results/build_end ]; then
-  bs=$(cat results/build_start)
-  be=$(cat results/build_end)
-  BUILD_TIME=$((be - bs))
+  bs=$(timestamp_value results/build_start)
+  be=$(timestamp_value results/build_end)
+  if [ -n "$bs" ] && [ -n "$be" ] && [ "$be" -ge "$bs" ]; then
+    BUILD_TIME=$((be - bs))
+  fi
 fi
 
 # Run time = run_end - run_start
 if [ -f results/run_start ] && [ -f results/run_end ]; then
-  rs=$(cat results/run_start)
-  re=$(cat results/run_end)
-  RUN_TIME=$((re - rs))
+  rs=$(timestamp_value results/run_start)
+  re=$(timestamp_value results/run_end)
+  if [ -n "$rs" ] && [ -n "$re" ] && [ "$re" -ge "$rs" ]; then
+    RUN_TIME=$((re - rs))
+  fi
 fi
 
 # Queue time: not measurable with current Jacamar/pjsub architecture
@@ -25,8 +47,12 @@ fi
 #  is recorded after the job has already started)
 QUEUE_TIME=0
 
-echo "BUILD_TIME=$BUILD_TIME" > results/timing.env
-echo "QUEUE_TIME=$QUEUE_TIME" >> results/timing.env
-echo "RUN_TIME=$RUN_TIME" >> results/timing.env
+cat > results/pipeline_timing.json <<EOF
+{
+  "build_time": $BUILD_TIME,
+  "queue_time": $QUEUE_TIME,
+  "run_time": $RUN_TIME
+}
+EOF
 
 echo "Timing collected: build=${BUILD_TIME}s queue=${QUEUE_TIME}s run=${RUN_TIME}s"

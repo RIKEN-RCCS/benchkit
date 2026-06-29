@@ -68,6 +68,7 @@ Example options:
 ```text
 WorkingDirectory=<deploy-root>
 Environment=PYTHONPATH=<deploy-root>/benchkit/result_server
+Environment=BASE_PATH=<result-data-root>
 ExecStart=<venv>/bin/gunicorn \
   -w 2 \
   -b 127.0.0.1:8800 \
@@ -79,6 +80,7 @@ ExecStart=<venv>/bin/gunicorn \
 An equivalent direct import form is:
 
 ```text
+BASE_PATH=<result-data-root> \
 gunicorn --chdir <deploy-root>/benchkit/result_server \
   -w 2 \
   -b 127.0.0.1:8800 \
@@ -92,6 +94,11 @@ Both styles work with the current tree because Python 3.3+ can import
 while the existing `from routes.*` and `from utils.*` imports are resolved by
 putting `benchkit/result_server` on `PYTHONPATH` or making it the working
 directory.
+
+`BASE_PATH` is required because the application validates the result-data root
+when `app.py` is imported. Point it at the directory that contains the portal's
+received results, estimated results, profiler archives, and related runtime
+data.
 
 For deployments that want a separate audit file in addition to stderr capture,
 set:
