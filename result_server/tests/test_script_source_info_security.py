@@ -15,6 +15,14 @@ def test_result_script_does_not_source_source_info_env():
     assert "jq -n" in result_script
 
 
+def test_result_script_does_not_source_timing_env():
+    result_script = (REPO_ROOT / "scripts" / "result.sh").read_text(encoding="utf-8")
+
+    assert ". results/timing.env" not in result_script
+    assert "source results/timing.env" not in result_script
+    assert "results/pipeline_timing.json" in result_script
+
+
 def test_bk_fetch_source_writes_encoded_source_info_values():
     bk_functions = (REPO_ROOT / "scripts" / "bk_functions.sh").read_text(encoding="utf-8")
 

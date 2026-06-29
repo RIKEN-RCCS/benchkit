@@ -18,6 +18,20 @@ cat > "${TMP_DIR}/results/result" <<'EOF'
 FOM:9.9999999999999995e-07 FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
 EOF
 
+cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
+{
+  "build_time": "12",
+  "queue_time": 0,
+  "run_time": 34
+}
+EOF
+
+cat > "${TMP_DIR}/results/timing.env" <<'EOF'
+BUILD_TIME=$(touch timing_env_was_sourced)
+QUEUE_TIME=999
+RUN_TIME=999
+EOF
+
 cat > "${TMP_DIR}/bk_profiler_artifact/meta.json" <<'EOF'
 {
   "tool": "fapp",
@@ -84,9 +98,13 @@ jq -e '
   .profile_data.level == "single" and
   .profile_data.report_format == "text" and
   .profile_data.run_count == 1 and
+  .pipeline_timing.build_time == 12 and
+  .pipeline_timing.queue_time == 0 and
+  .pipeline_timing.run_time == 34 and
   (.profile_data.events | index("pa1") != null) and
   (.profile_data.report_kinds | index("summary_text") != null)
 ' "${RESULT_JSON}" >/dev/null
+test ! -f "${TMP_DIR}/timing_env_was_sourced"
 
 NCU_RESULT_JSON="${TMP_DIR}/ncu/results/result0.json"
 test -f "${NCU_RESULT_JSON}"
@@ -99,5 +117,22 @@ jq -e '
   (.profile_data.ncu_options | index("--target-processes") != null) and
   (.profile_data.report_kinds | index("ncu_report") != null)
 ' "${NCU_RESULT_JSON}" >/dev/null
+
+TIMING_TMP="${TMP_DIR}/timing"
+mkdir -p "${TIMING_TMP}/results"
+printf '100\n' > "${TIMING_TMP}/results/build_start"
+printf '115\n' > "${TIMING_TMP}/results/build_end"
+printf 'bad\n' > "${TIMING_TMP}/results/run_start"
+printf '200\n' > "${TIMING_TMP}/results/run_end"
+pushd "${TIMING_TMP}" >/dev/null
+bash "${REPO_DIR}/scripts/collect_timing.sh" >/dev/null
+popd >/dev/null
+test -f "${TIMING_TMP}/results/pipeline_timing.json"
+test ! -f "${TIMING_TMP}/results/timing.env"
+jq -e '
+  .build_time == 15 and
+  .queue_time == 0 and
+  .run_time == 0
+' "${TIMING_TMP}/results/pipeline_timing.json" >/dev/null
 
 echo "result profile_data test passed"

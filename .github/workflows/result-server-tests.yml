@@ -5,6 +5,7 @@ on:
     paths:
       - "result_server/**"
       - "scripts/bk_functions.sh"
+      - "scripts/collect_timing.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/estimation/**"
@@ -32,6 +33,7 @@ on:
     paths:
       - "result_server/**"
       - "scripts/bk_functions.sh"
+      - "scripts/collect_timing.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/estimation/**"

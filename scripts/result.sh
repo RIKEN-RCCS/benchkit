@@ -158,16 +158,24 @@ write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
 
-  # Build pipeline_timing block if timing.env exists (only for first result to avoid duplication)
+  # Build pipeline_timing block if pipeline_timing.json exists (only for first result to avoid duplication).
+  # Treat the file as data; never source generated timing files as shell.
   local timing_block=""
-  if [ "$idx" = "0" ] && [ -f results/timing.env ]; then
-    source results/timing.env
+  if [ "$idx" = "0" ] && [ -f results/pipeline_timing.json ]; then
+    local pipeline_timing_json
+    pipeline_timing_json=$(jq -c '
+      def num: if type == "number" then . else (tonumber? // 0) end;
+      {
+        build_time: ((.build_time // 0) | num),
+        queue_time: ((.queue_time // 0) | num),
+        run_time: ((.run_time // 0) | num)
+      }
+    ' results/pipeline_timing.json 2>/dev/null || true)
+    if [ -z "$pipeline_timing_json" ] || [ "$pipeline_timing_json" = "null" ]; then
+      pipeline_timing_json='{"build_time":0,"queue_time":0,"run_time":0}'
+    fi
     timing_block=",
-  \"pipeline_timing\": {
-    \"build_time\": ${BUILD_TIME:-0},
-    \"queue_time\": ${QUEUE_TIME:-0},
-    \"run_time\": ${RUN_TIME:-0}
-  }"
+  \"pipeline_timing\": $pipeline_timing_json"
   fi
 
   # Build execution_mode block
