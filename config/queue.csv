@@ -1,5 +1,5 @@
 queue,submit_cmd,template
-SLURM_AI4SS,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads} --gpus-per-node=${numproc_node}"
+SLURM_RIKYU,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads} --gpus-per-node=${numproc_node}"
 FJ,pjsub,"-L rscunit=rscunit_ft01,rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi max-proc-per-node=${numproc_node} -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005"
 PJM_GENKAI,pjsub,"-L rscgrp=${queue_group},elapse=${elapse},node=${nodes} --mpi proc=${proc}"
 SLURM_RC,sbatch,"-p ${queue_group} -t ${elapse} -N ${nodes} --ntasks-per-node=${numproc_node} --cpus-per-task=${nthreads}"

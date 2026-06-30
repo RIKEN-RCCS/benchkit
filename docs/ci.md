@@ -69,7 +69,7 @@ The workflow accepts these inputs:
 |---|---|---|
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
 | `code` | BenchKit program filter / BenchKitプログラムのフィルタ | `qws,genesis` |
-| `system` | System filter used by BenchKit and BenchPark / BenchKitとBenchParkで使うsystemフィルタ | `FugakuLN,MiyabiG` |
+| `system` | System filter used by BenchKit and BenchPark / BenchKitとBenchParkで使うsystemフィルタ | `Fugaku,MiyabiG` |
 | `app` | BenchPark application filter / BenchParkアプリケーションのフィルタ | `osu-micro-benchmarks` |
 | `benchpark` | Run the BenchPark path together with BenchKit / BenchKitとBenchParkの両方を実行 | `true` |
 | `park_only` | Run only the BenchPark path / BenchParkのみ実行 | `true` |

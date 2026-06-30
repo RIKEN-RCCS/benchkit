@@ -61,11 +61,12 @@ case "$system" in
       cd -
       cp $BIN ../artifacts
       ;;
-    FugakuLN)
-      echo "touch $BIN (THIS IS a dummy)"
-      mkdir -p benchmark/domainwall/
-      touch $BIN
-      ;;
+    # FugakuLN retired; previous LN dummy build kept for reference.
+    # FugakuLN)
+    #   echo "touch $BIN (THIS IS a dummy)"
+    #   mkdir -p benchmark/domainwall/
+    #   touch $BIN
+    #   ;;
     MiyabiC|AVX512)
       cp Makefile_simd_avx512 Makefile
       make -j 8 lib

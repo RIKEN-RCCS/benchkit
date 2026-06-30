@@ -474,16 +474,17 @@ case "$system" in
 	[[ -f ./stdout.1.0 ]] && cp ./stdout.1.0 ${output}
 	[[ -f ./stderr.1.0 ]] && cp ./stderr.1.0 ${stderr}
     ;;
-  FugakuLN)
-	. /vol0004/apps/oss/spack/share/spack/setup-env.sh
-    export LD_LIBRARY_PATH=/vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-cascadelake/gcc-13.2.0/openblas-0.3.24-on6q3arf3iucukiz4tfai26noq3kz4a7/lib/:${LD_LIBRARY_PATH}
-	spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
-	spack load /bnrldb2 # openmpi@4.1.6 linux-rhel8-cascadelake
-	spack load /on6q3ar # openblas@0.3.34 linux-rhel8-cascadelake / gcc@13.2.0
-    mpi_cmd="mpirun -n ${numproc}"
-    export OMP_NUM_THREADS=${nthreads}
-	${mpi_cmd} ./${binary} ${input}.sub 2>&1 | tee ${output}
-    ;;
+  # FugakuLN retired; previous LN run kept for reference.
+  # FugakuLN)
+	# . /vol0004/apps/oss/spack/share/spack/setup-env.sh
+    # export LD_LIBRARY_PATH=/vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-cascadelake/gcc-13.2.0/openblas-0.3.24-on6q3arf3iucukiz4tfai26noq3kz4a7/lib/:${LD_LIBRARY_PATH}
+	# spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
+	# spack load /bnrldb2 # openmpi@4.1.6 linux-rhel8-cascadelake
+	# spack load /on6q3ar # openblas@0.3.34 linux-rhel8-cascadelake / gcc@13.2.0
+    # mpi_cmd="mpirun -n ${numproc}"
+    # export OMP_NUM_THREADS=${nthreads}
+	# ${mpi_cmd} ./${binary} ${input}.sub 2>&1 | tee ${output}
+    # ;;
   MiyabiG)
     run_genesis_gh200_gpu "$system" GENESIS_MIYABIG none
     ;;

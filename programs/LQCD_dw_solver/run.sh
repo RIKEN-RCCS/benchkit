@@ -113,10 +113,11 @@ case "$system" in
         ;;
       esac
       ;;
-  FugakuLN )
-      echo 'dummy call for CB test: LQCD-dw-solver'
-      echo FOM: 123 : 456 > $RESULT
-      ;;
+  # FugakuLN retired; previous LN dummy run kept for reference.
+  # FugakuLN )
+  #     echo 'dummy call for CB test: LQCD-dw-solver'
+  #     echo FOM: 123 : 456 > $RESULT
+  #     ;;
   MiyabiG )
       # openacc
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml

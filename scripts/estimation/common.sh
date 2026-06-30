@@ -749,7 +749,7 @@ _bk_system_line() {
   local system_name="${1:-}"
 
   case "$system_name" in
-    Fugaku|FugakuCN|FugakuLN)
+    Fugaku|FugakuCN)
       echo "Fugaku"
       ;;
     MiyabiG|MiyabiC)

@@ -11,7 +11,7 @@ on:
         description: "BenchKit code filter, for example: qws,genesis"
         required: false
       system:
-        description: "System filter, for example: FugakuLN,MiyabiG"
+        description: "System filter, for example: Fugaku,MiyabiG"
         required: false
       app:
         description: "BenchPark app filter, for example: osu-micro-benchmarks"

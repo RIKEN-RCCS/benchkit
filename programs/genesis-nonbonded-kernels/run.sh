@@ -58,7 +58,8 @@ fi
 cd - > /dev/null
 
 case "$system" in
-  Fugaku|FugakuCN|FugakuLN)
+  # FugakuLN retired; previous LN run shared this branch.
+  Fugaku|FugakuCN)
     mkdir -p  ${resultsdir}
 	#total_fom=0.0
     export PARALLEL=${nthreads}

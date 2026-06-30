@@ -354,18 +354,18 @@ def test_usage_report_node_hours_table_uses_explicit_column_widths():
             "usage_report.html",
             result={
                 "apps": ["genesis"],
-                "systems": ["AI4SS", "Fugaku"],
+                "systems": ["RIKYU", "Fugaku"],
                 "periods": ["2026-04", "2026-05"],
                 "available_fiscal_years": [2026],
                 "table": {
                     "genesis": {
-                        "AI4SS": {"2026-04": 0.0, "2026-05": 0.0},
+                        "RIKYU": {"2026-04": 0.0, "2026-05": 0.0},
                         "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
                     }
                 },
                 "row_totals": {"genesis": {"2026-04": 1.23, "2026-05": 0.0}},
                 "col_totals": {
-                    "AI4SS": {"2026-04": 0.0, "2026-05": 0.0},
+                    "RIKYU": {"2026-04": 0.0, "2026-05": 0.0},
                     "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
                 },
                 "grand_totals": {"2026-04": 1.23, "2026-05": 0.0},
