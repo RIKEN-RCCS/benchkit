@@ -100,10 +100,6 @@ echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script
 
 # --- システム別ジョブ投入 ---
 case "$system" in
-  FugakuLN)
-    echo "Notice: system=$system → submit test will NOT be performed."
-    exit 1
-    ;;
   Fugaku|FugakuCN)
     echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
           --mpi max-proc-per-node=$numproc_node \
@@ -224,7 +220,7 @@ case "$system" in
     qsub -q $queue_group --group=jh260034 -T necmpi --venode=$proc \
          -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
     ;;
-  AI4SS)
+  RIKYU)
     echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
     sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
@@ -250,7 +246,7 @@ case "$system" in
     ;;
   *)
     echo "Error: Unknown system '$system'"
-    echo "Supported systems: AI4SS, Fugaku, FugakuCN, FugakuLN, GenkaiA, GenkaiB, GenkaiC, Odyssey, Aquarius, Pegasus, Sirius, TSUBAME4, Camphor3, SQUID_CPU, SQUID_GPU, SQUID_VECTOR, OCTOPUS, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700, MiyabiC, MiyabiG"
+    echo "Supported systems: RIKYU, Fugaku, FugakuCN, GenkaiA, GenkaiB, GenkaiC, Odyssey, Aquarius, Pegasus, Sirius, TSUBAME4, Camphor3, SQUID_CPU, SQUID_GPU, SQUID_VECTOR, OCTOPUS, Grand_C, Grand_G, AOBA_A, AOBA_B, AOBA_S, RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700, MiyabiC, MiyabiG"
     exit 1
     ;;
 esac

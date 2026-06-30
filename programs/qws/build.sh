@@ -19,19 +19,20 @@ case "$system" in
     FugakuCN)
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= profiler=${qws_profiler_tool}
 	;;
-    FugakuLN)
-	# Private repository access check (CI connectivity test)
-	git clone --depth 1 --filter=blob:none --sparse https://${GHYN}@github.com/RIKEN-RCCS/FS_Benchmarks.git
-	ls FS_Benchmarks
-	cd FS_Benchmarks
-	git sparse-checkout set QWS
-	ls QWS
-	cd ..
-	# QWS build (dummy for LN)
-	make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
-	#gcc -v
-	;;
-    AI4SS)
+    # FugakuLN retired; previous LN smoke build kept for reference.
+    # FugakuLN)
+	# # Private repository access check (CI connectivity test)
+	# git clone --depth 1 --filter=blob:none --sparse https://${GHYN}@github.com/RIKEN-RCCS/FS_Benchmarks.git
+	# ls FS_Benchmarks
+	# cd FS_Benchmarks
+	# git sparse-checkout set QWS
+	# ls QWS
+	# cd ..
+	# # QWS build (dummy for LN)
+	# make -j 2 fugaku_benchmark= omp=1  compiler=gnu arch=skylake rdma= mpi= powerapi=
+	# #gcc -v
+	# ;;
+    RIKYU)
 	module load nvhpc-hpcx/26.3
 	make -j 8 omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1
 	;;

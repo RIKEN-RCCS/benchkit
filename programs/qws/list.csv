@@ -1,7 +1,6 @@
 system,enable,nodes,numproc_node,nthreads,elapse
-AI4SS,yes,1,1,72,0:10:00
+RIKYU,yes,1,1,36,0:10:00
 Fugaku,yes,1,4,12,0:10:00
-FugakuLN,yes,1,1,1,0:10:00
 FugakuCN,no,1,4,12,0:10:00
 FugakuCN,no,2,4,12,0:10:00
 RC_GH200,yes,1,1,72,0:10:00

@@ -1,8 +1,7 @@
 system,name,cpu_name,cpu_per_node,cpu_cores,gpu_name,gpu_per_node,memory,display_order
-AI4SS,RIKEN AI4S Supercomputer,NVIDIA Grace CPU,2,72,NVIDIA B200,4,960GiB + 692.8GiB,1
+RIKYU,RIKYU,NVIDIA Grace CPU,2,72,NVIDIA B200,4,960GiB + 692.8GiB,1
 Fugaku,Fugaku,A64FX,1,48,-,-,32GB,2
 FugakuCN,FugakuCN,A64FX,1,48,-,-,32GB,3
-FugakuLN,FugakuLN,Intel(R) Xeon(R) Gold 6242 CPU @ 2.80GHz,2,16,-,-,96GB,4
 MiyabiG,MiyabiG,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,5
 MiyabiC,MiyabiC,Intel Xeon Max 9480,2,56,-,-,128GB,6
 RC_GH200,RC_GH200,NVIDIA Grace CPU,1,72,NVIDIA Hopper H100 GPU,1,120GB,7

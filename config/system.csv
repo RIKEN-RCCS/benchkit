@@ -1,7 +1,6 @@
 system,mode,tag_build,tag_run,queue,queue_group
-AI4SS,cross,ai4ss_login,ai4ss_jacamar,SLURM_AI4SS,1n1gpu
+RIKYU,cross,ai4ss_login,ai4ss_jacamar,SLURM_RIKYU,1n1gpu
 Fugaku,cross,fugaku_login1,fugaku_jacamar,FJ,small
-FugakuLN,native,,fugaku_login1,none,small
 FugakuCN,native,,fugaku_jacamar,FJ,small
 RC_GH200,native,,cloud_jacamar,SLURM_RC,qc-gh200
 RC_DGXSP,native,,cloud_jacamar,SLURM_RC,ng-dgx-3h

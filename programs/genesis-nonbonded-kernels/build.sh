@@ -35,14 +35,15 @@ case "$system" in
 	archopt=""
 	;;
 
-    FugakuLN)
-	. /vol0004/apps/oss/spack/share/spack/setup-env.sh
-	spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
-	comp=gfortran
-	dir="normal_${comp}_omp_dir"
-	version="-v"
-	archopt="MARCH=native"
-	;;
+    # FugakuLN retired; previous LN build kept for reference.
+    # FugakuLN)
+	# . /vol0004/apps/oss/spack/share/spack/setup-env.sh
+	# spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
+	# comp=gfortran
+	# dir="normal_${comp}_omp_dir"
+	# version="-v"
+	# archopt="MARCH=native"
+	# ;;
 esac
 
 for i in "${!name_list[@]}"; do

@@ -263,17 +263,18 @@ case "$system" in
 	version="--version"
 	;;
 
-    FugakuLN)
-	. /vol0004/apps/oss/spack/share/spack/setup-env.sh
-	spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
-	spack load /bnrldb2 # openmpi@4.1.6 linux-rhel8-cascadelake
-	spack load /on6q3ar # openblas@0.3.34 linux-rhel8-cascadelake / gcc@13.2.0
-	version="-v"
-	FC=mpif90
-	CC=mpicc
-    LAPACK_LIBS="-L/vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-cascadelake/gcc-13.2.0/openblas-0.3.24-on6q3arf3iucukiz4tfai26noq3kz4a7/lib/ -lopenblas"
-	CONFIG_ARGS=(--enable-mixed "LAPACK_LIBS=$LAPACK_LIBS")
-	;;
+    # FugakuLN retired; previous LN build kept for reference.
+    # FugakuLN)
+	# . /vol0004/apps/oss/spack/share/spack/setup-env.sh
+	# spack load /77gzpid #  gcc@13.2.0 linux-rhel8-skylake_avx512
+	# spack load /bnrldb2 # openmpi@4.1.6 linux-rhel8-cascadelake
+	# spack load /on6q3ar # openblas@0.3.34 linux-rhel8-cascadelake / gcc@13.2.0
+	# version="-v"
+	# FC=mpif90
+	# CC=mpicc
+    # LAPACK_LIBS="-L/vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-cascadelake/gcc-13.2.0/openblas-0.3.24-on6q3arf3iucukiz4tfai26noq3kz4a7/lib/ -lopenblas"
+	# CONFIG_ARGS=(--enable-mixed "LAPACK_LIBS=$LAPACK_LIBS")
+	# ;;
 
     MiyabiG)
     configure_genesis_gh200_gpu "$system" GENESIS_MIYABIG none

@@ -82,8 +82,6 @@ MiyabiC,yes,1,1,112,0:10:00
 RC_DGXSP,yes,1,1,20,0:10:00
 RC_GENOA,yes,1,1,96,0:10:00
 RC_FX700,yes,1,4,12,0:10:00
-# ログインノードでのテスト用
-FugakuLN,yes,1,1,1,0:10:00
 ```
 
 **パラメータ説明：**
@@ -147,10 +145,6 @@ case "$system" in
         # A64FX向けネイティブコンパイル
         make -j 8 compiler=fujitsu_native mpi=1
         ;;
-    FugakuLN)
-        # x86_64向けビルド（テスト用）
-        make -j 2 compiler=gnu arch=skylake mpi=
-        ;;
     MiyabiG)
         # Neoverse-N1向けビルド
         make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
@@ -199,10 +193,6 @@ make -j 8 fugaku_benchmark= omp=1 compiler=fujitsu_native rdma= mpi=1 powerapi= 
 
 ### ビルドテスト
 ```bash
-# ログインノードでのビルドテスト
-bash programs/<code>/build.sh FugakuLN
-ls artifacts/  # 実行ファイルが生成されることを確認
-
 # A64FX向けビルド（Fugaku環境）
 bash programs/<code>/build.sh Fugaku
 ls artifacts/  # クロスコンパイル済み実行ファイルを確認
@@ -262,14 +252,6 @@ case "$system" in
         # MPI実行（富岳）
         mpiexec -n $((nodes * numproc_node)) ./main [args] > output
         # 結果解析
-        FOM=$(grep "performance" output | awk '{print $2}')
-        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
-            --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-        ;;
-    FugakuLN)
-        # ログインノードでのテスト実行
-        export OMP_NUM_THREADS=12
-        ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
         bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
             --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
@@ -413,14 +395,14 @@ app 固有の GPU kernel window、短縮 input、module override、profiler over
 
 ## 6. ローカルテスト
 
-### ログインノードでのテスト
+### 手元環境でのスクリプト確認
 ```bash
-# ビルドテスト
-bash programs/<code>/build.sh FugakuLN
+# ビルドテスト（対象 system は実際に使う設定に合わせる）
+bash programs/<code>/build.sh Fugaku
 ls artifacts/
 
 # 実行テスト
-bash programs/<code>/run.sh FugakuLN 1
+bash programs/<code>/run.sh Fugaku 1 4 12
 cat results/result  # FOM:値が含まれることを確認
 ls results/         # 必要に応じてpadata*.tgzも確認
 ```
@@ -473,14 +455,12 @@ Line# | Configuration
 ------|-------------
   H   | system,enable,nodes,numproc_node,nthreads,elapse
     1 | Fugaku,yes,1,4,12,0:10:00
-    2 | FugakuLN,yes,1,1,1,0:10:00
 ```
 
 ### 対応システム
 - **Fugaku/FugakuCN**: PJM（富岳）
 - **MiyabiG/MiyabiC**: PBS（Miyabi）
 - **RC_GH200/RC_DGXSP/RC_GENOA/RC_FX700**: SLURM（クラウド）
-- **FugakuLN**: テスト専用（投入なし）
 
 **注意**: トークンを消費するプロジェクトでは、`groups`の第二要素が自動で選択されます。変更したい場合は`scripts/test_submit.sh`を編集してください。
 
@@ -501,7 +481,7 @@ git commit -m "Add new app <code>
 - Implement build.sh for multiple systems
 - Add run.sh with proper FOM output
 - Configure list.csv for target systems
-- Test completed on FugakuLN"
+- Test completed on Fugaku"
 
 # プッシュ
 git push origin add-<code>
@@ -522,7 +502,6 @@ git push origin add-<code>
 - 性能指標: [FOMの説明]
 
 ### テスト済み環境
-- [x] FugakuLN (ログインノード)
 - [x] Fugaku (バッチジョブ)
 - [ ] MiyabiG
 - [ ] MiyabiC

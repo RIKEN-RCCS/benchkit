@@ -75,14 +75,15 @@ case "$system" in
                 ;;
         esac
         ;;
-    FugakuLN)
-        echo 'dummy call for CI test: QWS program: ./main 32 6 4 3 1 1 1 1 -1 -1 6 50'
-        bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-        emit_qws_dummy_padata ../results/padata0.tgz
-        ;;
-    AI4SS)
+    # FugakuLN retired; previous LN smoke run kept for reference.
+    # FugakuLN)
+    #     echo 'dummy call for CI test: QWS program: ./main 32 6 4 3 1 1 1 1 -1 -1 6 50'
+    #     bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
+    #     emit_qws_dummy_padata ../results/padata0.tgz
+    #     ;;
+    RIKYU)
         module load nvhpc-hpcx/26.3
-        export OMP_NUM_THREADS=72
+        export OMP_NUM_THREADS="$nthreads"
         export OMP_PLACES=cores
         export OMP_PROC_BIND=close
         mpirun --bind-to none -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0
