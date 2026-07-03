@@ -46,7 +46,6 @@
   - `gpu_kernel_lightgbm_v10.sh`
   - `gpu_kernel_mlp_v15.sh`
   - `gpu_kernel_mlp_v21.sh`
-  - `gpu_kernel_mlp_v40.sh`
   - `gpu_kernel_mlp_v41.sh`
 
 ## 3. top-level package の責務
@@ -82,13 +81,9 @@ GPU kernel 単位の外部推定ツールは、通常は section package とし�
   - PerfTools `MLP_NN/v2.1`
   - v1.5 NN と analytical anchor を組み合わせた hybrid/reference 系
   - 主な依存: numpy/pandas/torch
-- `gpu_kernel_mlp_v40`
-  - PerfTools `MLP_NN/v4.0`
-  - no-ET pure NN 系
-  - 主な依存: numpy/pandas/torch
 - `gpu_kernel_mlp_v41`
   - PerfTools `MLP_NN/v4.1`
-  - v4.0 に single-axis trend 対応を加えた NN 系
+  - single-axis trend 対応を加えた NN 系
   - 主な依存: numpy/pandas/torch
 - `gpu_kernel_lightgbm_v10`
   - PerfTools `LightGBM_model/1.0`

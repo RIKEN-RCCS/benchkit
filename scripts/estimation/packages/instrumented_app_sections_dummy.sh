@@ -35,7 +35,6 @@ bk_estimation_package_metadata() {
     "gpu_kernel_lightgbm_v10",
     "gpu_kernel_mlp_v15",
     "gpu_kernel_mlp_v21",
-    "gpu_kernel_mlp_v40",
     "gpu_kernel_mlp_v41",
     "logp"
   ],
