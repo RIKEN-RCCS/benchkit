@@ -373,7 +373,7 @@ Once the estimation specification is clarified, many other design decisions beco
 CI 関連の残作業は、「仕組みを新規に置く」段階から「対象範囲を運用に耐える形へ広げ、古くならないようにする」段階へ移っている。
 短期的な実装・確認は次の状態まで進んでいる。
 
-1. `result-server-tests.yml` の path filter は、`result_server/**/*`、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**`、profile-data shell tests、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` を対象にする形へ更新済みである。
+1. `result-server-tests.yml` の path filter は、`result_server/**/*`、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**`、profile-data shell tests、`programs/**/list.csv`、`programs/**/build.sh`、`programs/**/run.sh`、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` を対象にする形へ更新済みである。
 2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明は、root Markdown、`docs/**/*`、`result_server/**/*`、`requirements-result-server.txt`、`config/system_info.csv` の skip 対象について同期済みである。一方、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**` は GitHub Actions の lightweight verification 対象でもあるが、直接または手動で GitLab pipeline を起動した場合は `.gitlab-ci.yml` の `scripts/**/*` rule により benchmark-affecting として実行される。
 3. 手動 GitLab CI は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動から推定まで確認済みである。Pipeline API variables は JSON payload で渡す。
 4. protected branch sync は、`ci.skip` により GitLab mirror 更新時に GitLab CI が自動起動しないことを運用上確認済みである。
