@@ -135,7 +135,6 @@ PY
 
 for version_script in \
   "v2.1 predict_v21.py" \
-  "v4.0 predict_v40.py" \
   "v4.1 predict_v41.py"; do
   read -r version_dir script_name <<< "$version_script"
   mkdir -p "${FAKE_PERFTOOLS}/MLP_NN/${version_dir}"
@@ -204,7 +203,6 @@ test -f "${TMP_DIR}/mlp_outputs/unknown_gpu_kernel_region_local.log"
 unset BK_GPU_MLP_OUTPUT_DIR
 for package_version in \
   "gpu_kernel_mlp_v21 v2.1" \
-  "gpu_kernel_mlp_v40 v4.0" \
   "gpu_kernel_mlp_v41 v4.1"; do
   read -r package_name version_label <<< "$package_version"
   cat > "${TMP_DIR}/breakdown_${package_name}.json" <<EOF

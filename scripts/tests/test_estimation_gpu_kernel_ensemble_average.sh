@@ -112,7 +112,7 @@ transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdo
 
 unset BK_GPU_KERNEL_ENSEMBLE_PACKAGES
 default_packages=$(_bk_gpu_kernel_ensemble_packages "$(cat "${TMP_DIR}/breakdown.json")" | paste -sd, -)
-test "$default_packages" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v40,gpu_kernel_mlp_v41"
+test "$default_packages" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v41"
 export BK_GPU_KERNEL_ENSEMBLE_PACKAGES="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
 
 export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_zero.csv"
