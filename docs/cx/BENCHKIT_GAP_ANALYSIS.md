@@ -283,7 +283,7 @@ Once the estimation specification is clarified, many other design decisions beco
 - 推定モデルの種別と識別方法
 - 再推定のトリガ、履歴、比較可能性と表示導線
 
-現状は `qws` が先行 app として、
+現状は `qws` と `genesis` が先行 app として、
 
 - `weakscaling`
 - `instrumented_app_sections_dummy`
@@ -291,7 +291,7 @@ Once the estimation specification is clarified, many other design decisions beco
 - side ごとの `model` 表現
 
 まで動作確認済みである。
-したがって、入口確認段階はすでに超えており、次はこの形を複数 app に横展開できるよう引き上げる必要がある。
+したがって、入口確認段階はすでに超えており、次はこの形をさらに他 app に横展開できるよう引き上げる必要がある。
 
 #### 5.1.1 推定機構の実装 GAP 再調査 / Re-Survey of Estimation Implementation Gaps
 
@@ -333,7 +333,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 推定機構について、次の実装順を推奨する。
 
-1. `qws` 以外の app へ推定方式を横展開する
+1. `qws` / `genesis` で得た推定方式を他 app へ横展開する
 2. `not_applicable` と compare を含む推定差分 UI を portal で見やすくする
 3. 複数 detailed package 間の fallback と discovery を整理する
 4. その後に再推定比較 UI と portal 起動導線へ進む
