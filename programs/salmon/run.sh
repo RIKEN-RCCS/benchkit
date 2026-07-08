@@ -13,19 +13,7 @@ RESULTS_DIR="${PWD}/results"
 WORK_DIR="${PWD}/salmon_run"
 INPUT_ARCHIVE_DEFAULT="/vol0003/rccs-sdt/data/a01010/benchmark_data/SALMON.tar.gz"
 INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
-GS_THEORY="${BK_SALMON_GS_THEORY:-dft}"
-RT_THEORY="${BK_SALMON_RT_THEORY:-tddft_response}"
-
-salmon_normalize_legacy_theory() {
-  local input_file="$1"
-  local theory="$2"
-
-  [[ -f "${input_file}" ]] || return 0
-  if grep -Eiq '^[[:space:]]*theory[[:space:]]*=' "${input_file}"; then
-    sed -i -E "s/^([[:space:]]*theory[[:space:]]*=[[:space:]]*)['\"][^'\"]*['\"]([[:space:]]*,?.*)$/\1'${theory}'\2/I" "${input_file}"
-    sed -i -E "s/^([[:space:]]*theory[[:space:]]*=[[:space:]]*)[^[:space:],!]+([[:space:]]*,?.*)$/\1'${theory}'\2/I" "${input_file}"
-  fi
-}
+AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
@@ -41,15 +29,10 @@ case "${system}" in
     exec_gs=(-stdin Si-1-1-1.nml ./salmon)
     exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
     ;;
-  RC_GH200|RC_DGXSP|RC_GENOA)
+  RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
     input_archive="${INPUT_ARCHIVE_CLOUD}"
     exec_gs=(./salmon)
     exec_rt=(./salmon)
-    ;;
-  RC_FX700)
-    input_archive="${INPUT_ARCHIVE_CLOUD}"
-    exec_gs=(-stdin Si-1-1-1.nml ./salmon)
-    exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
     ;;
   *)
     echo "Unknown system: ${system}" >&2
@@ -78,8 +61,6 @@ fi
 cp artifacts/salmon "${WORK_DIR}/salmon"
 chmod +x "${WORK_DIR}/salmon"
 cp "${input_dir}"/* "${WORK_DIR}/"
-salmon_normalize_legacy_theory "${WORK_DIR}/Si-1-1-1.nml" "${GS_THEORY}"
-salmon_normalize_legacy_theory "${WORK_DIR}/Si-1-1-1-tddft.nml" "${RT_THEORY}"
 grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/Si-1-1-1.nml" "${WORK_DIR}/Si-1-1-1-tddft.nml" >&2 || true
 cd "${WORK_DIR}"
 
@@ -101,11 +82,18 @@ case "${system}" in
   RC_GENOA)
     module purge
     module load system/genoa mpi/mpich-x86_64
+    aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
+    aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"
+    aocl_flame_lib="${aocl_root}/amd-libflame/lib/LP64"
+    if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" ]]; then
+      export LD_LIBRARY_PATH="${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
+    fi
     export OMP_NUM_THREADS="${nthreads}"
     ;;
   RC_FX700)
     module purge
     module load system/fx700 FJSVstclanga
+    export SLURM_MPI_TYPE=pmix
     export OMP_NUM_THREADS="${nthreads}"
     ;;
 esac
@@ -114,6 +102,24 @@ run_salmon() {
   local logfile="$1"
   shift
   mpiexec -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+}
+
+run_salmon_or_diagnose() {
+  local stage="$1"
+  local marker_file="$2"
+  local logfile="$3"
+  shift 3
+
+  if run_salmon "${logfile}" "$@"; then
+    return 0
+  fi
+
+  echo "SALMON ${stage} run failed" >&2
+  echo "---- ${logfile} tail ----" >&2
+  tail -n 80 "${logfile}" >&2 || true
+  echo "---- files updated since ${stage} start ----" >&2
+  print_salmon_output_diagnostics "${marker_file}"
+  exit 1
 }
 
 salmon_output_has_marker_since() {
@@ -155,10 +161,10 @@ print_salmon_output_diagnostics() {
 
 touch .gs_start_marker
 gs_start=$(date +%s.%N)
-if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" ]]; then
-  run_salmon gs.log "${exec_gs[@]}" < Si-1-1-1.nml
+if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" || "${system}" == "RC_FX700" ]]; then
+  run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}" < Si-1-1-1.nml
 else
-  run_salmon gs.log "${exec_gs[@]}"
+  run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}"
 fi
 gs_end=$(date +%s.%N)
 
@@ -169,10 +175,10 @@ fi
 
 touch .rt_start_marker
 rt_start=$(date +%s.%N)
-if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" ]]; then
-  run_salmon rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
+if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" || "${system}" == "RC_FX700" ]]; then
+  run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
 else
-  run_salmon rt.log "${exec_rt[@]}"
+  run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}"
 fi
 rt_end=$(date +%s.%N)
 
