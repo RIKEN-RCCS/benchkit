@@ -123,6 +123,12 @@ case "${system}" in
     aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
     aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"
     aocl_flame_lib="${aocl_root}/amd-libflame/lib/LP64"
+    aocl_utils_lib=""
+    aocl_utils_so="$(find "${aocl_root}" -type f -name libaoclutils.so -print -quit 2>/dev/null || true)"
+    aocl_cpuid_so="$(find "${aocl_root}" -type f -name libau_cpuid.so -print -quit 2>/dev/null || true)"
+    if [[ -n "${aocl_utils_so}" ]]; then
+      aocl_utils_lib="$(dirname "${aocl_utils_so}")"
+    fi
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -130,9 +136,9 @@ case "${system}" in
       -DCMAKE_Fortran_FLAGS="-O3 -ffree-line-length-none -fallow-argument-mismatch"
       -DCMAKE_C_FLAGS=-O3
     )
-    if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" ]]; then
-      export LD_LIBRARY_PATH="${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
-      cmake_args+=("-DLAPACK_VENDOR_FLAGS=${aocl_flame_lib}/libflame.so;${aocl_blis_lib}/libblis-mt.so")
+    if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" && -n "${aocl_utils_so}" && -n "${aocl_cpuid_so}" ]]; then
+      export LD_LIBRARY_PATH="${aocl_utils_lib}:${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
+      cmake_args+=("-DLAPACK_VENDOR_FLAGS=${aocl_flame_lib}/libflame.so;${aocl_blis_lib}/libblis-mt.so;${aocl_utils_so};${aocl_cpuid_so}")
     elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openblas; then
       cmake_args+=("-DLAPACK_VENDOR_FLAGS=$(pkg-config --libs openblas)")
     elif ldconfig -p 2>/dev/null | grep -q 'libopenblas\.so'; then
