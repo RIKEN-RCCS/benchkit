@@ -1,0 +1,58 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -43,6 +43,7 @@ option_set(USE_SCALAPACK "Use ScaLAPACK Library"   OFF)
+ option_set(USE_EIGENEXA  "Use EigenExa Library"    OFF)
+ option_set(USE_LIBXC     "Use Libxc library"       OFF)
+ option_set(USE_FFTW      "Use FFTW library"        OFF)
++option_set(USE_FJMPI     "Use FUJITSU MPI"         OFF)
+ 
+ ## Optimization for stencil compitations
+ option_set(USE_OPT_ARRAY_PADDING           "Enable array padding for the stencil"          ON)
+diff --git a/src/config.h.in b/src/config.h.in
+--- a/src/config.h.in
++++ b/src/config.h.in
+@@ -15,6 +15,7 @@
+ #cmakedefine SYSTEM_HAS_PATH_MAX_IN_LINUX_LIMITS_H
+ 
+ #cmakedefine USE_MPI
++#cmakedefine USE_FJMPI
+ #cmakedefine USE_SCALAPACK
+ #cmakedefine USE_EIGENEXA
+ #cmakedefine USE_LIBXC
+diff --git a/src/parallel/init_communicator.f90 b/src/parallel/init_communicator.f90
+--- a/src/parallel/init_communicator.f90
++++ b/src/parallel/init_communicator.f90
+@@ -14,4 +14,5 @@
+ !  limitations under the License.
+ !
++#include "config.h"
+ MODULE init_communicator
+   implicit none
+@@ -38,6 +39,6 @@ subroutine init_communicator_dft(info)
+   integer :: i1,i2,i3,i4,i5,ix,iy,iz,nl,io2,io3,io4
+   integer,allocatable :: iranklists(:)
+ 
+-#ifdef __FUJITSU
++#ifdef USE_FJMPI
+   integer :: iret
+ #endif
+@@ -62,5 +63,5 @@ subroutine init_communicator_dft(info)
+                      0:nproc_k-1))
+ 
+ ! communicator r,o,k,ro,ko
+-#ifdef __FUJITSU
++#ifdef USE_FJMPI
+   call tofu_network_oriented_mapping(iret)
+@@ -109,4 +110,4 @@ subroutine init_communicator_dft(info)
+     if (nl /= info%isize_rko-1) &
+       stop '[FATAL ERROR] init_communicator_dft'
+-#ifdef __FUJITSU
++#ifdef USE_FJMPI
+   end if
+@@ -460,4 +461,4 @@
+ #endif
+ 
+-#ifdef __FUJITSU
++#ifdef USE_FJMPI
+ contains
