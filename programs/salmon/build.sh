@@ -11,6 +11,7 @@ ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
 BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
+FJMPI_PATCH="${PWD}/programs/salmon/patches/fjmpi-topology-guard.patch"
 
 source scripts/bk_functions.sh
 
@@ -19,6 +20,14 @@ mkdir -p "${BUILD_LOG_DIR}"
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${VERSION_TAG}"
 
 cd "${REPO_DIR}"
+if git apply --check "${FJMPI_PATCH}"; then
+  git apply "${FJMPI_PATCH}"
+elif git apply --reverse --check "${FJMPI_PATCH}" >/dev/null 2>&1; then
+  echo "SALMON Fujitsu MPI topology patch is already applied"
+else
+  echo "SALMON Fujitsu MPI topology patch does not apply to ${VERSION_TAG}" >&2
+  exit 1
+fi
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
@@ -110,7 +119,7 @@ case "${system}" in
     ;;
   RC_GENOA)
     module purge
-    module load system/genoa mpi/mpich-x86_64
+    module load system/genoa mpi/openmpi-x86_64
     aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
     aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"
     aocl_flame_lib="${aocl_root}/amd-libflame/lib/LP64"
@@ -147,6 +156,7 @@ case "${system}" in
       -DOPENMP_FLAGS="-Kopenmp -Nfjomplib"
       -DLAPACK_VENDOR_FLAGS=-SSL2BLAMP
       -DFortran_PP_FLAGS=-Cpp
+      -DUSE_FJMPI=OFF
     )
     ;;
   *)
