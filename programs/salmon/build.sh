@@ -138,7 +138,7 @@ case "${system}" in
     )
     if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" && -n "${aocl_utils_so}" && -n "${aocl_cpuid_so}" ]]; then
       export LD_LIBRARY_PATH="${aocl_utils_lib}:${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
-      cmake_args+=("-DLAPACK_VENDOR_FLAGS=${aocl_flame_lib}/libflame.so;${aocl_blis_lib}/libblis-mt.so;${aocl_utils_so};${aocl_cpuid_so}")
+      cmake_args+=("-DLAPACK_VENDOR_FLAGS=${aocl_flame_lib}/libflame.so ${aocl_blis_lib}/libblis-mt.so ${aocl_utils_so} ${aocl_cpuid_so}")
     elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openblas; then
       cmake_args+=("-DLAPACK_VENDOR_FLAGS=$(pkg-config --libs openblas)")
     elif ldconfig -p 2>/dev/null | grep -q 'libopenblas\.so'; then
@@ -147,24 +147,26 @@ case "${system}" in
       echo "System OpenBLAS/LAPACK not found; SALMON may build bundled Netlib LAPACK." >&2
     fi
     ;;
-  RC_FX700)
-    module purge
-    module load system/fx700 FJSVstclanga
-    export SLURM_MPI_TYPE=pmix
-    cmake_args=(
-      "${common_cmake_args[@]}"
-      -DCMAKE_Fortran_COMPILER=mpifrt
-      -DCMAKE_C_COMPILER=mpifcc
-      -DCMAKE_Fortran_FLAGS="-Kfast -Kocl -Ncheck_std=03s -Nalloc_assign"
-      -DCMAKE_C_FLAGS="-Kfast -Kocl -Xg -std=gnu99"
-      -DCMAKE_C_STANDARD_COMPUTED_DEFAULT=Fujitsu
-      "-DCMAKE_Fortran_MODDIR_FLAG=-M "
-      -DOPENMP_FLAGS="-Kopenmp -Nfjomplib"
-      -DLAPACK_VENDOR_FLAGS=-SSL2BLAMP
-      -DFortran_PP_FLAGS=-Cpp
-      -DUSE_FJMPI=OFF
-    )
-    ;;
+  # RC_FX700)
+  #   FX700 currently fails during GS initialization even with the Fujitsu
+  #   topology guard patch applied. Keep this route disabled until verified.
+  #   module purge
+  #   module load system/fx700 FJSVstclanga
+  #   export SLURM_MPI_TYPE=pmix
+  #   cmake_args=(
+  #     "${common_cmake_args[@]}"
+  #     -DCMAKE_Fortran_COMPILER=mpifrt
+  #     -DCMAKE_C_COMPILER=mpifcc
+  #     -DCMAKE_Fortran_FLAGS="-Kfast -Kocl -Ncheck_std=03s -Nalloc_assign"
+  #     -DCMAKE_C_FLAGS="-Kfast -Kocl -Xg -std=gnu99"
+  #     -DCMAKE_C_STANDARD_COMPUTED_DEFAULT=Fujitsu
+  #     "-DCMAKE_Fortran_MODDIR_FLAG=-M "
+  #     -DOPENMP_FLAGS="-Kopenmp -Nfjomplib"
+  #     -DLAPACK_VENDOR_FLAGS=-SSL2BLAMP
+  #     -DFortran_PP_FLAGS=-Cpp
+  #     -DUSE_FJMPI=OFF
+  #   )
+  #   ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1

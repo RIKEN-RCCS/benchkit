@@ -2,5 +2,5 @@ system,enable,nodes,numproc_node,nthreads,elapse
 Fugaku,yes,1,4,12,0:10:00
 RC_GH200,yes,1,1,1,0:10:00
 RC_DGXSP,yes,1,1,1,1:00:00
-RC_GENOA,yes,1,1,48,0:30:00
-RC_FX700,yes,1,1,48,0:30:00
+RC_GENOA,yes,1,1,48,2:00:00
+RC_FX700,no,1,1,48,0:30:00

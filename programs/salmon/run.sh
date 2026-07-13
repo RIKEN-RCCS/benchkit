@@ -29,7 +29,7 @@ case "${system}" in
     exec_gs=(-stdin Si-1-1-1.nml ./salmon)
     exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
     ;;
-  RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
+  RC_GH200|RC_DGXSP|RC_GENOA)
     input_archive="${INPUT_ARCHIVE_CLOUD}"
     exec_gs=(./salmon)
     exec_rt=(./salmon)
@@ -44,6 +44,17 @@ if [[ ! -f "${input_archive}" ]]; then
   echo "Input archive not found: ${input_archive}" >&2
   exit 1
 fi
+
+uses_stdin_input() {
+  case "$1" in
+    RC_GH200|RC_DGXSP|RC_GENOA)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}/input"
@@ -81,27 +92,43 @@ case "${system}" in
     ;;
   RC_GENOA)
     module purge
-    module load system/genoa mpi/mpich-x86_64
+    module load system/genoa mpi/openmpi-x86_64
+    export SLURM_MPI_TYPE=pmix
     aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
     aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"
     aocl_flame_lib="${aocl_root}/amd-libflame/lib/LP64"
-    if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" ]]; then
-      export LD_LIBRARY_PATH="${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
+    aocl_utils_lib=""
+    aocl_utils_so="$(find "${aocl_root}" -type f -name libaoclutils.so -print -quit 2>/dev/null || true)"
+    aocl_cpuid_so="$(find "${aocl_root}" -type f -name libau_cpuid.so -print -quit 2>/dev/null || true)"
+    if [[ -n "${aocl_utils_so}" ]]; then
+      aocl_utils_lib="$(dirname "${aocl_utils_so}")"
+    fi
+    if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" && -n "${aocl_utils_so}" && -n "${aocl_cpuid_so}" ]]; then
+      export LD_LIBRARY_PATH="${aocl_utils_lib}:${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
     fi
     export OMP_NUM_THREADS="${nthreads}"
     ;;
-  RC_FX700)
-    module purge
-    module load system/fx700 FJSVstclanga
-    export SLURM_MPI_TYPE=pmix
-    export OMP_NUM_THREADS="${nthreads}"
-    ;;
+  # RC_FX700)
+  #   FX700 currently fails during GS initialization even with the Fujitsu
+  #   topology guard patch applied. Keep this route disabled until verified.
+  #   module purge
+  #   module load system/fx700 FJSVstclanga
+  #   export SLURM_MPI_TYPE=pmix
+  #   export OMP_NUM_THREADS="${nthreads}"
+  #   ;;
 esac
 
 run_salmon() {
   local logfile="$1"
   shift
-  mpiexec -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+  case "${system}" in
+    RC_GENOA)
+      mpirun -n "${n_ranks}" --bind-to core --map-by "ppr:${numproc_node}:node:PE=${nthreads}" "$@" > "${logfile}" 2>&1
+      ;;
+    *)
+      mpiexec -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+      ;;
+  esac
 }
 
 run_salmon_or_diagnose() {
@@ -161,7 +188,7 @@ print_salmon_output_diagnostics() {
 
 touch .gs_start_marker
 gs_start=$(date +%s.%N)
-if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" || "${system}" == "RC_FX700" ]]; then
+if uses_stdin_input "${system}"; then
   run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}" < Si-1-1-1.nml
 else
   run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}"
@@ -175,7 +202,7 @@ fi
 
 touch .rt_start_marker
 rt_start=$(date +%s.%N)
-if [[ "${system}" == "RC_GH200" || "${system}" == "RC_DGXSP" || "${system}" == "RC_GENOA" || "${system}" == "RC_FX700" ]]; then
+if uses_stdin_input "${system}"; then
   run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
 else
   run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}"
