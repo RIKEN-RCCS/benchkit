@@ -14,12 +14,12 @@ This note is for an on-site agent continuing the SALMON integration work.
 
 ## Current repository state
 
-The current branch contains:
+The current repository state contains:
 
-- `b35f4fd`: SALMON Fujitsu topology guard patch and GENOA OpenMPI selection.
-- `5f99c5d`: GENOA AOCL utility dependency detection and linking.
-
-The untracked `.tmp-salmon-v222-check/` directory is only a local validation checkout and must not be committed.
+- the SALMON Fujitsu topology guard patch for separating compiler and Tofu-specific behavior.
+- GENOA build and run paths aligned on OpenMPI.
+- GENOA AOCL BLIS, libFLAME, and utility library detection/linking.
+- `RC_FX700` disabled in `programs/salmon/list.csv` because no completing on-site setup has been confirmed.
 
 ## GENOA
 
@@ -54,9 +54,9 @@ amd-utils/lib/libau_cpuid.so
 
 The build script searches the AOCL root for the two utils libraries, adds their directory to `LD_LIBRARY_PATH`, and passes them with BLIS and libFLAME. The earlier linker failure was caused by missing `libaoclutils.so` and `au_cpuid_has_flags`.
 
-### Important pending check
+### Runtime alignment
 
-Verify `programs/salmon/run.sh` uses the same OpenMPI module as `build.sh`. A runtime branch still needs to be checked for an old MPICH module reference. Build and run must use the same MPI family.
+`programs/salmon/build.sh` and `programs/salmon/run.sh` are expected to use the same OpenMPI module family for GENOA. Do not reintroduce MPICH in either path unless the site-provided module set changes and a full build/run pair is revalidated.
 
 ### GENOA completion criteria
 
@@ -80,6 +80,7 @@ The Fujitsu topology patch is applied to SALMON v2.2.2, but `USE_FJMPI=OFF` is u
 
 ### Observed FX700 behavior
 
+- `RC_FX700` is currently disabled in `programs/salmon/list.csv`.
 - Build succeeds with `1 MPI x 48 threads`.
 - GS reaches `end SALMON`.
 - RT starts but reports `rbox1=0` and `Ne=NaN` at the first time step.
