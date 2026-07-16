@@ -28,6 +28,7 @@ Workflows that push to GitLab or trigger GitLab pipelines use these secrets:
 |---|---|---|
 | `GITLAB_TOKEN` | GitLab token with push and pipeline API access / pushとpipeline APIに使えるGitLab token | Authenticates Git operations and Pipeline API calls / Git操作とPipeline API呼び出しを認証する |
 | `GITLAB_REPO` | Scheme-less `host/path` such as `gitlab.example.com/group/project.git` / `gitlab.example.com/group/project.git` のようなschemeなし`host/path` | Selects the GitLab project used by sync and manual CI / syncとmanual CIが使うGitLab projectを指定する |
+| `GITLAB_COM_TOKEN` | GitLab.com token with push access / GitLab.comへのpush権限を持つtoken | Optionally mirrors protected branches and tags to `gitlab.com/yoshifuminakamura/benchkit` / 任意で保護ブランチとtagを`gitlab.com/yoshifuminakamura/benchkit`へmirrorする |
 
 `GITLAB_REPO` に `https://` や `http://` は付けません。`GitLab Manual CI` と `Sync protected branches to GitLab` は同じ形式を検証して使います。
 
@@ -115,9 +116,9 @@ feature branchへのpushではGitLab同期は行いません。
 
 Feature branch pushes do not trigger GitLab synchronization.
 
-この同期workflowは、`develop`、`main`、tagを`ci.skip`付きでGitLabへmirrorします。これによりGitLab側の履歴は追従しますが、GitLab CIは自動起動しません。
+この同期workflowは、`develop`、`main`、tagを`ci.skip`付きでGitLabへmirrorします。これによりGitLab側の履歴は追従しますが、GitLab CIは自動起動しません。`GITLAB_COM_TOKEN` が登録されている場合は、同じ内容を `gitlab.com/yoshifuminakamura/benchkit` にもmirrorします。
 
-The sync workflow mirrors `develop`, `main`, and tags to GitLab with `ci.skip`. This keeps GitLab history aligned without starting GitLab CI automatically.
+The sync workflow mirrors `develop`, `main`, and tags to GitLab with `ci.skip`. This keeps GitLab history aligned without starting GitLab CI automatically. When `GITLAB_COM_TOKEN` is configured, the same refs are also mirrored to `gitlab.com/yoshifuminakamura/benchkit`.
 
 `ci.skip` により GitLab CI が自動起動しないことは、保護ブランチ同期の運用で確認済みです。
 
