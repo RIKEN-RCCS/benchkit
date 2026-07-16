@@ -25,6 +25,8 @@ jobs:
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
+          GITLAB_COM_TOKEN: ${{ secrets.GITLAB_COM_TOKEN }}
+          GITLAB_COM_REPO_HOST_PATH: gitlab.com/yoshifuminakamura/benchkit.git
         run: |
           set -euo pipefail
 
@@ -35,7 +37,26 @@ jobs:
 
           git config user.name "github-bot"
           git config user.email "bot@example.com"
-          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}"
           git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
-          git push -o ci.skip gitlab refs/remotes/origin/develop:refs/heads/develop refs/remotes/origin/main:refs/heads/main --force
-          git push -o ci.skip gitlab --tags --force
+
+          sync_gitlab_remote() {
+            local remote_name="$1"
+            local token="$2"
+            local host_path="$3"
+
+            git remote remove "${remote_name}" 2>/dev/null || true
+            git remote add "${remote_name}" "https://oauth2:${token}@${host_path}"
+            git push -o ci.skip "${remote_name}" \
+              refs/remotes/origin/develop:refs/heads/develop \
+              refs/remotes/origin/main:refs/heads/main \
+              --force
+            git push -o ci.skip "${remote_name}" --tags --force
+          }
+
+          sync_gitlab_remote gitlab "${GITLAB_TOKEN}" "${GITLAB_REPO_HOST_PATH}"
+
+          if [ -n "${GITLAB_COM_TOKEN}" ]; then
+            sync_gitlab_remote gitlab-com "${GITLAB_COM_TOKEN}" "${GITLAB_COM_REPO_HOST_PATH}"
+          else
+            echo "GITLAB_COM_TOKEN is not set; skipping GitLab.com mirror ${GITLAB_COM_REPO_HOST_PATH}."
+          fi
