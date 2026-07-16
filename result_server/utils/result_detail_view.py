@@ -23,7 +23,7 @@ def _build_meta_rows(result):
         ("System", result.get("system", "N/A")),
         ("Exp", result.get("Exp", "N/A")),
         ("FOM", format_numeric_value(result.get("FOM", "N/A"))),
-        ("FOM Unit", result.get("FOM_unit") or "implicit default (s)"),
+        ("FOM Unit", result.get("FOM_unit") or "not specified"),
         ("Node Count", result.get("node_count", "N/A")),
     ])
 
