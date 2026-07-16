@@ -272,7 +272,7 @@ class TestLoadResultsTableExtension:
             {"label": "CODE", "key": "code"},
             {"label": "Branch/Hash", "key": "source_hash", "tooltip": "Source code branch name and short commit hash (git) or short md5sum (file archive)"},
             {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
-            {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section"},
+            {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
             {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
             {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
             {"label": "Nodes", "key": "nodes"},
@@ -289,7 +289,7 @@ class TestLoadResultsTableExtension:
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
             "code": "mycode", "system": "mysys", "Exp": "myexp",
-            "FOM": 99.9, "FOM_version": "v1", "node_count": 4,
+            "FOM": 99.9, "FOM_unit": "s", "FOM_version": "v1", "node_count": 4,
             "numproc_node": "48", "nthreads": "12",
         })
 
@@ -302,6 +302,7 @@ class TestLoadResultsTableExtension:
         assert row["system"] == "mysys"
         assert row["exp"] == "myexp"
         assert row["fom"] == 99.9
+        assert row["fom_unit"] == "s"
         assert row["timestamp"] == "2025-01-01 12:00:00"
         assert row["numproc_node"] == "48"
         assert row["nthreads"] == "12"

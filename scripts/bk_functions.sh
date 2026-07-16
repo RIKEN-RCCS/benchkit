@@ -8,6 +8,7 @@
 #
 # Named arguments:
 #   --fom <value>          (required, numeric)
+#   --fom-unit <value>     (recommended, no spaces; e.g. s, GB/s, GFLOPS)
 #   --fom-version <value>  (optional)
 #   --exp <value>          (optional)
 #   --nodes <value>        (optional)
@@ -18,14 +19,16 @@
 # Unknown arguments are silently ignored for future extensibility.
 #
 # Output format (omitted optional args produce no key:value pair):
-#   FOM:<value> [FOM_version:<version>] [Exp:<experiment>] [node_count:<nodes>]
-#   [numproc_node:<numproc_node>] [nthreads:<nthreads>] [confidential:<value>]
+#   FOM:<value> [FOM_unit:<unit>] [FOM_version:<version>] [Exp:<experiment>]
+#   [node_count:<nodes>] [numproc_node:<numproc_node>] [nthreads:<nthreads>]
+#   [confidential:<value>]
 #
 # Exit codes:
 #   0 - success
 #   1 - missing or invalid --fom
 bk_emit_result() {
   _bk_fom=""
+  _bk_fom_unit=""
   _bk_fom_version=""
   _bk_exp=""
   _bk_nodes=""
@@ -44,6 +47,12 @@ bk_emit_result() {
         fi
         _bk_fom="$1"
         _bk_fom_set=1
+        ;;
+      --fom-unit)
+        shift
+        if [ $# -gt 0 ]; then
+          _bk_fom_unit="$1"
+        fi
         ;;
       --fom-version)
         shift
@@ -135,6 +144,10 @@ bk_emit_result() {
 
   # Build output line
   _bk_output="FOM:${_bk_fom}"
+
+  if [ -n "$_bk_fom_unit" ]; then
+    _bk_output="${_bk_output} FOM_unit:${_bk_fom_unit}"
+  fi
 
   if [ -n "$_bk_fom_version" ]; then
     _bk_output="${_bk_output} FOM_version:${_bk_fom_version}"

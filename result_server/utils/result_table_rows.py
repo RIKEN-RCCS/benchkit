@@ -31,6 +31,7 @@ def build_result_table_row(json_filename, result_data, padata_filenames):
         "code": result_data.get("code", "N/A"),
         "exp": result_data.get("Exp", "N/A"),
         "fom": result_data.get("FOM", "N/A"),
+        "fom_unit": result_data.get("FOM_unit") or "",
         "fom_version": result_data.get("FOM_version", "N/A"),
         "system": result_data.get("system", "N/A"),
         "nodes": result_data.get("node_count", "N/A"),

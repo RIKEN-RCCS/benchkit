@@ -81,7 +81,7 @@ case "$system" in
 	    #printf "result%d: %.3f\n" "$index" "$fom_val"  >> ${resultsdir}/result
      	#total_fom=$(awk -v a="$total_fom" -v b="$fom_val" 'BEGIN{printf("%.6f", a + b)}')
 
-    bk_emit_result --fom "$fom_val" --exp "$name" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
+    bk_emit_result --fom "$fom_val" --fom-unit s --exp "$name" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
 	done
 
     ;;

@@ -20,7 +20,7 @@ RESULT_TABLE_COLUMNS = [
     {"label": "CODE", "key": "code"},
     {"label": "Branch/Hash", "key": "source_hash", "tooltip": "Source code branch name and short commit hash (git) or short md5sum (file archive)"},
     {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
-    {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value, typically elapsed time in seconds for main section"},
+    {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
     {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
     {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
     {"label": "Nodes", "key": "nodes"},

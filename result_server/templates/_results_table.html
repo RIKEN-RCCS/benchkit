@@ -191,7 +191,8 @@
                 {% elif key in ["fom_version", "exp", "source_hash"] %}
                     <td title="{{ row[key] }}">{{ row[key] }}</td>
                 {% elif key == "fom" %}
-                    <td title="{{ row[key] }}">{{ "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] }}</td>
+                    {% set fom_value = "%.3f"|format(row[key]|float) if row[key] not in [None, '', 'N/A', 'null', 'nan'] else row[key] %}
+                    <td title="{{ row[key] }}{% if row.fom_unit %} {{ row.fom_unit }}{% endif %}">{{ fom_value }}{% if row.fom_unit %} {{ row.fom_unit }}{% endif %}</td>
                 {% endif %}
                 {% if key == "fom" %}
                 <td class="center-cell">

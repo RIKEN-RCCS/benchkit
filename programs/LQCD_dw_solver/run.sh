@@ -54,14 +54,14 @@ get_fom () {
   FOM2=`get_etime_total $LOG`
   FOM_O=`echo $FOM2 $FOM1 | awk '{print $1-$2}'`
   if [ $# -eq 1 ]; then
-      bk_emit_result --fom "$FOM2" --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_result --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
       bk_emit_section solver "$FOM1"
       bk_emit_section other "$FOM_O"
   else
       # 第2引数をExp名として使用
       # 注意: 暫定的にtarget情報をExpに付け加えます。
       TARGET=$(echo "$2" | sed 's/target: //' | sed 's/ $//')
-      bk_emit_result --fom "$FOM2" --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_result --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
       bk_emit_section solver "$FOM1"
       bk_emit_section other "$FOM_O"
   fi

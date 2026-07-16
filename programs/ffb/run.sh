@@ -86,6 +86,7 @@ fi
 
 bk_emit_result \
   --fom "$fom" \
+  --fom-unit s \
   --fom-version "67.01" \
   --exp "cavity" \
   --nodes "$nodes" \
