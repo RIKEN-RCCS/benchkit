@@ -131,9 +131,12 @@ set -e
 system="$1"
 mkdir -p artifacts
 
-# ソースコード取得
-git clone https://github.com/your-org/your-app.git
-cd your-app
+source scripts/bk_functions.sh
+
+# ソースコード取得と source_info 生成
+REPO_DIR="your-app"
+bk_fetch_source "https://github.com/your-org/your-app.git" "${REPO_DIR}" "main"
+cd "${REPO_DIR}"
 
 # システム別ビルド設定
 case "$system" in
@@ -239,13 +242,15 @@ source "${PWD}/scripts/bk_functions.sh"
 
 mkdir -p results && > results/result
 
-# ソースコード取得（既存ならスキップ）
-[[ -d your-app ]] || git clone https://github.com/your-org/your-app.git
+# 実行時にも入力データやソース checkout が必要な場合は bk_fetch_source を使う。
+# build artifacts の実行ファイルだけで足りる場合、run.sh で再 clone する必要はない。
+REPO_DIR="your-app"
+bk_fetch_source "https://github.com/your-org/your-app.git" "${REPO_DIR}" "main"
 
 # artifactsから実行ファイルをコピー
-cp artifacts/qws_main_executable your-app/
+cp artifacts/your-app_main_executable "${REPO_DIR}/"
 
-cd your-app
+cd "${REPO_DIR}"
 
 case "$system" in
     Fugaku|FugakuCN)
@@ -529,5 +534,9 @@ git push origin add-<code>
 - ビルド・実行ファイルの衝突は基本的に発生しない
 
 ### Git リポジトリの取り扱い
-- `build.sh` と `run.sh` 両方でcloneする場合、ディレクトリ衝突に注意
-- 既存チェック: `[[ -d repo ]] || git clone ...`
+- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch]` を使う
+- `bk_fetch_source` は Git URL または tar archive を取得・展開し、`results/source_info.env` に source provenance を書く
+- `build.sh` と `run.sh` の両方で同じ checkout が必要な場合も、直接 `git clone` せず `bk_fetch_source` に寄せる
+- `run.sh` が build artifact の実行ファイルだけで完結する場合は、実行時に再 clone しない
+- 取得元 URL を site ごとに変えたい場合は、app 固有環境変数で上書きできる形にしてもよい
+- 非公開の URL、proxy host、token などは OSS repo に直書きしない
