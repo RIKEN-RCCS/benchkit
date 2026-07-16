@@ -197,7 +197,7 @@ class TestResultDetailTemplate:
             html = _render_result_detail(result, FULL_QUALITY)
 
         assert "<h2>Build Information</h2>" not in html
-        assert "implicit default (s)" in html
+        assert "not specified" in html
 
     def test_no_vector_section_when_no_metrics(self, app):
         result = {"code": "test", "system": "sys", "Exp": "exp", "FOM": 1.0}

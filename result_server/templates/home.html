@@ -283,6 +283,12 @@
                 <strong>Add Estimation Support</strong>
                 <span>Connect application-side result emission to estimation inputs and estimation workflows.</span>
             </a>
+            {% if guide_links.discord %}
+            <a class="home-link-card" href="{{ guide_links.discord }}" target="_blank" rel="noopener noreferrer">
+                <strong>Questions and Discussion</strong>
+                <span>Use the invitation-only Discord for lightweight questions, onboarding support, and early coordination before opening issues or pull requests.</span>
+            </a>
+            {% endif %}
         </div>
     </section>
 
@@ -304,6 +310,30 @@
         </div>
     </section>
     {% endif %}
+</section>
+
+<section class="page-card home-systems-section">
+    <h2 class="section-title">GPU Performance Estimation</h2>
+    <p class="section-intro">
+        CX Portal stores GPU kernel-level estimation artifacts together with benchmark results, including prepared inputs, prediction outputs, logs, and package comparison data.
+    </p>
+    <div class="home-link-list home-content-grid-three">
+        <a class="home-link-card" href="{{ guide_links.perftools }}" target="_blank" rel="noopener noreferrer">
+            <strong>PerfTools</strong>
+            <span>GPU performance estimation models used by the current experimental integration.</span>
+        </a>
+        <a class="home-link-card" href="{{ guide_links.benchpark_fn_apps }}" target="_blank" rel="noopener noreferrer">
+            <strong>Application Onboarding</strong>
+            <span>Use the RIKEN-RCCS BenchPark FN_apps branch for FugakuNEXT/CX application bring-up and local validation.</span>
+        </a>
+        <a class="home-link-card" href="{{ guide_links.benchpark_upstream }}" target="_blank" rel="noopener noreferrer">
+            <strong>Upstream BenchPark</strong>
+            <span>The RIKEN-RCCS fork is an integration window; upstream BenchPark remains the main upstream project.</span>
+        </a>
+    </div>
+    <p class="section-intro home-section-footer">
+        GPU kernel estimates are interpreted as source/target scaling factors. Application-level FOM reconstruction also needs application-side section timing for CPU, GPU, communication, and overlap regions.
+    </p>
 </section>
 
 <section class="home-systems-section page-card">
