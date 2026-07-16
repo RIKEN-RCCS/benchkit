@@ -160,7 +160,7 @@ myapp_declare_estimation_layout() {
 
 ### 最小構成
 
-最小構成で必要なのは FOM の出力です。
+最小構成で必要なのは FOM の出力です。FOM の数値だけでは単位が分からないため、`--fom-unit` も原則として指定してください。多くの app は経過時間の `s` ですが、ライブラリや system software では `GB/s`、`GFLOPS`、`token/s` などになることがあります。
 
 ```bash
 source "${PWD}/scripts/bk_functions.sh"
@@ -169,6 +169,7 @@ mkdir -p results && > results/result
 
 bk_emit_result \
   --fom "$FOM" \
+  --fom-unit "$FOM_UNIT" \
   --fom-version "$FOM_VERSION" \
   --exp "$EXP" \
   --nodes "$nodes" \

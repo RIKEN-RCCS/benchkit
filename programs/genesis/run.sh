@@ -515,7 +515,7 @@ if [[ -z "$fom_val" ]]; then
 fi
 
 {
-    bk_emit_result --fom "$fom_val" --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+    bk_emit_result --fom "$fom_val" --fom-unit s --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
     genesis_emit_estimation_data_from_log "$output" "$fom_val"
 } >> ${resultsdir}/result
 # if information is requierd

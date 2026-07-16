@@ -231,6 +231,7 @@ fi
 {
   bk_emit_result \
     --fom "${total_elapsed}" \
+    --fom-unit s \
     --fom-version "total_elapsed_time_s" \
     --exp "Si-1-1-1" \
     --nodes "${nodes}" \

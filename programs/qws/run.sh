@@ -22,7 +22,7 @@ print_results() {
     ./check.sh "$outfile" "data/$exp"
     local fom
     fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
-    bk_emit_result --fom "$fom" --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
+    bk_emit_result --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
     qws_emit_estimation_data_from_fom "$fom"
 }
 
@@ -78,7 +78,7 @@ case "$system" in
     # FugakuLN retired; previous LN smoke run kept for reference.
     # FugakuLN)
     #     echo 'dummy call for CI test: QWS program: ./main 32 6 4 3 1 1 1 1 -1 -1 6 50'
-    #     bk_emit_result --fom 123.56 --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
+    #     bk_emit_result --fom 123.56 --fom-unit s --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
     #     emit_qws_dummy_padata ../results/padata0.tgz
     #     ;;
     RIKYU)

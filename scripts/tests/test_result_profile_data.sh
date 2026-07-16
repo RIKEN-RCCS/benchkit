@@ -7,7 +7,7 @@ REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-mkdir -p "${TMP_DIR}/results" "${TMP_DIR}/bk_profiler_artifact" "${TMP_DIR}/ncu/results" "${TMP_DIR}/ncu/bk_profiler_artifact"
+mkdir -p "${TMP_DIR}/results" "${TMP_DIR}/bk_profiler_artifact" "${TMP_DIR}/ncu/results" "${TMP_DIR}/ncu/bk_profiler_artifact" "${TMP_DIR}/nounit/results"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq not found; skipping result profile_data test"
@@ -15,7 +15,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 cat > "${TMP_DIR}/results/result" <<'EOF'
-FOM:9.9999999999999995e-07 FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
+FOM:9.9999999999999995e-07 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
 EOF
 
 cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
@@ -54,7 +54,11 @@ EOF
 tar -czf "${TMP_DIR}/results/padata0.tgz" -C "${TMP_DIR}" bk_profiler_artifact
 
 cat > "${TMP_DIR}/ncu/results/result" <<'EOF'
-FOM:2.345 FOM_version:test Exp:CASE0 node_count:1 numproc_node:8 nthreads:9
+FOM:2.345 FOM_unit:GB/s FOM_version:test Exp:CASE0 node_count:1 numproc_node:8 nthreads:9
+EOF
+
+cat > "${TMP_DIR}/nounit/results/result" <<'EOF'
+FOM:1.234 FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:1
 EOF
 
 cat > "${TMP_DIR}/ncu/bk_profiler_artifact/meta.json" <<'EOF'
@@ -90,10 +94,15 @@ pushd "${TMP_DIR}/ncu" >/dev/null
 bash "${REPO_DIR}/scripts/result.sh" genesis RC_GH200 cross build run 999 >/dev/null
 popd >/dev/null
 
+pushd "${TMP_DIR}/nounit" >/dev/null
+bash "${REPO_DIR}/scripts/result.sh" qws Fugaku cross build run 999 >/dev/null
+popd >/dev/null
+
 RESULT_JSON="${TMP_DIR}/results/result0.json"
 test -f "${RESULT_JSON}"
 jq -e '
   .FOM == "9.9999999999999995e-07" and
+  .FOM_unit == "s" and
   .profile_data.tool == "fapp" and
   .profile_data.level == "single" and
   .profile_data.report_format == "text" and
@@ -109,6 +118,7 @@ test ! -f "${TMP_DIR}/timing_env_was_sourced"
 NCU_RESULT_JSON="${TMP_DIR}/ncu/results/result0.json"
 test -f "${NCU_RESULT_JSON}"
 jq -e '
+  .FOM_unit == "GB/s" and
   .profile_data.tool == "ncu" and
   .profile_data.level == "single" and
   .profile_data.report_format == "text" and
@@ -117,6 +127,13 @@ jq -e '
   (.profile_data.ncu_options | index("--target-processes") != null) and
   (.profile_data.report_kinds | index("ncu_report") != null)
 ' "${NCU_RESULT_JSON}" >/dev/null
+
+NOUNIT_RESULT_JSON="${TMP_DIR}/nounit/results/result0.json"
+test -f "${NOUNIT_RESULT_JSON}"
+jq -e '
+  .FOM == "1.234" and
+  .FOM_unit == ""
+' "${NOUNIT_RESULT_JSON}" >/dev/null
 
 TIMING_TMP="${TMP_DIR}/timing"
 mkdir -p "${TIMING_TMP}/results"

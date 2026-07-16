@@ -258,14 +258,14 @@ case "$system" in
         mpiexec -n $((nodes * numproc_node)) ./main [args] > output
         # 結果解析
         FOM=$(grep "performance" output | awk '{print $2}')
-        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
+        bk_emit_result --fom "$FOM" --fom-unit s --fom-version v1.0 --exp test \
             --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
     MiyabiG|MiyabiC)
         # MPI実行（Miyabi）
         mpirun -n $((nodes * numproc_node)) ./main [args] > output
         FOM=$(grep "performance" output | awk '{print $2}')
-        bk_emit_result --fom "$FOM" --fom-version v1.0 --exp test \
+        bk_emit_result --fom "$FOM" --fom-unit s --fom-version v1.0 --exp test \
             --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
         ;;
     *)
@@ -283,7 +283,7 @@ sync
 ### 結果フォーマット
 `results/result` の各行は以下の形式：
 ```
-FOM:5.752 FOM_version:DDSolverJacobi Exp:CASE0 node_count:1 numproc_node:4 nthreads:12
+FOM:5.752 FOM_unit:s FOM_version:DDSolverJacobi Exp:CASE0 node_count:1 numproc_node:4 nthreads:12
 SECTION:compute_kernel time:0.30
 SECTION:communication time:0.20
 OVERLAP:compute_kernel,communication time:0.05
@@ -297,7 +297,7 @@ OVERLAP:compute_kernel,communication time:0.05
 source "${PWD}/scripts/bk_functions.sh"
 
 # FOM出力
-bk_emit_result --fom 5.752 --fom-version DDSolverJacobi --exp CASE0 \
+bk_emit_result --fom 5.752 --fom-unit s --fom-version DDSolverJacobi --exp CASE0 \
     --nodes 1 --numproc-node 4 --nthreads 12 >> results/result
 
 # FOM内訳（オプション）
@@ -308,6 +308,7 @@ bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 
 **bk_emit_result の引数：**
 - `--fom 数値` - 性能指標（必須）
+- `--fom-unit 文字列` - FOM の単位（推奨。例: `s`, `GB/s`, `GFLOPS`, `token/s`）
 - `--fom-version 文字列` - バージョン情報
 - `--exp 文字列` - 実験名
 - `--nodes 数値` - ノード数
@@ -315,10 +316,20 @@ bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 - `--nthreads 数値` - プロセスあたりスレッド数
 - `--confidential 文字列` - 機密データ（チーム限定表示）
 
-省略された引数は出力に含まれません。`--fom` のみが必須です。
+省略された引数は出力に含まれません。`--fom` のみが必須ですが、FOM の意味を誤読しないよう `--fom-unit` も原則として指定してください。
 
-### Performance Analysis データ
-詳細データは `results/padata[0-9].tgz` として保存：
+### 最低限必要な出力
+
+新しい app を BenchKit に接続する最低ラインは、`run.sh` が `results/result` に少なくとも `FOM:<数値>` 相当の結果を書けることです。
+ただし FOM には単位が含まれないため、`FOM_unit:s` のように単位も出してください。
+多くのアプリでは経過時間の `s` で十分ですが、システムソフトウェアやライブラリでは `GB/s`、`GFLOPS`、`token/s` などになることがあります。
+`bk_emit_result --fom ... --fom-unit ...` を使うと、FOM、単位、実験名、ノード数、プロセス数、スレッド数を同じ形式で出力できます。
+
+`source_info` は必須ではありませんが、Git などから source を取得する app では `bk_fetch_source` を使って `results/source_info.env` を残すことを推奨します。
+section / overlap / profiler archive は、詳細分析や推定を使う場合の任意拡張です。
+
+### Performance Analysis データ（任意）
+詳細データがある場合は `results/padata[0-9].tgz` として保存：
 ```bash
 # PAデータの作成例
 mkdir -p pa

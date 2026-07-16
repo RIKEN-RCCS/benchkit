@@ -69,6 +69,7 @@ fomtcc=$(awk "BEGIN {printf \"%.6e\", 1.0/$tcc}")
 {
   bk_emit_result \
     --fom "$fomtcc" \
+    --fom-unit cell/s \
     --fom-version "cell_updates_per_sec" \
     --exp "KH" \
     --nodes "$nodes" \

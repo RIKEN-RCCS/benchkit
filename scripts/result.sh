@@ -153,7 +153,7 @@ build_source_info_block() {
 source_info_block=$(build_source_info_block)
 
 # Function to write a Result_JSON file for one FOM block
-# Arguments: $1=index, uses global vars: code, system, fom, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
+# Arguments: $1=index, uses global vars: code, system, fom, fom_unit, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
@@ -252,6 +252,7 @@ write_result_json() {
   "code": "$code",
   "system": "$system",
   "FOM": "$fom",
+  "FOM_unit": "$fom_unit",
   "FOM_version": "$fom_version",
   "Exp": "$exp",
   "node_count": "$node_count",
@@ -283,6 +284,7 @@ EOF
 i=0
 in_fom_block=false
 fom=""
+fom_unit=""
 fom_version="null"
 exp="null"
 description="null"
@@ -306,6 +308,12 @@ while IFS= read -r line; do
     fom=$(printf '%s\n' "$line" | grep -Eo 'FOM:[ ]*[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
     if [ -z "$fom" ]; then
       fom=null
+    fi
+
+    if echo "$line" | grep -q 'FOM_unit:'; then
+      fom_unit=$(echo "$line" | grep -Eo 'FOM_unit:[ ]*[^ ]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
+    else
+      fom_unit=""
     fi
 
     node_count_line=$(echo $line | grep -Eo 'node_count:[ ]*[0-9]*' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
