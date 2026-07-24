@@ -274,7 +274,8 @@ genesis_run_ncu_profile() {
     local launch_skip="$4"
     local launch_count="$5"
     local profiler_level="$6"
-    shift 6
+    local section_name="$7"
+    shift 7
 
     local archive_path="${resultsdir}/padata_${profile_slug}.tgz"
     local archive_rel_path="results/padata_${profile_slug}.tgz"
@@ -282,7 +283,6 @@ genesis_run_ncu_profile() {
     local profile_log="${resultsdir}/log_${header}_ncu_${profile_slug}.txt"
     local ncu_args
     local profile_status
-    local section_name
     local old_profiler_args="${BK_PROFILER_ARGS:-}"
     local old_profiler_raw_csv="${BK_PROFILER_NCU_RAW_CSV:-}"
     local had_profiler_args=0
@@ -305,7 +305,7 @@ genesis_run_ncu_profile() {
         --level "$profiler_level" \
         --archive "$archive_path" \
         --raw-dir "$raw_dir" \
-        -- "$@" 2>&1 | tee "$profile_log"
+        -- "$@" </dev/null 2>&1 | tee "$profile_log"
     profile_status=${PIPESTATUS[0]}
     set -e
 
@@ -325,8 +325,9 @@ genesis_run_ncu_profile() {
         return "$profile_status"
     fi
 
-    section_name=$(genesis_profile_section_name "$profile_name")
-    genesis_register_section_artifact "$section_name" "$archive_rel_path"
+    if [ -n "$section_name" ]; then
+        genesis_register_section_artifact "$section_name" "$archive_rel_path"
+    fi
 }
 
 genesis_run_ncu_profiles() {
@@ -378,8 +379,171 @@ genesis_run_ncu_profiles() {
         profile_input=$(genesis_prepare_ncu_input "${profile_cmd[$last_index]}" "$profile_name" "$profile_slug" "$profile_key")
         profile_cmd[$last_index]="$profile_input"
 
-        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "${profile_cmd[@]}"
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$(genesis_profile_section_name "$profile_name")" "${profile_cmd[@]}"
     done
+}
+
+genesis_python_bin() {
+    if [ -n "${PYTHON_BIN:-}" ]; then
+        printf '%s\n' "$PYTHON_BIN"
+    else
+        printf '%s\n' "python3"
+    fi
+}
+
+genesis_ncu_profile_mode() {
+    printf '%s\n' "${BK_GENESIS_NCU_PROFILE_MODE:-discovery}"
+}
+
+genesis_generate_ncu_plan() {
+    local profiler_level="$1"
+    shift
+    local python_bin
+    local discovery_csv="${BK_GENESIS_NCU_DISCOVERY_CSV:-${BK_GENESIS_NSYS_KERNEL_SUMMARY_CSV:-}}"
+    local discovery_json="${resultsdir}/kernel_discovery.json"
+    local plan_json="${resultsdir}/ncu_plan.json"
+    local nsys_base="${resultsdir}/nsys_kernel_discovery"
+    local nsys_report="${nsys_base}.nsys-rep"
+    local nsys_csv="${resultsdir}/nsys_cuda_gpu_kern_sum.csv"
+    local nsys_log="${resultsdir}/log_${header}_nsys_discovery.txt"
+    local discovery_cmd
+    local last_index
+    local discovery_input
+    local generated_csv
+    local nsys_status
+    local plan_top_k="${BK_GENESIS_NCU_PLAN_TOP_K:-}"
+
+    python_bin=$(genesis_python_bin)
+    if ! command -v "$python_bin" >/dev/null 2>&1; then
+        echo "GENESIS NCU discovery requires ${python_bin} for plan generation." >&2
+        return 1
+    fi
+
+    if [ -z "$discovery_csv" ]; then
+        if ! command -v nsys >/dev/null 2>&1; then
+            echo "GENESIS NCU discovery requires nsys, or set BK_GENESIS_NCU_DISCOVERY_CSV to an existing cuda_gpu_kern_sum CSV." >&2
+            return 1
+        fi
+
+        discovery_cmd=("$@")
+        last_index=$((${#discovery_cmd[@]} - 1))
+        if [ "$last_index" -lt 0 ]; then
+            echo "GENESIS NCU discovery has no command to run." >&2
+            return 1
+        fi
+        discovery_input=$(genesis_prepare_ncu_input "${discovery_cmd[$last_index]}" "discovery" "discovery" "DISCOVERY")
+        discovery_cmd[$last_index]="$discovery_input"
+
+        echo "Running GENESIS NSYS kernel discovery for automatic NCU plan generation level=${profiler_level}" >&2
+        set +e
+        nsys profile \
+            --force-overwrite=true \
+            --trace=cuda \
+            --sample=none \
+            -o "$nsys_base" \
+            "${discovery_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
+        nsys_status=${PIPESTATUS[0]}
+        set -e
+        if [ "$nsys_status" -ne 0 ]; then
+            echo "GENESIS NSYS kernel discovery failed with status ${nsys_status}" >&2
+            return "$nsys_status"
+        fi
+
+        if [ ! -f "$nsys_report" ]; then
+            echo "GENESIS NSYS report was not created: ${nsys_report}" >&2
+            return 1
+        fi
+        nsys stats --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" >/dev/null
+        generated_csv=$(find "${resultsdir}" -maxdepth 1 -type f \( -name 'nsys_cuda_gpu_kern_sum*.csv' -o -name 'nsys_cuda_gpu_kern_sum*.csv.*' \) | sort | head -n 1)
+        discovery_csv="${generated_csv:-$nsys_csv}"
+        echo "GENESIS NSYS CUDA kernel summary CSV: ${discovery_csv}" >&2
+        echo "---- GENESIS NSYS CUDA kernel summary begin ----" >&2
+        cat "$discovery_csv" >&2
+        echo "---- GENESIS NSYS CUDA kernel summary end ----" >&2
+    fi
+
+    if [ ! -f "$discovery_csv" ]; then
+        echo "GENESIS NCU discovery CSV does not exist: ${discovery_csv}" >&2
+        return 1
+    fi
+    if [ -z "$plan_top_k" ]; then
+        case "$(genesis_ncu_profile_mode)" in
+          discovery-only|auto-discovery-only)
+            plan_top_k=0
+            ;;
+          *)
+            plan_top_k=3
+            ;;
+        esac
+    fi
+
+    "$python_bin" "${SCRIPT_DIR}/scripts/profiling/generate_ncu_plan.py" \
+        --nsys-csv "$discovery_csv" \
+        --out-discovery "$discovery_json" \
+        --out-plan "$plan_json" \
+        --top-k "$plan_top_k" \
+        --min-total-time-pct "${BK_GENESIS_NCU_PLAN_MIN_TOTAL_TIME_PCT:-0}" \
+        --min-instances "${BK_GENESIS_NCU_PLAN_MIN_INSTANCES:-1}" \
+        --launch-count "${BK_GENESIS_NCU_PLAN_LAUNCH_COUNT:-${BK_GENESIS_NCU_LAUNCH_COUNT:-10}}" \
+        --warmup-fraction "${BK_GENESIS_NCU_PLAN_WARMUP_FRACTION:-0}" \
+        --max-launch-skip "${BK_GENESIS_NCU_PLAN_MAX_LAUNCH_SKIP:-1}" \
+        --metric-set "${BK_GENESIS_NCU_PLAN_METRIC_SET:-gpu_kernel_estimation}"
+
+    echo "GENESIS kernel discovery JSON: ${discovery_json}" >&2
+    echo "---- GENESIS kernel discovery JSON begin ----" >&2
+    cat "$discovery_json" >&2
+    echo "---- GENESIS kernel discovery JSON end ----" >&2
+    echo "GENESIS NCU plan JSON: ${plan_json}" >&2
+    echo "---- GENESIS NCU plan JSON begin ----" >&2
+    cat "$plan_json" >&2
+    echo "---- GENESIS NCU plan JSON end ----" >&2
+
+    printf '%s\n' "$plan_json"
+}
+
+genesis_run_ncu_plan_profiles() {
+    local plan_json="$1"
+    local profiler_level="$2"
+    shift 2
+    local python_bin
+    local profile_name
+    local section_name
+    local kernel_regex
+    local launch_skip
+    local launch_count
+    local profile_slug
+    local profile_key
+    local profile_cmd
+    local last_index
+    local profile_input
+    local profile_seen=0
+    local profile_rows=()
+    local profile_row
+
+    python_bin=$(genesis_python_bin)
+    mapfile -t profile_rows < <("$python_bin" "${SCRIPT_DIR}/scripts/profiling/iter_ncu_plan_profiles.py" --plan "$plan_json")
+    for profile_row in "${profile_rows[@]}"; do
+        IFS=$'\t' read -r profile_name section_name kernel_regex launch_skip launch_count <<< "$profile_row"
+        if [ -z "$profile_name" ] || [ -z "$kernel_regex" ]; then
+            continue
+        fi
+        profile_seen=$((profile_seen + 1))
+        profile_slug=$(genesis_profile_slug "$profile_name")
+        profile_key=$(genesis_profile_key "$profile_name")
+        profile_cmd=("$@")
+        last_index=$((${#profile_cmd[@]} - 1))
+        if [ "$last_index" -lt 0 ]; then
+            echo "GENESIS NCU plan profile '${profile_name}' has no command to run." >&2
+            return 1
+        fi
+        profile_input=$(genesis_prepare_ncu_input "${profile_cmd[$last_index]}" "$profile_name" "$profile_slug" "$profile_key")
+        profile_cmd[$last_index]="$profile_input"
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$section_name" "${profile_cmd[@]}"
+    done
+    if [ "$profile_seen" -eq 0 ]; then
+        echo "GENESIS NCU plan has no executable profiles: ${plan_json}" >&2
+        return 1
+    fi
 }
 
 # Shared GH200-class run path. The env_prefix pattern mirrors build.sh so each
@@ -460,7 +624,24 @@ run_genesis_gh200_gpu() {
             return 1
         fi
         echo "Running ${system_name} additional NCU acquisition profiles level=${genesis_profiler_level}"
-        genesis_run_ncu_profiles "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub
+        case "$(genesis_ncu_profile_mode)" in
+          manual|configured)
+            genesis_run_ncu_profiles "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub
+            ;;
+          discovery|auto)
+            genesis_plan_json=$(genesis_generate_ncu_plan "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub)
+            genesis_run_ncu_plan_profiles "$genesis_plan_json" "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub
+            ;;
+          discovery-only|auto-discovery-only)
+            genesis_generate_ncu_plan "$genesis_profiler_level" "${mpi_cmd[@]}" ./${binary} ${input}.sub >/dev/null
+            echo "Genesis ${system_name}: completed NSYS kernel discovery; skipping NCU profile execution."
+            ;;
+          *)
+            echo "Genesis ${system_name}: unsupported BK_GENESIS_NCU_PROFILE_MODE='$(genesis_ncu_profile_mode)'." >&2
+            echo "Use manual, discovery, or discovery-only." >&2
+            return 1
+            ;;
+        esac
     fi
 }
 

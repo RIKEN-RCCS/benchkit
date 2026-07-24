@@ -63,6 +63,28 @@ BK_GENESIS_NCU_<PROFILE>_NSTEPS
 Legacy single-window collection can be requested with `BK_GENESIS_NCU_KERNEL_REGEX`;
 the wrapper treats it as a `custom` profile.
 
+The default automatic mode derives candidate NCU windows from an Nsight Systems
+CUDA kernel summary and then executes the generated NCU plan:
+
+```bash
+BK_GENESIS_NCU_PROFILE_MODE=discovery
+```
+
+In this mode, `run.sh` keeps the normal unprofiled benchmark run, then runs a
+short NSYS discovery pass, writes `results/kernel_discovery.json` and
+`results/ncu_plan.json`, and runs the selected NCU windows. The generated NCU
+profiles default to the top three GPU-time kernels with `launch_skip=1` and
+`launch_count=10`; the NCU archives are registered as section artifacts and are
+used by the GPU estimation packages to compute source/target kernel time ratios.
+
+Use `BK_GENESIS_NCU_PROFILE_MODE=discovery-only` when investigating NSYS output
+without paying the NCU cost. That mode writes the full discovery summary and
+plan but skips NCU collection. If the NSYS CSV has already been created by
+site-local tooling, set
+`BK_GENESIS_NCU_DISCOVERY_CSV=/path/to/cuda_gpu_kern_sum.csv` to skip the NSYS
+pass and only generate the NCU plan. Manual mode still uses the configured
+`inter intra pairlist` windows above.
+
 ## Estimation Sections
 
 GENESIS treats the log `dynamics` time as the FOM. The app-side parser

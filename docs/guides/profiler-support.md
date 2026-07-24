@@ -114,13 +114,16 @@ python3 scripts/profiling/generate_ncu_plan.py \
   --nsys-csv results/nsys_cuda_gpu_kern_sum.csv \
   --out-discovery results/kernel_discovery.json \
   --out-plan results/ncu_plan.json \
-  --top-k 5 \
-  --min-total-time-pct 3 \
+  --top-k 0 \
   --launch-count 10
 ```
 
 `kernel_discovery.json` は kernel 名、呼び出し回数、合計 GPU 時間、平均時間を正規化した summary である。
 `ncu_plan.json` は共通 profiler 層や app wrapper が NCU 採取に使える候補 plan で、各 profile に次を含む。
+`--top-k 0` は discovery 調査用に全 kernel を plan へ残す指定である。
+NCU 実行時は、NSYS で同定した kernel に対して `launch_skip=1` / `launch_count=10`
+程度の小さな window から始める。`discovery_gpu_time_pct` は NSYS で観測された
+GPU kernel 時間内の割合であり、app FOM 全体に対する割合ではない。
 
 - `kernel_name`
 - `kernel_match.name_base`
@@ -128,6 +131,8 @@ python3 scripts/profiling/generate_ncu_plan.py \
 - `launch_skip`
 - `launch_count`
 - `metric_set`
+- `selection.source_gpu_duration_ns`
+- `selection.discovery_gpu_time_pct`
 - `archive_ncu_report`
 - `selection` metadata
 
