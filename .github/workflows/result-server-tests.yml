@@ -9,7 +9,9 @@ on:
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/estimation/**"
+      - "scripts/profiling/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_ncu_plan_generation.sh"
       - "scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh"
       - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
@@ -38,7 +40,9 @@ on:
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/estimation/**"
+      - "scripts/profiling/**"
       - "scripts/tests/test_bk_profiler.sh"
+      - "scripts/tests/test_ncu_plan_generation.sh"
       - "scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh"
       - "scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh"
       - "scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh"
@@ -121,6 +125,7 @@ jobs:
       - name: Run profiler, profile-data, and estimation shell tests
         run: |
           bash scripts/tests/test_bk_profiler.sh
+          bash scripts/tests/test_ncu_plan_generation.sh
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_send_results_profile_data.sh
           bash scripts/tests/test_send_estimate_artifacts.sh

@@ -54,6 +54,13 @@ Here `both` means text summaries plus CSV reports.
 Default report behavior for `ncu` is `text`.
 BenchKit stores the Nsight Compute raw report under `bk_profiler_artifact/raw/rep1/` and, when import succeeds, a text details page under `bk_profiler_artifact/reports/ncu_import_rep1.txt`.
 
+For GPU estimation bring-up, BenchKit also has an offline NCU plan generator:
+`scripts/profiling/generate_ncu_plan.py`.
+It reads an Nsight Systems CUDA kernel summary CSV and writes `kernel_discovery.json`
+plus `ncu_plan.json`.  This is intentionally separate from the `single/simple`
+level presets: discovery decides which kernels deserve expensive NCU sampling,
+while `bk_profiler ncu` still owns the concrete Nsight Compute collection.
+
 ## Portal Summary
 
 BenchKit stores profiler metadata in `bk_profiler_artifact/meta.json` inside `padata.tgz`, and also copies a compact summary into `result.json` as `profile_data`.

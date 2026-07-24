@@ -95,6 +95,59 @@ binary report も保存したいデバッグ用途では、`BK_PROFILER_ARCHIVE_
 MPI launcher 経由の GPU application では、既定で `--target-processes all` を付けて child process も採取対象にする。
 追加の kernel filter、section set、NVTX filter などは `BK_PROFILER_ARGS` で `ncu` に渡す。
 
+### 5.1 GPU kernel discovery と NCU plan
+
+GPU 性能推定では、アプリ側が kernel 名、launch skip/count、NCU metric list を事前調査して手書きする運用を最終形にしない。
+BenchKit 共通層は、次の段階的 flow を目標にする。
+
+1. profiler overhead のない通常実行で FOM と app section timing を取る。
+2. 軽量な discovery 実行で `nsys stats --report cuda_gpu_kern_sum --format csv` 相当の kernel summary を得る。
+3. summary から GPU 時間の上位 kernel を選び、`ncu_plan.json` を生成する。
+4. `ncu_plan.json` に従って、選ばれた代表 kernel launch だけを Nsight Compute で深掘りする。
+5. 推定 package は raw NCU CSV / prepared CSV を入力にし、section time への掛け算に使う source/target ratio を返す。
+
+このためのオフライン変換 helper として、`scripts/profiling/generate_ncu_plan.py` を提供する。
+この helper は `nsys` や `ncu` を実行せず、CSV fixture だけでテストできる。
+
+```bash
+python3 scripts/profiling/generate_ncu_plan.py \
+  --nsys-csv results/nsys_cuda_gpu_kern_sum.csv \
+  --out-discovery results/kernel_discovery.json \
+  --out-plan results/ncu_plan.json \
+  --top-k 5 \
+  --min-total-time-pct 3 \
+  --launch-count 10
+```
+
+`kernel_discovery.json` は kernel 名、呼び出し回数、合計 GPU 時間、平均時間を正規化した summary である。
+`ncu_plan.json` は共通 profiler 層や app wrapper が NCU 採取に使える候補 plan で、各 profile に次を含む。
+
+- `kernel_name`
+- `kernel_match.name_base`
+- `kernel_match.pattern`
+- `launch_skip`
+- `launch_count`
+- `metric_set`
+- `archive_ncu_report`
+- `selection` metadata
+
+現時点の helper は app section との対応を自動確定しない。
+NVTX range や app-side section timing と接続できる場合は、将来 `section` を埋める拡張で section-aware discovery に進める。
+NVTX がない場合でも、アプリ全体の上位 GPU kernel を自動抽出することで、手書きの kernel regex / skip / count を減らせる。
+
+GPU 実機で走らせる前には、plan を `bk_profiler ncu` の dry-run command manifest に変換して確認できる。
+
+```bash
+python3 scripts/profiling/render_ncu_plan_commands.py \
+  --plan results/ncu_plan.json \
+  --out results/ncu_commands.json \
+  --level detailed \
+  -- ./app --input case.inp
+```
+
+この manifest は profile ごとの `BK_PROFILER_ARGS`、archive path、raw-dir、`bk_profiler ncu` argv を持つ。
+現段階では実行は app wrapper や site runner 側が行い、共通 helper は「自動生成された NCU 採取内容を inspect 可能にする」ことを担当する。
+
 ## 6. Archive の考え方
 
 `bk_profiler` は archive の中に少なくとも次を置く。
