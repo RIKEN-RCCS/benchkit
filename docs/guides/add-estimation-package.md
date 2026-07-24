@@ -123,6 +123,9 @@ section package は prediction CSV の推定実行時間を合算し、その se
 MLP package は `Execution Time [ns]`、LightGBM package は `O-Execution Time` を主な入力列として扱います。
 prepared input CSV から source-side の kernel 実測時間を読める場合は、Estimate JSON の metrics に `source_time_ns`, `predicted_time_ns`, `time_ratio_predicted_over_source`, `speedup_factor_source_over_predicted` を出します。
 `ncu` の採取 window はアプリ全体の GPU 区間時間ではなく限定された kernel sample なので、実運用ではこの source/target 比を、profiler overhead のないアプリ区間 timing に掛けて FOM を再構築する想定です。
+GPU kernel を手で事前調査して `kernel_regex` や launch window を固定することは最終形ではありません。
+BenchKit 共通層では `nsys stats` の CUDA kernel summary から `kernel_discovery.json` と `ncu_plan.json` を生成する helper を用意し、推定 package が必要とする NCU 深掘り対象を自動選定する方向に寄せます。
+最初の段階ではアプリ全体の上位 kernel を対象にし、NVTX や app section timing が使える場合は section-aware discovery に拡張します。
 
 CI 配管や app 固有の smoke test は、`programs/<code>/estimate.sh` や `scripts/tests/` 側で扱います。
 推定 package は、どの app の smoke test で呼ばれるかを知らず、自分が要求する input CSV / prediction CSV / profiler archive だけを見て applicability を判定します。
