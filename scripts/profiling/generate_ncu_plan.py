@@ -46,8 +46,11 @@ class KernelSummary:
             "rank": rank,
             "name": self.name,
             "total_time_ns": self.total_time_ns,
+            "source_gpu_duration_ns": self.total_time_ns,
             "time_pct": pct,
+            "discovery_gpu_time_pct": pct,
             "instances": self.instances,
+            "source_launches": self.instances,
             "avg_time_ns": self.avg_time_ns,
             "min_time_ns": self.min_time_ns,
             "max_time_ns": self.max_time_ns,
@@ -190,8 +193,41 @@ def parse_nsys_kernel_csv(csv_path: Path) -> list[KernelSummary]:
     return kernels
 
 
-def _regex_exact_kernel_name(kernel_name: str) -> str:
-    return f"regex:^{re.escape(kernel_name)}$"
+def _kernel_match_token(kernel_name: str) -> str:
+    """Return a shell-safe demangled-name substring for NCU kernel matching.
+
+    Nsight Systems summaries often include the full demangled signature. Passing
+    that signature through shell variables is fragile because argument lists and
+    template parameters contain spaces.  NCU only needs a stable substring, so
+    prefer GENESIS-style kernel family names and fall back to the function stem.
+    """
+
+    if "build_pairlist" in kernel_name:
+        return "build_pairlist"
+    if "energyforce_inter_cell" in kernel_name:
+        return "energyforce_inter_cell"
+    if "energyforce_intra_cell" in kernel_name:
+        return "energyforce_intra_cell"
+    if "force_inter_cell" in kernel_name:
+        return "force_inter_cell"
+    if "force_intra_cell" in kernel_name:
+        return "force_intra_cell"
+    if "inter_cell" in kernel_name:
+        return "inter_cell"
+    if "intra_cell" in kernel_name:
+        return "intra_cell"
+
+    stem = kernel_name.split("(", 1)[0].strip()
+    stem = re.sub(r"<.*>$", "", stem).strip()
+    parts = stem.split()
+    if parts:
+        stem = parts[-1]
+    return stem or kernel_name.strip()
+
+
+def _regex_kernel_name(kernel_name: str) -> str:
+    token = _kernel_match_token(kernel_name)
+    return f"regex:.*{re.escape(token)}.*"
 
 
 def _slugify_kernel_name(kernel_name: str, index: int) -> str:
@@ -205,7 +241,9 @@ def _slugify_kernel_name(kernel_name: str, index: int) -> str:
 def _launch_skip(instances: int, warmup_fraction: float, max_skip: int) -> int:
     if instances <= 1:
         return 0
-    skip = int(instances * warmup_fraction)
+    if max_skip <= 0:
+        return 0
+    skip = max(1, int(instances * warmup_fraction))
     skip = min(skip, max_skip)
     return min(skip, instances - 1)
 
@@ -233,7 +271,7 @@ def select_kernels(
         if pct is not None and pct < min_total_time_pct:
             continue
         selected.append(item)
-        if len(selected) >= top_k:
+        if top_k > 0 and len(selected) >= top_k:
             break
     return selected
 
@@ -285,7 +323,7 @@ def build_ncu_plan_json(
                 "kernel_match": {
                     "name_base": "demangled",
                     "mode": "regex",
-                    "pattern": _regex_exact_kernel_name(item.name),
+                    "pattern": _regex_kernel_name(item.name),
                 },
                 "launch_skip": skip,
                 "launch_count": count,
@@ -294,8 +332,11 @@ def build_ncu_plan_json(
                 "selection": {
                     "rank": index,
                     "total_time_ns": item.total_time_ns,
+                    "source_gpu_duration_ns": item.total_time_ns,
                     "time_pct": pct,
+                    "discovery_gpu_time_pct": pct,
                     "instances": item.instances,
+                    "source_launches": item.instances,
                     "avg_time_ns": item.avg_time_ns,
                 },
             }
@@ -328,19 +369,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nsys-csv", required=True, type=Path, help="nsys cuda_gpu_kern_sum CSV")
     parser.add_argument("--out-discovery", type=Path, help="output kernel discovery JSON")
     parser.add_argument("--out-plan", type=Path, help="output NCU plan JSON")
-    parser.add_argument("--top-k", type=int, default=5, help="maximum selected kernels")
-    parser.add_argument("--min-total-time-pct", type=float, default=3.0, help="minimum GPU time percentage")
+    parser.add_argument("--top-k", type=int, default=5, help="maximum selected kernels; 0 selects all")
+    parser.add_argument("--min-total-time-pct", type=float, default=0.0, help="minimum GPU time percentage")
     parser.add_argument("--min-instances", type=int, default=1, help="minimum launch count")
     parser.add_argument("--launch-count", type=int, default=10, help="requested NCU launches per kernel")
-    parser.add_argument("--warmup-fraction", type=float, default=0.10, help="fraction of launches to skip")
-    parser.add_argument("--max-launch-skip", type=int, default=100, help="maximum generated launch skip")
+    parser.add_argument("--warmup-fraction", type=float, default=0.0, help="fraction of launches to skip")
+    parser.add_argument("--max-launch-skip", type=int, default=1, help="maximum generated launch skip")
     parser.add_argument("--metric-set", default="gpu_kernel_estimation", help="NCU metric-set label")
     parser.add_argument("--archive-ncu-report", action="store_true", help="request .ncu-rep archive retention")
     parser.add_argument("--print-plan", action="store_true", help="print generated plan to stdout")
     args = parser.parse_args(argv)
 
-    if args.top_k < 1:
-        parser.error("--top-k must be >= 1")
+    if args.top_k < 0:
+        parser.error("--top-k must be >= 0")
     if args.launch_count < 1:
         parser.error("--launch-count must be >= 1")
     if args.warmup_fraction < 0:
@@ -374,7 +415,6 @@ def main(argv: list[str] | None = None) -> int:
         max_launch_skip=args.max_launch_skip,
         archive_ncu_report=args.archive_ncu_report,
     )
-
     if args.out_discovery:
         write_json(args.out_discovery, discovery)
     if args.out_plan:
