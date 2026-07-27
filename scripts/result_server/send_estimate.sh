@@ -10,6 +10,7 @@ upload_estimation_artifacts() {
   local json_file="$1"
   local source_uuid="$2"
   local archive
+  local archive_dir
   local endpoint
   local endpoints
   local response
@@ -25,7 +26,8 @@ upload_estimation_artifacts() {
     return 0
   fi
 
-  archive="results/estimation_artifacts_${source_uuid}.tgz"
+  archive_dir=$(mktemp -d)
+  archive="${archive_dir}/estimation_artifacts_${source_uuid}.tgz"
   tar \
     --exclude='*_prepare' \
     --exclude='*_prepare/*' \
@@ -57,12 +59,12 @@ upload_estimation_artifacts() {
     if [[ -n "$response" ]]; then
       echo "$response"
     fi
-    rm -f "$archive"
+    rm -rf "$archive_dir"
     echo "Uploaded estimation artifacts for $json_file"
     return 0
   fi
 
-  rm -f "$archive"
+  rm -rf "$archive_dir"
   if printf '%s\n' "$response" | grep -q '413'; then
     echo "WARNING: Skipping estimation artifact upload because the server rejected ${archive} as too large (HTTP 413)." >&2
     echo "WARNING: Estimate JSON was already ingested; estimation artifacts remain available as GitLab artifacts." >&2
