@@ -124,6 +124,7 @@ ${build_key}_build:
     - echo \"[BUILD] $program for $system\"
     - bash $program_path/build.sh $system
     - bash scripts/record_timestamp.sh results/build_end
+    - chmod -R a+rX artifacts results 2>/dev/null || true
   artifacts:
     paths:
       - artifacts/
@@ -153,6 +154,7 @@ ${job_prefix}_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
+    - chmod -R a+rX results 2>/dev/null || true
     - ls -la .
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
@@ -201,6 +203,7 @@ ${job_prefix}_build_run:
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
+    - chmod -R a+rX artifacts results 2>/dev/null || true
     - ls -la .
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
