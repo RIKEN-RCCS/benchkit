@@ -275,14 +275,18 @@ genesis_run_ncu_profile() {
     local launch_count="$5"
     local profiler_level="$6"
     local section_name="$7"
-    shift 7
+    local discovery_metadata_json="$8"
+    shift 8
 
     local archive_path="${resultsdir}/padata_${profile_slug}.tgz"
     local archive_rel_path="results/padata_${profile_slug}.tgz"
+    local metadata_path="${archive_path%.tgz}.metadata.json"
+    local metadata_rel_path="${archive_rel_path%.tgz}.metadata.json"
     local raw_dir="ncu_${profile_slug}"
     local profile_log="${resultsdir}/log_${header}_ncu_${profile_slug}.txt"
     local ncu_args
     local profile_status
+    local python_bin
     local old_profiler_args="${BK_PROFILER_ARGS:-}"
     local old_profiler_raw_csv="${BK_PROFILER_NCU_RAW_CSV:-}"
     local had_profiler_args=0
@@ -326,6 +330,58 @@ genesis_run_ncu_profile() {
     fi
 
     if [ -n "$section_name" ]; then
+        if [ -n "$discovery_metadata_json" ] && [ "$discovery_metadata_json" != "null" ]; then
+            python_bin=$(genesis_python_bin)
+            "$python_bin" - \
+                "$metadata_path" \
+                "$archive_rel_path" \
+                "$section_name" \
+                "$profile_name" \
+                "$profile_slug" \
+                "$kernel_regex" \
+                "$launch_skip" \
+                "$launch_count" \
+                "$discovery_metadata_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    metadata_path,
+    archive_path,
+    section_name,
+    profile_name,
+    profile_slug,
+    kernel_regex,
+    launch_skip,
+    launch_count,
+    discovery_raw,
+) = sys.argv[1:10]
+
+discovery = json.loads(discovery_raw)
+if isinstance(discovery, dict) and not discovery.get("section"):
+    discovery["section"] = section_name
+
+payload = {
+    "schema_version": 1,
+    "kind": "gpu_kernel_profile_metadata",
+    "profiler": "ncu",
+    "section": section_name,
+    "profile_name": profile_name,
+    "profile_slug": profile_slug,
+    "artifact_path": archive_path,
+    "ncu": {
+        "kernel_regex": kernel_regex,
+        "launch_skip": int(launch_skip),
+        "launch_count": int(launch_count),
+    },
+    "nsys_discovery": discovery,
+}
+
+Path(metadata_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+            echo "GENESIS NCU profile metadata: ${metadata_rel_path}" >&2
+        fi
         genesis_register_section_artifact "$section_name" "$archive_rel_path"
     fi
 }
@@ -379,7 +435,7 @@ genesis_run_ncu_profiles() {
         profile_input=$(genesis_prepare_ncu_input "${profile_cmd[$last_index]}" "$profile_name" "$profile_slug" "$profile_key")
         profile_cmd[$last_index]="$profile_input"
 
-        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$(genesis_profile_section_name "$profile_name")" "${profile_cmd[@]}"
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$(genesis_profile_section_name "$profile_name")" "" "${profile_cmd[@]}"
     done
 }
 
@@ -519,6 +575,7 @@ genesis_run_ncu_plan_profiles() {
     local profile_seen=0
     local profile_rows=()
     local profile_row
+    local discovery_metadata_json
 
     python_bin=$(genesis_python_bin)
     mapfile -t profile_rows < <("$python_bin" "${SCRIPT_DIR}/scripts/profiling/iter_ncu_plan_profiles.py" --plan "$plan_json")
@@ -538,7 +595,32 @@ genesis_run_ncu_plan_profiles() {
         fi
         profile_input=$(genesis_prepare_ncu_input "${profile_cmd[$last_index]}" "$profile_name" "$profile_slug" "$profile_key")
         profile_cmd[$last_index]="$profile_input"
-        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$section_name" "${profile_cmd[@]}"
+        discovery_metadata_json=$("$python_bin" - "$plan_json" "$profile_name" "$section_name" <<'PY'
+import json
+import sys
+
+plan_path, profile_name, section_name = sys.argv[1:4]
+with open(plan_path, encoding="utf-8") as handle:
+    plan = json.load(handle)
+for profile in plan.get("profiles", []):
+    if profile.get("name") == profile_name:
+        discovery = dict(profile.get("selection") or {})
+        discovery.update({
+            "section": section_name,
+            "kernel_name": profile.get("kernel_name"),
+            "kernel_match": profile.get("kernel_match"),
+            "profile_name": profile.get("name"),
+            "launch_skip": profile.get("launch_skip"),
+            "launch_count": profile.get("launch_count"),
+            "metric_set": profile.get("metric_set"),
+        })
+        print(json.dumps(discovery, separators=(",", ":")))
+        break
+else:
+    print("{}")
+PY
+        )
+        genesis_run_ncu_profile "$profile_name" "$profile_slug" "$kernel_regex" "$launch_skip" "$launch_count" "$profiler_level" "$section_name" "$discovery_metadata_json" "${profile_cmd[@]}"
     done
     if [ "$profile_seen" -eq 0 ]; then
         echo "GENESIS NCU plan has no executable profiles: ${plan_json}" >&2

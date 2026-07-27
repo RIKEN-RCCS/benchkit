@@ -166,6 +166,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   estimation_package: ($candidate.estimation_package // ""),
                   predicted_time_ns: ($kernel.predicted_time_ns // null),
                   time_ratio_predicted_over_source: $time_ratio,
+                  nsys_discovery: ($candidate.metrics.nsys_discovery // null),
                   source_metrics: ($kernel.source_metrics // {}),
                   predicted_metrics: ($kernel.metrics // {}),
                   metric_comparisons: ($kernel.metric_comparisons // [])
@@ -205,6 +206,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   predicted_time: ($candidate.metrics.sample_predicted_time // (if ($candidate.metrics.total_predicted_time_ns // null) != null then ($candidate.metrics.total_predicted_time_ns / 1000000000) else null end)),
                   predicted_time_ns: ($candidate.metrics.total_predicted_time_ns // null)
                 },
+                nsys_discovery: ($candidate.metrics.nsys_discovery // null),
                 artifacts: ($candidate.artifacts // [])
               }
           )
@@ -233,6 +235,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   time_ratio_predicted_over_source: .time_ratio_predicted_over_source,
                   predicted_time_ns: .predicted_time_ns,
                   source_time_ns: .source_time_ns,
+                  nsys_discovery: .nsys_discovery,
                   source_gpu: .source_gpu,
                   target_gpu: .target_gpu
                 }))
@@ -287,6 +290,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                           predicted_time_ns_total: (if ($predicted_times_ns | length) > 0 then ($predicted_times_ns | add) else null end),
                           predicted_time_ns_mean: (if ($predicted_times_ns | length) > 0 then (($predicted_times_ns | add) / ($predicted_times_ns | length)) else null end),
                           mean_time_ratio_predicted_over_source: (if ($ratios | length) > 0 then (($ratios | add) / ($ratios | length)) else null end),
+                          nsys_discovery: ($package_group | map(.nsys_discovery // null) | map(select(. != null)) | .[0] // null),
                           metric_comparisons: $metric_comparisons
                         }
                     )
@@ -355,6 +359,11 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
           kernel_names: $kernel_names,
           kernel_summaries: $kernel_summaries,
           kernel_candidate_ratios: $kernel_means,
+          nsys_discovery: ($usable | map(.metrics.nsys_discovery // null) | map(select(. != null)) | .[0] // null),
+          nsys_discovery_candidates: ($usable | map({
+            estimation_package: (.estimation_package // ""),
+            nsys_discovery: (.metrics.nsys_discovery // null)
+          }) | map(select(.nsys_discovery != null))),
           app_gpu_section_time: $app_section_time,
           mean_time: (if $can_project_section then $output_time else null end),
           mean_time_ratio_predicted_over_source: $mean_ratio
