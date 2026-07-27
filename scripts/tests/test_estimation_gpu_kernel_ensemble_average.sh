@@ -93,6 +93,30 @@ cat > "${TMP_DIR}/breakdown.json" <<'EOF'
 }
 EOF
 
+mkdir -p "${TMP_DIR}/results"
+cat > "${TMP_DIR}/results/padata0.metadata.json" <<'EOF'
+{
+  "schema_version": 1,
+  "kind": "gpu_kernel_profile_metadata",
+  "profiler": "ncu",
+  "section": "gpu_kernel_region",
+  "profile_name": "k001_kern_a",
+  "artifact_path": "results/padata0.tgz",
+  "ncu": {
+    "kernel_regex": "regex:.*kern_a.*",
+    "launch_skip": 1,
+    "launch_count": 10
+  },
+  "nsys_discovery": {
+    "section": "gpu_kernel_region",
+    "kernel_name": "kern_a",
+    "source_gpu_duration_ns": 123456,
+    "discovery_gpu_time_pct": 12.5,
+    "source_launches": 42
+  }
+}
+EOF
+
 pushd "${TMP_DIR}" >/dev/null
 source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
@@ -152,6 +176,7 @@ if ! echo "$transformed_single" | jq -e '
   .sections[0].metrics.package_summaries[0].ncu_sample.kernel_count == 1 and
   .sections[0].metrics.package_summaries[0].ncu_sample.source_time_ns == 1000 and
   .sections[0].metrics.package_summaries[0].ncu_sample.predicted_time_ns == 1000 and
+  .sections[0].metrics.package_summaries[0].nsys_discovery.source_gpu_duration_ns == 123456 and
   .sections[0].metrics.package_summaries[1].estimation_package == "gpu_kernel_mlp_v15" and
   near(.sections[0].metrics.package_summaries[1].projected_section_time; 30) and
   near(.sections[0].metrics.package_summaries[1].time_ratio_predicted_over_source; 3) and
@@ -165,6 +190,7 @@ if ! echo "$transformed_single" | jq -e '
   .sections[0].metrics.kernel_summaries[0].package_summaries[0].source_time_ns_total == 1000 and
   .sections[0].metrics.kernel_summaries[0].package_summaries[0].predicted_time_ns_total == 1000 and
   near(.sections[0].metrics.kernel_summaries[0].package_summaries[0].mean_time_ratio_predicted_over_source; 1) and
+  .sections[0].metrics.kernel_summaries[0].package_summaries[0].nsys_discovery.section == "gpu_kernel_region" and
   (.sections[0].metrics.kernel_summaries[0].package_summaries[0].metric_comparisons | length >= 2) and
   (.sections[0].metrics.kernel_summaries[0].package_summaries[0].metric_comparisons | map(select(.name == "O-Memory Throughput [%]" and .source_value_mean == 25 and .predicted_value_mean == 50 and .ratio_predicted_over_source_mean == 2)) | length == 1) and
   .sections[0].metrics.kernel_summaries[0].package_summaries[1].estimation_package == "gpu_kernel_mlp_v15" and
@@ -173,6 +199,9 @@ if ! echo "$transformed_single" | jq -e '
   near(.sections[0].metrics.mean_time_ratio_predicted_over_source; 2) and
   .sections[0].metrics.unique_kernel_count == 1 and
   .sections[0].metrics.kernel_names == ["kern_a"] and
+  .sections[0].metrics.nsys_discovery.kernel_name == "kern_a" and
+  .sections[0].metrics.nsys_discovery.discovery_gpu_time_pct == 12.5 and
+  (.sections[0].metrics.nsys_discovery_candidates | length == 2) and
   (.sections[0].candidate_estimates | length == 2) and
   near(.sections[0].candidate_estimates[0].time; 10) and
   near(.sections[0].candidate_estimates[1].time; 30) and

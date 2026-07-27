@@ -305,6 +305,43 @@ _bk_gpu_mlp_resolve_section_ncu_archive() {
   printf '%s\n' ""
 }
 
+_bk_gpu_mlp_resolve_section_metadata() {
+  local item_json="$1"
+  local section_name="$2"
+  local ncu_archive="$3"
+  local scoped_var
+  local value
+  local artifact_path
+  local metadata_path
+
+  scoped_var=$(_bk_gpu_mlp_section_var "BK_GPU_MLP_METADATA_JSON" "$section_name")
+  value=$(_bk_gpu_mlp_env_value "$scoped_var")
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ -n "${BK_GPU_MLP_METADATA_JSON:-}" ]]; then
+    printf '%s\n' "$BK_GPU_MLP_METADATA_JSON"
+    return 0
+  fi
+
+  artifact_path="${ncu_archive:-$(_bk_gpu_mlp_first_artifact_path "$item_json")}"
+  if [[ -n "$artifact_path" ]]; then
+    case "$artifact_path" in
+      *.tar.gz) metadata_path="${artifact_path%.tar.gz}.metadata.json" ;;
+      *.tgz) metadata_path="${artifact_path%.tgz}.metadata.json" ;;
+      *) metadata_path="${artifact_path}.metadata.json" ;;
+    esac
+    if [[ -f "$metadata_path" ]]; then
+      printf '%s\n' "$metadata_path"
+      return 0
+    fi
+  fi
+
+  printf '%s\n' ""
+}
+
 _bk_gpu_mlp_resolve_section_prediction_csv() {
   local item_json="$1"
   local section_name="$2"
@@ -774,12 +811,20 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   local selector_kind=""
   local selector_value=""
   local selector
+  local ncu_archive
+  local metadata_json_path=""
+  local metadata_json="{}"
 
   section_name=$(echo "$item_json" | jq -r '.name // "gpu_section"')
   selector=$(_bk_gpu_mlp_resolve_section_kernel_selector "$item_json" "$section_name")
   IFS=$'\t' read -r selector_kind selector_value <<< "$selector"
   prediction_csv=$(_bk_gpu_mlp_resolve_section_prediction_csv "$item_json" "$section_name")
   input_csv=$(_bk_gpu_mlp_resolve_section_input_csv "$item_json" "$section_name")
+  ncu_archive=$(_bk_gpu_mlp_resolve_section_ncu_archive "$item_json" "$section_name")
+  metadata_json_path=$(_bk_gpu_mlp_resolve_section_metadata "$item_json" "$section_name" "$ncu_archive")
+  if [[ -n "$metadata_json_path" && -f "$metadata_json_path" ]]; then
+    metadata_json=$(jq -c '.' "$metadata_json_path")
+  fi
 
   if [[ -z "$prediction_csv" ]]; then
     run_outputs=$(_bk_gpu_mlp_run_predictor "$item_json" "$section_name")
@@ -795,6 +840,8 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
     --arg selector_kind "$selector_kind" \
     --arg selector_value "$selector_value" \
     --arg scaling_method "$scaling_method" \
+    --arg metadata_json_path "$metadata_json_path" \
+    --argjson discovery_metadata "$metadata_json" \
     --argjson parsed "$parsed_json" '
     def selector_matches($kind; $value):
       if $kind == "" or $value == "" then true
@@ -864,6 +911,10 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
               matched_kernels: $matched_kernels,
               section_time_ratio_predicted_over_source: $time_ratio
             }
+          + (if ($discovery_metadata | length) > 0 then {
+              nsys_discovery: ($discovery_metadata.nsys_discovery // $discovery_metadata),
+              nsys_discovery_metadata_path: $metadata_json_path
+            } else {} end)
         )
       }
     | if .fallback_used == null then del(.fallback_used) else . end
@@ -872,6 +923,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
         + [{kind: "gpu_mlp_prediction_csv", path: $prediction_csv}]
         + (if $input_csv != "" then [{kind: "gpu_mlp_input_csv", path: $input_csv}] else [] end)
         + (if $prediction_log != "" then [{kind: "gpu_mlp_log", path: $prediction_log}] else [] end)
+        + (if $metadata_json_path != "" then [{kind: "gpu_kernel_profile_metadata", path: $metadata_json_path}] else [] end)
       )
   '
 }
