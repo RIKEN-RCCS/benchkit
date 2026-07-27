@@ -22,6 +22,10 @@ def _shell_join(args: list[str]) -> str:
     return " ".join(shlex.quote(str(item)) for item in args)
 
 
+def _profiler_args_env(args: list[str]) -> str:
+    return " ".join(str(item) for item in args)
+
+
 def _truth(value: Any) -> str:
     return "true" if bool(value) else "false"
 
@@ -61,7 +65,7 @@ def _command_record(
     archive_report = bool(profile.get("archive_ncu_report", False))
 
     env = {
-        "BK_PROFILER_ARGS": _shell_join(profiler_args),
+        "BK_PROFILER_ARGS": _profiler_args_env(profiler_args),
         "BK_PROFILER_NCU_RAW_CSV": "true",
         "BK_PROFILER_ARCHIVE_NCU_REPORT": _truth(archive_report),
     }

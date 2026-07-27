@@ -112,6 +112,9 @@ jq -e '
   (.commands | length) == 3 and
   .commands[0].env.BK_PROFILER_NCU_RAW_CSV == "true" and
   (.commands[0].env.BK_PROFILER_ARGS | contains("--kernel-name-base")) and
+  (.commands[0].env.BK_PROFILER_ARGS | contains("\u0027") | not) and
+  (.commands[0].env.BK_PROFILER_ARGS | contains("\"") | not) and
+  (.commands[0].env.BK_PROFILER_ARGS | contains("regex:.*inter_cell.*")) and
   (.commands[0].argv | index("bk_profiler") == 0) and
   (.commands[0].argv | index("--archive") != null) and
   (.commands[0].argv | index("./app") != null)
