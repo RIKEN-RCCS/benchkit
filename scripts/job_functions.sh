@@ -207,12 +207,13 @@ ${job_prefix}_send_results:
   environment:
     name: \$CI_COMMIT_BRANCH
   script:
-    - bash scripts/collect_timing.sh
-    - bash scripts/result.sh ${program} ${system} ${mode} ${build_job} ${run_job} \$CI_PIPELINE_ID
-    - bash scripts/result_server/send_results.sh
+    - id
+    - bash -lc 'ls -la results/ 2>&1 | head -20'
+    - stat results/ results/result0.json 2>&1 || true
+    - bash scripts/result_server/process_and_send_results.sh ${program} ${system} ${mode} ${build_job} ${run_job} \$CI_PIPELINE_ID
   artifacts:
     paths:
-      - results/
+      - send_results_workspace/results/
     expire_in: 1 week
 
 " >> "$output"
@@ -291,6 +292,7 @@ ${job_prefix}_estimate:
     name: \$CI_COMMIT_BRANCH
   script:
     - echo \"Running estimation for ${code}\"
+    - if [ -d send_results_workspace/results ]; then cp -R send_results_workspace/results results; fi
     - bash scripts/estimation/run.sh ${code}
   artifacts:
     paths:
