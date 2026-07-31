@@ -251,7 +251,7 @@ BenchKit の system / queue 定義層である。
 - `queue.csv` に scheduler template を持つ
 - app 側の `list.csv` から system 固有事情を切り離す
 
-`system.csv` は system 名、mode、runner tag、queue、queue_group などの正本である。
+`system.csv` は system 名、mode、runner tag、queue、queue_group、scheduler account などの正本である。
 
 This is the system and queue definition layer.
 
@@ -261,7 +261,8 @@ Main roles:
 - `queue.csv` holds scheduler templates
 - system-specific concerns are separated from app-side `list.csv`
 
-`system.csv` is the source of truth for items such as system name, mode, runner tag, queue, and queue_group.
+`system.csv` is the source of truth for items such as system name, mode,
+runner tag, queue, queue_group, and scheduler account.
 
 ### 6.4 ポータル層 / Portal Layer
 
