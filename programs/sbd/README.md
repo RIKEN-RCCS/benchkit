@@ -32,3 +32,20 @@ its selected input within a combined `1e-12 + 1e-11 |E|` tolerance.
 The DGX Spark route was validated on `ng-dgx-m2` with NVHPC 26.3. The exact
 energy was `-76.24373504205295 Ha`; the internal Davidson FOM was
 `228.928853 s`, and the complete Slurm job took 4 minutes 9 seconds.
+
+The Rikyu route was validated with NVHPC 26.3 on project `rkp00012`. All
+three rows converged to `-76.243776776861 Ha`:
+
+| B200 GPUs | Nodes | Internal Davidson FOM (s) | 4-GPU-relative speedup |
+|---:|---:|---:|---:|
+| 4 | 1 | 565.510 | 1.00x |
+| 8 | 2 | 290.222 | 1.95x |
+| 16 | 4 | 152.144 | 3.72x |
+
+A fresh BenchKit validation rebuilt upstream SBD commit
+`1470aac99597e882612f99009d29b6a20fdd69af` through `build.sh`, confirmed the
+effective `cc100` rank-distributed/index-reordered/NCCL configuration, and
+started the four-GPU `run.sh` row with the expected energy trajectory. That
+repeat run was intentionally canceled after Davidson restart `1.0`, at energy
+`-76.24377677424239 Ha`, once the build, launcher, GPU mapping, and numerical
+path had all been reconfirmed.
