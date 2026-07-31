@@ -43,9 +43,9 @@ three rows converged to `-76.243776776861 Ha`:
 | 16 | 4 | 152.144 | 3.72x |
 
 A fresh BenchKit validation rebuilt upstream SBD commit
-`1470aac99597e882612f99009d29b6a20fdd69af` through `build.sh`, confirmed the
+`9481f290c2f49d4f8e5df9b0c9c87ea0f7937c2c` through `build.sh`, confirmed the
 effective `cc100` rank-distributed/index-reordered/NCCL configuration, and
-started the four-GPU `run.sh` row with the expected energy trajectory. That
-repeat run was intentionally canceled after Davidson restart `1.0`, at energy
-`-76.24377677424239 Ha`, once the build, launcher, GPU mapping, and numerical
-path had all been reconfirmed.
+submitted the eight-GPU row through `scripts/test_submit.sh`. The job converged
+to `-76.2437767768609 Ha` with a `290.281226 s` internal Davidson FOM, and
+`scripts/result.sh` produced valid result JSON with source provenance and the
+`mult` timing section.
