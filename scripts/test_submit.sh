@@ -226,9 +226,10 @@ case "$system" in
       echo "Error: RIKYU requires an account in config/system.csv" >&2
       exit 1
     fi
-    echo sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
+    proc=$((nodes * numproc_node))
+    echo sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus=$proc \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
-    sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
+    sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus=$proc \
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
