@@ -167,6 +167,25 @@ case "${system}" in
   #     -DUSE_FJMPI=OFF
   #   )
   #   ;;
+  RIKYU)
+    module purge
+    module load nvhpc/26.3
+    cmake_args=(
+      "${common_cmake_args[@]}"
+      -DCMAKE_Fortran_COMPILER=mpif90
+      -DCMAKE_C_COMPILER=mpicc
+      -DOPENMP_FLAGS=-Mnoopenmp
+      -DUSE_OPENACC=ON
+      -DUSE_CUDA=ON
+      -DUSE_MPI_DEFAULT=ON
+      -DCMAKE_SYSTEM_PROCESSOR=openacc
+      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas -cuda -Minfo=accel -DUSE_OPENACC -DUSE_CUDA"
+      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas -cuda -Minfo=accel -DUSE_OPENACC -DUSE_CUDA"
+      -DCMAKE_CUDA_ARCHITECTURES=100
+      -DCMAKE_CUDA_FLAGS=-arch=sm_100
+      -DFORTRAN_COMPILER_HAS_MPI_VERSION3=OFF
+    )
+    ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1
