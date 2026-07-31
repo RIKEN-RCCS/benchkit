@@ -20,6 +20,22 @@ for the single-GPU case, and all three explicit communicator sizes are one. The
 Rikyu rows retain the `1em7` input and validated `1 x 2 x 2` explicit layout;
 their remaining rank factor becomes SBD's implicit Hamiltonian communicator.
 
+The R-CCS Cloud GH200 route uses the H2O `1em6` input (about 191 million
+product determinants), the Thrust backend with `cc90`, NVHPC/HPC-X CUDA 13
+`26.3`, and one MPI rank on its unified Grace Hopper superchip. No Slurm GPU
+request is made because `qc-gh200` exposes its single GPU as part of the node.
+NCCL is disabled for the single-rank case.
+
+The R-CCS Cloud FX700 route uses the H2O `1em4` input (about 2.38 million
+product determinants) with four MPI ranks and 12 OpenMP threads per rank,
+bound one rank per A64FX NUMA/CMG domain. SBD requires C++17 features missing
+from Fujitsu compiler 4.11.1's bundled libc++, so this route uses the system
+GCC 8.5/MPICH stack with 512-bit SVE enabled. It links Fujitsu's optimized
+LAPACK and its required runtime libraries by absolute path. The absolute paths
+are intentional: adding the Fujitsu library directory with `-L` causes
+MPICH's trailing `-lmpi` to resolve to Fujitsu MPI instead, mixing two MPI
+implementations in one executable.
+
 The input files are copied unchanged from SBD's tracked `data/h2o` directory;
 `data/h2o/README.md` records the upstream revision, checksums, and Apache-2.0
 provenance.
@@ -32,6 +48,17 @@ its selected input within a combined `1e-12 + 1e-11 |E|` tolerance.
 The DGX Spark route was validated on `ng-dgx-m2` with NVHPC 26.3. The exact
 energy was `-76.24373504205295 Ha`; the internal Davidson FOM was
 `228.928853 s`, and the complete Slurm job took 4 minutes 9 seconds.
+
+The R-CCS Cloud GH200 route was directly validated on `qc-gh200-01` with
+NVHPC 26.3. The exact energy was `-76.24377593489788 Ha`; the internal
+Davidson FOM was `520.734720 s`, the multiply section was `22.730310 s`, and
+the complete Slurm job took 9 minutes 34 seconds.
+
+The R-CCS Cloud FX700 route was directly validated on `fx29` with GCC 8.5,
+MPICH 4.0, 512-bit SVE, and Fujitsu LAPACK. The exact energy was
+`-76.2429584823075 Ha`; the internal Davidson FOM was `747.636165 s`, the
+multiply section was `33.897903 s`, and the complete Slurm job took 13 minutes
+3 seconds.
 
 The Rikyu route was validated with NVHPC 26.3 on project `rkp00012`. All
 three rows converged to `-76.243776776861 Ha`:

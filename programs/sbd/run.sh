@@ -40,6 +40,28 @@ case "${system}" in
     adet_comm_size=1
     bdet_comm_size=1
     ;;
+  RC_GH200)
+    module purge
+    module load system/qc-gh200 nvhpc-hpcx-cuda13/26.3
+    determinant_file=h2o-1em6-alpha.txt
+    experiment=H2O-1em6
+    reference_energy=-76.2437759348979
+    energy_abs_tolerance=1.0e-12
+    task_comm_size=1
+    adet_comm_size=1
+    bdet_comm_size=1
+    ;;
+  RC_FX700)
+    module purge
+    module load system/fx700 mpi/mpich-aarch64
+    determinant_file=h2o-1em4-alpha.txt
+    experiment=H2O-1em4
+    reference_energy=-76.2429584823075
+    energy_abs_tolerance=1.0e-12
+    task_comm_size=1
+    adet_comm_size=2
+    bdet_comm_size=2
+    ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1
@@ -64,15 +86,30 @@ cp "${INPUT_DIR}/fcidump.txt" "${INPUT_DIR}/${determinant_file}" "${RUN_DIR}/"
 cd "${RUN_DIR}"
 export OMP_NUM_THREADS="${nthreads}"
 
-mpirun -np "${n_ranks}" bash -lc \
-  'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec ./diag \
-    --fcidump fcidump.txt --adetfile '"${determinant_file}"' \
-    --method 0 --block 10 --iteration 4 --tolerance 1.0e-8 \
-    --init 0 --shuffle 0 --carryover_type 0 --rdm 0 \
-    --task_comm_size '"${task_comm_size}"' \
-    --adet_comm_size '"${adet_comm_size}"' \
-    --bdet_comm_size '"${bdet_comm_size}" \
-  > diag.log 2>&1
+diag_args=(
+  --fcidump fcidump.txt
+  --adetfile "${determinant_file}"
+  --method 0
+  --block 10
+  --iteration 4
+  --tolerance 1.0e-8
+  --init 0
+  --shuffle 0
+  --carryover_type 0
+  --rdm 0
+  --task_comm_size "${task_comm_size}"
+  --adet_comm_size "${adet_comm_size}"
+  --bdet_comm_size "${bdet_comm_size}"
+)
+
+if [[ "${system}" == "RC_FX700" ]]; then
+  mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}" \
+    > diag.log 2>&1
+else
+  mpirun -np "${n_ranks}" bash -lc \
+    'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
+    bash ./diag "${diag_args[@]}" > diag.log 2>&1
+fi
 
 davidson_time=$(grep -E 'Elapsed time for davidson ' diag.log | tail -n 1 | awk '{print $(NF-1)}')
 energy=$(grep -E '^ Energy = ' diag.log | tail -n 1 | awk '{print $3}')
