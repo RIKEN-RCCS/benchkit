@@ -85,13 +85,14 @@ fi
 # --- System_CSV から mode/queue_group を取得 ---
 mode=$(get_system_mode "$system")
 queue_group=$(get_system_queue_group "$system")
+account=$(get_system_account "$system")
 
 # --- 選択された設定を表示 ---
 echo "Selected configuration from $list_file (line $list_csv_line_num):"
 echo "  $line"
 echo ""
 echo "Parsed values:"
-echo "  system=$system, enable=$enable, mode=$mode (from system.csv), queue_group=$queue_group (from system.csv)"
+echo "  system=$system, enable=$enable, mode=$mode (from system.csv), queue_group=$queue_group (from system.csv), account=${account:-<default>}"
 echo "  nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 
 # --- 投入用スクリプト作成 ---
@@ -221,9 +222,13 @@ case "$system" in
          -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads} script.sh
     ;;
   RIKYU)
-    echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
+    if [[ -z "$account" ]]; then
+      echo "Error: RIKYU requires an account in config/system.csv" >&2
+      exit 1
+    fi
+    echo sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
-    sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
+    sbatch -p $queue_group --account=$account -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads --gpus-per-node=${numproc_node} \
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)

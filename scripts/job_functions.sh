@@ -64,6 +64,14 @@ get_system_queue_group() {
     return 0
 }
 
+# System_CSVからscheduler accountを取得する
+# Account-less systems return an empty string.
+get_system_account() {
+    local system="$1"
+    awk -F, -v s="$system" '$1==s {print $7}' "$SYSTEM_FILE"
+    return 0
+}
+
 # Queue templates can request aggregate CPU sockets or GPU cards. Pull the
 # per-node values from system_info.csv instead of duplicating them in queue.csv.
 get_system_cpu_per_node() {
