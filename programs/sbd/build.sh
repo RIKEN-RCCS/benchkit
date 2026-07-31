@@ -31,6 +31,23 @@ case "${system}" in
       -DCMAKE_EXE_LINKER_FLAGS="-L${nccl_root}/lib -lnccl"
     cmake --build "${BUILD_DIR}" --parallel
     ;;
+  RC_DGXSP)
+    source /etc/profile.d/modules.sh
+    module purge
+    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    dgx_build_dir="build-dgxsp-nvhpc-thrust-rankdist"
+    cmake -S . -B "${dgx_build_dir}" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DSBD_GPU_BACKEND=thrust \
+      -DSBD_GPU_ARCH=cc120 \
+      -DSBD_THRUST_SAFE_MPI_ALLREDUCE=ON \
+      -DSBD_USE_RANK_DISTRIBUTION=ON \
+      -DSBD_USE_BLOCK_RANK_DISTRIBUTION=ON \
+      -DSBD_REORDER_INDEX_ARRAY=ON \
+      -DSBD_USE_NCCL=OFF
+    cmake --build "${dgx_build_dir}" --parallel
+    BUILD_DIR="${dgx_build_dir}"
+    ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1
