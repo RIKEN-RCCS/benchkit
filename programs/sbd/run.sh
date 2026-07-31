@@ -21,6 +21,11 @@ case "${system}" in
     module purge
     module load nvhpc/26.3
     ;;
+  RC_DGXSP)
+    source /etc/profile.d/modules.sh
+    module purge
+    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1

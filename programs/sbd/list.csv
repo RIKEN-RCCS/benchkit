@@ -2,3 +2,4 @@ system,enable,nodes,numproc_node,nthreads,elapse
 RIKYU,yes,1,4,1,0:30:00
 RIKYU,yes,2,4,1,0:30:00
 RIKYU,yes,4,4,1,0:30:00
+RC_DGXSP,yes,1,1,1,1:00:00
