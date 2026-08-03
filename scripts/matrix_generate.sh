@@ -69,7 +69,6 @@ for listfile in programs/*/list.csv; do
 
     mode=$(get_system_mode "$system")
     queue_group=$(get_system_queue_group "$system")
-    account=$(get_system_account "$system")
 
     # Skip if mode or queue_group is empty (system not found in System_CSV)
     if [[ -z "$mode" || -z "$queue_group" ]]; then
@@ -89,7 +88,8 @@ for listfile in programs/*/list.csv; do
     [[ "$gpu_per_node" =~ ^[0-9]+$ ]] || gpu_per_node=0
     cpu_sockets=$((nodes * cpu_per_node))
     gpu_cards=$((nodes * gpu_per_node))
-	export elapse nodes queue_group account numproc_node nthreads proc cpu_per_node gpu_per_node cpu_sockets gpu_cards
+    scheduler_extra_args=$(get_scheduler_extra_args "$system")
+	export elapse nodes queue_group scheduler_extra_args numproc_node nthreads proc cpu_per_node gpu_per_node cpu_sockets gpu_cards
 
 	read -r submit_cmd template <<< "$(get_queue_template "$system")"
     if [[ -z "$submit_cmd" || -z "$template" ]]; then
