@@ -64,11 +64,19 @@ get_system_queue_group() {
     return 0
 }
 
-# System_CSVからscheduler accountを取得する
-# Account-less systems return an empty string.
-get_system_account() {
+# Return optional site-local scheduler arguments.
+#
+# These values are intentionally not stored in system.csv/queue.csv because
+# project/account/group options can vary by deployment or runner. The variable
+# must be visible where matrix_generate.sh runs, because generated GitLab jobs
+# embed SCHEDULER_PARAMETERS before the target runner submits the scheduler job.
+get_scheduler_extra_args() {
     local system="$1"
-    awk -F, -v s="$system" '$1==s {print $7}' "$SYSTEM_FILE"
+    local system_key
+    local system_var
+    system_key=$(printf '%s' "$system" | tr -c '[:alnum:]_' '_')
+    system_var="BK_SCHEDULER_EXTRA_ARGS_${system_key}"
+    printf '%s\n' "${!system_var:-${BK_SCHEDULER_EXTRA_ARGS:-}}"
     return 0
 }
 

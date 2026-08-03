@@ -547,12 +547,12 @@ command_delay = "30s"
 ### `config/system.csv` にシステムを追加
 
 ```csv
-system,mode,tag_build,tag_run,queue,queue_group,account
+system,mode,tag_build,tag_run,queue,queue_group
 # 既存エントリ...
 # cross モード（ビルドと実行が別ノード）
-NewSystem,cross,newsystem_login,newsystem_jacamar,PBS_NewSystem,default,
+NewSystem,cross,newsystem_login,newsystem_jacamar,PBS_NewSystem,default
 # native モード（同一ノードでビルドと実行）
-NewSystemLN,native,,newsystem_login,none,default,
+NewSystemLN,native,,newsystem_login,none,default
 ```
 
 - `system`: システム名（アプリの `list.csv` から参照される）
@@ -561,7 +561,6 @@ NewSystemLN,native,,newsystem_login,none,default,
 - `tag_run`: 実行用GitLab Runnerタグ（`native`の場合はbuild_runジョブ用）
 - `queue`: `config/queue.csv` のキュー名（ログインノードは `none`）
 - `queue_group`: キューグループ名
-- `account`: scheduler account/project。不要な拠点では空欄
 
 ### `config/queue.csv` にキューシステムを追加（必要な場合）
 
@@ -572,9 +571,13 @@ queue,submit_cmd,template
 PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=your_group"
 ```
 
-テンプレート内で使える変数：`${queue_group}`, `${account}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）, `${cpu_per_node}`, `${gpu_per_node}`, `${cpu_sockets}`（`nodes * cpu_per_node`）, `${gpu_cards}`（`nodes * gpu_per_node`）
+テンプレート内で使える変数：`${queue_group}`, `${scheduler_extra_args}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）, `${cpu_per_node}`, `${gpu_per_node}`, `${cpu_sockets}`（`nodes * cpu_per_node`）, `${gpu_cards}`（`nodes * gpu_per_node`）
 
 `${cpu_per_node}` と `${gpu_per_node}` は `config/system_info.csv` から取得します。CPU socket 数や GPU card 数を scheduler に明示するサイトでは、`system_info.csv` の値も投入条件に使われます。
+
+`${scheduler_extra_args}` は site-local な追加投入引数です。例えば scheduler account や project group のように、同じ system でも runner や課題枠ごとに変わる値は OSS repo の `system.csv` や `queue.csv` に固定せず、GitLab CI variable などで `BK_SCHEDULER_EXTRA_ARGS` または `BK_SCHEDULER_EXTRA_ARGS_<SYSTEM>` として渡します。
+
+GitLab CI では scheduler parameter は `matrix_generate.sh` 実行時に展開されるため、この値は対象 runner だけでなく matrix 生成 job からも見える必要があります。機密 token ではなく、scheduler に表示されてもよい project/account/group 引数だけに使ってください。
 
 ### `config/system_info.csv` に表示用メタデータを追加
 
