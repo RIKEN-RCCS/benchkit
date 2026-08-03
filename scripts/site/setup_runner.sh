@@ -237,8 +237,16 @@ mkdir -p "$work_dir"
 
 install_go() {
   local go_pkg="go${go_version}.linux-${go_arch}.tar.gz"
+  local go_url
   info "Installing Go ${go_version} (${go_arch})"
-  curl -fsSL "https://go.dev/dl/${go_pkg}" -o "${work_dir}/${go_pkg}"
+  for go_url in "https://go.dev/dl/${go_pkg}" "https://dl.google.com/go/${go_pkg}"; do
+    if curl -fsSL "$go_url" -o "${work_dir}/${go_pkg}"; then
+      break
+    fi
+    rm -f "${work_dir}/${go_pkg}"
+    info "Go download failed from ${go_url}; trying the next mirror"
+  done
+  [[ -s "${work_dir}/${go_pkg}" ]] || die "Failed to download ${go_pkg}"
   tar -C "$work_dir" -xzf "${work_dir}/${go_pkg}"
   export GOROOT="${work_dir}/go"
   export GOBIN="${GOROOT}/bin"
