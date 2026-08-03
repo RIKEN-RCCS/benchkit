@@ -109,6 +109,14 @@ def _configure_admin_policy(app):
     )
 
 
+def _configure_execution_profiles(app, base_dir):
+    """Configure the site-local execution profile database path."""
+    app.config["EXECUTION_PROFILE_DB_PATH"] = os.environ.get(
+        "RESULT_SERVER_DB_PATH",
+        os.path.join(base_dir, "cx_portal.sqlite3"),
+    )
+
+
 def _register_portal_blueprints(app, prefix):
     """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp
@@ -145,6 +153,7 @@ def create_app(prefix="", base_dir=None):
     _configure_result_directories(app, base_dir)
     _configure_upload_limits(app)
     _configure_admin_policy(app)
+    _configure_execution_profiles(app, base_dir)
     init_csrf(app, exempt_blueprints=(api_bp,))
 
     register_home_routes(app, prefix=prefix)

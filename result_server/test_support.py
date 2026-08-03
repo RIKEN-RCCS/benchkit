@@ -77,6 +77,10 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def users():
         return ""
 
+    @admin_bp.route("/execution-profiles")
+    def execution_profiles():
+        return ""
+
     @admin_bp.route("/users/add", methods=["POST"])
     def add_user():
         return ""

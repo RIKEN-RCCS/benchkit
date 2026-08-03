@@ -579,6 +579,42 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 
 GitLab CI では scheduler parameter は `matrix_generate.sh` 実行時に展開されるため、この値は対象 runner だけでなく matrix 生成 job からも見える必要があります。機密 token ではなく、scheduler に表示されてもよい project/account/group 引数だけに使ってください。
 
+定期実行や契機実行で、app 条件と project budget / account の対応を管理する場合は、CX Portal の execution profile に寄せる方針です。`BK_SCHEDULER_EXTRA_ARGS*` は、profile 連携前の bring-up や、profile を使わない site の低レベル escape hatch として残します。
+
+Execution profile の正本は OSS repo ではなく、Portal の実行環境に置く site-local SQLite DB です。`RESULT_SERVER_DB_PATH` で指定できます。指定しない場合は Portal data directory 配下の `cx_portal.sqlite3` を使います。
+
+JSON は、初期投入や移行 seed の補助形式として使えます。例:
+
+```json
+{
+  "profiles": [
+    {
+      "id": "rikyu-qws-nightly",
+      "display_name": "RIKYU QWS nightly",
+      "enabled": true,
+      "activity": "FugakuNEXT",
+      "owner": "project-owner-or-team",
+      "code": ["qws"],
+      "system": ["RIKYU"],
+      "exp": ["case0"],
+      "scheduler_extra_args": "--account=<site-local-account>",
+      "visibility": "public-results",
+      "valid_from": "2026-09-01",
+      "valid_until": "2027-03-31"
+    }
+  ]
+}
+```
+
+この JSON や SQLite DB には account や project group の実値が入り得るため、公開 OSS repo には commit しないでください。Portal では admin user だけが `/admin/execution-profiles` から確認できます。
+
+Execution profile を実行要求へ適用する場合、Portal は `enabled=true` かつ
+`status=approved` の profile だけを候補にします。`code` / `system` / `exp`
+scope は空なら wildcard、値が入っていればその値だけに一致します。profile ID
+を明示した場合も scope は検証されます。profile ID を明示しない場合は、最も
+具体的な scope を持つ profile を選び、同じ具体度の候補が複数ある場合は安全側
+で実行要求を曖昧として扱います。
+
 ### `config/system_info.csv` に表示用メタデータを追加
 
 Result Server や比較画面でシステム情報を見せるために、`system_info.csv` にも同じ system を追加します。

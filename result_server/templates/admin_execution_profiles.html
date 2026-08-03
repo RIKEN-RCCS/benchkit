@@ -1,0 +1,295 @@
+{% extends "_results_base.html" %}
+
+{% block title %}Execution Profiles{% endblock %}
+{% block page_subtitle %}Review site-local execution profiles, scheduler allocation bindings, and allowed target scopes.{% endblock %}
+
+{% block content %}
+<style>
+    .profile-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+    .profile-summary-card {
+        padding: 14px;
+        border: 1px solid #dce8ee;
+        border-radius: 12px;
+        background: #f7fbfc;
+    }
+    .profile-summary-card strong {
+        display: block;
+        font-size: 24px;
+        color: #0f172a;
+    }
+    .profile-status {
+        display: inline-flex;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .profile-status-enabled {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .profile-status-disabled {
+        background: #f4f4f5;
+        color: #52525b;
+    }
+    .profile-table td {
+        vertical-align: top;
+        white-space: normal;
+    }
+    .profile-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        word-break: break-word;
+    }
+    .profile-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+    }
+    .profile-form label {
+        display: grid;
+        gap: 6px;
+        color: #334155;
+        font-weight: 700;
+    }
+    .profile-form input,
+    .profile-form select,
+    .profile-form textarea {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .profile-form .profile-form-wide {
+        grid-column: 1 / -1;
+    }
+    .profile-form-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        grid-column: 1 / -1;
+    }
+    .profile-check-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+    }
+    .profile-check-label input {
+        width: auto;
+    }
+    .btn {
+        padding: 7px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+        border: 1px solid transparent;
+    }
+    .btn-primary { background-color: #0f766e; color: #fff; border-color: #0f766e; }
+    .btn-primary:hover { background-color: #0b5f59; color: #fff; }
+</style>
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+    {% for msg in messages %}
+    <div class="inline-notice">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+{% endwith %}
+
+<section class="page-card">
+    <h2 class="section-title">Execution Profiles</h2>
+    <p class="section-intro">
+        Execution profiles are site-local operational records stored in the
+        portal SQLite registry. They map approved application execution scopes
+        to scheduler allocation arguments without committing account or budget
+        values to the OSS repository.
+    </p>
+
+    <div class="profile-summary-grid">
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.profiles | length }}</strong>
+            <span>Total profiles</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.enabled_count }}</strong>
+            <span>Enabled</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.disabled_count }}</strong>
+            <span>Disabled</span>
+        </div>
+    </div>
+
+    <p><strong>Registry database:</strong> <span class="profile-mono">{{ profile_result.path or 'not configured' }}</span></p>
+
+    {% if not profile_result.exists %}
+    <div class="inline-notice">
+        No execution profiles are registered yet. The SQLite registry is created
+        automatically at RESULT_SERVER_DB_PATH, or at cx_portal.sqlite3 under
+        the portal data directory when RESULT_SERVER_DB_PATH is unset.
+    </div>
+    {% endif %}
+
+    {% if profile_result.errors %}
+    <div class="inline-notice">
+        <strong>Profile configuration issues:</strong>
+        <ul>
+            {% for error in profile_result.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+
+<section class="page-card">
+    <h2 class="section-title">Create / Update Profile</h2>
+    <p class="section-intro">
+        Enter the same profile ID to update an existing record. Use comma or
+        newline separated scope values. Leave a scope empty to allow all values
+        for that dimension.
+    </p>
+    <form method="POST" action="{{ url_for('admin.upsert_execution_profile') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <label>
+            Profile ID
+            <input type="text" name="id" required placeholder="rikyu-qws-nightly">
+        </label>
+        <label>
+            Display Name
+            <input type="text" name="display_name" placeholder="RIKYU QWS nightly">
+        </label>
+        <label>
+            Status
+            <select name="status">
+                <option value="draft">draft</option>
+                <option value="approved">approved</option>
+                <option value="paused">paused</option>
+                <option value="retired">retired</option>
+            </select>
+        </label>
+        <label>
+            Activity
+            <input type="text" name="activity" placeholder="FugakuNEXT">
+        </label>
+        <label>
+            Owner
+            <input type="text" name="owner" placeholder="project or team">
+        </label>
+        <label>
+            Visibility
+            <input type="text" name="visibility" placeholder="public-results">
+        </label>
+        <label>
+            Valid From
+            <input type="date" name="valid_from">
+        </label>
+        <label>
+            Valid Until
+            <input type="date" name="valid_until">
+        </label>
+        <label>
+            Approved By
+            <input type="text" name="approved_by" placeholder="admin@example.org">
+        </label>
+        <label>
+            Approved At
+            <input type="text" name="approved_at" placeholder="2026-09-01T00:00:00Z">
+        </label>
+        <label class="profile-form-wide">
+            Code Scope
+            <textarea name="code" rows="2" placeholder="qws, genesis"></textarea>
+        </label>
+        <label class="profile-form-wide">
+            System Scope
+            <textarea name="system" rows="2" placeholder="RIKYU, MiyabiG"></textarea>
+        </label>
+        <label class="profile-form-wide">
+            Exp Scope
+            <textarea name="exp" rows="2" placeholder="case0"></textarea>
+        </label>
+        <label class="profile-form-wide">
+            Scheduler Extra Args
+            <textarea name="scheduler_extra_args" rows="2" placeholder="--account=&lt;site-local-account&gt;"></textarea>
+        </label>
+        <label class="profile-form-wide">
+            Purpose
+            <textarea name="purpose" rows="2" placeholder="Why this profile exists and who approved it."></textarea>
+        </label>
+        <label class="profile-form-wide">
+            Metadata JSON
+            <textarea name="metadata_json" rows="3" placeholder='{"terms_version":"2026-07"}'></textarea>
+        </label>
+        <div class="profile-form-actions">
+            <label class="profile-check-label">
+                <input type="checkbox" name="enabled" checked>
+                Enabled
+            </label>
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+        </div>
+    </form>
+</section>
+
+<section class="page-card table-card">
+    <h2 class="section-title">Registered Profiles</h2>
+    <div class="table-wrap">
+        <table class="profile-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Scope</th>
+                    <th>Scheduler Args</th>
+                    <th>Governance</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for profile in profile_result.profiles %}
+                <tr>
+                    <td>
+                        <strong>{{ profile.display_name }}</strong><br>
+                        <span class="profile-mono">{{ profile.id }}</span>
+                    </td>
+                    <td>
+                        {% if profile.enabled %}
+                        <span class="profile-status profile-status-enabled">Enabled</span>
+                        {% else %}
+                        <span class="profile-status profile-status-disabled">Disabled</span>
+                        {% endif %}
+                        <br>{{ profile.status or 'draft' }}
+                    </td>
+                    <td>
+                        <strong>Code:</strong> {{ profile.code | join(', ') or '*' }}<br>
+                        <strong>System:</strong> {{ profile.system | join(', ') or '*' }}<br>
+                        <strong>Exp:</strong> {{ profile.exp | join(', ') or '*' }}
+                    </td>
+                    <td class="profile-mono">{{ profile.scheduler_extra_args or '-' }}</td>
+                    <td>
+                        <strong>Owner:</strong> {{ profile.owner or '-' }}<br>
+                        <strong>Activity:</strong> {{ profile.activity or '-' }}<br>
+                        <strong>Visibility:</strong> {{ profile.visibility or '-' }}<br>
+                        <strong>Approved by:</strong> {{ profile.approved_by or '-' }}<br>
+                        <strong>Valid:</strong>
+                        {{ profile.valid_from or '-' }} to {{ profile.valid_until or '-' }}<br>
+                        {% if profile.purpose %}
+                        <strong>Purpose:</strong> {{ profile.purpose }}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">No execution profiles are registered.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
