@@ -252,6 +252,7 @@ BenchKit の system / queue 定義層である。
 - app 側の `list.csv` から system 固有事情を切り離す
 
 `system.csv` は system 名、mode、runner tag、queue、queue_group などの正本である。
+project account、allocation、budget owner などの活動・課題枠に依存する値は、system の恒久的性質ではないため、OSS repo の `system.csv` や `queue.csv` には固定しない。
 
 This is the system and queue definition layer.
 
@@ -262,6 +263,7 @@ Main roles:
 - system-specific concerns are separated from app-side `list.csv`
 
 `system.csv` is the source of truth for items such as system name, mode, runner tag, queue, and queue_group.
+Activity-specific project accounts, allocations, and budget owners are not stable system properties and must not be fixed in the OSS `system.csv` or `queue.csv`.
 
 ### 6.4 ポータル層 / Portal Layer
 
@@ -279,9 +281,12 @@ BenchKit のポータル層である。
 - 使用量表示
 - 登録済み run 設定と shell 側の system 分岐に基づく app / system coverage 表示
 - 登録済み system / queue / system_info に対する軽い configuration checks
+- 管理者向け execution profile 表示
 - 結果品質サマリ表示（一覧・詳細・latest-result current-state summary・source tracking current-state を含む）
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
+
+Execution profile は、対象活動における実行登録・契機実行・定期実行の運用情報である。対象 app / exp / system、利用する allocation や scheduler 追加引数、公開範囲、所有者、有効期間を site-local に管理する。account や project group などの実値を OSS repo に載せず、CX Portal の admin 管理情報として SQLite registry に保持する。
 
 This is the portal layer of BenchKit.
 
@@ -297,9 +302,12 @@ Main roles:
 - usage views
 - application/system coverage views derived from registered run settings and shell-side system branches
 - lightweight configuration checks for registered system, queue, and system-info definitions
+- admin-facing execution profile views
 - result-quality summaries, including list/detail presentation, latest-result current-state summaries, and source-tracking current-state visibility
 - authentication and authorization
 - future integration points for request and approval workflows
+
+Execution profiles are operational records for execution registration, event-triggered runs, and periodic runs within a target activity. They define the target app / exp / system scope, allocation or scheduler extra arguments, visibility, owner, and validity period as site-local data. Concrete account or project-group values are stored in the CX Portal admin SQLite registry instead of being committed to the OSS repository.
 
 ## 7. データモデルの基本 / Core Data Model
 

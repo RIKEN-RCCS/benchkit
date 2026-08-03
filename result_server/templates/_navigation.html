@@ -122,6 +122,7 @@
             <div class="nav-dropdown-menu right">
                 {% if 'admin' in session.get('user_affiliations', []) %}
                 <a href="{{ url_for('admin.users') }}">Admin</a>
+                <a href="{{ url_for('admin.execution_profiles') }}">Execution Profiles</a>
                 <hr>
                 {% endif %}
                 <a href="{{ url_for('auth.logout') }}">Logout</a>

@@ -2,7 +2,9 @@
 
 from functools import wraps
 
+import json
 import logging
+import sqlite3
 
 from flask import (
     Blueprint,
@@ -19,6 +21,11 @@ from flask import (
 
 from utils.admin_policy import is_valid_email, parse_affiliations
 from utils.audit_logging import audit_event
+from utils.execution_profiles import (
+    ExecutionProfileStore,
+    load_execution_profiles,
+    normalize_profile,
+)
 from utils.rate_limit import rate_limited
 from utils.user_store import get_user_store
 
@@ -66,6 +73,55 @@ def _parse_requested_affiliations():
     return affiliations
 
 
+def _split_form_list(value):
+    """Parse a comma/newline separated form value into a list of strings."""
+    items = []
+    for chunk in value.replace("\n", ",").split(","):
+        text = chunk.strip()
+        if text:
+            items.append(text)
+    return items
+
+
+def _parse_execution_profile_form():
+    """Return a raw execution profile object from the submitted admin form."""
+    errors = []
+    metadata_raw = request.form.get("metadata_json", "").strip()
+    metadata = {}
+    if metadata_raw:
+        try:
+            metadata = json.loads(metadata_raw)
+        except json.JSONDecodeError as exc:
+            errors.append(f"metadata_json must be valid JSON: {exc.msg}")
+        else:
+            if not isinstance(metadata, dict):
+                errors.append("metadata_json must be a JSON object")
+                metadata = {}
+
+    actor = session.get("user_email", "")
+    raw_profile = {
+        "id": request.form.get("id", "").strip(),
+        "display_name": request.form.get("display_name", "").strip(),
+        "enabled": request.form.get("enabled") == "on",
+        "status": request.form.get("status", "").strip(),
+        "owner": request.form.get("owner", "").strip(),
+        "purpose": request.form.get("purpose", "").strip(),
+        "activity": request.form.get("activity", "").strip(),
+        "code": _split_form_list(request.form.get("code", "")),
+        "system": _split_form_list(request.form.get("system", "")),
+        "exp": _split_form_list(request.form.get("exp", "")),
+        "scheduler_extra_args": request.form.get("scheduler_extra_args", "").strip(),
+        "visibility": request.form.get("visibility", "").strip(),
+        "valid_from": request.form.get("valid_from", "").strip(),
+        "valid_until": request.form.get("valid_until", "").strip(),
+        "created_by": request.form.get("created_by", "").strip() or actor,
+        "approved_by": request.form.get("approved_by", "").strip(),
+        "approved_at": request.form.get("approved_at", "").strip(),
+        "metadata_json": metadata,
+    }
+    return raw_profile, errors
+
+
 def _user_affiliations(store, email):
     """Return the affiliations for a user, handling missing records uniformly."""
     if hasattr(store, "get_user"):
@@ -105,6 +161,73 @@ def admin_required(f):
 def users():
     """Render the user administration page."""
     return _render_users_page()
+
+
+@admin_bp.route("/execution-profiles", methods=["GET"])
+@admin_required
+def execution_profiles():
+    """Render site-local execution profiles for admin review."""
+    profile_result = load_execution_profiles(
+        current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    )
+    return render_template(
+        "admin_execution_profiles.html",
+        profile_result=profile_result,
+    )
+
+
+@admin_bp.route("/execution-profiles/upsert", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def upsert_execution_profile():
+    """Create or update a site-local execution profile."""
+    raw_profile, errors = _parse_execution_profile_form()
+    profile = None
+    if not errors:
+        profile, errors = normalize_profile(raw_profile)
+
+    if errors or profile is None:
+        audit_event(
+            "admin_execution_profile_rejected",
+            actor=session.get("user_email"),
+            target=raw_profile.get("id", "")[:128],
+            result="failure",
+            level=logging.WARNING,
+            details={"errors": errors},
+        )
+        flash("Execution profile was not saved: " + "; ".join(errors))
+        return redirect(url_for("admin.execution_profiles"))
+
+    try:
+        store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+        store.upsert_profile(profile, actor=session.get("user_email", ""))
+    except sqlite3.Error as exc:
+        audit_event(
+            "admin_execution_profile_save_failed",
+            actor=session.get("user_email"),
+            target=profile["id"],
+            result="failure",
+            level=logging.ERROR,
+            details={"error": str(exc)},
+        )
+        flash(f"Execution profile was not saved: {exc}")
+        return redirect(url_for("admin.execution_profiles"))
+
+    audit_event(
+        "admin_execution_profile_saved",
+        actor=session.get("user_email"),
+        target=profile["id"],
+        result="success",
+        details={
+            "enabled": profile["enabled"],
+            "status": profile["status"],
+            "code": profile["code"],
+            "system": profile["system"],
+            "exp": profile["exp"],
+        },
+    )
+    flash(f"Execution profile {profile['id']} saved.")
+    return redirect(url_for("admin.execution_profiles"))
 
 
 @admin_bp.route("/users/add", methods=["POST"])
