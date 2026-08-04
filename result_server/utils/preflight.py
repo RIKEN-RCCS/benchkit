@@ -33,10 +33,16 @@ def _validate_secret(name: str, value: str | None) -> list[str]:
     return errors
 
 
-def validate_ingest_keys(ingest_keys: Mapping[str, str]) -> list[str]:
+def validate_ingest_keys(
+    ingest_keys: Mapping[str, str],
+    *,
+    trusted_proxy_auth: str = "",
+) -> list[str]:
     """Return validation errors for runner-scoped ingest keys."""
     errors: list[str] = []
     if not ingest_keys:
+        if trusted_proxy_auth == "mtls":
+            return []
         return ["RESULT_SERVER_KEYS or RESULT_SERVER_KEY is not set"]
 
     for key, runner_id in ingest_keys.items():
@@ -53,7 +59,12 @@ def validate_production_config(
 ) -> list[str]:
     """Return production startup errors for insecure result_server config."""
     errors = _validate_secret("FLASK_SECRET_KEY", env.get("FLASK_SECRET_KEY"))
-    errors.extend(validate_ingest_keys(ingest_keys))
+    errors.extend(
+        validate_ingest_keys(
+            ingest_keys,
+            trusted_proxy_auth=env.get("RESULT_SERVER_TRUSTED_PROXY_AUTH", "").strip(),
+        )
+    )
     if env.get("FLASK_DEBUG") in {"1", "true", "True"}:
         errors.append("FLASK_DEBUG must not be enabled for app.py")
     return errors

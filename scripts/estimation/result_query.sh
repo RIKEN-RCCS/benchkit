@@ -9,7 +9,8 @@
 #   $2  code   (e.g. qws)
 #   $3  exp    (optional, e.g. default)
 #
-# Requires: RESULT_SERVER, RESULT_SERVER_KEY environment variables
+# Requires: RESULT_SERVER, RESULT_SERVER_CLIENT_CERT, and RESULT_SERVER_CLIENT_KEY
+# environment variables.
 # Sets: est_current_fom (FOM value from the selected baseline-system result)
 # Exits with 1 on failure.
 # ---------------------------------------------------------------------------

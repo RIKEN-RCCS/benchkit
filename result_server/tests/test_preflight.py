@@ -27,6 +27,10 @@ def test_accepts_parallel_rotation_keys_for_same_runner():
     assert validate_ingest_keys({old_key: "runner-a", new_key: "runner-a"}) == []
 
 
+def test_accepts_empty_ingest_keys_when_mtls_proxy_auth_is_configured():
+    assert validate_ingest_keys({}, trusted_proxy_auth="mtls") == []
+
+
 def test_rejects_short_flask_secret_key():
     env = {"FLASK_SECRET_KEY": "short"}
     errors = validate_production_config(env, {"runner-key-012345678901234567890": "runner-a"})
@@ -39,3 +43,12 @@ def test_accepts_strong_production_config():
     ingest_keys = {"runner-key-012345678901234567890": "runner-a"}
 
     assert validate_production_config(env, ingest_keys) == []
+
+
+def test_accepts_production_config_with_mtls_proxy_auth_without_ingest_keys():
+    env = {
+        "FLASK_SECRET_KEY": "flask-secret-012345678901234567890",
+        "RESULT_SERVER_TRUSTED_PROXY_AUTH": "mtls",
+    }
+
+    assert validate_production_config(env, {}) == []

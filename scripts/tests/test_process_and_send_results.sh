@@ -43,7 +43,8 @@ chmod -R a+rX "${TMP_DIR}/project/results"
 
 export PATH="${TMP_DIR}/bin:${PATH}"
 export RESULT_SERVER="https://example.invalid"
-export RESULT_SERVER_KEY="dummy"
+export RESULT_SERVER_CLIENT_CERT="${TMP_DIR}/client.crt"
+export RESULT_SERVER_CLIENT_KEY="${TMP_DIR}/client.key"
 
 pushd "${TMP_DIR}/project" >/dev/null
 bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345

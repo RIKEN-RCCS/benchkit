@@ -8,6 +8,14 @@ ls results/
 meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
 
+result_server_set_curl_args() {
+  if [[ -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
+    echo "ERROR: RESULT_SERVER_CLIENT_CERT and RESULT_SERVER_CLIENT_KEY must be set" >&2
+    exit 1
+  fi
+  curl_auth_args=(--cert "$RESULT_SERVER_CLIENT_CERT" --key "$RESULT_SERVER_CLIENT_KEY")
+}
+
 # Backfill profile_data for older result JSONs that were produced before
 # result.sh learned to embed profiler summaries. The summary comes from
 # bk_profiler_artifact/meta.json inside the matching padata archive; raw
@@ -65,8 +73,9 @@ upload_padata_archive() {
   local response
 
   echo "Uploading $tgz_file with UUID $uuid"
-  if response=$(curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/padata" \
-    -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+  local curl_auth_args=()
+  result_server_set_curl_args
+  if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/padata" \
     -F "id=${uuid}" \
     -F "timestamp=${timestamp}" \
     -F "file=@${tgz_file}" 2>&1); then
@@ -120,8 +129,9 @@ for json_file in results/result*.json; do
   echo "Posting $json_file to ${RESULT_SERVER}/api/ingest/result"
 
   # Post JSON and capture response
-  response=$(curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/result" \
-    -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+  curl_auth_args=()
+  result_server_set_curl_args
+  response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file")
 

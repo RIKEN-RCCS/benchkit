@@ -13,7 +13,7 @@ from typing import Any
 
 
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -159,6 +159,9 @@ class ExecutionProfileStore:
             ).fetchone()["version"]
             if current < 1:
                 self._apply_v1(conn)
+                current = 1
+            if current < 2:
+                self._apply_v2(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -203,7 +206,34 @@ class ExecutionProfileStore:
         )
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-            (SCHEMA_VERSION, now),
+            (1, now),
+        )
+
+    def _apply_v2(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE execution_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                dry_run INTEGER NOT NULL DEFAULT 1,
+                profile_id TEXT NOT NULL DEFAULT '',
+                target_ref TEXT NOT NULL DEFAULT '',
+                code TEXT NOT NULL DEFAULT '',
+                system TEXT NOT NULL DEFAULT '',
+                exp TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                errors_json TEXT NOT NULL DEFAULT '[]',
+                actor TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (2, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
@@ -404,6 +434,51 @@ class ExecutionProfileStore:
                 errors=[f"multiple execution profiles match target: {ids}"],
             )
         return ExecutionProfileResolveResult(profile=matches[0], errors=[])
+
+    def create_execution_request(
+        self,
+        *,
+        request_type: str,
+        status: str,
+        dry_run: bool,
+        profile_id: str = "",
+        target_ref: str = "",
+        code: str = "",
+        system: str = "",
+        exp: str = "",
+        payload: dict[str, Any] | None = None,
+        errors: list[str] | None = None,
+        actor: str = "",
+    ) -> int:
+        """Record a Portal-triggered execution request or dry-run preview."""
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO execution_requests (
+                    request_type, status, dry_run, profile_id, target_ref,
+                    code, system, exp, payload_json, errors_json, actor,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    request_type,
+                    status,
+                    1 if dry_run else 0,
+                    profile_id,
+                    target_ref,
+                    code,
+                    system,
+                    exp,
+                    _json_dump(payload or {}),
+                    json.dumps(errors or [], ensure_ascii=False),
+                    actor,
+                    now,
+                    now,
+                ),
+            )
+            return int(cur.lastrowid)
 
 
 def load_execution_profiles(db_path: str | None) -> ExecutionProfileLoadResult:

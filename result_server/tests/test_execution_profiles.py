@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 
@@ -193,6 +194,31 @@ def test_execution_profile_store_validates_requested_profile_scope(tmp_path):
     assert result.errors == ["execution profile is not approved for target: rikyu-qws"]
 
 
+def test_execution_profile_store_records_dry_run_request(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+
+    request_id = store.create_execution_request(
+        request_type="gitlab_pipeline",
+        status="dry_run_ready",
+        dry_run=True,
+        profile_id="rikyu-qws-nightly",
+        target_ref="develop",
+        code="qws",
+        system="RIKYU",
+        exp="case0",
+        payload={"payload": {"ref": "develop", "variables": []}},
+        actor="admin@test.com",
+    )
+
+    assert request_id == 1
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT status, dry_run, profile_id, target_ref FROM execution_requests"
+        ).fetchone()
+    assert row == ("dry_run_ready", 1, "rikyu-qws-nightly", "develop")
+
+
 def test_import_execution_profiles_json_seeds_sqlite_registry(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     seed_path = tmp_path / "execution_profiles.json"
@@ -342,5 +368,70 @@ def test_admin_execution_profiles_rejects_invalid_metadata_json(tmp_path):
         assert resp.status_code == 200
         assert b"metadata_json must be a JSON object" in resp.data
         assert result.profiles == []
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/dry-run-submit",
+                data={
+                    "target_ref": "develop",
+                    "code": "qws",
+                    "system": "RIKYU",
+                    "exp": "case0",
+                },
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Dry-run request #1" in html
+        assert "dry_run_ready" in html
+        assert "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline" in html
+        assert "--account=site-local" in html
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT status, profile_id, code, system, payload_json FROM execution_requests"
+            ).fetchone()
+        assert row[:4] == ("dry_run_ready", "rikyu-qws-nightly", "qws", "RIKYU")
+        payload_record = json.loads(row[4])
+        variables = payload_record["payload"]["variables"]
+        assert {"key": "code", "value": "qws", "variable_type": "env_var"} in variables
+        assert {
+            "key": "BK_SCHEDULER_EXTRA_ARGS_RIKYU",
+            "value": "--account=site-local",
+            "variable_type": "env_var",
+        } in variables
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/dry-run-submit",
+                data={"target_ref": "develop", "code": "qws", "system": "RIKYU"},
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "dry_run_blocked" in html
+        assert "no approved execution profile matches target" in html
     finally:
         _cleanup(temp_dirs)

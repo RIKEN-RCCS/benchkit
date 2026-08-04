@@ -54,8 +54,14 @@ def _configure_redis(app, prefix):
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     app.config["REDIS_CONN"] = redis.from_url(redis_url, decode_responses=True)
-    app.config["REDIS_PREFIX"] = "dev:" if prefix == "/dev" else "main:"
-    app.config["SESSION_COOKIE_NAME"] = "session_dev" if prefix == "/dev" else "session_main"
+    app.config["REDIS_PREFIX"] = os.environ.get(
+        "RESULT_SERVER_REDIS_PREFIX",
+        "dev:" if prefix == "/dev" else "main:",
+    )
+    app.config["SESSION_COOKIE_NAME"] = os.environ.get(
+        "RESULT_SERVER_SESSION_COOKIE_NAME",
+        "session_dev" if prefix == "/dev" else "session_main",
+    )
     app.config["AUTH_REQUIRES_REDIS"] = True
 
 
@@ -109,6 +115,14 @@ def _configure_admin_policy(app):
     )
 
 
+def _configure_api_auth(app):
+    """Configure API authentication modes accepted behind the reverse proxy."""
+    app.config["TRUSTED_PROXY_AUTH"] = os.environ.get(
+        "RESULT_SERVER_TRUSTED_PROXY_AUTH",
+        "",
+    ).strip()
+
+
 def _configure_execution_profiles(app, base_dir):
     """Configure the site-local execution profile database path."""
     app.config["EXECUTION_PROFILE_DB_PATH"] = os.environ.get(
@@ -153,6 +167,7 @@ def create_app(prefix="", base_dir=None):
     _configure_result_directories(app, base_dir)
     _configure_upload_limits(app)
     _configure_admin_policy(app)
+    _configure_api_auth(app)
     _configure_execution_profiles(app, base_dir)
     init_csrf(app, exempt_blueprints=(api_bp,))
 

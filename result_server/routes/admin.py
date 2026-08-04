@@ -26,6 +26,7 @@ from utils.execution_profiles import (
     load_execution_profiles,
     normalize_profile,
 )
+from utils.gitlab_pipeline import build_pipeline_plan, configured_gitlab_repo
 from utils.rate_limit import rate_limited
 from utils.user_store import get_user_store
 
@@ -122,6 +123,10 @@ def _parse_execution_profile_form():
     return raw_profile, errors
 
 
+def _parse_bool_form(name):
+    return request.form.get(name) == "on"
+
+
 def _user_affiliations(store, email):
     """Return the affiliations for a user, handling missing records uniformly."""
     if hasattr(store, "get_user"):
@@ -173,6 +178,7 @@ def execution_profiles():
     return render_template(
         "admin_execution_profiles.html",
         profile_result=profile_result,
+        dry_run_result=None,
     )
 
 
@@ -228,6 +234,88 @@ def upsert_execution_profile():
     )
     flash(f"Execution profile {profile['id']} saved.")
     return redirect(url_for("admin.execution_profiles"))
+
+
+@admin_bp.route("/execution-profiles/dry-run-submit", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def dry_run_execution_profile_submit():
+    """Resolve an execution profile and render a GitLab Pipeline API dry run."""
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    store = ExecutionProfileStore(db_path)
+    target_ref = request.form.get("target_ref", "").strip() or "develop"
+    profile_id = request.form.get("profile_id", "").strip()
+    code = request.form.get("code", "").strip()
+    system = request.form.get("system", "").strip()
+    exp = request.form.get("exp", "").strip()
+    app = request.form.get("app", "").strip()
+    benchpark = _parse_bool_form("benchpark")
+    park_only = _parse_bool_form("park_only")
+    park_send = _parse_bool_form("park_send")
+
+    resolve_result = store.resolve_profile(
+        profile_id=profile_id,
+        code=code,
+        system=system,
+        exp=exp,
+    )
+    profile = resolve_result.profile
+    plan = build_pipeline_plan(
+        gitlab_repo=configured_gitlab_repo(),
+        target_ref=target_ref,
+        code=code,
+        system=system,
+        app=app,
+        benchpark=benchpark,
+        park_only=park_only,
+        park_send=park_send,
+        scheduler_extra_args=resolve_result.scheduler_extra_args,
+    )
+    errors = resolve_result.errors + plan.errors
+    status = "dry_run_ready" if not errors else "dry_run_blocked"
+    request_id = store.create_execution_request(
+        request_type="gitlab_pipeline",
+        status=status,
+        dry_run=True,
+        profile_id=profile["id"] if profile else profile_id,
+        target_ref=target_ref,
+        code=code,
+        system=system,
+        exp=exp,
+        payload={"api_url": plan.api_url, "payload": plan.payload},
+        errors=errors,
+        actor=session.get("user_email", ""),
+    )
+
+    audit_event(
+        "admin_execution_profile_submit_dry_run",
+        actor=session.get("user_email"),
+        target=profile["id"] if profile else profile_id,
+        result="success" if not errors else "failure",
+        details={
+            "request_id": request_id,
+            "target_ref": target_ref,
+            "code": code,
+            "system": system,
+            "exp": exp,
+            "errors": errors,
+        },
+    )
+
+    profile_result = load_execution_profiles(db_path)
+    return render_template(
+        "admin_execution_profiles.html",
+        profile_result=profile_result,
+        dry_run_result={
+            "request_id": request_id,
+            "status": status,
+            "profile": profile,
+            "api_url": plan.api_url,
+            "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
+            "errors": errors,
+            "warnings": plan.warnings,
+        },
+    )
 
 
 @admin_bp.route("/users/add", methods=["POST"])

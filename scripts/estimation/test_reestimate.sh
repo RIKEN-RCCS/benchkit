@@ -24,8 +24,8 @@ if [[ ! -d "programs/$code" ]]; then
   exit 1
 fi
 
-if [[ -z "${RESULT_SERVER:-}" || -z "${RESULT_SERVER_KEY:-}" ]]; then
-  echo "ERROR: RESULT_SERVER and RESULT_SERVER_KEY must be set" >&2
+if [[ -z "${RESULT_SERVER:-}" || -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
+  echo "ERROR: RESULT_SERVER, RESULT_SERVER_CLIENT_CERT, and RESULT_SERVER_CLIENT_KEY must be set" >&2
   exit 1
 fi
 
