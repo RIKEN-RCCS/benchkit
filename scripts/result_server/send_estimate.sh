@@ -6,6 +6,14 @@ set -euo pipefail
 
 echo "Sending estimate results to server"
 
+result_server_set_curl_args() {
+  if [[ -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
+    echo "ERROR: RESULT_SERVER_CLIENT_CERT and RESULT_SERVER_CLIENT_KEY must be set" >&2
+    exit 1
+  fi
+  curl_auth_args=(--cert "$RESULT_SERVER_CLIENT_CERT" --key "$RESULT_SERVER_CLIENT_KEY")
+}
+
 upload_estimation_artifacts() {
   local json_file="$1"
   local source_uuid="$2"
@@ -41,8 +49,9 @@ upload_estimation_artifacts() {
 
   endpoints=("/api/ingest/estimation-artifacts" "/api/ingest/estimation-inputs")
   for endpoint in "${endpoints[@]}"; do
-    if response=$(curl --fail -sS -X POST "${RESULT_SERVER}${endpoint}" \
-      -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+    local curl_auth_args=()
+    result_server_set_curl_args
+    if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}${endpoint}" \
       -F "id=${source_uuid}" \
       -F "file=@${archive}" 2>&1); then
       upload_ok=1
@@ -89,8 +98,9 @@ for json_file in results/estimate*.json; do
     // empty
   ' "$json_file")
   echo "Posting $json_file to ${RESULT_SERVER}/api/ingest/estimate"
-  curl --fail -sS -X POST "${RESULT_SERVER}/api/ingest/estimate" \
-    -H "X-API-Key: ${RESULT_SERVER_KEY}" \
+  curl_auth_args=()
+  result_server_set_curl_args
+  curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/estimate" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file"
   echo ""

@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 from datetime import datetime
 
-from utils.auth import verify_ingest_key
+from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
 from utils.rate_limit import rate_limited
 
@@ -28,19 +28,29 @@ DEFAULT_MAX_ARCHIVE_MEMBER_SIZE = 1024 * 1024 * 1024
 def require_api_key():
     """Validate the request API key and return the authenticated runner id."""
     runner_id = verify_ingest_key(request.headers.get("X-API-Key", ""))
+    auth_method = "api_key"
+    if not runner_id:
+        runner_id = verify_trusted_proxy_auth(request.headers)
+        auth_method = "trusted_proxy"
     if not runner_id:
         audit_event(
             "api_auth_failed",
             result="failure",
             level=logging.WARNING,
-            details={"reason": "invalid_api_key"},
+            details={"reason": "invalid_api_key_or_proxy_auth"},
         )
         abort(401, description="Invalid API Key")
-    audit_event("api_auth_success", actor=runner_id, result="success")
+    audit_event(
+        "api_auth_success",
+        actor=runner_id,
+        result="success",
+        details={"auth_method": auth_method},
+    )
     current_app.logger.info(
-        "api key accepted",
+        "api auth accepted",
         extra={
             "runner_id": runner_id,
+            "auth_method": auth_method,
             "endpoint": request.path,
             "ip": request.remote_addr,
         },
@@ -50,7 +60,11 @@ def require_api_key():
 
 def _api_rate_key(req):
     """Return the runner-scoped API rate-limit key for a request."""
-    runner_id = verify_ingest_key(req.headers.get("X-API-Key", "")) or "unknown"
+    runner_id = (
+        verify_ingest_key(req.headers.get("X-API-Key", ""))
+        or verify_trusted_proxy_auth(req.headers)
+        or "unknown"
+    )
     return f"runner:{runner_id}"
 
 

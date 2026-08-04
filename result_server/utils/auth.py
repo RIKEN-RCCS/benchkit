@@ -11,6 +11,11 @@ from typing import Optional
 from flask import current_app
 
 
+MTLS_VERIFY_HEADER = "X-Result-Server-Client-Verify"
+MTLS_FINGERPRINT_HEADER = "X-Result-Server-Client-Fingerprint"
+MTLS_DN_HEADER = "X-Result-Server-Client-DN"
+
+
 def parse_ingest_keys(env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Parse RESULT_SERVER_KEYS/RESULT_SERVER_KEY into {api_key: runner_id}."""
     env = env or os.environ
@@ -63,3 +68,20 @@ def verify_ingest_key(presented: str | None) -> Optional[str]:
         if hmac.compare_digest(presented, configured_key):
             return runner_id
     return None
+
+
+def verify_trusted_proxy_auth(headers: Mapping[str, str]) -> Optional[str]:
+    """Return a runner id when nginx has verified a configured proxy auth method."""
+    if current_app.config.get("TRUSTED_PROXY_AUTH") != "mtls":
+        return None
+
+    if headers.get(MTLS_VERIFY_HEADER, "") != "SUCCESS":
+        return None
+
+    fingerprint = headers.get(MTLS_FINGERPRINT_HEADER, "").strip()
+    subject = headers.get(MTLS_DN_HEADER, "").strip()
+    if fingerprint:
+        return f"mtls:{fingerprint}"
+    if subject:
+        return f"mtls:{subject}"
+    return "mtls:verified-client"

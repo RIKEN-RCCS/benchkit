@@ -96,9 +96,34 @@ class TestIngestResult:
 
         assert resp.status_code == 200
         assert any(
-            record.message == "api key accepted"
+            record.message == "api auth accepted"
             and getattr(record, "runner_id", None) == "test-runner"
+            and getattr(record, "auth_method", None) == "api_key"
             and getattr(record, "endpoint", None) == "/api/ingest/result"
+            for record in caplog.records
+        )
+
+    def test_trusted_proxy_mtls_auth_is_accepted_without_api_key(self, app, caplog):
+        """nginx-verified mTLS can authenticate API requests without shared keys."""
+        app.config["INGEST_KEYS"] = {}
+        app.config["TRUSTED_PROXY_AUTH"] = "mtls"
+
+        with app.test_client() as client, caplog.at_level(logging.INFO):
+            resp = client.post(
+                "/api/ingest/result",
+                data=b'{"code":"mtls"}',
+                headers={
+                    "X-Result-Server-Client-Verify": "SUCCESS",
+                    "X-Result-Server-Client-Fingerprint": "AA:BB:CC",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert any(
+            record.message == "api auth accepted"
+            and getattr(record, "runner_id", None) == "mtls:AA:BB:CC"
+            and getattr(record, "auth_method", None) == "trusted_proxy"
             for record in caplog.records
         )
 

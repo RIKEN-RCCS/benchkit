@@ -93,6 +93,17 @@
     }
     .btn-primary { background-color: #0f766e; color: #fff; border-color: #0f766e; }
     .btn-primary:hover { background-color: #0b5f59; color: #fff; }
+    .btn-secondary { background-color: #1f2937; color: #fff; border-color: #1f2937; }
+    .btn-secondary:hover { background-color: #111827; color: #fff; }
+    .profile-dry-run-output {
+        margin-top: 14px;
+        padding: 12px;
+        overflow-x: auto;
+        border: 1px solid #d8e2e8;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+    }
 </style>
 
 {% with messages = get_flashed_messages() %}
@@ -235,6 +246,88 @@
             <button type="submit" class="btn btn-primary">Save Profile</button>
         </div>
     </form>
+</section>
+
+<section class="page-card">
+    <h2 class="section-title">GitLab Pipeline Dry Run</h2>
+    <p class="section-intro">
+        Resolve an approved profile for a target scope and preview the GitLab
+        Pipeline API request. This does not submit a pipeline.
+    </p>
+    <form method="POST" action="{{ url_for('admin.dry_run_execution_profile_submit') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <label>
+            Target Ref
+            <input type="text" name="target_ref" value="develop" required>
+        </label>
+        <label>
+            Profile ID
+            <input type="text" name="profile_id" placeholder="optional explicit profile">
+        </label>
+        <label>
+            Code
+            <input type="text" name="code" placeholder="qws">
+        </label>
+        <label>
+            System
+            <input type="text" name="system" placeholder="RIKYU">
+        </label>
+        <label>
+            Exp
+            <input type="text" name="exp" placeholder="case0">
+        </label>
+        <label>
+            BenchPark App
+            <input type="text" name="app" placeholder="osu-micro-benchmarks">
+        </label>
+        <div class="profile-form-actions">
+            <label class="profile-check-label">
+                <input type="checkbox" name="benchpark">
+                benchpark
+            </label>
+            <label class="profile-check-label">
+                <input type="checkbox" name="park_only">
+                park_only
+            </label>
+            <label class="profile-check-label">
+                <input type="checkbox" name="park_send">
+                park_send
+            </label>
+            <button type="submit" class="btn btn-secondary">Preview Payload</button>
+        </div>
+    </form>
+
+    {% if dry_run_result %}
+    <div class="inline-notice">
+        <strong>Dry-run request #{{ dry_run_result.request_id }}:</strong>
+        {{ dry_run_result.status }}
+        {% if dry_run_result.profile %}
+        using profile <span class="profile-mono">{{ dry_run_result.profile.id }}</span>
+        {% endif %}
+    </div>
+    {% if dry_run_result.errors %}
+    <div class="inline-notice">
+        <strong>Dry-run blockers:</strong>
+        <ul>
+            {% for error in dry_run_result.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% if dry_run_result.warnings %}
+    <div class="inline-notice">
+        <strong>Dry-run warnings:</strong>
+        <ul>
+            {% for warning in dry_run_result.warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    <p><strong>API URL:</strong> <span class="profile-mono">{{ dry_run_result.api_url or 'not configured' }}</span></p>
+    <pre class="profile-dry-run-output">{{ dry_run_result.payload_json }}</pre>
+    {% endif %}
 </section>
 
 <section class="page-card table-card">
