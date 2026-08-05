@@ -28,7 +28,8 @@ from utils.execution_profiles import (
 )
 from utils.gitlab_pipeline import (
     build_pipeline_plan,
-    configured_gitlab_repo,
+    configured_gitlab_target,
+    configured_gitlab_targets,
     configured_gitlab_token,
     submit_pipeline_plan,
 )
@@ -136,6 +137,7 @@ def _build_execution_pipeline_plan(store):
     """Resolve the submitted target and build a GitLab pipeline plan."""
     target_ref = request.form.get("target_ref", "").strip() or "develop"
     profile_id = request.form.get("profile_id", "").strip()
+    gitlab_target_id = request.form.get("gitlab_target", "").strip()
     code = request.form.get("code", "").strip()
     system = request.form.get("system", "").strip()
     exp = request.form.get("exp", "").strip()
@@ -151,8 +153,9 @@ def _build_execution_pipeline_plan(store):
         exp=exp,
     )
     profile = resolve_result.profile
+    gitlab_target, target_errors = configured_gitlab_target(gitlab_target_id)
     plan = build_pipeline_plan(
-        gitlab_repo=configured_gitlab_repo(),
+        gitlab_repo=gitlab_target.repo if gitlab_target else "",
         target_ref=target_ref,
         code=code,
         system=system,
@@ -161,16 +164,19 @@ def _build_execution_pipeline_plan(store):
         park_only=park_only,
         park_send=park_send,
         scheduler_extra_args=resolve_result.scheduler_extra_args,
+        target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )
     return {
         "target_ref": target_ref,
         "profile_id": profile_id,
+        "gitlab_target": gitlab_target,
+        "gitlab_target_id": gitlab_target.id if gitlab_target else gitlab_target_id,
         "code": code,
         "system": system,
         "exp": exp,
         "profile": profile,
         "plan": plan,
-        "errors": resolve_result.errors + plan.errors,
+        "errors": target_errors + resolve_result.errors + plan.errors,
     }
 
 
@@ -226,6 +232,8 @@ def execution_profiles():
         "admin_execution_profiles.html",
         profile_result=profile_result,
         dry_run_result=None,
+        submit_result=None,
+        gitlab_targets=configured_gitlab_targets()[0],
     )
 
 
@@ -293,6 +301,7 @@ def dry_run_execution_profile_submit():
     submit_plan = _build_execution_pipeline_plan(store)
     target_ref = submit_plan["target_ref"]
     profile_id = submit_plan["profile_id"]
+    gitlab_target_id = submit_plan["gitlab_target_id"]
     code = submit_plan["code"]
     system = submit_plan["system"]
     exp = submit_plan["exp"]
@@ -309,7 +318,11 @@ def dry_run_execution_profile_submit():
         code=code,
         system=system,
         exp=exp,
-        payload={"api_url": plan.api_url, "payload": plan.payload},
+        payload={
+            "api_url": plan.api_url,
+            "gitlab_target": gitlab_target_id,
+            "payload": plan.payload,
+        },
         errors=errors,
         actor=session.get("user_email", ""),
     )
@@ -322,6 +335,7 @@ def dry_run_execution_profile_submit():
         details={
             "request_id": request_id,
             "target_ref": target_ref,
+            "gitlab_target": gitlab_target_id,
             "code": code,
             "system": system,
             "exp": exp,
@@ -338,11 +352,13 @@ def dry_run_execution_profile_submit():
             "status": status,
             "profile": profile,
             "api_url": plan.api_url,
+            "gitlab_target": gitlab_target_id,
             "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
             "errors": errors,
             "warnings": plan.warnings,
         },
         submit_result=None,
+        gitlab_targets=configured_gitlab_targets()[0],
     )
 
 
@@ -356,6 +372,8 @@ def submit_execution_profile_pipeline():
     submit_plan = _build_execution_pipeline_plan(store)
     target_ref = submit_plan["target_ref"]
     profile_id = submit_plan["profile_id"]
+    gitlab_target = submit_plan["gitlab_target"]
+    gitlab_target_id = submit_plan["gitlab_target_id"]
     code = submit_plan["code"]
     system = submit_plan["system"]
     exp = submit_plan["exp"]
@@ -370,7 +388,7 @@ def submit_execution_profile_pipeline():
     if not errors:
         submit_result = submit_pipeline_plan(
             plan,
-            token=configured_gitlab_token(),
+            token=configured_gitlab_token(gitlab_target),
         )
         errors.extend(submit_result.errors)
 
@@ -381,6 +399,8 @@ def submit_execution_profile_pipeline():
     else:
         status = "submit_blocked"
     payload = {"api_url": plan.api_url, "payload": plan.payload}
+    if gitlab_target_id:
+        payload["gitlab_target"] = gitlab_target_id
     if submit_result is not None:
         payload["submit"] = {
             "status_code": submit_result.status_code,
@@ -408,6 +428,7 @@ def submit_execution_profile_pipeline():
         details={
             "request_id": request_id,
             "target_ref": target_ref,
+            "gitlab_target": gitlab_target_id,
             "code": code,
             "system": system,
             "exp": exp,
@@ -427,12 +448,14 @@ def submit_execution_profile_pipeline():
             "status": status,
             "profile": profile,
             "api_url": plan.api_url,
+            "gitlab_target": gitlab_target_id,
             "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
             "errors": errors,
             "warnings": plan.warnings,
             "response": submit_result.response if submit_result else {},
             "status_code": submit_result.status_code if submit_result else 0,
         },
+        gitlab_targets=configured_gitlab_targets()[0],
     )
 
 

@@ -24,6 +24,9 @@ from utils.execution_profiles import (  # noqa: E402
 from utils.gitlab_pipeline import (  # noqa: E402
     GitLabPipelineSubmitResult,
     build_pipeline_plan,
+    configured_gitlab_target,
+    configured_gitlab_targets,
+    configured_gitlab_token,
     submit_pipeline_plan,
 )
 
@@ -494,6 +497,27 @@ def test_gitlab_pipeline_submit_blocks_without_token():
     assert result.errors == ["RESULT_SERVER_GITLAB_TOKEN is not set"]
 
 
+def test_gitlab_pipeline_targets_parse_multiple_destinations():
+    env = {
+        "RESULT_SERVER_GITLAB_TARGETS": (
+            "swc=gitlab.swc.example.org/fugakunext/benchmark/benchkit,"
+            "gitlab_com=gitlab.com/yoshifuminakamura/benchkit"
+        ),
+        "RESULT_SERVER_GITLAB_TOKEN_SWC": "swc-token",
+        "RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM": "com-token",
+    }
+
+    targets, errors = configured_gitlab_targets(env)
+    selected, selected_errors = configured_gitlab_target("gitlab_com", env)
+
+    assert errors == []
+    assert [target.id for target in targets] == ["swc", "gitlab_com"]
+    assert targets[0].token_env == "RESULT_SERVER_GITLAB_TOKEN_SWC"
+    assert selected_errors == []
+    assert selected.repo == "gitlab.com/yoshifuminakamura/benchkit"
+    assert configured_gitlab_token(selected, env) == "com-token"
+
+
 def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
     tmp_path,
     monkeypatch,
@@ -549,6 +573,64 @@ def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
         assert payload_record["submit"]["status_code"] == 201
         assert payload_record["submit"]["response"]["id"] == 123
         assert "secret-token" not in row[3]
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv("RESULT_SERVER_GITLAB_REPO", raising=False)
+    monkeypatch.delenv("RESULT_SERVER_GITLAB_TOKEN", raising=False)
+    monkeypatch.setenv(
+        "RESULT_SERVER_GITLAB_TARGETS",
+        "swc=gitlab.swc.example.org/fugakunext/benchmark/benchkit,"
+        "gitlab_com=gitlab.com/yoshifuminakamura/benchkit",
+    )
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM", "com-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+
+    def fake_submit(plan, *, token):
+        assert token == "com-token"
+        assert plan.target_id == "gitlab_com"
+        assert plan.api_url == "https://gitlab.com/api/v4/projects/yoshifuminakamura%2Fbenchkit/pipeline"
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 456, "web_url": "https://gitlab.com/p/456"},
+            errors=[],
+        )
+
+    monkeypatch.setattr("routes.admin.submit_pipeline_plan", fake_submit)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/submit",
+                data={
+                    "gitlab_target": "gitlab_com",
+                    "target_ref": "develop",
+                    "code": "qws",
+                    "system": "RIKYU",
+                    "exp": "case0",
+                    "confirm_submit": "on",
+                },
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "submitted" in html
+        assert "gitlab_com" in html
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM execution_requests"
+            ).fetchone()
+        payload_record = json.loads(row[0])
+        assert payload_record["gitlab_target"] == "gitlab_com"
+        assert payload_record["submit"]["response"]["id"] == 456
     finally:
         _cleanup(temp_dirs)
 

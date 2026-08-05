@@ -12,6 +12,16 @@ from typing import Any
 
 
 GITLAB_REPO_RE = re.compile(r"^[A-Za-z0-9_.:-]+/[A-Za-z0-9_.~/:-]+(?:\\.git)?$")
+GITLAB_TARGET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+
+@dataclass(frozen=True)
+class GitLabPipelineTarget:
+    """Configured GitLab pipeline destination."""
+
+    id: str
+    repo: str
+    token_env: str
 
 
 @dataclass(frozen=True)
@@ -22,6 +32,7 @@ class GitLabPipelinePlan:
     payload: dict[str, Any]
     errors: list[str]
     warnings: list[str]
+    target_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -46,9 +57,93 @@ def configured_gitlab_repo(env: dict[str, str] | None = None) -> str:
     )
 
 
-def configured_gitlab_token(env: dict[str, str] | None = None) -> str:
+def _target_token_env(target_id: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9]", "_", target_id).upper()
+    return f"RESULT_SERVER_GITLAB_TOKEN_{normalized}"
+
+
+def configured_gitlab_targets(
+    env: dict[str, str] | None = None,
+) -> tuple[list[GitLabPipelineTarget], list[str]]:
+    """Return configured GitLab pipeline targets and validation errors."""
+    source = env if env is not None else os.environ
+    raw_targets = source.get("RESULT_SERVER_GITLAB_TARGETS", "").strip()
+    targets: list[GitLabPipelineTarget] = []
+    errors: list[str] = []
+    seen: set[str] = set()
+
+    if raw_targets:
+        for chunk in raw_targets.replace("\n", ",").split(","):
+            entry = chunk.strip()
+            if not entry:
+                continue
+            if "=" not in entry:
+                errors.append(
+                    "RESULT_SERVER_GITLAB_TARGETS entries must use target=host/path"
+                )
+                continue
+            target_id, repo = [part.strip() for part in entry.split("=", 1)]
+            if not GITLAB_TARGET_ID_RE.match(target_id):
+                errors.append(f"invalid GitLab target id: {target_id}")
+                continue
+            if target_id in seen:
+                errors.append(f"duplicate GitLab target id: {target_id}")
+                continue
+            seen.add(target_id)
+            targets.append(
+                GitLabPipelineTarget(
+                    id=target_id,
+                    repo=repo,
+                    token_env=_target_token_env(target_id),
+                )
+            )
+        return targets, errors
+
+    repo = configured_gitlab_repo(source)
+    if repo:
+        targets.append(
+            GitLabPipelineTarget(
+                id="default",
+                repo=repo,
+                token_env="RESULT_SERVER_GITLAB_TOKEN",
+            )
+        )
+    return targets, errors
+
+
+def configured_gitlab_target(
+    target_id: str = "",
+    env: dict[str, str] | None = None,
+) -> tuple[GitLabPipelineTarget | None, list[str]]:
+    """Return the selected GitLab target, defaulting to the first configured target."""
+    targets, errors = configured_gitlab_targets(env)
+    if errors:
+        return None, errors
+    if not targets:
+        return None, ["RESULT_SERVER_GITLAB_REPO or RESULT_SERVER_GITLAB_TARGETS is not set"]
+
+    selected = target_id.strip()
+    if not selected:
+        return targets[0], []
+
+    for target in targets:
+        if target.id == selected:
+            return target, []
+    return None, [f"unknown GitLab target: {selected}"]
+
+
+def configured_gitlab_token(
+    target: GitLabPipelineTarget | None = None,
+    env: dict[str, str] | None = None,
+) -> str:
     """Return the configured GitLab API token for Portal submits."""
     source = env if env is not None else os.environ
+    if target is not None:
+        token = source.get(target.token_env, "").strip()
+        if token:
+            return token
+        if target.token_env != "RESULT_SERVER_GITLAB_TOKEN":
+            return ""
     return source.get("RESULT_SERVER_GITLAB_TOKEN", "").strip()
 
 
@@ -85,6 +180,7 @@ def build_pipeline_plan(
     park_only: bool = False,
     park_send: bool = False,
     scheduler_extra_args: str = "",
+    target_id: str = "",
 ) -> GitLabPipelinePlan:
     """Build the GitLab Pipeline API URL and JSON payload without sending it."""
     errors: list[str] = []
@@ -126,6 +222,7 @@ def build_pipeline_plan(
         payload={"ref": ref, "variables": variables},
         errors=errors,
         warnings=warnings,
+        target_id=target_id,
     )
 
 
@@ -139,7 +236,10 @@ def submit_pipeline_plan(
     """Submit a planned GitLab Pipeline API request."""
     errors = list(plan.errors)
     if not token:
-        errors.append("RESULT_SERVER_GITLAB_TOKEN is not set")
+        if plan.target_id:
+            errors.append(f"GitLab token is not set for target: {plan.target_id}")
+        else:
+            errors.append("RESULT_SERVER_GITLAB_TOKEN is not set")
     if not plan.api_url:
         errors.append("GitLab Pipeline API URL is not configured")
     if errors:

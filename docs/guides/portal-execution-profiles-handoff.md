@@ -61,6 +61,20 @@ have permission to create pipelines in that GitLab project. The Portal records
 the request payload, GitLab response metadata, status, and errors in
 `execution_requests`; it must not record the token value.
 
+For multiple destinations, configure named targets instead of the single-repo
+fallback:
+
+```text
+RESULT_SERVER_GITLAB_TARGETS=swc=gitlab.swc.example.org/group/project,gitlab_com=gitlab.com/group/project
+RESULT_SERVER_GITLAB_TOKEN_SWC=<site-local GitLab API token>
+RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM=<site-local GitLab API token>
+```
+
+Target IDs may contain letters, digits, `_`, `.`, and `-`. The token variable is
+`RESULT_SERVER_GITLAB_TOKEN_<TARGET_ID>` with non-alphanumeric characters
+converted to `_` and uppercased. Store these variables in the Portal systemd
+`EnvironmentFile`, not in the repository.
+
 ## Compatibility Expectations
 
 Keep the existing `list.csv` and `queue.csv` paths working. Execution profiles
