@@ -39,11 +39,11 @@ case "${system}" in
       > "${logfile}" 2>&1 || true
     ;;
   Fugaku)
-    # TODO: stage audikw_1.petscbin on Fugaku group storage and fill in
-    # DATA (see README.md's "Staging the data" section for the blocker
-    # hit doing this -- group quota exhausted on the volumes covered by
-    # this repo's own FJ queue.csv GFSCACHE declaration).
-    DATA=/vol0002/data/ra000009/benchkit-data/petsc-gmres/audikw_1.petscbin
+    # /vol0002 is at quota (0 byte hard limit -- true for every group
+    # tried), but /vol0005 isn't; this repo's FJ queue.csv template
+    # already declares GFSCACHE for both (and /vol0003, /vol0004), so no
+    # extra -x PJM_LLIO_GFSCACHE handling is needed here.
+    DATA=/vol0005/data/ra250029/benchkit-data/petsc-gmres/audikw_1.petscbin
     module load lang/tcsds-1.2.43
     module load LLVM/llvmorg-22.1.0
     mpiexec -n "${n_ranks}" \
