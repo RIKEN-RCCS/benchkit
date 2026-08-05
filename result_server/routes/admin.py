@@ -166,6 +166,10 @@ def _build_execution_pipeline_plan(store):
         scheduler_extra_args=resolve_result.scheduler_extra_args,
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )
+    if exp:
+        plan.warnings.append(
+            "Profile Exp is used for Portal profile matching and is not sent to GitLab CI."
+        )
     return {
         "target_ref": target_ref,
         "profile_id": profile_id,
@@ -321,6 +325,9 @@ def dry_run_execution_profile_submit():
         payload={
             "api_url": plan.api_url,
             "gitlab_target": gitlab_target_id,
+            "gitlab_project": submit_plan["gitlab_target"].repo
+            if submit_plan["gitlab_target"]
+            else "",
             "payload": plan.payload,
         },
         errors=errors,
@@ -353,6 +360,9 @@ def dry_run_execution_profile_submit():
             "profile": profile,
             "api_url": plan.api_url,
             "gitlab_target": gitlab_target_id,
+            "gitlab_project": submit_plan["gitlab_target"].repo
+            if submit_plan["gitlab_target"]
+            else "",
             "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
             "errors": errors,
             "warnings": plan.warnings,
@@ -401,6 +411,8 @@ def submit_execution_profile_pipeline():
     payload = {"api_url": plan.api_url, "payload": plan.payload}
     if gitlab_target_id:
         payload["gitlab_target"] = gitlab_target_id
+    if gitlab_target:
+        payload["gitlab_project"] = gitlab_target.repo
     if submit_result is not None:
         payload["submit"] = {
             "status_code": submit_result.status_code,
@@ -449,6 +461,7 @@ def submit_execution_profile_pipeline():
             "profile": profile,
             "api_url": plan.api_url,
             "gitlab_target": gitlab_target_id,
+            "gitlab_project": gitlab_target.repo if gitlab_target else "",
             "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
             "errors": errors,
             "warnings": plan.warnings,

@@ -42,6 +42,11 @@ GitLab schedules should not be the primary governance point. The Portal should
 own periodic and event-triggered execution decisions, then trigger GitLab CI
 with resolved site-local variables.
 
+The current GitLab CI entry point consumes `code`, `system`, BenchPark controls,
+and optional scheduler extra args. Execution profile fields such as `exp` remain
+Portal-side matching and audit metadata until the GitLab matrix generator grows
+a matching selector.
+
 ## GitLab Pipeline Trigger Configuration
 
 Dry-run payload rendering requires:

@@ -251,8 +251,8 @@
 <section class="page-card">
     <h2 class="section-title">GitLab Pipeline Trigger</h2>
     <p class="section-intro">
-        Resolve an approved profile for a target scope and preview the GitLab
-        pipeline trigger request before submitting it.
+        Trigger the current GitLab CI entry point with project, ref, code,
+        system, and BenchPark controls.
     </p>
     <form method="POST" action="{{ url_for('admin.dry_run_execution_profile_submit') }}" class="profile-form">
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
@@ -265,7 +265,7 @@
             {% if gitlab_targets %}
             <select name="gitlab_target">
                 {% for target in gitlab_targets %}
-                <option value="{{ target.id }}">{{ target.id }}</option>
+                <option value="{{ target.id }}">{{ target.id }} - {{ target.repo }}</option>
                 {% endfor %}
             </select>
             {% else %}
@@ -285,8 +285,8 @@
             <input type="text" name="system" placeholder="RIKYU">
         </label>
         <label>
-            Exp
-            <input type="text" name="exp" placeholder="case0">
+            Profile Exp
+            <input type="text" name="exp" placeholder="profile matching only">
         </label>
         <label>
             BenchPark App
@@ -315,6 +315,9 @@
         {{ dry_run_result.status }}
         {% if dry_run_result.gitlab_target %}
         target <span class="profile-mono">{{ dry_run_result.gitlab_target }}</span>
+        {% endif %}
+        {% if dry_run_result.gitlab_project %}
+        project <span class="profile-mono">{{ dry_run_result.gitlab_project }}</span>
         {% endif %}
         {% if dry_run_result.profile %}
         using profile <span class="profile-mono">{{ dry_run_result.profile.id }}</span>
@@ -355,7 +358,7 @@
             {% if gitlab_targets %}
             <select name="gitlab_target">
                 {% for target in gitlab_targets %}
-                <option value="{{ target.id }}">{{ target.id }}</option>
+                <option value="{{ target.id }}">{{ target.id }} - {{ target.repo }}</option>
                 {% endfor %}
             </select>
             {% else %}
@@ -375,8 +378,8 @@
             <input type="text" name="system" placeholder="RIKYU">
         </label>
         <label>
-            Exp
-            <input type="text" name="exp" placeholder="case0">
+            Profile Exp
+            <input type="text" name="exp" placeholder="profile matching only">
         </label>
         <label>
             BenchPark App
@@ -412,6 +415,9 @@
         {% endif %}
         {% if submit_result.gitlab_target %}
         target <span class="profile-mono">{{ submit_result.gitlab_target }}</span>
+        {% endif %}
+        {% if submit_result.gitlab_project %}
+        project <span class="profile-mono">{{ submit_result.gitlab_project }}</span>
         {% endif %}
         {% if submit_result.profile %}
         using profile <span class="profile-mono">{{ submit_result.profile.id }}</span>

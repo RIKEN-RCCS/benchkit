@@ -404,6 +404,8 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         assert "Dry-run request #1" in html
         assert "dry_run_ready" in html
         assert "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline" in html
+        assert "gitlab.example.org/group/benchkit.git" in html
+        assert "Profile Exp is used for Portal profile matching" in html
         assert "--account=site-local" in html
 
         with sqlite3.connect(db_path) as conn:
@@ -415,6 +417,8 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         variables = payload_record["payload"]["variables"]
         assert variables["code"] == "qws"
         assert variables["BK_SCHEDULER_EXTRA_ARGS_RIKYU"] == "--account=site-local"
+        assert "exp" not in variables
+        assert payload_record["gitlab_project"] == "gitlab.example.org/group/benchkit.git"
     finally:
         _cleanup(temp_dirs)
 
@@ -573,6 +577,8 @@ def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
         payload_record = json.loads(row[3])
         assert payload_record["submit"]["status_code"] == 201
         assert payload_record["submit"]["response"]["id"] == 123
+        assert payload_record["gitlab_project"] == "gitlab.example.org/group/benchkit.git"
+        assert "exp" not in payload_record["payload"]["variables"]
         assert "secret-token" not in row[3]
     finally:
         _cleanup(temp_dirs)
@@ -631,6 +637,7 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
             ).fetchone()
         payload_record = json.loads(row[0])
         assert payload_record["gitlab_target"] == "gitlab_com"
+        assert payload_record["gitlab_project"] == "gitlab.com/yoshifuminakamura/benchkit"
         assert payload_record["submit"]["response"]["id"] == 456
     finally:
         _cleanup(temp_dirs)
