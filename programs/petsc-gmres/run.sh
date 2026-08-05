@@ -43,7 +43,11 @@ case "${system}" in
     # tried), but /vol0005 isn't; this repo's FJ queue.csv template
     # already declares GFSCACHE for both (and /vol0003, /vol0004), so no
     # extra -x PJM_LLIO_GFSCACHE handling is needed here.
-    DATA=/vol0005/data/ra250029/benchkit-data/petsc-gmres/audikw_1.petscbin
+    # /vol0500 (not /vol0005 -- the "resolved" path fs_mkdir reported when
+    # this was staged) is what actually resolves from a compute-node job;
+    # found by testing the real run.sh in a real job, not by trusting the
+    # canonical-looking path a filesystem tool reported.
+    DATA=/vol0500/data/ra250029/benchkit-data/petsc-gmres/audikw_1.petscbin
     module load lang/tcsds-1.2.43
     module load LLVM/llvmorg-22.1.0
     mpiexec -n "${n_ranks}" \
