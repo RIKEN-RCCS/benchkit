@@ -77,7 +77,7 @@ case "$system" in
     # cuSPARSE crash on this matrix's connectivity during GAMG's
     # aggressive-coarsening graph-squaring step.
     source /etc/profile.d/modules.sh
-    module load system/ng-dgx nvhpc-hpcx/26.3
+    module load system/ng-dgx nvhpc-hpcx
     export PETSC_ARCH=arch-dgxsp-cuda
     CUDA_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')
     MATHLIBS=$(dirname "$(command -v nvcc)")/../../math_libs/*/lib64

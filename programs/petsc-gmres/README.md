@@ -61,7 +61,7 @@ build/run time):
 |---|---|
 | RIKYU | `/data1/rkp00015/benchkit-data/petsc-gmres/audikw_1.petscbin` |
 | Fugaku | *(not yet staged — group-storage quota exhausted on the volumes covered by this repo's `FJ` queue.csv `GFSCACHE` declaration; `Fugaku` row is `enable=no` in `list.csv` until this is resolved)* |
-| RC_DGXSP | *(not yet staged; `RC_DGXSP` row is `enable=no` in `list.csv` until this is resolved)* |
+| RC_DGXSP | `/home/users/william.dawson/benchkit-data/petsc-gmres/audikw_1.petscbin` (this system has no separate group-storage tier, so — unlike RIKYU/Fugaku — this lives under `$HOME`) |
 
 To re-stage on a system with an existing PETSc install: download
 `audikw_1.mtx` from the SuiteSparse Matrix Collection link above, then use
