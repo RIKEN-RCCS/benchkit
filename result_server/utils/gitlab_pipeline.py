@@ -1,4 +1,4 @@
-"""GitLab Pipeline API request planning helpers for Portal-triggered runs."""
+"""GitLab pipeline trigger request planning helpers for Portal-triggered runs."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class GitLabPipelineTarget:
 
 @dataclass(frozen=True)
 class GitLabPipelinePlan:
-    """A dry-run representation of a GitLab Pipeline API request."""
+    """A dry-run representation of a GitLab pipeline trigger request."""
 
     api_url: str
     payload: dict[str, Any]
@@ -37,7 +37,7 @@ class GitLabPipelinePlan:
 
 @dataclass(frozen=True)
 class GitLabPipelineSubmitResult:
-    """Result of submitting a GitLab Pipeline API request."""
+    """Result of submitting a GitLab pipeline trigger request."""
 
     status_code: int
     response: dict[str, Any]
@@ -59,7 +59,7 @@ def configured_gitlab_repo(env: dict[str, str] | None = None) -> str:
 
 def _target_token_env(target_id: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9]", "_", target_id).upper()
-    return f"RESULT_SERVER_GITLAB_TOKEN_{normalized}"
+    return f"RESULT_SERVER_GITLAB_TRIGGER_TOKEN_{normalized}"
 
 
 def configured_gitlab_targets(
@@ -105,7 +105,7 @@ def configured_gitlab_targets(
             GitLabPipelineTarget(
                 id="default",
                 repo=repo,
-                token_env="RESULT_SERVER_GITLAB_TOKEN",
+                token_env="RESULT_SERVER_GITLAB_TRIGGER_TOKEN",
             )
         )
     return targets, errors
@@ -132,19 +132,19 @@ def configured_gitlab_target(
     return None, [f"unknown GitLab target: {selected}"]
 
 
-def configured_gitlab_token(
+def configured_gitlab_trigger_token(
     target: GitLabPipelineTarget | None = None,
     env: dict[str, str] | None = None,
 ) -> str:
-    """Return the configured GitLab API token for Portal submits."""
+    """Return the configured GitLab trigger token for Portal submits."""
     source = env if env is not None else os.environ
     if target is not None:
         token = source.get(target.token_env, "").strip()
         if token:
             return token
-        if target.token_env != "RESULT_SERVER_GITLAB_TOKEN":
+        if target.token_env != "RESULT_SERVER_GITLAB_TRIGGER_TOKEN":
             return ""
-    return source.get("RESULT_SERVER_GITLAB_TOKEN", "").strip()
+    return source.get("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "").strip()
 
 
 def _split_gitlab_repo(repo: str) -> tuple[str, str] | None:
@@ -157,11 +157,11 @@ def _split_gitlab_repo(repo: str) -> tuple[str, str] | None:
     return host, project_path
 
 
-def _add_variable(variables: list[dict[str, str]], key: str, value: str) -> None:
+def _add_variable(variables: dict[str, str], key: str, value: str) -> None:
     text = str(value or "").strip()
     if not text:
         return
-    variables.append({"key": key, "value": text, "variable_type": "env_var"})
+    variables[key] = text
 
 
 def _scheduler_extra_args_key(system: str) -> str:
@@ -182,7 +182,7 @@ def build_pipeline_plan(
     scheduler_extra_args: str = "",
     target_id: str = "",
 ) -> GitLabPipelinePlan:
-    """Build the GitLab Pipeline API URL and JSON payload without sending it."""
+    """Build the GitLab trigger API URL and form-like payload without sending it."""
     errors: list[str] = []
     warnings: list[str] = []
     ref = target_ref.strip() or "develop"
@@ -195,9 +195,9 @@ def build_pipeline_plan(
     else:
         host, project_path = split_repo
         encoded_project = urllib.parse.quote(project_path, safe="")
-        api_url = f"https://{host}/api/v4/projects/{encoded_project}/pipeline"
+        api_url = f"https://{host}/api/v4/projects/{encoded_project}/trigger/pipeline"
 
-    variables: list[dict[str, str]] = []
+    variables: dict[str, str] = {}
     _add_variable(variables, "code", code)
     _add_variable(variables, "system", system)
     _add_variable(variables, "app", app)
@@ -233,25 +233,25 @@ def submit_pipeline_plan(
     timeout: float = 20.0,
     urlopen=urllib.request.urlopen,
 ) -> GitLabPipelineSubmitResult:
-    """Submit a planned GitLab Pipeline API request."""
+    """Submit a planned GitLab trigger API request."""
     errors = list(plan.errors)
     if not token:
         if plan.target_id:
-            errors.append(f"GitLab token is not set for target: {plan.target_id}")
+            errors.append(f"GitLab trigger token is not set for target: {plan.target_id}")
         else:
-            errors.append("RESULT_SERVER_GITLAB_TOKEN is not set")
+            errors.append("RESULT_SERVER_GITLAB_TRIGGER_TOKEN is not set")
     if not plan.api_url:
-        errors.append("GitLab Pipeline API URL is not configured")
+        errors.append("GitLab trigger API URL is not configured")
     if errors:
         return GitLabPipelineSubmitResult(status_code=0, response={}, errors=errors)
 
-    body = json_dumps_bytes(plan.payload)
+    form_fields = _trigger_form_fields(plan.payload, token)
+    body = urllib.parse.urlencode(form_fields).encode("utf-8")
     request = urllib.request.Request(
         plan.api_url,
         data=body,
         headers={
-            "PRIVATE-TOKEN": token,
-            "Content-Type": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
         },
         method="POST",
@@ -266,24 +266,24 @@ def submit_pipeline_plan(
         return GitLabPipelineSubmitResult(
             status_code=status_code,
             response=payload,
-            errors=[f"GitLab Pipeline API returned HTTP {status_code}"],
+            errors=[f"GitLab trigger API returned HTTP {status_code}"],
         )
     except urllib.error.URLError as exc:
         return GitLabPipelineSubmitResult(
             status_code=0,
             response={},
-            errors=[f"GitLab Pipeline API request failed: {exc.reason}"],
+            errors=[f"GitLab trigger API request failed: {exc.reason}"],
         )
     except TimeoutError:
         return GitLabPipelineSubmitResult(
             status_code=0,
             response={},
-            errors=["GitLab Pipeline API request timed out"],
+            errors=["GitLab trigger API request timed out"],
         )
 
     errors = []
     if not 200 <= status_code < 300:
-        errors.append(f"GitLab Pipeline API returned HTTP {status_code}")
+        errors.append(f"GitLab trigger API returned HTTP {status_code}")
     return GitLabPipelineSubmitResult(
         status_code=status_code,
         response=payload,
@@ -291,11 +291,17 @@ def submit_pipeline_plan(
     )
 
 
-def json_dumps_bytes(payload: dict[str, Any]) -> bytes:
-    """Encode a JSON payload for urllib."""
-    import json
-
-    return json.dumps(payload).encode("utf-8")
+def _trigger_form_fields(payload: dict[str, Any], token: str) -> dict[str, str]:
+    """Convert a dry-run payload into GitLab trigger API form fields."""
+    fields = {
+        "token": token,
+        "ref": str(payload.get("ref", "")),
+    }
+    variables = payload.get("variables", {})
+    if isinstance(variables, dict):
+        for key, value in variables.items():
+            fields[f"variables[{key}]"] = str(value)
+    return fields
 
 
 def _decode_json_response(raw: bytes) -> dict[str, Any]:

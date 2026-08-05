@@ -30,7 +30,7 @@ from utils.gitlab_pipeline import (
     build_pipeline_plan,
     configured_gitlab_target,
     configured_gitlab_targets,
-    configured_gitlab_token,
+    configured_gitlab_trigger_token,
     submit_pipeline_plan,
 )
 from utils.rate_limit import rate_limited
@@ -295,7 +295,7 @@ def upsert_execution_profile():
 @admin_required
 @rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
 def dry_run_execution_profile_submit():
-    """Resolve an execution profile and render a GitLab Pipeline API dry run."""
+    """Resolve an execution profile and render a GitLab trigger dry run."""
     db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
     store = ExecutionProfileStore(db_path)
     submit_plan = _build_execution_pipeline_plan(store)
@@ -388,7 +388,7 @@ def submit_execution_profile_pipeline():
     if not errors:
         submit_result = submit_pipeline_plan(
             plan,
-            token=configured_gitlab_token(gitlab_target),
+            token=configured_gitlab_trigger_token(gitlab_target),
         )
         errors.extend(submit_result.errors)
 
