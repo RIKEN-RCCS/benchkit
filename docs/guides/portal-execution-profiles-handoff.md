@@ -28,11 +28,11 @@ Recommended order:
 2. Confirm the admin page can create and update profiles in the live SQLite DB.
 3. Add an execution request table for Portal-triggered runs.
 4. Add a dry-run submit view that resolves a profile and shows the GitLab
-   Pipeline API payload without sending it.
-5. Add the real GitLab Pipeline API trigger only after the dry-run path is
+   pipeline trigger payload without sending it.
+5. Add the real GitLab pipeline trigger only after the dry-run path is
    reviewed. Keep the trigger token in the site-local service environment as
-   `RESULT_SERVER_GITLAB_TOKEN`; do not store it in SQLite, logs, or the OSS
-   repository.
+   `RESULT_SERVER_GITLAB_TRIGGER_TOKEN`; do not store it in SQLite, logs, or
+   the OSS repository.
 6. Index received benchmark and estimation JSON metadata into SQLite while
    keeping JSON/tgz artifacts as raw records.
 7. Add environment snapshot storage after deciding which host/runtime metadata
@@ -42,7 +42,7 @@ GitLab schedules should not be the primary governance point. The Portal should
 own periodic and event-triggered execution decisions, then trigger GitLab CI
 with resolved site-local variables.
 
-## GitLab Pipeline API Configuration
+## GitLab Pipeline Trigger Configuration
 
 Dry-run payload rendering requires:
 
@@ -53,27 +53,27 @@ RESULT_SERVER_GITLAB_REPO=gitlab.example.org/group/project
 Actual submission also requires:
 
 ```text
-RESULT_SERVER_GITLAB_TOKEN=<site-local GitLab API token>
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN=<site-local GitLab pipeline trigger token>
 ```
 
-`RESULT_SERVER_GITLAB_REPO` is a scheme-less `host/path` value. The token must
-have permission to create pipelines in that GitLab project. The Portal records
-the request payload, GitLab response metadata, status, and errors in
-`execution_requests`; it must not record the token value.
+`RESULT_SERVER_GITLAB_REPO` is a scheme-less `host/path` value. The trigger
+token must be created for that GitLab project. The Portal records the request
+payload, GitLab response metadata, status, and errors in `execution_requests`;
+it must not record the token value.
 
 For multiple destinations, configure named targets instead of the single-repo
 fallback:
 
 ```text
 RESULT_SERVER_GITLAB_TARGETS=swc=gitlab.swc.example.org/group/project,gitlab_com=gitlab.com/group/project
-RESULT_SERVER_GITLAB_TOKEN_SWC=<site-local GitLab API token>
-RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM=<site-local GitLab API token>
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC=<site-local GitLab pipeline trigger token>
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_GITLAB_COM=<site-local GitLab pipeline trigger token>
 ```
 
 Target IDs may contain letters, digits, `_`, `.`, and `-`. The token variable is
-`RESULT_SERVER_GITLAB_TOKEN_<TARGET_ID>` with non-alphanumeric characters
-converted to `_` and uppercased. Store these variables in the Portal systemd
-`EnvironmentFile`, not in the repository.
+`RESULT_SERVER_GITLAB_TRIGGER_TOKEN_<TARGET_ID>` with non-alphanumeric
+characters converted to `_` and uppercased. Store these variables in the Portal
+systemd `EnvironmentFile`, not in the repository.
 
 ## Compatibility Expectations
 

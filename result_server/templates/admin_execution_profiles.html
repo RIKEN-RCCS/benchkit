@@ -249,10 +249,10 @@
 </section>
 
 <section class="page-card">
-    <h2 class="section-title">GitLab Pipeline Submit</h2>
+    <h2 class="section-title">GitLab Pipeline Trigger</h2>
     <p class="section-intro">
         Resolve an approved profile for a target scope and preview the GitLab
-        Pipeline API request before submitting it.
+        pipeline trigger request before submitting it.
     </p>
     <form method="POST" action="{{ url_for('admin.dry_run_execution_profile_submit') }}" class="profile-form">
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
@@ -340,7 +340,7 @@
         </ul>
     </div>
     {% endif %}
-    <p><strong>API URL:</strong> <span class="profile-mono">{{ dry_run_result.api_url or 'not configured' }}</span></p>
+    <p><strong>Trigger API URL:</strong> <span class="profile-mono">{{ dry_run_result.api_url or 'not configured' }}</span></p>
     <pre class="profile-dry-run-output">{{ dry_run_result.payload_json }}</pre>
     {% endif %}
 
@@ -399,7 +399,7 @@
                 <input type="checkbox" name="confirm_submit">
                 confirm submit
             </label>
-            <button type="submit" class="btn btn-primary">Submit Pipeline</button>
+            <button type="submit" class="btn btn-primary">Trigger Pipeline</button>
         </div>
     </form>
 

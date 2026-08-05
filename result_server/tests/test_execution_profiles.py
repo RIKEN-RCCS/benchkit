@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import urllib.parse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -26,7 +27,7 @@ from utils.gitlab_pipeline import (  # noqa: E402
     build_pipeline_plan,
     configured_gitlab_target,
     configured_gitlab_targets,
-    configured_gitlab_token,
+    configured_gitlab_trigger_token,
     submit_pipeline_plan,
 )
 
@@ -402,7 +403,7 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         assert resp.status_code == 200
         assert "Dry-run request #1" in html
         assert "dry_run_ready" in html
-        assert "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline" in html
+        assert "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline" in html
         assert "--account=site-local" in html
 
         with sqlite3.connect(db_path) as conn:
@@ -412,12 +413,8 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         assert row[:4] == ("dry_run_ready", "rikyu-qws-nightly", "qws", "RIKYU")
         payload_record = json.loads(row[4])
         variables = payload_record["payload"]["variables"]
-        assert {"key": "code", "value": "qws", "variable_type": "env_var"} in variables
-        assert {
-            "key": "BK_SCHEDULER_EXTRA_ARGS_RIKYU",
-            "value": "--account=site-local",
-            "variable_type": "env_var",
-        } in variables
+        assert variables["code"] == "qws"
+        assert variables["BK_SCHEDULER_EXTRA_ARGS_RIKYU"] == "--account=site-local"
     finally:
         _cleanup(temp_dirs)
 
@@ -445,7 +442,7 @@ def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
         _cleanup(temp_dirs)
 
 
-def test_gitlab_pipeline_submit_posts_private_token_without_storing_it(monkeypatch):
+def test_gitlab_pipeline_submit_posts_trigger_token_without_storing_it(monkeypatch):
     plan = build_pipeline_plan(
         gitlab_repo="gitlab.example.org/group/benchkit.git",
         target_ref="develop",
@@ -478,9 +475,13 @@ def test_gitlab_pipeline_submit_posts_private_token_without_storing_it(monkeypat
     assert result.ok is True
     assert result.status_code == 201
     assert result.response["id"] == 123
-    assert captured["url"] == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline"
-    assert captured["headers"]["Private-token"] == "secret-token"
-    assert json.loads(captured["data"])["ref"] == "develop"
+    assert captured["url"] == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline"
+    assert "Private-token" not in captured["headers"]
+    assert captured["headers"]["Content-type"] == "application/x-www-form-urlencoded"
+    fields = urllib.parse.parse_qs(captured["data"])
+    assert fields["token"] == ["secret-token"]
+    assert fields["ref"] == ["develop"]
+    assert fields["variables[code]"] == ["qws"]
 
 
 def test_gitlab_pipeline_submit_blocks_without_token():
@@ -494,7 +495,7 @@ def test_gitlab_pipeline_submit_blocks_without_token():
 
     assert result.ok is False
     assert result.status_code == 0
-    assert result.errors == ["RESULT_SERVER_GITLAB_TOKEN is not set"]
+    assert result.errors == ["RESULT_SERVER_GITLAB_TRIGGER_TOKEN is not set"]
 
 
 def test_gitlab_pipeline_targets_parse_multiple_destinations():
@@ -503,8 +504,8 @@ def test_gitlab_pipeline_targets_parse_multiple_destinations():
             "swc=gitlab.swc.example.org/fugakunext/benchmark/benchkit,"
             "gitlab_com=gitlab.com/yoshifuminakamura/benchkit"
         ),
-        "RESULT_SERVER_GITLAB_TOKEN_SWC": "swc-token",
-        "RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM": "com-token",
+        "RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC": "swc-token",
+        "RESULT_SERVER_GITLAB_TRIGGER_TOKEN_GITLAB_COM": "com-token",
     }
 
     targets, errors = configured_gitlab_targets(env)
@@ -512,10 +513,10 @@ def test_gitlab_pipeline_targets_parse_multiple_destinations():
 
     assert errors == []
     assert [target.id for target in targets] == ["swc", "gitlab_com"]
-    assert targets[0].token_env == "RESULT_SERVER_GITLAB_TOKEN_SWC"
+    assert targets[0].token_env == "RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC"
     assert selected_errors == []
     assert selected.repo == "gitlab.com/yoshifuminakamura/benchkit"
-    assert configured_gitlab_token(selected, env) == "com-token"
+    assert configured_gitlab_trigger_token(selected, env) == "com-token"
 
 
 def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
@@ -523,14 +524,14 @@ def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
     monkeypatch,
 ):
     monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
-    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN", "secret-token")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "secret-token")
     db_path = tmp_path / "cx_portal.sqlite3"
     ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
     app, temp_dirs = _admin_app(db_path)
 
     def fake_submit(plan, *, token):
         assert token == "secret-token"
-        assert plan.api_url == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline"
+        assert plan.api_url == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline"
         return GitLabPipelineSubmitResult(
             status_code=201,
             response={"id": 123, "web_url": "https://gitlab.example.org/p/123"},
@@ -582,13 +583,13 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
     monkeypatch,
 ):
     monkeypatch.delenv("RESULT_SERVER_GITLAB_REPO", raising=False)
-    monkeypatch.delenv("RESULT_SERVER_GITLAB_TOKEN", raising=False)
+    monkeypatch.delenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", raising=False)
     monkeypatch.setenv(
         "RESULT_SERVER_GITLAB_TARGETS",
         "swc=gitlab.swc.example.org/fugakunext/benchmark/benchkit,"
         "gitlab_com=gitlab.com/yoshifuminakamura/benchkit",
     )
-    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN_GITLAB_COM", "com-token")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN_GITLAB_COM", "com-token")
     db_path = tmp_path / "cx_portal.sqlite3"
     ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
     app, temp_dirs = _admin_app(db_path)
@@ -596,7 +597,7 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
     def fake_submit(plan, *, token):
         assert token == "com-token"
         assert plan.target_id == "gitlab_com"
-        assert plan.api_url == "https://gitlab.com/api/v4/projects/yoshifuminakamura%2Fbenchkit/pipeline"
+        assert plan.api_url == "https://gitlab.com/api/v4/projects/yoshifuminakamura%2Fbenchkit/trigger/pipeline"
         return GitLabPipelineSubmitResult(
             status_code=201,
             response={"id": 456, "web_url": "https://gitlab.com/p/456"},
@@ -637,7 +638,7 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
 
 def test_admin_execution_profiles_submit_requires_confirmation(tmp_path, monkeypatch):
     monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
-    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN", "secret-token")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "secret-token")
     db_path = tmp_path / "cx_portal.sqlite3"
     ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
     app, temp_dirs = _admin_app(db_path)
