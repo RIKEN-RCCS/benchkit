@@ -75,9 +75,17 @@ case "$system" in
         --PETSC_ARCH="${PETSC_ARCH}"
       make PETSC_DIR="${PETSC_DIR}" PETSC_ARCH="${PETSC_ARCH}" all
     )
+    # PETSCLIB is deliberately unquoted below: it's a space-separated list
+    # of separate -L/-Wl,-rpath/-l flags, not one path -- quoting it (an
+    # earlier version of this script did) passes the whole thing as a
+    # single malformed argument to the linker instead of word-splitting
+    # it into individual flags. Found the same way as the APP_DIR fix
+    # above: by actually running this build, not just reading it.
+    PETSCLIB="$(grep '^PETSC_WITH_EXTERNAL_LIB' "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables" | cut -d= -f2-)"
+    # shellcheck disable=SC2086
     mpiclang++ -O3 -I"${PETSC_DIR}/include" -I"${PETSC_DIR}/${PETSC_ARCH}/include" \
       "${APP_DIR}/src/GMRES-PETSc.cpp" -o "${ARTIFACT_DIR}/GMRES-PETSc" \
-      "$(grep '^PETSC_WITH_EXTERNAL_LIB' "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables" | cut -d= -f2-)"
+      $PETSCLIB
     ;;
   RC_DGXSP)
     # GPU build -- audikw_1 is solved on-GPU here (1 rank/GPU), matching
