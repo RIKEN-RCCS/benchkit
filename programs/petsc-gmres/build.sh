@@ -3,6 +3,15 @@ set -euo pipefail
 
 system="$1"
 
+# BenchKit invokes this as `bash programs/petsc-gmres/build.sh <system>`
+# from the repo root, not from inside this directory -- $PWD is the repo
+# root throughout (matching PETSC_DIR/ARTIFACT_DIR below, and bk_fetch_source's
+# own convention). src/GMRES-PETSc.cpp is *this script's own* source, so
+# anchor it to the script's location (APP_DIR) instead of assuming a
+# caller cwd -- found by actually running this through BenchKit's own
+# invocation convention rather than just replicating its commands by hand.
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 PETSC_REPO="https://gitlab.com/petsc/petsc.git"
 PETSC_TAG="v3.25.2"
 PETSC_DIR="${PWD}/petsc"
@@ -36,7 +45,7 @@ case "$system" in
       make PETSC_DIR="${PETSC_DIR}" PETSC_ARCH="${PETSC_ARCH}" -j8 all
     )
     mpicxx -O3 -I"${PETSC_DIR}/include" -I"${PETSC_DIR}/${PETSC_ARCH}/include" \
-      src/GMRES-PETSc.cpp -o "${ARTIFACT_DIR}/GMRES-PETSc" \
+      "${APP_DIR}/src/GMRES-PETSc.cpp" -o "${ARTIFACT_DIR}/GMRES-PETSc" \
       -Xlinker -rpath="${PETSC_DIR}/${PETSC_ARCH}/lib" \
       -L"${PETSC_DIR}/${PETSC_ARCH}/lib" -lpetsc
     ;;
@@ -67,7 +76,7 @@ case "$system" in
       make PETSC_DIR="${PETSC_DIR}" PETSC_ARCH="${PETSC_ARCH}" all
     )
     mpiclang++ -O3 -I"${PETSC_DIR}/include" -I"${PETSC_DIR}/${PETSC_ARCH}/include" \
-      src/GMRES-PETSc.cpp -o "${ARTIFACT_DIR}/GMRES-PETSc" \
+      "${APP_DIR}/src/GMRES-PETSc.cpp" -o "${ARTIFACT_DIR}/GMRES-PETSc" \
       "$(grep '^PETSC_WITH_EXTERNAL_LIB' "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables" | cut -d= -f2-)"
     ;;
   RC_DGXSP)
@@ -91,7 +100,7 @@ case "$system" in
       make PETSC_DIR="${PETSC_DIR}" PETSC_ARCH="${PETSC_ARCH}" -j8 all
     )
     mpicxx -O3 -I"${PETSC_DIR}/include" -I"${PETSC_DIR}/${PETSC_ARCH}/include" \
-      src/GMRES-PETSc.cpp -o "${ARTIFACT_DIR}/GMRES-PETSc" \
+      "${APP_DIR}/src/GMRES-PETSc.cpp" -o "${ARTIFACT_DIR}/GMRES-PETSc" \
       -Xlinker -rpath="${PETSC_DIR}/${PETSC_ARCH}/lib" \
       -L"${PETSC_DIR}/${PETSC_ARCH}/lib" -lpetsc
     ;;
