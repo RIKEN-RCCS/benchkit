@@ -249,10 +249,10 @@
 </section>
 
 <section class="page-card">
-    <h2 class="section-title">GitLab Pipeline Dry Run</h2>
+    <h2 class="section-title">GitLab Pipeline Submit</h2>
     <p class="section-intro">
         Resolve an approved profile for a target scope and preview the GitLab
-        Pipeline API request. This does not submit a pipeline.
+        Pipeline API request before submitting it.
     </p>
     <form method="POST" action="{{ url_for('admin.dry_run_execution_profile_submit') }}" class="profile-form">
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
@@ -327,6 +327,91 @@
     {% endif %}
     <p><strong>API URL:</strong> <span class="profile-mono">{{ dry_run_result.api_url or 'not configured' }}</span></p>
     <pre class="profile-dry-run-output">{{ dry_run_result.payload_json }}</pre>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.submit_execution_profile_pipeline') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <label>
+            Target Ref
+            <input type="text" name="target_ref" value="develop" required>
+        </label>
+        <label>
+            Profile ID
+            <input type="text" name="profile_id" placeholder="optional explicit profile">
+        </label>
+        <label>
+            Code
+            <input type="text" name="code" placeholder="qws">
+        </label>
+        <label>
+            System
+            <input type="text" name="system" placeholder="RIKYU">
+        </label>
+        <label>
+            Exp
+            <input type="text" name="exp" placeholder="case0">
+        </label>
+        <label>
+            BenchPark App
+            <input type="text" name="app" placeholder="osu-micro-benchmarks">
+        </label>
+        <div class="profile-form-actions">
+            <label class="profile-check-label">
+                <input type="checkbox" name="benchpark">
+                benchpark
+            </label>
+            <label class="profile-check-label">
+                <input type="checkbox" name="park_only">
+                park_only
+            </label>
+            <label class="profile-check-label">
+                <input type="checkbox" name="park_send">
+                park_send
+            </label>
+            <label class="profile-check-label">
+                <input type="checkbox" name="confirm_submit">
+                confirm submit
+            </label>
+            <button type="submit" class="btn btn-primary">Submit Pipeline</button>
+        </div>
+    </form>
+
+    {% if submit_result %}
+    <div class="inline-notice">
+        <strong>Submit request #{{ submit_result.request_id }}:</strong>
+        {{ submit_result.status }}
+        {% if submit_result.status_code %}
+        HTTP {{ submit_result.status_code }}
+        {% endif %}
+        {% if submit_result.profile %}
+        using profile <span class="profile-mono">{{ submit_result.profile.id }}</span>
+        {% endif %}
+    </div>
+    {% if submit_result.errors %}
+    <div class="inline-notice">
+        <strong>Submit blockers:</strong>
+        <ul>
+            {% for error in submit_result.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% if submit_result.warnings %}
+    <div class="inline-notice">
+        <strong>Submit warnings:</strong>
+        <ul>
+            {% for warning in submit_result.warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    <p><strong>API URL:</strong> <span class="profile-mono">{{ submit_result.api_url or 'not configured' }}</span></p>
+    <pre class="profile-dry-run-output">{{ submit_result.payload_json }}</pre>
+    {% if submit_result.response %}
+    <pre class="profile-dry-run-output">{{ submit_result.response | tojson(indent=2) }}</pre>
+    {% endif %}
     {% endif %}
 </section>
 

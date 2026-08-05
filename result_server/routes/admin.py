@@ -26,7 +26,12 @@ from utils.execution_profiles import (
     load_execution_profiles,
     normalize_profile,
 )
-from utils.gitlab_pipeline import build_pipeline_plan, configured_gitlab_repo
+from utils.gitlab_pipeline import (
+    build_pipeline_plan,
+    configured_gitlab_repo,
+    configured_gitlab_token,
+    submit_pipeline_plan,
+)
 from utils.rate_limit import rate_limited
 from utils.user_store import get_user_store
 
@@ -125,6 +130,48 @@ def _parse_execution_profile_form():
 
 def _parse_bool_form(name):
     return request.form.get(name) == "on"
+
+
+def _build_execution_pipeline_plan(store):
+    """Resolve the submitted target and build a GitLab pipeline plan."""
+    target_ref = request.form.get("target_ref", "").strip() or "develop"
+    profile_id = request.form.get("profile_id", "").strip()
+    code = request.form.get("code", "").strip()
+    system = request.form.get("system", "").strip()
+    exp = request.form.get("exp", "").strip()
+    app = request.form.get("app", "").strip()
+    benchpark = _parse_bool_form("benchpark")
+    park_only = _parse_bool_form("park_only")
+    park_send = _parse_bool_form("park_send")
+
+    resolve_result = store.resolve_profile(
+        profile_id=profile_id,
+        code=code,
+        system=system,
+        exp=exp,
+    )
+    profile = resolve_result.profile
+    plan = build_pipeline_plan(
+        gitlab_repo=configured_gitlab_repo(),
+        target_ref=target_ref,
+        code=code,
+        system=system,
+        app=app,
+        benchpark=benchpark,
+        park_only=park_only,
+        park_send=park_send,
+        scheduler_extra_args=resolve_result.scheduler_extra_args,
+    )
+    return {
+        "target_ref": target_ref,
+        "profile_id": profile_id,
+        "code": code,
+        "system": system,
+        "exp": exp,
+        "profile": profile,
+        "plan": plan,
+        "errors": resolve_result.errors + plan.errors,
+    }
 
 
 def _user_affiliations(store, email):
@@ -243,35 +290,15 @@ def dry_run_execution_profile_submit():
     """Resolve an execution profile and render a GitLab Pipeline API dry run."""
     db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
     store = ExecutionProfileStore(db_path)
-    target_ref = request.form.get("target_ref", "").strip() or "develop"
-    profile_id = request.form.get("profile_id", "").strip()
-    code = request.form.get("code", "").strip()
-    system = request.form.get("system", "").strip()
-    exp = request.form.get("exp", "").strip()
-    app = request.form.get("app", "").strip()
-    benchpark = _parse_bool_form("benchpark")
-    park_only = _parse_bool_form("park_only")
-    park_send = _parse_bool_form("park_send")
-
-    resolve_result = store.resolve_profile(
-        profile_id=profile_id,
-        code=code,
-        system=system,
-        exp=exp,
-    )
-    profile = resolve_result.profile
-    plan = build_pipeline_plan(
-        gitlab_repo=configured_gitlab_repo(),
-        target_ref=target_ref,
-        code=code,
-        system=system,
-        app=app,
-        benchpark=benchpark,
-        park_only=park_only,
-        park_send=park_send,
-        scheduler_extra_args=resolve_result.scheduler_extra_args,
-    )
-    errors = resolve_result.errors + plan.errors
+    submit_plan = _build_execution_pipeline_plan(store)
+    target_ref = submit_plan["target_ref"]
+    profile_id = submit_plan["profile_id"]
+    code = submit_plan["code"]
+    system = submit_plan["system"]
+    exp = submit_plan["exp"]
+    profile = submit_plan["profile"]
+    plan = submit_plan["plan"]
+    errors = submit_plan["errors"]
     status = "dry_run_ready" if not errors else "dry_run_blocked"
     request_id = store.create_execution_request(
         request_type="gitlab_pipeline",
@@ -314,6 +341,97 @@ def dry_run_execution_profile_submit():
             "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
             "errors": errors,
             "warnings": plan.warnings,
+        },
+        submit_result=None,
+    )
+
+
+@admin_bp.route("/execution-profiles/submit", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=5, key_fn=_admin_rate_key, scope="admin_write")
+def submit_execution_profile_pipeline():
+    """Resolve an execution profile and submit a GitLab pipeline."""
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    store = ExecutionProfileStore(db_path)
+    submit_plan = _build_execution_pipeline_plan(store)
+    target_ref = submit_plan["target_ref"]
+    profile_id = submit_plan["profile_id"]
+    code = submit_plan["code"]
+    system = submit_plan["system"]
+    exp = submit_plan["exp"]
+    profile = submit_plan["profile"]
+    plan = submit_plan["plan"]
+    errors = list(submit_plan["errors"])
+    submit_result = None
+
+    if request.form.get("confirm_submit") != "on":
+        errors.append("confirm_submit is required")
+
+    if not errors:
+        submit_result = submit_pipeline_plan(
+            plan,
+            token=configured_gitlab_token(),
+        )
+        errors.extend(submit_result.errors)
+
+    if submit_result and submit_result.ok:
+        status = "submitted"
+    elif submit_result:
+        status = "submit_failed"
+    else:
+        status = "submit_blocked"
+    payload = {"api_url": plan.api_url, "payload": plan.payload}
+    if submit_result is not None:
+        payload["submit"] = {
+            "status_code": submit_result.status_code,
+            "response": submit_result.response,
+        }
+    request_id = store.create_execution_request(
+        request_type="gitlab_pipeline",
+        status=status,
+        dry_run=False,
+        profile_id=profile["id"] if profile else profile_id,
+        target_ref=target_ref,
+        code=code,
+        system=system,
+        exp=exp,
+        payload=payload,
+        errors=errors,
+        actor=session.get("user_email", ""),
+    )
+
+    audit_event(
+        "admin_execution_profile_submit",
+        actor=session.get("user_email"),
+        target=profile["id"] if profile else profile_id,
+        result="success" if status == "submitted" else "failure",
+        details={
+            "request_id": request_id,
+            "target_ref": target_ref,
+            "code": code,
+            "system": system,
+            "exp": exp,
+            "status": status,
+            "http_status": submit_result.status_code if submit_result else 0,
+            "errors": errors,
+        },
+    )
+
+    profile_result = load_execution_profiles(db_path)
+    return render_template(
+        "admin_execution_profiles.html",
+        profile_result=profile_result,
+        dry_run_result=None,
+        submit_result={
+            "request_id": request_id,
+            "status": status,
+            "profile": profile,
+            "api_url": plan.api_url,
+            "payload_json": json.dumps(plan.payload, indent=2, sort_keys=True),
+            "errors": errors,
+            "warnings": plan.warnings,
+            "response": submit_result.response if submit_result else {},
+            "status_code": submit_result.status_code if submit_result else 0,
         },
     )
 
