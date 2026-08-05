@@ -5,8 +5,12 @@ diagonalization benchmark from `github.com/r-ccs-cms/sbd`.
 
 The RIKYU recipe uses the H2O cc-pVDZ FCIDUMP with the `1em7` selected alpha
 determinant file (about 628 million product determinants), one MPI rank per
-B200 GPU, and the rank-distributed/index-reordered/NCCL build configuration
-validated in the SubWG2 benchmark study. The inputs are included under
+B200 GPU, 32 OpenMP threads per rank, and the rank-distributed/index-reordered/NCCL
+build configuration validated in the SubWG2 benchmark study. 32 threads is
+Rikyu's site-enforced CPU cap per requested GPU on shared nodes; it also
+covers the pre-Davidson setup pass (`RemakeHelpers`/`TaskCostSize`), which
+runs on the host rather than the GPU and is slow to the point of resembling
+a hang on large inputs if starved of threads. The inputs are included under
 `programs/sbd/data/h2o/` and can be overridden with `BK_SBD_INPUT_DIR` when a
 project-storage copy is preferred.
 
@@ -75,4 +79,5 @@ effective `cc100` rank-distributed/index-reordered/NCCL configuration, and
 submitted the eight-GPU row through `scripts/test_submit.sh`. The job converged
 to `-76.2437767768609 Ha` with a `290.281226 s` internal Davidson FOM, and
 `scripts/result.sh` produced valid result JSON with source provenance and the
-`mult` timing section.
+`mult` timing section. Only this eight-GPU row has been independently re-run
+through `test_submit.sh`; the four- and sixteen-GPU rows above have not.
