@@ -854,10 +854,14 @@ Singularity/Apptainer が計算ノードで使える場合は、共有ファイ�
 ```bash
 BASE=/uhome/<user>/gitlab-runner_jacamar-ci_amd
 SING=/path/to/singularity
+ALPINE_GIT_IMAGE=docker://alpine/git:<pinned-tag>
 
 mkdir -p "$BASE/containers" "$BASE/bin"
-"$SING" build --sandbox "$BASE/containers/git" docker://alpine/git:latest
+"$SING" build --sandbox "$BASE/containers/git" "$ALPINE_GIT_IMAGE"
 ```
+
+`<pinned-tag>` は site 側で動作確認した固定 tag に置き換えてください。
+`latest` は使わないでください。
 
 `$BASE/bin/git`:
 
