@@ -60,7 +60,7 @@ build/run time):
 | system | path |
 |---|---|
 | RIKYU | `/data1/rkp00015/benchkit-data/petsc-gmres/audikw_1.petscbin` |
-| Fugaku | *(not yet staged — group-storage quota exhausted on the volumes covered by this repo's `FJ` queue.csv `GFSCACHE` declaration; `Fugaku` row is `enable=no` in `list.csv` until this is resolved)* |
+| Fugaku | `/vol0005/data/ra250029/benchkit-data/petsc-gmres/audikw_1.petscbin` — `/vol0002` (the volume the first attempt used) turned out to have a 0-byte hard quota limit for every group tried, `/vol0005` didn't; this app's `FJ` queue.csv template already declares `GFSCACHE` for `/vol0002:/vol0003:/vol0004:/vol0005`, so no per-app `-x` handling was needed once the right volume was found |
 | RC_DGXSP | `/home/users/william.dawson/benchkit-data/petsc-gmres/audikw_1.petscbin` (this system has no separate group-storage tier, so — unlike RIKYU/Fugaku — this lives under `$HOME`) |
 
 To re-stage on a system with an existing PETSc install: download

@@ -1,4 +1,4 @@
 system,enable,nodes,numproc_node,nthreads,elapse
 RIKYU,yes,1,4,1,0:15:00
-Fugaku,no,1,48,1,0:15:00
+Fugaku,yes,1,48,1,0:15:00
 RC_DGXSP,yes,1,1,1,0:15:00
