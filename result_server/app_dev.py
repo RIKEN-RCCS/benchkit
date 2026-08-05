@@ -220,6 +220,10 @@ def create_dev_app(base_dir):
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
     app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
+    app.config["EXECUTION_PROFILE_DB_PATH"] = os.environ.get(
+        "RESULT_SERVER_DB_PATH",
+        os.path.join(base_dir, "cx_portal.sqlite3"),
+    )
 
     # Home routes and loaders pull everything from current_app.config.
     register_home_routes(app)

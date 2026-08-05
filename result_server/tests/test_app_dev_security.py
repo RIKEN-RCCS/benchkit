@@ -42,3 +42,12 @@ def test_validate_dev_runtime_rejects_production_env(monkeypatch):
     monkeypatch.setenv("FLASK_ENV", "production")
     with pytest.raises(SystemExit):
         app_dev.validate_dev_runtime("127.0.0.1")
+
+
+def test_create_dev_app_configures_execution_profile_db(tmp_path, monkeypatch):
+    monkeypatch.delenv("RESULT_SERVER_DB_PATH", raising=False)
+    app_dev.setup_dev_environment(str(tmp_path))
+
+    app = app_dev.create_dev_app(str(tmp_path))
+
+    assert app.config["EXECUTION_PROFILE_DB_PATH"] == str(tmp_path / "cx_portal.sqlite3")
