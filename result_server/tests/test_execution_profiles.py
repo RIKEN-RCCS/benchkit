@@ -21,6 +21,11 @@ from utils.execution_profiles import (  # noqa: E402
     load_execution_profiles,
     normalize_profile,
 )
+from utils.gitlab_pipeline import (  # noqa: E402
+    GitLabPipelineSubmitResult,
+    build_pipeline_plan,
+    submit_pipeline_plan,
+)
 
 
 class _Store:
@@ -433,5 +438,143 @@ def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
         assert resp.status_code == 200
         assert "dry_run_blocked" in html
         assert "no approved execution profile matches target" in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_gitlab_pipeline_submit_posts_private_token_without_storing_it(monkeypatch):
+    plan = build_pipeline_plan(
+        gitlab_repo="gitlab.example.org/group/benchkit.git",
+        target_ref="develop",
+        code="qws",
+    )
+    captured = {}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def getcode(self):
+            return 201
+
+        def read(self):
+            return b'{"id":123,"web_url":"https://gitlab.example.org/p/123"}'
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["data"] = request.data.decode()
+        captured["timeout"] = timeout
+        return _Response()
+
+    result = submit_pipeline_plan(plan, token="secret-token", urlopen=fake_urlopen)
+
+    assert result.ok is True
+    assert result.status_code == 201
+    assert result.response["id"] == 123
+    assert captured["url"] == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline"
+    assert captured["headers"]["Private-token"] == "secret-token"
+    assert json.loads(captured["data"])["ref"] == "develop"
+
+
+def test_gitlab_pipeline_submit_blocks_without_token():
+    plan = build_pipeline_plan(
+        gitlab_repo="gitlab.example.org/group/benchkit.git",
+        target_ref="develop",
+        code="qws",
+    )
+
+    result = submit_pipeline_plan(plan, token="")
+
+    assert result.ok is False
+    assert result.status_code == 0
+    assert result.errors == ["RESULT_SERVER_GITLAB_TOKEN is not set"]
+
+
+def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN", "secret-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+
+    def fake_submit(plan, *, token):
+        assert token == "secret-token"
+        assert plan.api_url == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/pipeline"
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 123, "web_url": "https://gitlab.example.org/p/123"},
+            errors=[],
+        )
+
+    monkeypatch.setattr("routes.admin.submit_pipeline_plan", fake_submit)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/submit",
+                data={
+                    "target_ref": "develop",
+                    "code": "qws",
+                    "system": "RIKYU",
+                    "exp": "case0",
+                    "confirm_submit": "on",
+                },
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Submit request #1" in html
+        assert "submitted" in html
+        assert "HTTP 201" in html
+        assert "secret-token" not in html
+        assert "https://gitlab.example.org/p/123" in html
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT status, dry_run, profile_id, payload_json, errors_json
+                FROM execution_requests
+                """
+            ).fetchone()
+        assert row[:3] == ("submitted", 0, "rikyu-qws-nightly")
+        assert json.loads(row[4]) == []
+        payload_record = json.loads(row[3])
+        assert payload_record["submit"]["status_code"] == 201
+        assert payload_record["submit"]["response"]["id"] == 123
+        assert "secret-token" not in row[3]
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_submit_requires_confirmation(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TOKEN", "secret-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+
+    def fail_submit(*_args, **_kwargs):
+        raise AssertionError("submit should not be called without confirmation")
+
+    monkeypatch.setattr("routes.admin.submit_pipeline_plan", fail_submit)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/submit",
+                data={"target_ref": "develop", "code": "qws", "system": "RIKYU"},
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "submit_blocked" in html
+        assert "confirm_submit is required" in html
     finally:
         _cleanup(temp_dirs)
