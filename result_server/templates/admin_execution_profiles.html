@@ -261,6 +261,18 @@
             <input type="text" name="target_ref" value="develop" required>
         </label>
         <label>
+            GitLab Target
+            {% if gitlab_targets %}
+            <select name="gitlab_target">
+                {% for target in gitlab_targets %}
+                <option value="{{ target.id }}">{{ target.id }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <input type="text" name="gitlab_target" placeholder="default">
+            {% endif %}
+        </label>
+        <label>
             Profile ID
             <input type="text" name="profile_id" placeholder="optional explicit profile">
         </label>
@@ -301,6 +313,9 @@
     <div class="inline-notice">
         <strong>Dry-run request #{{ dry_run_result.request_id }}:</strong>
         {{ dry_run_result.status }}
+        {% if dry_run_result.gitlab_target %}
+        target <span class="profile-mono">{{ dry_run_result.gitlab_target }}</span>
+        {% endif %}
         {% if dry_run_result.profile %}
         using profile <span class="profile-mono">{{ dry_run_result.profile.id }}</span>
         {% endif %}
@@ -334,6 +349,18 @@
         <label>
             Target Ref
             <input type="text" name="target_ref" value="develop" required>
+        </label>
+        <label>
+            GitLab Target
+            {% if gitlab_targets %}
+            <select name="gitlab_target">
+                {% for target in gitlab_targets %}
+                <option value="{{ target.id }}">{{ target.id }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <input type="text" name="gitlab_target" placeholder="default">
+            {% endif %}
         </label>
         <label>
             Profile ID
@@ -382,6 +409,9 @@
         {{ submit_result.status }}
         {% if submit_result.status_code %}
         HTTP {{ submit_result.status_code }}
+        {% endif %}
+        {% if submit_result.gitlab_target %}
+        target <span class="profile-mono">{{ submit_result.gitlab_target }}</span>
         {% endif %}
         {% if submit_result.profile %}
         using profile <span class="profile-mono">{{ submit_result.profile.id }}</span>
