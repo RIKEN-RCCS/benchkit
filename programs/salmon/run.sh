@@ -13,6 +13,7 @@ RESULTS_DIR="${PWD}/results"
 WORK_DIR="${PWD}/salmon_run"
 INPUT_ARCHIVE_DEFAULT="/vol0003/rccs-sdt/data/a01010/benchmark_data/SALMON.tar.gz"
 INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
+INPUT_ARCHIVE_RIKYU="/data1/rkp00012/CX_input/SALMON/SALMON.tar.gz"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 
 mkdir -p "${RESULTS_DIR}"
@@ -28,6 +29,11 @@ case "${system}" in
     input_archive="${INPUT_ARCHIVE_DEFAULT}"
     exec_gs=(-stdin Si-1-1-1.nml ./salmon)
     exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
+    ;;
+  RIKYU)
+    input_archive="${BK_SALMON_INPUT_ARCHIVE:-${INPUT_ARCHIVE_RIKYU}}"
+    exec_gs=(./salmon)
+    exec_rt=(./salmon)
     ;;
   RC_GH200|RC_DGXSP|RC_GENOA)
     input_archive="${INPUT_ARCHIVE_CLOUD}"
@@ -47,7 +53,7 @@ fi
 
 uses_stdin_input() {
   case "$1" in
-    RC_GH200|RC_DGXSP|RC_GENOA)
+    RIKYU|RC_GH200|RC_DGXSP|RC_GENOA)
       return 0
       ;;
     *)
@@ -108,6 +114,35 @@ case "${system}" in
     fi
     export OMP_NUM_THREADS="${nthreads}"
     ;;
+  RIKYU)
+    module purge
+    module load nvhpc/26.3
+    export OMP_NUM_THREADS="${nthreads}"
+    for nml in Si-1-1-1.nml Si-1-1-1-tddft.nml; do
+      awk -v nproc_ob="${n_ranks}" '
+        /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = 1, 1, 1"; in_parallel=1; next }
+        in_parallel && /^\// { in_parallel=0; print; next }
+        in_parallel { next }
+        { print }
+      ' "$nml" > "$nml.tmp" && mv "$nml.tmp" "$nml"
+    done
+    if [[ "${n_ranks}" -gt 1 ]]; then
+      cat > wrapper.sh <<'WRAPPER'
+#!/bin/bash
+NCUDA_GPUS=${NCUDA_GPUS:-$(nvidia-smi -L | wc -l)}
+if [ "$OMPI_COMM_WORLD_LOCAL_SIZE" -gt "$NCUDA_GPUS" ]; then
+  if [ "$OMPI_COMM_WORLD_LOCAL_RANK" -eq 0 ]; then
+    nvidia-cuda-mps-control -d
+  fi
+  sleep 10
+fi
+export CUDA_VISIBLE_DEVICES=$((${OMPI_COMM_WORLD_LOCAL_RANK} % ${NCUDA_GPUS}))
+exec "$@"
+WRAPPER
+      chmod +x wrapper.sh
+      export UCX_IB_GPU_DIRECT_RDMA=no
+    fi
+    ;;
   # RC_FX700)
   #   FX700 currently fails during GS initialization even with the Fujitsu
   #   topology guard patch applied. Keep this route disabled until verified.
@@ -122,6 +157,13 @@ run_salmon() {
   local logfile="$1"
   shift
   case "${system}" in
+    RIKYU)
+      if [[ "${n_ranks}" -gt 1 ]]; then
+        mpirun -n "${n_ranks}" ./wrapper.sh "$@" > "${logfile}" 2>&1
+      else
+        mpirun -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+      fi
+      ;;
     RC_GENOA)
       mpirun -n "${n_ranks}" --bind-to core --map-by "ppr:${numproc_node}:node:PE=${nthreads}" "$@" > "${logfile}" 2>&1
       ;;
