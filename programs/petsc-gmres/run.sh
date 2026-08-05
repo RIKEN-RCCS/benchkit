@@ -59,11 +59,12 @@ case "${system}" in
     fi
     ;;
   RC_DGXSP)
-    # TODO: stage audikw_1.petscbin on R-CCS Cloud storage and fill in
-    # DATA. GPU run (1 rank/GPU) -- see build.sh.
-    DATA=/lustre/share/benchkit-data/petsc-gmres/audikw_1.petscbin
+    # GPU run (1 rank/GPU) -- see build.sh. This system has no separate
+    # group-storage tier (see README.md), so the data lives under $HOME
+    # like everything else here.
+    DATA=/home/users/william.dawson/benchkit-data/petsc-gmres/audikw_1.petscbin
     source /etc/profile.d/modules.sh
-    module load system/ng-dgx nvhpc-hpcx/26.3
+    module load system/ng-dgx nvhpc-hpcx
     mpirun -np "${n_ranks}" \
       "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse \
