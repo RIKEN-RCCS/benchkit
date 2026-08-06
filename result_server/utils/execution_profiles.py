@@ -13,7 +13,7 @@ from typing import Any
 
 
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -162,6 +162,9 @@ class ExecutionProfileStore:
                 current = 1
             if current < 2:
                 self._apply_v2(conn)
+                current = 2
+            if current < 3:
+                self._apply_v3(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -234,6 +237,41 @@ class ExecutionProfileStore:
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (2, now),
+        )
+
+    def _apply_v3(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE result_metadata_index (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_type TEXT NOT NULL CHECK(record_type IN ('result', 'estimate')),
+                result_uuid TEXT NOT NULL,
+                server_timestamp TEXT NOT NULL DEFAULT '',
+                json_file TEXT NOT NULL,
+                code TEXT NOT NULL DEFAULT '',
+                system TEXT NOT NULL DEFAULT '',
+                exp TEXT NOT NULL DEFAULT '',
+                ci_trigger TEXT NOT NULL DEFAULT '',
+                pipeline_id TEXT NOT NULL DEFAULT '',
+                source_type TEXT NOT NULL DEFAULT '',
+                source_ref TEXT NOT NULL DEFAULT '',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(record_type, result_uuid),
+                UNIQUE(record_type, json_file)
+            );
+
+            CREATE INDEX idx_result_metadata_index_scope
+                ON result_metadata_index(record_type, code, system, exp);
+            CREATE INDEX idx_result_metadata_index_timestamp
+                ON result_metadata_index(record_type, server_timestamp);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (3, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:

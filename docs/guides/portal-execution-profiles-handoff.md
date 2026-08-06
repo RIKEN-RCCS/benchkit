@@ -34,7 +34,9 @@ Recommended order:
    `RESULT_SERVER_GITLAB_TRIGGER_TOKEN`; do not store it in SQLite, logs, or
    the OSS repository.
 6. Index received benchmark and estimation JSON metadata into SQLite while
-   keeping JSON/tgz artifacts as raw records.
+   keeping JSON/tgz artifacts as raw records. The first index should be an
+   auxiliary lookup table populated at ingest time; existing result and
+   estimate pages can remain file-backed until the indexed views are reviewed.
 7. Add environment snapshot storage after deciding which host/runtime metadata
    should define an environment identity.
 
