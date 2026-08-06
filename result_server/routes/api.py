@@ -4,6 +4,7 @@ from flask import Blueprint, request, abort, current_app, jsonify, send_file
 import os
 import json
 import re
+import sqlite3
 import uuid
 import shutil
 import io
@@ -15,6 +16,7 @@ from datetime import datetime
 from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
 from utils.rate_limit import rate_limited
+from utils.result_metadata_index import index_result_metadata
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
@@ -115,6 +117,41 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
         "id": unique_id,
         "timestamp": timestamp,
         "json_file": filename,
+        "payload": payload,
+    }
+
+
+def _index_saved_json(record_type, saved):
+    """Index saved JSON metadata when a Portal SQLite DB is configured."""
+    try:
+        indexed = index_result_metadata(
+            db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
+            record_type=record_type,
+            payload=saved.get("payload", {}),
+            json_file=saved.get("json_file", ""),
+            fallback_uuid=saved.get("id", ""),
+            fallback_timestamp=saved.get("timestamp", ""),
+        )
+    except (sqlite3.Error, OSError, ValueError) as exc:
+        current_app.logger.exception("result metadata index update failed")
+        audit_event(
+            "result_metadata_index_failed",
+            target=saved.get("json_file", ""),
+            result="failure",
+            level=logging.ERROR,
+            details={"record_type": record_type, "error": str(exc)},
+        )
+        return False
+    return indexed
+
+
+def _saved_json_response(saved):
+    """Return the public API response fields for a saved JSON payload."""
+    return {
+        "status": saved["status"],
+        "id": saved["id"],
+        "timestamp": saved["timestamp"],
+        "json_file": saved["json_file"],
     }
 
 
@@ -280,6 +317,7 @@ def ingest_result():
         prefix="result",
         out_dir=current_app.config["RECEIVED_DIR"],
     )
+    _index_saved_json("result", saved)
     audit_event(
         "ingest_accepted",
         actor=runner_id,
@@ -287,7 +325,7 @@ def ingest_result():
         result="success",
         details={"ingest_type": "result", "id": saved["id"]},
     )
-    return saved, 200
+    return _saved_json_response(saved), 200
 
 
 @api_bp.route("/api/ingest/estimate", methods=["POST"])
@@ -306,6 +344,7 @@ def ingest_estimate():
         out_dir=current_app.config["ESTIMATED_DIR"],
         given_uuid=raw_uuid,
     )
+    _index_saved_json("estimate", saved)
     audit_event(
         "ingest_accepted",
         actor=runner_id,
@@ -313,7 +352,7 @@ def ingest_estimate():
         result="success",
         details={"ingest_type": "estimate", "id": saved["id"]},
     )
-    return saved, 200
+    return _saved_json_response(saved), 200
 
 
 @api_bp.route("/api/ingest/padata", methods=["POST"])

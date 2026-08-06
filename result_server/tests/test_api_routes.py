@@ -85,6 +85,60 @@ class TestIngestResult:
         assert saved["code"] == "test"
         assert saved["_server_uuid"] == body["id"]
         assert saved["_server_timestamp"] == body["timestamp"]
+        assert "payload" not in body
+
+    def test_post_valid_json_indexes_metadata(self, tmp_dirs, tmp_path):
+        """Accepted result payloads should update the Portal SQLite metadata index."""
+        received, received_padata, received_estimation_artifacts, estimated = tmp_dirs
+        db_path = tmp_path / "cx_portal.sqlite3"
+        app = build_api_route_app(
+            received_dir=received,
+            received_padata_dir=received_padata,
+            received_estimation_artifacts_dir=received_estimation_artifacts,
+            estimated_dir=estimated,
+            execution_profile_db_path=str(db_path),
+        )
+        app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
+
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/result",
+                data=json.dumps({
+                    "code": "qws",
+                    "system": "RIKYU",
+                    "Exp": "case0",
+                    "FOM": 42.0,
+                    "ci_trigger": "trigger",
+                    "pipeline_id": 3152,
+                }),
+                headers={
+                    "X-API-Key": API_KEY,
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        import sqlite3
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT record_type, result_uuid, json_file, code, system, exp,
+                       ci_trigger, pipeline_id
+                FROM result_metadata_index
+                """
+            ).fetchone()
+        body = resp.get_json()
+        assert row == (
+            "result",
+            body["id"],
+            body["json_file"],
+            "qws",
+            "RIKYU",
+            "case0",
+            "trigger",
+            "3152",
+        )
 
     def test_valid_key_logs_runner_id(self, client, caplog):
         """Accepted API requests should include the resolved runner id in logs."""
@@ -209,6 +263,60 @@ class TestIngestEstimate:
         assert saved["code"] == "est-test"
         assert saved["estimate_metadata"]["estimation_result_uuid"] == body["id"]
         assert "estimation_result_timestamp" in saved["estimate_metadata"]
+        assert "payload" not in body
+
+    def test_post_valid_json_indexes_estimate_metadata(self, tmp_dirs, tmp_path):
+        """Accepted estimate payloads should update the Portal SQLite metadata index."""
+        received, received_padata, received_estimation_artifacts, estimated = tmp_dirs
+        db_path = tmp_path / "cx_portal.sqlite3"
+        app = build_api_route_app(
+            received_dir=received,
+            received_padata_dir=received_padata,
+            received_estimation_artifacts_dir=received_estimation_artifacts,
+            estimated_dir=estimated,
+            execution_profile_db_path=str(db_path),
+        )
+        app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
+
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/estimate",
+                data=json.dumps({
+                    "code": "qws",
+                    "exp": "case0",
+                    "performance_ratio": 1.5,
+                    "current_system": {"system": "RIKYU"},
+                    "future_system": {"system": "FugakuNEXT"},
+                    "estimate_metadata": {
+                        "source_result_uuid": "11111111-2222-3333-4444-555555555555",
+                        "estimation_package": "weakscaling",
+                    },
+                }),
+                headers={
+                    "X-API-Key": API_KEY,
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        import sqlite3
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT record_type, result_uuid, json_file, code, system, exp
+                FROM result_metadata_index
+                """
+            ).fetchone()
+        body = resp.get_json()
+        assert row == (
+            "estimate",
+            body["id"],
+            body["json_file"],
+            "qws",
+            "RIKYU",
+            "case0",
+        )
 
     def test_post_valid_json_with_uuid_header(self, client, tmp_dirs):
         """A valid X-UUID header should be used as the persisted estimate id."""

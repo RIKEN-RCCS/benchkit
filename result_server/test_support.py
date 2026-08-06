@@ -158,6 +158,7 @@ def build_api_route_app(
     received_padata_dir,
     received_estimation_artifacts_dir,
     estimated_dir,
+    execution_profile_db_path=None,
 ):
     """Build a Flask app with the API, results, and estimated blueprints for API tests."""
     app = Flask(__name__)
@@ -165,6 +166,8 @@ def build_api_route_app(
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
     app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
+    if execution_profile_db_path is not None:
+        app.config["EXECUTION_PROFILE_DB_PATH"] = execution_profile_db_path
     app.config["TESTING"] = True
 
     from routes.api import api_bp
