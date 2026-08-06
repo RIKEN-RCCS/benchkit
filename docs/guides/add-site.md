@@ -608,6 +608,28 @@ JSON は、初期投入や移行 seed の補助形式として使えます。例
 
 この JSON や SQLite DB には account や project group の実値が入り得るため、公開 OSS repo には commit しないでください。Portal では admin user だけが `/admin/execution-profiles` から確認できます。
 
+Portal で作成した定期実行や repo/ref 監視トリガーは、Portal の実行環境で
+site-local trigger runner を常駐させて評価します。GitLab schedule ではなく
+Portal が governance と `RESULT_SERVER` の戻し先を決め、GitLab には pipeline
+trigger として渡します。例:
+
+```bash
+scripts/site/setup_trigger_runner.sh \
+  --site dev2 \
+  --repo-dir /home/nakamura/ChatGPT/benchkit \
+  --venv /home/nakamura/fugakunext/venv \
+  --db /home/nakamura/fugakunext/dev2/cx_portal.sqlite3 \
+  --env-file /home/nakamura/.config/fncx/dev2.env \
+  --result-server-url https://fncx.r-ccs.riken.jp/dev2 \
+  --submit
+```
+
+初回導入時は `--dry-run` のまま timer を作って動作を確認できます。`repo_ref`
+監視は初回観測では baseline を保存するだけで pipeline を投入せず、2回目以降
+の fingerprint 変化で発火します。runner は短命の SQLite lock を既定で使う
+ため、timer 実行が重なっても同じ trigger を二重評価しません。timer 間隔を
+変える場合は `--lock-ttl-seconds` で TTL を調整できます。
+
 Execution profile を実行要求へ適用する場合、Portal は `enabled=true` かつ
 `status=approved` の profile だけを候補にします。`code` / `system` / `exp`
 scope は空なら wildcard、値が入っていればその値だけに一致します。profile ID

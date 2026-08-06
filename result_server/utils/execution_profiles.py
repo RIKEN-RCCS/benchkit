@@ -8,14 +8,14 @@ import re
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
 MATCH_MODES = {"any", "all"}
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -301,6 +301,9 @@ class ExecutionProfileStore:
                 current = 4
             if current < 5:
                 self._apply_v5(conn)
+                current = 5
+            if current < 6:
+                self._apply_v6(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -464,6 +467,48 @@ class ExecutionProfileStore:
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (5, now),
+        )
+
+    def _apply_v6(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS trigger_runner_lock (
+                name TEXT PRIMARY KEY,
+                owner TEXT NOT NULL DEFAULT '',
+                locked_until TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS trigger_observations (
+                trigger_id TEXT NOT NULL REFERENCES trigger_definitions(id) ON DELETE CASCADE,
+                target TEXT NOT NULL,
+                fingerprint TEXT NOT NULL DEFAULT '',
+                observed_at TEXT NOT NULL,
+                PRIMARY KEY (trigger_id, target)
+            );
+
+            CREATE TABLE IF NOT EXISTS trigger_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trigger_id TEXT NOT NULL,
+                trigger_type TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                dry_run INTEGER NOT NULL DEFAULT 1,
+                reason TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                errors_json TEXT NOT NULL DEFAULT '[]',
+                actor TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trigger_runs_trigger
+                ON trigger_runs(trigger_id, created_at);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (6, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
@@ -780,6 +825,220 @@ class ExecutionProfileStore:
                 }
             )
         return triggers
+
+    def acquire_trigger_runner_lock(
+        self,
+        name: str,
+        *,
+        owner: str,
+        ttl_seconds: int = 300,
+        now: str | None = None,
+    ) -> bool:
+        self.migrate()
+        current = now or _utc_now_iso()
+        locked_until = (
+            datetime.fromisoformat(current.replace("Z", "+00:00"))
+            + timedelta(seconds=ttl_seconds)
+        ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT owner, locked_until
+                FROM trigger_runner_lock
+                WHERE name = ?
+                """,
+                (name,),
+            ).fetchone()
+            if row and row["locked_until"] > current:
+                return False
+            conn.execute(
+                """
+                INSERT INTO trigger_runner_lock(name, owner, locked_until, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    owner=excluded.owner,
+                    locked_until=excluded.locked_until,
+                    updated_at=excluded.updated_at
+                """,
+                (name, owner, locked_until, current),
+            )
+        return True
+
+    def release_trigger_runner_lock(
+        self,
+        name: str,
+        *,
+        owner: str,
+        now: str | None = None,
+    ) -> bool:
+        self.migrate()
+        current = now or _utc_now_iso()
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE trigger_runner_lock
+                SET locked_until = ?, updated_at = ?
+                WHERE name = ? AND owner = ?
+                """,
+                (current, current, name, owner),
+            )
+        return cur.rowcount > 0
+
+    def list_trigger_observations(
+        self,
+        trigger_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        self.migrate()
+        query = """
+            SELECT trigger_id, target, fingerprint, observed_at
+            FROM trigger_observations
+        """
+        params: tuple[Any, ...] = ()
+        if trigger_id:
+            query += " WHERE trigger_id = ?"
+            params = (trigger_id,)
+        query += " ORDER BY trigger_id COLLATE NOCASE, target COLLATE NOCASE"
+        with self.connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            {
+                "trigger_id": row["trigger_id"],
+                "target": row["target"],
+                "fingerprint": row["fingerprint"],
+                "observed_at": row["observed_at"],
+            }
+            for row in rows
+        ]
+
+    def get_trigger_observation(
+        self,
+        trigger_id: str,
+        target: str,
+    ) -> dict[str, Any] | None:
+        self.migrate()
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT trigger_id, target, fingerprint, observed_at
+                FROM trigger_observations
+                WHERE trigger_id = ? AND target = ?
+                """,
+                (trigger_id, target),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "trigger_id": row["trigger_id"],
+            "target": row["target"],
+            "fingerprint": row["fingerprint"],
+            "observed_at": row["observed_at"],
+        }
+
+    def upsert_trigger_observation(
+        self,
+        trigger_id: str,
+        target: str,
+        fingerprint: str,
+        *,
+        observed_at: str | None = None,
+    ) -> None:
+        self.migrate()
+        observed = observed_at or _utc_now_iso()
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO trigger_observations(
+                    trigger_id, target, fingerprint, observed_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(trigger_id, target) DO UPDATE SET
+                    fingerprint=excluded.fingerprint,
+                    observed_at=excluded.observed_at
+                """,
+                (trigger_id, target, fingerprint, observed),
+            )
+
+    def create_trigger_run(
+        self,
+        *,
+        trigger_id: str,
+        trigger_type: str,
+        status: str,
+        dry_run: bool,
+        reason: str = "",
+        payload: dict[str, Any] | None = None,
+        errors: list[str] | None = None,
+        actor: str = "",
+    ) -> int:
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO trigger_runs (
+                    trigger_id, trigger_type, status, dry_run, reason,
+                    payload_json, errors_json, actor, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    trigger_id,
+                    trigger_type,
+                    status,
+                    1 if dry_run else 0,
+                    reason,
+                    _json_dump(payload or {}),
+                    json.dumps(errors or [], ensure_ascii=False),
+                    actor,
+                    now,
+                    now,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def list_trigger_runs(
+        self,
+        trigger_id: str | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        self.migrate()
+        query = """
+            SELECT *
+            FROM trigger_runs
+        """
+        params: list[Any] = []
+        if trigger_id:
+            query += " WHERE trigger_id = ?"
+            params.append(trigger_id)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with self.connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+        runs = []
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except json.JSONDecodeError:
+                payload = {"_invalid_payload_json": row["payload_json"]}
+            try:
+                errors = json.loads(row["errors_json"] or "[]")
+            except json.JSONDecodeError:
+                errors = [row["errors_json"]]
+            runs.append(
+                {
+                    "id": row["id"],
+                    "trigger_id": row["trigger_id"],
+                    "trigger_type": row["trigger_type"],
+                    "status": row["status"],
+                    "dry_run": bool(row["dry_run"]),
+                    "reason": row["reason"],
+                    "payload_json": payload,
+                    "errors": errors,
+                    "actor": row["actor"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+        return runs
 
     def list_profiles(self) -> list[dict[str, Any]]:
         self.migrate()

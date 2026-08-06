@@ -9,6 +9,7 @@ import sqlite3
 import sys
 import tempfile
 import urllib.parse
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -32,6 +33,10 @@ from utils.gitlab_pipeline import (  # noqa: E402
     submit_pipeline_plan,
 )
 from routes.admin import _portal_result_server_url  # noqa: E402
+from trigger_runner import (  # noqa: E402
+    cron_matches,
+    run_triggers,
+)
 
 
 class _Store:
@@ -240,6 +245,295 @@ def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path
         "https://github.com/RIKEN-LQCD/qws.git@develop",
     ]
     assert triggers[0]["match_mode"] == "any"
+
+
+def test_execution_profile_store_records_trigger_observations_and_runs(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": "https://github.com/RIKEN-LQCD/qws.git@master",
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    store.upsert_trigger_observation(
+        "rikyu-qws-watch",
+        "https://github.com/RIKEN-LQCD/qws.git@master",
+        "abc123",
+        observed_at="2026-08-06T00:00:00Z",
+    )
+    run_id = store.create_trigger_run(
+        trigger_id="rikyu-qws-watch",
+        trigger_type="watch_event",
+        status="would_submit",
+        dry_run=True,
+        reason="repo_ref:https://github.com/RIKEN-LQCD/qws.git@master",
+        payload={"payload": {"variables": {"BK_TRIGGER_ID": "rikyu-qws-watch"}}},
+        errors=[],
+        actor="trigger_runner",
+    )
+
+    observations = store.list_trigger_observations("rikyu-qws-watch")
+    runs = store.list_trigger_runs("rikyu-qws-watch")
+    assert observations == [
+        {
+            "trigger_id": "rikyu-qws-watch",
+            "target": "https://github.com/RIKEN-LQCD/qws.git@master",
+            "fingerprint": "abc123",
+            "observed_at": "2026-08-06T00:00:00Z",
+        }
+    ]
+    assert runs[0]["id"] == run_id
+    assert runs[0]["status"] == "would_submit"
+    assert runs[0]["payload_json"]["payload"]["variables"]["BK_TRIGGER_ID"] == "rikyu-qws-watch"
+
+
+def test_execution_profile_store_acquires_and_releases_trigger_runner_lock(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+
+    assert store.acquire_trigger_runner_lock(
+        "default",
+        owner="runner-a",
+        ttl_seconds=60,
+        now="2026-08-06T00:00:00Z",
+    )
+    assert not store.acquire_trigger_runner_lock(
+        "default",
+        owner="runner-b",
+        ttl_seconds=60,
+        now="2026-08-06T00:00:30Z",
+    )
+    assert store.acquire_trigger_runner_lock(
+        "default",
+        owner="runner-b",
+        ttl_seconds=60,
+        now="2026-08-06T00:01:01Z",
+    )
+    assert not store.release_trigger_runner_lock(
+        "default",
+        owner="runner-a",
+        now="2026-08-06T00:01:02Z",
+    )
+    assert store.release_trigger_runner_lock(
+        "default",
+        owner="runner-b",
+        now="2026-08-06T00:01:02Z",
+    )
+    assert store.acquire_trigger_runner_lock(
+        "default",
+        owner="runner-a",
+        ttl_seconds=60,
+        now="2026-08-06T00:01:02Z",
+    )
+
+
+def test_trigger_runner_cron_matches_basic_fields():
+    now = datetime(2026, 8, 10, 1, 30, tzinfo=UTC)
+
+    assert cron_matches("30 1 * * 1", now) == (True, [])
+    assert cron_matches("*/15 * * * *", now) == (True, [])
+    assert cron_matches("0 2 * * *", now) == (False, [])
+    assert cron_matches("0 2 *", now) == (False, ["cron expression must have 5 fields"])
+
+
+def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": (
+                "https://github.com/RIKEN-LQCD/qws.git@master\n"
+                "https://github.com/RIKEN-LQCD/qws.git@develop"
+            ),
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    fingerprint_suffix = "initial"
+
+    def fake_ls_remote(repo, ref):
+        return f"{repo}:{ref}:{fingerprint_suffix}"
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=True,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        ls_remote=fake_ls_remote,
+    )
+
+    assert len(evaluations) == 1
+    evaluation = evaluations[0]
+    assert evaluation.should_fire is False
+    assert evaluation.status == "would_initialize"
+    assert all(item["initialized"] is True for item in evaluation.observations)
+    assert all(item["changed"] is False for item in evaluation.observations)
+    variables = evaluation.payload["payload"]["variables"]
+    assert variables["code"] == "qws"
+    assert variables["system"] == "Fugaku"
+    assert variables["RESULT_SERVER"] == "https://fncx.r-ccs.riken.jp/dev2"
+    assert variables["BK_TRIGGER_ID"] == "rikyu-qws-watch"
+    assert variables["BK_TRIGGER_TYPE"] == "watch_event"
+    assert variables["BK_TRIGGER_REASON"].startswith("repo_ref:")
+
+    stored = ExecutionProfileStore(str(db_path))
+    observations = stored.list_trigger_observations("rikyu-qws-watch")
+    runs = stored.list_trigger_runs("rikyu-qws-watch")
+    assert len(observations) == 2
+    assert runs[0]["status"] == "would_initialize"
+
+    second = run_triggers(
+        db_path=str(db_path),
+        dry_run=True,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        ls_remote=fake_ls_remote,
+    )
+    assert second[0].should_fire is False
+    assert second[0].status == "unchanged"
+
+    fingerprint_suffix = "changed"
+    third = run_triggers(
+        db_path=str(db_path),
+        dry_run=True,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        ls_remote=fake_ls_remote,
+    )
+    assert third[0].should_fire is True
+    assert third[0].status == "would_submit"
+
+
+def test_trigger_runner_submit_records_submitted_run(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": "https://github.com/RIKEN-LQCD/qws.git@master",
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    store.upsert_trigger_observation(
+        "rikyu-qws-watch",
+        "https://github.com/RIKEN-LQCD/qws.git@master",
+        "old-fingerprint",
+    )
+    submitted = []
+
+    def fake_ls_remote(repo, ref):
+        return f"{repo}:{ref}:new-fingerprint"
+
+    def fake_submit(plan, *, token):
+        submitted.append((plan, token))
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 123},
+            errors=[],
+        )
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        submit=True,
+        ls_remote=fake_ls_remote,
+        submit_pipeline=fake_submit,
+    )
+
+    assert len(submitted) == 1
+    plan, token = submitted[0]
+    assert token == "trigger-token"
+    assert plan.api_url == "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline"
+    assert plan.payload["ref"] == "develop"
+    assert plan.payload["variables"]["RESULT_SERVER"] == "https://fncx.r-ccs.riken.jp/dev2"
+    assert evaluations[0].status == "submitted"
+    assert evaluations[0].errors == []
+
+    stored = ExecutionProfileStore(str(db_path))
+    runs = stored.list_trigger_runs("rikyu-qws-watch")
+    assert runs[0]["status"] == "submitted"
+    assert runs[0]["dry_run"] is False
+    assert runs[0]["errors"] == []
+
+
+def test_trigger_runner_skips_when_lock_is_held(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": "https://github.com/RIKEN-LQCD/qws.git@master",
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    assert store.acquire_trigger_runner_lock(
+        "default",
+        owner="other-runner",
+        ttl_seconds=300,
+        now="2026-08-06T00:00:00Z",
+    )
+
+    def fail_ls_remote(repo, ref):
+        raise AssertionError("locked runner must not observe watch targets")
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=True,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        now=datetime(2026, 8, 6, 0, 1, tzinfo=UTC),
+        ls_remote=fail_ls_remote,
+    )
+
+    assert len(evaluations) == 1
+    assert evaluations[0].trigger_id == "__runner__"
+    assert evaluations[0].status == "runner_locked"
+    runs = ExecutionProfileStore(str(db_path)).list_trigger_runs("__runner__")
+    assert runs[0]["status"] == "runner_locked"
 
 
 def test_execution_profile_store_resolves_approved_matching_profile(tmp_path):
