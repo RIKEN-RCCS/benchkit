@@ -21,6 +21,7 @@ from utils.execution_profiles import (  # noqa: E402
     import_execution_profiles_json,
     load_execution_profiles,
     normalize_profile,
+    normalize_trigger_definition,
 )
 from utils.gitlab_pipeline import (  # noqa: E402
     GitLabPipelineSubmitResult,
@@ -30,6 +31,7 @@ from utils.gitlab_pipeline import (  # noqa: E402
     configured_gitlab_trigger_token,
     submit_pipeline_plan,
 )
+from routes.admin import _portal_result_server_url  # noqa: E402
 
 
 class _Store:
@@ -73,6 +75,7 @@ def _profile(**overrides):
         "code": "qws",
         "system": ["RIKYU"],
         "exp": ["case0"],
+        "allocation_project_id": "rkp00010",
         "scheduler_extra_args": "--account=site-local",
         "visibility": "public-results",
         "valid_from": "2026-09-01",
@@ -104,6 +107,7 @@ def test_execution_profile_store_creates_sqlite_registry(tmp_path):
     assert result.profiles[0]["code"] == ["qws"]
     assert result.profiles[0]["system"] == ["RIKYU"]
     assert result.profiles[0]["exp"] == ["case0"]
+    assert result.profiles[0]["allocation_project_id"] == "rkp00010"
     assert result.profiles[0]["scheduler_extra_args"] == "--account=site-local"
     assert result.profiles[0]["metadata_json"] == {"terms_version": "v1"}
 
@@ -127,6 +131,115 @@ def test_execution_profile_store_updates_profile_and_scopes(tmp_path):
     assert result.profiles[0]["system"] == ["MiyabiG", "RIKYU"]
     assert result.profiles[0]["exp"] == []
     assert result.profiles[0]["scheduler_extra_args"] == "--account=updated"
+
+
+def test_execution_profile_summary_counts_status_and_expiration(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(id="approved"), actor="admin")
+    store.upsert_profile(_profile(id="paused", status="paused"), actor="admin")
+    store.upsert_profile(
+        _profile(id="expired", valid_until="2000-01-01"),
+        actor="admin",
+    )
+
+    result = load_execution_profiles(str(db_path))
+
+    assert result.approved_count == 2
+    assert result.inactive_count == 1
+    assert result.expired_count == 1
+
+
+def test_execution_profile_store_sets_approval_fields_from_actor(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    profile = _profile(
+        approved_by="manual@example.org",
+        approved_at="1999-01-01T00:00:00Z",
+    )
+
+    store.upsert_profile(profile, actor="admin@test.com")
+
+    result = load_execution_profiles(str(db_path))
+    assert result.profiles[0]["approved_by"] == "admin@test.com"
+    assert result.profiles[0]["approved_at"].endswith("Z")
+    assert result.profiles[0]["approved_at"] != "1999-01-01T00:00:00Z"
+
+
+def test_execution_profile_store_preserves_existing_approval_on_update(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["RIKYU"]), actor="approver@test.com")
+    first = load_execution_profiles(str(db_path)).profiles[0]
+
+    store.upsert_profile(_profile(system=["RIKYU", "MiyabiG"]), actor="editor@test.com")
+
+    result = load_execution_profiles(str(db_path))
+    assert result.profiles[0]["approved_by"] == "approver@test.com"
+    assert result.profiles[0]["approved_at"] == first["approved_at"]
+
+
+def test_execution_profile_store_creates_scheduled_trigger_definition(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-nightly",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "gitlab_target": "swc",
+            "cron_expr": "0 2 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    triggers = store.list_trigger_definitions()
+    assert len(triggers) == 1
+    assert triggers[0]["id"] == "rikyu-qws-nightly"
+    assert triggers[0]["trigger_type"] == "scheduled"
+    assert triggers[0]["profile_id"] == "rikyu-qws-nightly"
+    assert triggers[0]["cron_expr"] == "0 2 * * *"
+    assert triggers[0]["timezone"] == "Asia/Tokyo"
+    assert triggers[0]["gitlab_target"] == "swc"
+
+
+def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": (
+                "https://github.com/RIKEN-LQCD/qws.git@master\n"
+                "https://github.com/RIKEN-LQCD/qws.git@develop"
+            ),
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    triggers = store.list_trigger_definitions()
+    assert triggers[0]["trigger_type"] == "watch_event"
+    assert triggers[0]["watch_kind"] == "repo_ref"
+    assert triggers[0]["watch_targets"] == [
+        "https://github.com/RIKEN-LQCD/qws.git@master",
+        "https://github.com/RIKEN-LQCD/qws.git@develop",
+    ]
+    assert triggers[0]["match_mode"] == "any"
 
 
 def test_execution_profile_store_resolves_approved_matching_profile(tmp_path):
@@ -297,7 +410,10 @@ def test_admin_execution_profiles_requires_admin(tmp_path):
 
 def test_admin_execution_profiles_renders_profile_summary(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
-    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(),
+        actor="admin@test.com",
+    )
     app, temp_dirs = _admin_app(db_path)
     try:
         with app.test_client() as client:
@@ -306,13 +422,50 @@ def test_admin_execution_profiles_renders_profile_summary(tmp_path):
 
         html = resp.data.decode()
         assert resp.status_code == 200
-        assert "RIKYU QWS nightly" in html
+        assert "RIKYU QWS nightly" not in html
         assert "rikyu-qws-nightly" in html
-        assert "--account=site-local" in html
+        assert "Approved</span>" in html
+        assert "Inactive</span>" in html
+        assert "Expired</span>" in html
+        assert "rkp00010" in html
         assert "approved" in html
         assert "admin@test.com" in html
         assert "qws" in html
         assert "RIKYU" in html
+        assert 'href="/admin/execution-profiles?edit=rikyu-qws-nightly"' in html
+        assert 'name="profile_id" value="rikyu-qws-nightly"' in html
+        assert 'name="target_ref" value="main"' in html
+        assert 'name="confirm_submit" value="on"' in html
+        assert 'aria-label="Trigger pipeline on main"' in html
+        assert "Preview" not in html
+        assert "Manual triggers are launched from Registered Profiles" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_filters_registered_profiles_by_status(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(id="approved-profile"), actor="admin@test.com")
+    store.upsert_profile(
+        _profile(id="paused-profile", status="paused"),
+        actor="admin@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/admin/execution-profiles")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "paused-profile" in html
+        assert "approved-profile" in html
+        assert 'data-profile-filter="paused"' in html
+        assert 'data-status="paused"' in html
+        assert 'data-status="approved"' in html
+        assert "profile-filter-active" in html
+        assert "document.addEventListener" in html
     finally:
         _cleanup(temp_dirs)
 
@@ -327,21 +480,15 @@ def test_admin_execution_profiles_upserts_profile_from_form(tmp_path):
                 "/admin/execution-profiles/upsert",
                 data={
                     "id": "rikyu-qws-nightly",
-                    "display_name": "RIKYU QWS nightly",
                     "enabled": "on",
                     "status": "approved",
-                    "owner": "project-a",
                     "activity": "FugakuNEXT",
+                    "allocation_project_id": "rkp00010",
                     "code": "qws, genesis",
-                    "system": "RIKYU\nMiyabiG",
+                    "system": "RIKYU",
                     "exp": "case0",
-                    "scheduler_extra_args": "--account=site-local",
-                    "visibility": "public-results",
                     "valid_from": "2026-09-01",
                     "valid_until": "2027-03-31",
-                    "approved_by": "admin@test.com",
-                    "approved_at": "2026-09-01T00:00:00Z",
-                    "metadata_json": '{"terms_version":"v1"}',
                 },
                 follow_redirects=True,
             )
@@ -350,14 +497,209 @@ def test_admin_execution_profiles_upserts_profile_from_form(tmp_path):
         assert resp.status_code == 200
         assert b"Execution profile rikyu-qws-nightly saved." in resp.data
         assert len(result.profiles) == 1
+        assert result.profiles[0]["display_name"] == "rikyu-qws-nightly"
         assert result.profiles[0]["code"] == ["genesis", "qws"]
-        assert result.profiles[0]["system"] == ["MiyabiG", "RIKYU"]
-        assert result.profiles[0]["metadata_json"] == {"terms_version": "v1"}
+        assert result.profiles[0]["system"] == ["RIKYU"]
+        assert result.profiles[0]["allocation_project_id"] == "rkp00010"
+        assert result.profiles[0]["approved_by"] == "admin@test.com"
+        assert result.profiles[0]["approved_at"].endswith("Z")
+        assert result.profiles[0]["metadata_json"] == {}
     finally:
         _cleanup(temp_dirs)
 
 
-def test_admin_execution_profiles_rejects_invalid_metadata_json(tmp_path):
+def test_admin_execution_profiles_upserts_scheduled_trigger_from_form(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(),
+        actor="admin@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/triggers/upsert",
+                data={
+                    "id": "rikyu-qws-nightly",
+                    "trigger_type": "scheduled",
+                    "profile_id": "rikyu-qws-nightly",
+                    "enabled": "on",
+                    "gitlab_target": "swc",
+                    "cron_expr": "0 2 * * *",
+                    "timezone": "Asia/Tokyo",
+                },
+                follow_redirects=True,
+            )
+
+        triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert b"Trigger definition rikyu-qws-nightly saved." in resp.data
+        assert triggers[0]["cron_expr"] == "0 2 * * *"
+        assert "Registered Triggers" in html
+        assert "rikyu-qws-nightly" in html
+        assert "0 2 * * *" in html
+        assert "0 */6 * * * = every 6 hours" in html
+        assert 'type="checkbox" name="enabled"' not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_upserts_watch_event_trigger_from_form(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(),
+        actor="admin@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/triggers/upsert",
+                data={
+                    "id": "rikyu-qws-watch",
+                    "trigger_type": "watch_event",
+                    "profile_id": "rikyu-qws-nightly",
+                    "enabled": "on",
+                    "watch_kind": "repo_ref",
+                    "watch_targets": (
+                        "https://github.com/RIKEN-LQCD/qws.git@master\n"
+                        "https://github.com/RIKEN-LQCD/qws.git@develop"
+                    ),
+                    "match_mode": "all",
+                },
+                follow_redirects=True,
+            )
+
+        triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert triggers[0]["watch_kind"] == "repo_ref"
+        assert triggers[0]["watch_targets"] == [
+            "https://github.com/RIKEN-LQCD/qws.git@master",
+            "https://github.com/RIKEN-LQCD/qws.git@develop",
+        ]
+        assert triggers[0]["match_mode"] == "all"
+        assert (
+            "https://github.com/RIKEN-LQCD/qws.git@master, "
+            "https://github.com/RIKEN-LQCD/qws.git@develop"
+        ) in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_edits_pauses_resumes_and_deletes_trigger(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-nightly",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 2 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            edit_resp = client.get(
+                "/admin/execution-profiles?edit_trigger=rikyu-qws-nightly"
+            )
+            pause_resp = client.post(
+                "/admin/execution-profiles/triggers/rikyu-qws-nightly/pause",
+                follow_redirects=True,
+            )
+            resume_resp = client.post(
+                "/admin/execution-profiles/triggers/rikyu-qws-nightly/resume",
+                follow_redirects=True,
+            )
+            delete_resp = client.post(
+                "/admin/execution-profiles/triggers/rikyu-qws-nightly/delete",
+                follow_redirects=True,
+            )
+
+        edit_html = edit_resp.data.decode()
+        assert edit_resp.status_code == 200
+        assert "Edit Trigger" in edit_html
+        assert 'name="id" required placeholder="qws-fugaku-nightly" value="rikyu-qws-nightly"' in edit_html
+        assert pause_resp.status_code == 200
+        assert b"Trigger definition rikyu-qws-nightly paused." in pause_resp.data
+        assert resume_resp.status_code == 200
+        assert b"Trigger definition rikyu-qws-nightly resumed." in resume_resp.data
+        assert delete_resp.status_code == 200
+        assert b"Trigger definition rikyu-qws-nightly deleted." in delete_resp.data
+        assert ExecutionProfileStore(str(db_path)).list_trigger_definitions() == []
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_deletes_profile(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(),
+        actor="admin@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/rikyu-qws-nightly/delete",
+                follow_redirects=True,
+            )
+
+        result = load_execution_profiles(str(db_path))
+        assert resp.status_code == 200
+        assert b"Execution profile rikyu-qws-nightly deleted." in resp.data
+        assert result.profiles == []
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_edit_link_prefills_form(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(
+            id="qws-fugaku",
+            code=["qws"],
+            system=["Fugaku"],
+            exp=[],
+            allocation_project_id="rkp00010",
+            activity="CX",
+            valid_from="2026-08-01",
+            valid_until="2026-09-30",
+        ),
+        actor="admin@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/admin/execution-profiles?edit=qws-fugaku")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Edit Profile" in html
+        assert 'name="id" required placeholder="qws-fugaku-rkp00010" value="qws-fugaku"' in html
+        assert 'name="activity" placeholder="FugakuNEXT" value="CX"' in html
+        assert 'name="allocation_project_id" required placeholder="rkp00010" value="rkp00010"' in html
+        assert 'name="system" placeholder="Fugaku" value="Fugaku"' in html
+        assert "qws</textarea>" in html
+        assert "Cancel Edit" in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_rejects_allocation_without_single_system(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     app, temp_dirs = _admin_app(db_path)
     try:
@@ -366,22 +708,49 @@ def test_admin_execution_profiles_rejects_invalid_metadata_json(tmp_path):
             resp = client.post(
                 "/admin/execution-profiles/upsert",
                 data={
-                    "id": "bad-metadata",
-                    "enabled": "on",
-                    "metadata_json": "[1, 2, 3]",
+                    "id": "bad-allocation-scope",
+                    "status": "approved",
+                    "allocation_project_id": "rkp00010",
+                    "code": "qws",
+                    "system": "Fugaku,MiyabiG",
                 },
                 follow_redirects=True,
             )
 
         result = load_execution_profiles(str(db_path))
         assert resp.status_code == 200
-        assert b"metadata_json must be a JSON object" in resp.data
+        assert b"allocation_project_id requires exactly one system" in resp.data
         assert result.profiles == []
     finally:
         _cleanup(temp_dirs)
 
 
-def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monkeypatch):
+def test_admin_execution_profiles_rejects_approved_profile_without_allocation(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/upsert",
+                data={
+                    "id": "missing-allocation",
+                    "status": "approved",
+                    "code": "qws",
+                    "system": "Fugaku",
+                },
+                follow_redirects=True,
+            )
+
+        result = load_execution_profiles(str(db_path))
+        assert resp.status_code == 200
+        assert b"approved profiles require allocation_project_id" in resp.data
+        assert result.profiles == []
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_submit_records_payload(tmp_path, monkeypatch):
     monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
     db_path = tmp_path / "cx_portal.sqlite3"
     ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
@@ -393,20 +762,11 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
                 "/admin/execution-profiles/dry-run-submit",
                 data={
                     "target_ref": "develop",
-                    "code": "qws",
-                    "system": "RIKYU",
-                    "exp": "case0",
+                    "profile_id": "rikyu-qws-nightly",
                 },
             )
 
-        html = resp.data.decode()
         assert resp.status_code == 200
-        assert "Dry-run request #1" in html
-        assert "dry_run_ready" in html
-        assert "https://gitlab.example.org/api/v4/projects/group%2Fbenchkit/trigger/pipeline" in html
-        assert "gitlab.example.org/group/benchkit.git" in html
-        assert "Profile Exp is used for Portal profile matching" in html
-        assert "--account=site-local" in html
 
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
@@ -416,7 +776,9 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         payload_record = json.loads(row[4])
         variables = payload_record["payload"]["variables"]
         assert variables["code"] == "qws"
-        assert variables["BK_SCHEDULER_EXTRA_ARGS_RIKYU"] == "--account=site-local"
+        assert variables["BK_ALLOCATION_PROJECT_ID"] == "rkp00010"
+        assert variables["RESULT_SERVER"] == "http://localhost"
+        assert "BK_SCHEDULER_EXTRA_ARGS_RIKYU" not in variables
         assert "exp" not in variables
         assert payload_record["gitlab_project"] == "gitlab.example.org/group/benchkit.git"
     finally:
@@ -442,10 +804,7 @@ def test_admin_execution_profiles_dry_run_uses_profile_scope_values(
                 },
             )
 
-        html = resp.data.decode()
         assert resp.status_code == 200
-        assert "dry_run_ready" in html
-        assert "Profile Exp is used for Portal profile matching" in html
 
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
@@ -465,7 +824,55 @@ def test_admin_execution_profiles_dry_run_uses_profile_scope_values(
         variables = payload_record["payload"]["variables"]
         assert variables["code"] == "qws"
         assert variables["system"] == "RIKYU"
+        assert variables["BK_ALLOCATION_PROJECT_ID"] == "rkp00010"
+        assert variables["RESULT_SERVER"] == "http://localhost"
         assert "exp" not in variables
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_uses_portal_prefix_for_result_server(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_request_context(
+            "/dev2/admin/execution-profiles/dry-run-submit",
+            base_url="https://fncx.r-ccs.riken.jp",
+        ):
+            assert _portal_result_server_url() == "https://fncx.r-ccs.riken.jp/dev2"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_uses_configured_result_server_url(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_PUBLIC_URL", "https://portal.example.org/dev2/")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/dry-run-submit",
+                data={
+                    "target_ref": "develop",
+                    "profile_id": "rikyu-qws-nightly",
+                },
+            )
+
+        assert resp.status_code == 200
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute("SELECT payload_json FROM execution_requests").fetchone()
+        payload_record = json.loads(row[0])
+        variables = payload_record["payload"]["variables"]
+        assert variables["RESULT_SERVER"] == "https://portal.example.org/dev2"
     finally:
         _cleanup(temp_dirs)
 
@@ -482,13 +889,49 @@ def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
             _login_admin(client)
             resp = client.post(
                 "/admin/execution-profiles/dry-run-submit",
-                data={"target_ref": "develop", "code": "qws", "system": "RIKYU"},
+                data={"target_ref": "develop"},
             )
 
-        html = resp.data.decode()
         assert resp.status_code == 200
-        assert "dry_run_blocked" in html
-        assert "no approved execution profile matches target" in html
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT status, errors_json FROM execution_requests"
+            ).fetchone()
+        assert row[0] == "dry_run_blocked"
+        assert "profile_id is required" in json.loads(row[1])
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_dry_run_blocks_profile_without_allocation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(allocation_project_id=""),
+        actor="admin",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/dry-run-submit",
+                data={
+                    "target_ref": "develop",
+                    "profile_id": "rikyu-qws-nightly",
+                },
+            )
+
+        assert resp.status_code == 200
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT status, errors_json FROM execution_requests"
+            ).fetchone()
+        assert row[0] == "dry_run_blocked"
+        assert "profile allocation_project_id is required" in json.loads(row[1])
     finally:
         _cleanup(temp_dirs)
 
@@ -597,9 +1040,7 @@ def test_admin_execution_profiles_submit_posts_pipeline_and_records_request(
                 "/admin/execution-profiles/submit",
                 data={
                     "target_ref": "develop",
-                    "code": "qws",
-                    "system": "RIKYU",
-                    "exp": "case0",
+                    "profile_id": "rikyu-qws-nightly",
                     "confirm_submit": "on",
                 },
             )
@@ -666,9 +1107,7 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
                 data={
                     "gitlab_target": "gitlab_com",
                     "target_ref": "develop",
-                    "code": "qws",
-                    "system": "RIKYU",
-                    "exp": "case0",
+                    "profile_id": "rikyu-qws-nightly",
                     "confirm_submit": "on",
                 },
             )
@@ -698,7 +1137,7 @@ def test_admin_execution_profiles_submit_uses_profile_scope_values(
     monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "secret-token")
     db_path = tmp_path / "cx_portal.sqlite3"
     ExecutionProfileStore(str(db_path)).upsert_profile(
-        _profile(system=["Fugaku", "MiyabiG"]),
+        _profile(system=["Fugaku"]),
         actor="admin",
     )
     app, temp_dirs = _admin_app(db_path)
@@ -706,7 +1145,9 @@ def test_admin_execution_profiles_submit_uses_profile_scope_values(
     def fake_submit(plan, *, token):
         assert token == "secret-token"
         assert plan.payload["variables"]["code"] == "qws"
-        assert plan.payload["variables"]["system"] == "Fugaku,MiyabiG"
+        assert plan.payload["variables"]["system"] == "Fugaku"
+        assert plan.payload["variables"]["BK_ALLOCATION_PROJECT_ID"] == "rkp00010"
+        assert plan.payload["variables"]["RESULT_SERVER"] == "http://localhost"
         assert "exp" not in plan.payload["variables"]
         return GitLabPipelineSubmitResult(
             status_code=201,
@@ -742,7 +1183,7 @@ def test_admin_execution_profiles_submit_uses_profile_scope_values(
             "submitted",
             "rikyu-qws-nightly",
             "qws",
-            "Fugaku,MiyabiG",
+            "Fugaku",
             "case0",
         )
         payload_record = json.loads(row[5])
@@ -767,7 +1208,10 @@ def test_admin_execution_profiles_submit_requires_confirmation(tmp_path, monkeyp
             _login_admin(client)
             resp = client.post(
                 "/admin/execution-profiles/submit",
-                data={"target_ref": "develop", "code": "qws", "system": "RIKYU"},
+                data={
+                    "target_ref": "develop",
+                    "profile_id": "rikyu-qws-nightly",
+                },
             )
 
         html = resp.data.decode()

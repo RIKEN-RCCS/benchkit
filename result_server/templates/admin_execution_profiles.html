@@ -38,8 +38,8 @@
         color: #52525b;
     }
     .profile-table td {
-        vertical-align: top;
-        white-space: normal;
+        vertical-align: middle;
+        white-space: nowrap;
     }
     .profile-mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -73,6 +73,117 @@
         gap: 12px;
         grid-column: 1 / -1;
     }
+    .profile-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        white-space: nowrap;
+    }
+    .profile-row-actions form {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .profile-mini-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .profile-mini-actions form {
+        margin: 0;
+    }
+    .btn-mini {
+        padding: 4px 8px;
+        border-radius: 5px;
+        font-size: 12px;
+        line-height: 1.2;
+    }
+    .btn-danger {
+        background-color: #991b1b;
+        border-color: #991b1b;
+        color: #fff;
+    }
+    .btn-danger:hover {
+        background-color: #7f1d1d;
+        color: #fff;
+    }
+    .profile-row-actions select {
+        width: auto;
+        box-sizing: border-box;
+    }
+    .profile-trigger-ref {
+        color: #475569;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .profile-scope-line {
+        white-space: nowrap;
+    }
+    .profile-id-link {
+        color: #0f766e;
+        text-decoration: none;
+        font-weight: 700;
+    }
+    .profile-id-link:hover {
+        text-decoration: underline;
+    }
+    .profile-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border-radius: 5px;
+        line-height: 1;
+        font-size: 10px;
+        font-weight: 900;
+    }
+    .profile-play-icon {
+        display: block;
+        width: 0;
+        height: 0;
+        margin-left: 1px;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 7px solid currentColor;
+    }
+    .trigger-definition-table td {
+        vertical-align: middle;
+    }
+    .trigger-condition {
+        max-width: 46ch;
+    }
+    .trigger-type-fields {
+        display: none;
+    }
+    .trigger-type-fields-active {
+        display: contents;
+    }
+    .profile-col-trigger {
+        width: 1%;
+    }
+    .profile-col-id {
+        width: 16ch;
+        max-width: 16ch;
+    }
+    .profile-col-id .profile-mono {
+        display: inline-block;
+        max-width: 16ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+        white-space: nowrap;
+    }
+    .profile-col-scope {
+        min-width: 22ch;
+    }
+    .profile-col-governance {
+        min-width: 28ch;
+    }
     .profile-check-label {
         display: inline-flex;
         align-items: center;
@@ -81,6 +192,28 @@
     }
     .profile-check-label input {
         width: auto;
+    }
+    .profile-filter-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .profile-filter-button {
+        padding: 5px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        color: #334155;
+        background: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .profile-filter-active {
+        background: #0f766e;
+        border-color: #0f766e;
+        color: #fff;
     }
     .btn {
         padding: 7px 14px;
@@ -117,10 +250,10 @@
 <section class="page-card">
     <h2 class="section-title">Execution Profiles</h2>
     <p class="section-intro">
-        Execution profiles are site-local operational records stored in the
-        portal SQLite registry. They map approved application execution scopes
-        to scheduler allocation arguments without committing account or budget
-        values to the OSS repository.
+        Execution profiles are site-local governance records stored in the
+        portal SQLite registry. They approve application execution scopes and
+        semantic allocation IDs without embedding scheduler-specific command
+        line syntax in the Portal.
     </p>
 
     <div class="profile-summary-grid">
@@ -129,12 +262,16 @@
             <span>Total profiles</span>
         </div>
         <div class="profile-summary-card">
-            <strong>{{ profile_result.enabled_count }}</strong>
-            <span>Enabled</span>
+            <strong>{{ profile_result.approved_count }}</strong>
+            <span>Approved</span>
         </div>
         <div class="profile-summary-card">
-            <strong>{{ profile_result.disabled_count }}</strong>
-            <span>Disabled</span>
+            <strong>{{ profile_result.inactive_count }}</strong>
+            <span>Inactive</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.expired_count }}</strong>
+            <span>Expired</span>
         </div>
     </div>
 
@@ -161,252 +298,67 @@
 </section>
 
 <section class="page-card">
-    <h2 class="section-title">Create / Update Profile</h2>
+    <h2 class="section-title">{% if edit_profile %}Edit Profile{% else %}Create Profile{% endif %}</h2>
     <p class="section-intro">
-        Enter the same profile ID to update an existing record. Use comma or
-        newline separated scope values. Leave a scope empty to allow all values
-        for that dimension.
+        Enter the same profile ID to update an existing record. A profile
+        approves code scopes for one system and one allocation project ID.
     </p>
     <form method="POST" action="{{ url_for('admin.upsert_execution_profile') }}" class="profile-form">
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
         <label>
             Profile ID
-            <input type="text" name="id" required placeholder="rikyu-qws-nightly">
-        </label>
-        <label>
-            Display Name
-            <input type="text" name="display_name" placeholder="RIKYU QWS nightly">
+            <input type="text" name="id" required placeholder="qws-fugaku-rkp00010" value="{{ edit_profile.id if edit_profile else '' }}">
         </label>
         <label>
             Status
             <select name="status">
-                <option value="draft">draft</option>
-                <option value="approved">approved</option>
-                <option value="paused">paused</option>
-                <option value="retired">retired</option>
+                {% set selected_status = edit_profile.status if edit_profile else 'draft' %}
+                <option value="draft" {% if selected_status == 'draft' %}selected{% endif %}>draft</option>
+                <option value="approved" {% if selected_status == 'approved' %}selected{% endif %}>approved</option>
+                <option value="paused" {% if selected_status == 'paused' %}selected{% endif %}>paused</option>
+                <option value="retired" {% if selected_status == 'retired' %}selected{% endif %}>retired</option>
             </select>
         </label>
         <label>
             Activity
-            <input type="text" name="activity" placeholder="FugakuNEXT">
+            <input type="text" name="activity" placeholder="FugakuNEXT" value="{{ edit_profile.activity if edit_profile else '' }}">
         </label>
         <label>
-            Owner
-            <input type="text" name="owner" placeholder="project or team">
-        </label>
-        <label>
-            Visibility
-            <input type="text" name="visibility" placeholder="public-results">
+            Allocation Project ID
+            <input type="text" name="allocation_project_id" required placeholder="rkp00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
         </label>
         <label>
             Valid From
-            <input type="date" name="valid_from">
+            <input type="date" name="valid_from" value="{{ edit_profile.valid_from if edit_profile else '' }}">
         </label>
         <label>
             Valid Until
-            <input type="date" name="valid_until">
-        </label>
-        <label>
-            Approved By
-            <input type="text" name="approved_by" placeholder="admin@example.org">
-        </label>
-        <label>
-            Approved At
-            <input type="text" name="approved_at" placeholder="2026-09-01T00:00:00Z">
+            <input type="date" name="valid_until" value="{{ edit_profile.valid_until if edit_profile else '' }}">
         </label>
         <label class="profile-form-wide">
             Code Scope
-            <textarea name="code" rows="2" placeholder="qws, genesis"></textarea>
+            <textarea name="code" rows="2" placeholder="qws, genesis">{{ edit_profile.code | join(', ') if edit_profile else '' }}</textarea>
         </label>
         <label class="profile-form-wide">
-            System Scope
-            <textarea name="system" rows="2" placeholder="RIKYU, MiyabiG"></textarea>
+            System
+            <input type="text" name="system" placeholder="Fugaku" value="{{ edit_profile.system | join(', ') if edit_profile else '' }}">
         </label>
         <label class="profile-form-wide">
             Exp Scope
-            <textarea name="exp" rows="2" placeholder="case0"></textarea>
-        </label>
-        <label class="profile-form-wide">
-            Scheduler Extra Args
-            <textarea name="scheduler_extra_args" rows="2" placeholder="--account=&lt;site-local-account&gt;"></textarea>
-        </label>
-        <label class="profile-form-wide">
-            Purpose
-            <textarea name="purpose" rows="2" placeholder="Why this profile exists and who approved it."></textarea>
-        </label>
-        <label class="profile-form-wide">
-            Metadata JSON
-            <textarea name="metadata_json" rows="3" placeholder='{"terms_version":"2026-07"}'></textarea>
+            <textarea name="exp" rows="2" placeholder="case0">{{ edit_profile.exp | join(', ') if edit_profile else '' }}</textarea>
         </label>
         <div class="profile-form-actions">
-            <label class="profile-check-label">
-                <input type="checkbox" name="enabled" checked>
-                Enabled
-            </label>
             <button type="submit" class="btn btn-primary">Save Profile</button>
+            {% if edit_profile %}
+            <a class="btn btn-secondary" href="{{ url_for('admin.execution_profiles') }}">Cancel Edit</a>
+            {% endif %}
         </div>
     </form>
 </section>
 
+{% if submit_result %}
 <section class="page-card">
     <h2 class="section-title">GitLab Pipeline Trigger</h2>
-    <p class="section-intro">
-        Trigger the current GitLab CI entry point with project, ref, code,
-        system, and BenchPark controls.
-    </p>
-    <form method="POST" action="{{ url_for('admin.dry_run_execution_profile_submit') }}" class="profile-form">
-        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
-        <label>
-            Target Ref
-            <input type="text" name="target_ref" value="develop" required>
-        </label>
-        <label>
-            GitLab Target
-            {% if gitlab_targets %}
-            <select name="gitlab_target">
-                {% for target in gitlab_targets %}
-                <option value="{{ target.id }}">{{ target.id }} - {{ target.repo }}</option>
-                {% endfor %}
-            </select>
-            {% else %}
-            <input type="text" name="gitlab_target" placeholder="default">
-            {% endif %}
-        </label>
-        <label>
-            Profile ID
-            <input type="text" name="profile_id" placeholder="optional explicit profile">
-        </label>
-        <label>
-            Code
-            <input type="text" name="code" placeholder="qws">
-        </label>
-        <label>
-            System
-            <input type="text" name="system" placeholder="RIKYU">
-        </label>
-        <label>
-            Profile Exp
-            <input type="text" name="exp" placeholder="profile matching only">
-        </label>
-        <label>
-            BenchPark App
-            <input type="text" name="app" placeholder="osu-micro-benchmarks">
-        </label>
-        <div class="profile-form-actions">
-            <label class="profile-check-label">
-                <input type="checkbox" name="benchpark">
-                benchpark
-            </label>
-            <label class="profile-check-label">
-                <input type="checkbox" name="park_only">
-                park_only
-            </label>
-            <label class="profile-check-label">
-                <input type="checkbox" name="park_send">
-                park_send
-            </label>
-            <button type="submit" class="btn btn-secondary">Preview Payload</button>
-        </div>
-    </form>
-
-    {% if dry_run_result %}
-    <div class="inline-notice">
-        <strong>Dry-run request #{{ dry_run_result.request_id }}:</strong>
-        {{ dry_run_result.status }}
-        {% if dry_run_result.gitlab_target %}
-        target <span class="profile-mono">{{ dry_run_result.gitlab_target }}</span>
-        {% endif %}
-        {% if dry_run_result.gitlab_project %}
-        project <span class="profile-mono">{{ dry_run_result.gitlab_project }}</span>
-        {% endif %}
-        {% if dry_run_result.profile %}
-        using profile <span class="profile-mono">{{ dry_run_result.profile.id }}</span>
-        {% endif %}
-    </div>
-    {% if dry_run_result.errors %}
-    <div class="inline-notice">
-        <strong>Dry-run blockers:</strong>
-        <ul>
-            {% for error in dry_run_result.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-    {% if dry_run_result.warnings %}
-    <div class="inline-notice">
-        <strong>Dry-run warnings:</strong>
-        <ul>
-            {% for warning in dry_run_result.warnings %}
-            <li>{{ warning }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-    <p><strong>Trigger API URL:</strong> <span class="profile-mono">{{ dry_run_result.api_url or 'not configured' }}</span></p>
-    <pre class="profile-dry-run-output">{{ dry_run_result.payload_json }}</pre>
-    {% endif %}
-
-    <form method="POST" action="{{ url_for('admin.submit_execution_profile_pipeline') }}" class="profile-form">
-        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
-        <label>
-            Target Ref
-            <input type="text" name="target_ref" value="develop" required>
-        </label>
-        <label>
-            GitLab Target
-            {% if gitlab_targets %}
-            <select name="gitlab_target">
-                {% for target in gitlab_targets %}
-                <option value="{{ target.id }}">{{ target.id }} - {{ target.repo }}</option>
-                {% endfor %}
-            </select>
-            {% else %}
-            <input type="text" name="gitlab_target" placeholder="default">
-            {% endif %}
-        </label>
-        <label>
-            Profile ID
-            <input type="text" name="profile_id" placeholder="optional explicit profile">
-        </label>
-        <label>
-            Code
-            <input type="text" name="code" placeholder="qws">
-        </label>
-        <label>
-            System
-            <input type="text" name="system" placeholder="RIKYU">
-        </label>
-        <label>
-            Profile Exp
-            <input type="text" name="exp" placeholder="profile matching only">
-        </label>
-        <label>
-            BenchPark App
-            <input type="text" name="app" placeholder="osu-micro-benchmarks">
-        </label>
-        <div class="profile-form-actions">
-            <label class="profile-check-label">
-                <input type="checkbox" name="benchpark">
-                benchpark
-            </label>
-            <label class="profile-check-label">
-                <input type="checkbox" name="park_only">
-                park_only
-            </label>
-            <label class="profile-check-label">
-                <input type="checkbox" name="park_send">
-                park_send
-            </label>
-            <label class="profile-check-label">
-                <input type="checkbox" name="confirm_submit">
-                confirm submit
-            </label>
-            <button type="submit" class="btn btn-primary">Trigger Pipeline</button>
-        </div>
-    </form>
-
-    {% if submit_result %}
     <div class="inline-notice">
         <strong>Submit request #{{ submit_result.request_id }}:</strong>
         {{ submit_result.status }}
@@ -448,53 +400,81 @@
     {% if submit_result.response %}
     <pre class="profile-dry-run-output">{{ submit_result.response | tojson(indent=2) }}</pre>
     {% endif %}
-    {% endif %}
 </section>
+{% endif %}
 
 <section class="page-card table-card">
     <h2 class="section-title">Registered Profiles</h2>
+    <div class="profile-filter-row">
+        {% for value, label in profile_filter_options %}
+        <button type="button" class="profile-filter-button{% if profile_filter == value %} profile-filter-active{% endif %}" data-profile-filter="{{ value }}">{{ label }}</button>
+        {% endfor %}
+    </div>
     <div class="table-wrap">
         <table class="profile-table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th>Scope</th>
-                    <th>Scheduler Args</th>
-                    <th>Governance</th>
+                    <th class="profile-col-trigger">Trigger</th>
+                    <th class="profile-col-id">ID</th>
+                    <th class="profile-col-scope">Scope / Allocation</th>
+                    <th class="profile-col-governance">Governance</th>
+                    <th>Manage</th>
                 </tr>
             </thead>
             <tbody>
-            {% for profile in profile_result.profiles %}
-                <tr>
-                    <td>
-                        <strong>{{ profile.display_name }}</strong><br>
-                        <span class="profile-mono">{{ profile.id }}</span>
+            {% for profile in registered_profiles %}
+                <tr data-profile-row
+                    data-status="{{ profile.status or 'draft' }}"
+                    data-inactive="{% if (not profile.enabled) or profile.status in ['paused', 'retired'] %}1{% else %}0{% endif %}"
+                    data-expired="{% if profile.valid_until and profile.valid_until < today %}1{% else %}0{% endif %}">
+                    <td class="profile-col-trigger">
+                        <div class="profile-row-actions">
+                            <form method="POST" action="{{ url_for('admin.submit_execution_profile_pipeline') }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                                <input type="hidden" name="target_ref" value="{{ default_target_ref }}">
+                                <input type="hidden" name="confirm_submit" value="on">
+                                {% if gitlab_targets %}
+                                {% if gitlab_targets | length > 1 %}
+                                <select name="gitlab_target" aria-label="GitLab target">
+                                    {% for target in gitlab_targets %}
+                                    <option value="{{ target.id }}">{{ target.id }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% else %}
+                                <input type="hidden" name="gitlab_target" value="{{ gitlab_targets[0].id }}">
+                                {% endif %}
+                                {% else %}
+                                <input type="hidden" name="gitlab_target" value="">
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary profile-icon-button" title="Trigger pipeline on {{ default_target_ref }}" aria-label="Trigger pipeline on {{ default_target_ref }}"><span class="profile-play-icon" aria-hidden="true"></span></button>
+                            </form>
+                        </div>
+                    </td>
+                    <td class="profile-col-id">
+                        <a class="profile-mono profile-id-link" href="{{ url_for('admin.execution_profiles', edit=profile.id) }}" title="{{ profile.id }}">{{ profile.id }}</a>
+                    </td>
+                    <td class="profile-col-scope">
+                        <span class="profile-scope-line">
+                            <span class="profile-mono">{{ profile.code | join(', ') or '*' }}</span>
+                            on
+                            <span class="profile-mono">{{ profile.system | join(', ') or '*' }}</span>
+                            {% if profile.exp %}
+                            / <span class="profile-mono">{{ profile.exp | join(', ') }}</span>
+                            {% endif %}
+                        </span>
+                        / <span class="profile-mono">{{ profile.allocation_project_id or '-' }}</span>
+                    </td>
+                    <td class="profile-col-governance">
+                        {{ profile.activity or '-' }} / {{ profile.approved_by or '-' }} / {{ profile.valid_from or '-' }} to {{ profile.valid_until or '-' }}
                     </td>
                     <td>
-                        {% if profile.enabled %}
-                        <span class="profile-status profile-status-enabled">Enabled</span>
-                        {% else %}
-                        <span class="profile-status profile-status-disabled">Disabled</span>
-                        {% endif %}
-                        <br>{{ profile.status or 'draft' }}
-                    </td>
-                    <td>
-                        <strong>Code:</strong> {{ profile.code | join(', ') or '*' }}<br>
-                        <strong>System:</strong> {{ profile.system | join(', ') or '*' }}<br>
-                        <strong>Exp:</strong> {{ profile.exp | join(', ') or '*' }}
-                    </td>
-                    <td class="profile-mono">{{ profile.scheduler_extra_args or '-' }}</td>
-                    <td>
-                        <strong>Owner:</strong> {{ profile.owner or '-' }}<br>
-                        <strong>Activity:</strong> {{ profile.activity or '-' }}<br>
-                        <strong>Visibility:</strong> {{ profile.visibility or '-' }}<br>
-                        <strong>Approved by:</strong> {{ profile.approved_by or '-' }}<br>
-                        <strong>Valid:</strong>
-                        {{ profile.valid_from or '-' }} to {{ profile.valid_until or '-' }}<br>
-                        {% if profile.purpose %}
-                        <strong>Purpose:</strong> {{ profile.purpose }}
-                        {% endif %}
+                        <div class="profile-mini-actions">
+                            <form method="POST" action="{{ url_for('admin.delete_execution_profile', profile_id=profile.id) }}" onsubmit="return confirm('Delete profile {{ profile.id }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-danger btn-mini" title="Delete profile">Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
             {% else %}
@@ -506,4 +486,192 @@
         </table>
     </div>
 </section>
+
+<section class="page-card">
+    <h2 class="section-title">{% if edit_trigger %}Edit Trigger{% else %}Create Trigger{% endif %}</h2>
+    <form method="POST" action="{{ url_for('admin.upsert_execution_profile_trigger') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        {% set selected_trigger_type = edit_trigger.trigger_type if edit_trigger else 'scheduled' %}
+        {% set selected_trigger_profile = edit_trigger.profile_id if edit_trigger else '' %}
+        {% set selected_trigger_target = edit_trigger.gitlab_target if edit_trigger else '' %}
+        {% set selected_match_mode = edit_trigger.match_mode if edit_trigger else 'any' %}
+        {% set trigger_enabled = edit_trigger.enabled if edit_trigger else true %}
+        <input type="hidden" name="enabled" value="{% if trigger_enabled %}on{% endif %}">
+        <label>
+            Trigger ID
+            <input type="text" name="id" required placeholder="qws-fugaku-nightly" value="{{ edit_trigger.id if edit_trigger else '' }}">
+        </label>
+        <label>
+            Type
+            <select name="trigger_type" data-trigger-type-select>
+                <option value="scheduled" {% if selected_trigger_type == 'scheduled' %}selected{% endif %}>scheduled</option>
+                <option value="watch_event" {% if selected_trigger_type == 'watch_event' %}selected{% endif %}>watch_event</option>
+            </select>
+        </label>
+        <label>
+            Profile
+            <select name="profile_id" required>
+                <option value="">Select profile</option>
+                {% for profile in registered_profiles %}
+                <option value="{{ profile.id }}" {% if selected_trigger_profile == profile.id %}selected{% endif %}>{{ profile.id }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            GitLab Target
+            <select name="gitlab_target">
+                {% if gitlab_targets %}
+                {% for target in gitlab_targets %}
+                <option value="{{ target.id }}" {% if selected_trigger_target == target.id %}selected{% endif %}>{{ target.id }}</option>
+                {% endfor %}
+                {% else %}
+                <option value="">default</option>
+                {% endif %}
+            </select>
+        </label>
+        <div class="trigger-type-fields{% if selected_trigger_type == 'scheduled' %} trigger-type-fields-active{% endif %}" data-trigger-type-fields="scheduled">
+            <label>
+                Cron
+                <input
+                    type="text"
+                    name="cron_expr"
+                    placeholder="0 2 * * *"
+                    value="{{ edit_trigger.cron_expr if edit_trigger else '' }}"
+                    title="Examples: 0 2 * * * = daily 02:00; 0 */6 * * * = every 6 hours; 30 1 * * 1 = Mondays 01:30; 0 9 1 * * = monthly on day 1 09:00; */15 * * * * = every 15 minutes"
+                >
+            </label>
+            <label>
+                Timezone
+                <input type="text" name="timezone" value="{{ edit_trigger.timezone if edit_trigger else 'Asia/Tokyo' }}">
+            </label>
+        </div>
+        <div class="trigger-type-fields{% if selected_trigger_type == 'watch_event' %} trigger-type-fields-active{% endif %}" data-trigger-type-fields="watch_event">
+            <label>
+                Watch Kind
+                <input type="text" name="watch_kind" placeholder="repo_ref" value="{{ edit_trigger.watch_kind if edit_trigger else '' }}">
+            </label>
+            <label>
+                Match Mode
+                <select name="match_mode">
+                    <option value="any" {% if selected_match_mode == 'any' %}selected{% endif %}>any</option>
+                    <option value="all" {% if selected_match_mode == 'all' %}selected{% endif %}>all</option>
+                </select>
+            </label>
+            <label class="profile-form-wide">
+                Watch Targets
+                <textarea name="watch_targets" rows="2" placeholder="https://github.com/RIKEN-LQCD/qws.git@master&#10;https://github.com/RIKEN-LQCD/qws.git@develop">{{ edit_trigger.watch_targets | join('\n') if edit_trigger else '' }}</textarea>
+            </label>
+        </div>
+        <div class="profile-form-actions">
+            <button type="submit" class="btn btn-primary">Save Trigger</button>
+            {% if edit_trigger %}
+            <a class="btn btn-secondary" href="{{ url_for('admin.execution_profiles') }}">Cancel Edit</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+
+<section class="page-card table-card">
+    <h2 class="section-title">Registered Triggers</h2>
+    <div class="table-wrap">
+        <table class="trigger-definition-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Profile</th>
+                    <th>Condition</th>
+                    <th>Target</th>
+                    <th>State</th>
+                    <th>Manage</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for trigger in trigger_definitions %}
+                <tr>
+                    <td><a class="profile-mono profile-id-link" href="{{ url_for('admin.execution_profiles', edit_trigger=trigger.id) }}" title="{{ trigger.id }}">{{ trigger.id }}</a></td>
+                    <td>{{ trigger.trigger_type }}</td>
+                    <td><span class="profile-mono">{{ trigger.profile_id }}</span></td>
+                    <td class="trigger-condition">
+                        {% if trigger.trigger_type == 'scheduled' %}
+                        <span class="profile-mono">{{ trigger.cron_expr }}</span> / {{ trigger.timezone }}
+                        {% elif trigger.trigger_type == 'watch_event' %}
+                        {{ trigger.watch_kind }} / {{ trigger.match_mode }} / <span class="profile-mono">{{ trigger.watch_targets | join(', ') }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="profile-mono">{{ trigger.gitlab_target or 'default' }}</span>
+                        / <span class="profile-mono">{{ trigger.target_ref or default_target_ref }}</span>
+                    </td>
+                    <td>{% if trigger.enabled %}enabled{% else %}disabled{% endif %}</td>
+                    <td>
+                        <div class="profile-mini-actions">
+                            {% if trigger.enabled %}
+                            <form method="POST" action="{{ url_for('admin.pause_execution_profile_trigger', trigger_id=trigger.id) }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-secondary btn-mini" title="Pause trigger">Pause</button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('admin.resume_execution_profile_trigger', trigger_id=trigger.id) }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-primary btn-mini" title="Resume trigger">Resume</button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('admin.delete_execution_profile_trigger', trigger_id=trigger.id) }}" onsubmit="return confirm('Delete trigger {{ trigger.id }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-danger btn-mini" title="Delete trigger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7">No trigger definitions are registered.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const buttons = Array.from(document.querySelectorAll("[data-profile-filter]"));
+    const rows = Array.from(document.querySelectorAll("[data-profile-row]"));
+    function matches(row, filter) {
+        if (filter === "all") return true;
+        if (filter === "inactive") return row.dataset.inactive === "1";
+        if (filter === "expired") return row.dataset.expired === "1";
+        return row.dataset.status === filter;
+    }
+    buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            const filter = button.dataset.profileFilter;
+            buttons.forEach(function (item) {
+                item.classList.toggle("profile-filter-active", item === button);
+            });
+            rows.forEach(function (row) {
+                row.hidden = !matches(row, filter);
+            });
+        });
+    });
+
+    const triggerTypeSelect = document.querySelector("[data-trigger-type-select]");
+    const triggerTypeFields = Array.from(document.querySelectorAll("[data-trigger-type-fields]"));
+    function updateTriggerTypeFields() {
+        if (!triggerTypeSelect) return;
+        triggerTypeFields.forEach(function (field) {
+            field.classList.toggle(
+                "trigger-type-fields-active",
+                field.dataset.triggerTypeFields === triggerTypeSelect.value
+            );
+        });
+    }
+    if (triggerTypeSelect) {
+        triggerTypeSelect.addEventListener("change", updateTriggerTypeFields);
+        updateTriggerTypeFields();
+    }
+});
+</script>
 {% endblock %}

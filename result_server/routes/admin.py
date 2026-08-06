@@ -2,8 +2,10 @@
 
 from functools import wraps
 
+from datetime import UTC, datetime
 import json
 import logging
+import os
 import sqlite3
 
 from flask import (
@@ -25,6 +27,7 @@ from utils.execution_profiles import (
     ExecutionProfileStore,
     load_execution_profiles,
     normalize_profile,
+    normalize_trigger_definition,
 )
 from utils.gitlab_pipeline import (
     build_pipeline_plan,
@@ -93,40 +96,56 @@ def _split_form_list(value):
 def _parse_execution_profile_form():
     """Return a raw execution profile object from the submitted admin form."""
     errors = []
-    metadata_raw = request.form.get("metadata_json", "").strip()
     metadata = {}
-    if metadata_raw:
-        try:
-            metadata = json.loads(metadata_raw)
-        except json.JSONDecodeError as exc:
-            errors.append(f"metadata_json must be valid JSON: {exc.msg}")
-        else:
-            if not isinstance(metadata, dict):
-                errors.append("metadata_json must be a JSON object")
-                metadata = {}
+    code = _split_form_list(request.form.get("code", ""))
+    system = _split_form_list(request.form.get("system", ""))
+    allocation_project_id = request.form.get("allocation_project_id", "").strip()
+    if allocation_project_id and len(system) != 1:
+        errors.append("allocation_project_id requires exactly one system")
+    if request.form.get("status", "").strip() == "approved" and not allocation_project_id:
+        errors.append("approved profiles require allocation_project_id")
 
     actor = session.get("user_email", "")
     raw_profile = {
         "id": request.form.get("id", "").strip(),
-        "display_name": request.form.get("display_name", "").strip(),
-        "enabled": request.form.get("enabled") == "on",
+        "display_name": request.form.get("id", "").strip(),
+        "enabled": True,
         "status": request.form.get("status", "").strip(),
-        "owner": request.form.get("owner", "").strip(),
-        "purpose": request.form.get("purpose", "").strip(),
+        "owner": "",
+        "purpose": "",
         "activity": request.form.get("activity", "").strip(),
-        "code": _split_form_list(request.form.get("code", "")),
-        "system": _split_form_list(request.form.get("system", "")),
+        "code": code,
+        "system": system,
         "exp": _split_form_list(request.form.get("exp", "")),
-        "scheduler_extra_args": request.form.get("scheduler_extra_args", "").strip(),
-        "visibility": request.form.get("visibility", "").strip(),
+        "allocation_project_id": allocation_project_id,
+        "scheduler_extra_args": "",
+        "visibility": "",
         "valid_from": request.form.get("valid_from", "").strip(),
         "valid_until": request.form.get("valid_until", "").strip(),
         "created_by": request.form.get("created_by", "").strip() or actor,
-        "approved_by": request.form.get("approved_by", "").strip(),
-        "approved_at": request.form.get("approved_at", "").strip(),
         "metadata_json": metadata,
     }
     return raw_profile, errors
+
+
+def _parse_trigger_definition_form():
+    """Return a raw trigger definition object from the submitted admin form."""
+    actor = session.get("user_email", "")
+    return {
+        "id": request.form.get("id", "").strip(),
+        "name": request.form.get("id", "").strip(),
+        "trigger_type": request.form.get("trigger_type", "").strip(),
+        "profile_id": request.form.get("profile_id", "").strip(),
+        "enabled": request.form.get("enabled", "on") == "on",
+        "gitlab_target": request.form.get("gitlab_target", "").strip(),
+        "target_ref": "",
+        "cron_expr": request.form.get("cron_expr", "").strip(),
+        "timezone": request.form.get("timezone", "").strip(),
+        "watch_kind": request.form.get("watch_kind", "").strip(),
+        "watch_targets": _split_form_list(request.form.get("watch_targets", "")),
+        "match_mode": request.form.get("match_mode", "").strip(),
+        "created_by": actor,
+    }
 
 
 def _parse_bool_form(name):
@@ -140,18 +159,77 @@ def _profile_scope_csv(profile, key):
     return ",".join(str(value).strip() for value in values if str(value).strip())
 
 
+def _default_trigger_ref():
+    path = request.path or ""
+    return "develop" if path.startswith(("/dev/", "/dev2/")) else "main"
+
+
+def _portal_result_server_url():
+    configured = os.environ.get("RESULT_SERVER_PUBLIC_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    path = request.path or ""
+    prefix = path.split("/admin/", 1)[0] if "/admin/" in path else ""
+    if prefix == "/admin":
+        prefix = ""
+    return f"{request.url_root.rstrip('/')}{prefix}"
+
+
+def _profile_filter_options():
+    return [
+        ("all", "All"),
+        ("approved", "Approved"),
+        ("draft", "Draft"),
+        ("paused", "Paused"),
+        ("retired", "Retired"),
+        ("inactive", "Inactive"),
+        ("expired", "Expired"),
+    ]
+
+
+def _profile_is_expired(profile):
+    valid_until = profile.get("valid_until", "")
+    return bool(valid_until and valid_until < datetime.now(UTC).date().isoformat())
+
+
+def _profile_matches_filter(profile, selected_filter):
+    if selected_filter == "all":
+        return True
+    if selected_filter == "inactive":
+        return (
+            not profile.get("enabled", True)
+            or profile.get("status") in {"paused", "retired"}
+        )
+    if selected_filter == "expired":
+        return _profile_is_expired(profile)
+    return profile.get("status") == selected_filter
+
+
+def _list_trigger_definitions(db_path):
+    try:
+        return ExecutionProfileStore(db_path).list_trigger_definitions()
+    except sqlite3.Error as exc:
+        flash(f"Trigger definitions could not be loaded: {exc}")
+        return []
+
+
+def _find_trigger_definition(triggers, trigger_id):
+    if not trigger_id:
+        return None
+    return next(
+        (trigger for trigger in triggers if trigger.get("id") == trigger_id),
+        None,
+    )
+
+
 def _build_execution_pipeline_plan(store):
     """Resolve the submitted target and build a GitLab pipeline plan."""
-    target_ref = request.form.get("target_ref", "").strip() or "develop"
+    target_ref = request.form.get("target_ref", "").strip() or _default_trigger_ref()
     profile_id = request.form.get("profile_id", "").strip()
     gitlab_target_id = request.form.get("gitlab_target", "").strip()
     code = request.form.get("code", "").strip()
     system = request.form.get("system", "").strip()
     exp = request.form.get("exp", "").strip()
-    app = request.form.get("app", "").strip()
-    benchpark = _parse_bool_form("benchpark")
-    park_only = _parse_bool_form("park_only")
-    park_send = _parse_bool_form("park_send")
 
     resolve_result = store.resolve_profile(
         profile_id=profile_id,
@@ -169,13 +247,20 @@ def _build_execution_pipeline_plan(store):
         target_ref=target_ref,
         code=effective_code,
         system=effective_system,
-        app=app,
-        benchpark=benchpark,
-        park_only=park_only,
-        park_send=park_send,
-        scheduler_extra_args=resolve_result.scheduler_extra_args,
+        app="",
+        benchpark=False,
+        park_only=False,
+        park_send=False,
+        allocation_project_id=resolve_result.allocation_project_id,
+        scheduler_extra_args="",
+        result_server_url=_portal_result_server_url(),
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )
+    request_errors = []
+    if not profile_id:
+        request_errors.append("profile_id is required")
+    if profile and not resolve_result.allocation_project_id:
+        request_errors.append("profile allocation_project_id is required")
     if effective_exp:
         plan.warnings.append(
             "Profile Exp is used for Portal profile matching and is not sent to GitLab CI."
@@ -190,7 +275,7 @@ def _build_execution_pipeline_plan(store):
         "exp": effective_exp,
         "profile": profile,
         "plan": plan,
-        "errors": target_errors + resolve_result.errors + plan.errors,
+        "errors": request_errors + target_errors + resolve_result.errors + plan.errors,
     }
 
 
@@ -239,16 +324,153 @@ def users():
 @admin_required
 def execution_profiles():
     """Render site-local execution profiles for admin review."""
-    profile_result = load_execution_profiles(
-        current_app.config.get("EXECUTION_PROFILE_DB_PATH")
-    )
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    profile_result = load_execution_profiles(db_path)
+    registered_profiles = profile_result.profiles
+    trigger_definitions = _list_trigger_definitions(db_path)
+    edit_profile_id = request.args.get("edit", "").strip()
+    edit_trigger_id = request.args.get("edit_trigger", "").strip()
+    edit_profile = None
+    if edit_profile_id:
+        edit_profile = next(
+            (
+                profile
+                for profile in profile_result.profiles
+                if profile.get("id") == edit_profile_id
+            ),
+            None,
+        )
+    edit_trigger = _find_trigger_definition(trigger_definitions, edit_trigger_id)
     return render_template(
         "admin_execution_profiles.html",
         profile_result=profile_result,
+        registered_profiles=registered_profiles,
+        trigger_definitions=trigger_definitions,
+        profile_filter="all",
+        profile_filter_options=_profile_filter_options(),
+        today=datetime.now(UTC).date().isoformat(),
+        edit_profile=edit_profile,
+        edit_trigger=edit_trigger,
+        default_target_ref=_default_trigger_ref(),
         dry_run_result=None,
         submit_result=None,
         gitlab_targets=configured_gitlab_targets()[0],
     )
+
+
+@admin_bp.route("/execution-profiles/triggers/upsert", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def upsert_execution_profile_trigger():
+    """Create or update a site-local trigger definition."""
+    raw_trigger = _parse_trigger_definition_form()
+    trigger, errors = normalize_trigger_definition(raw_trigger)
+
+    if errors or trigger is None:
+        audit_event(
+            "admin_execution_profile_trigger_rejected",
+            actor=session.get("user_email"),
+            target=raw_trigger.get("id", "")[:128],
+            result="failure",
+            level=logging.WARNING,
+            details={"errors": errors},
+        )
+        flash("Trigger definition was not saved: " + "; ".join(errors))
+        return redirect(url_for("admin.execution_profiles"))
+
+    try:
+        store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+        store.upsert_trigger_definition(trigger, actor=session.get("user_email", ""))
+    except sqlite3.Error as exc:
+        audit_event(
+            "admin_execution_profile_trigger_save_failed",
+            actor=session.get("user_email"),
+            target=trigger["id"],
+            result="failure",
+            level=logging.ERROR,
+            details={"error": str(exc)},
+        )
+        flash(f"Trigger definition was not saved: {exc}")
+        return redirect(url_for("admin.execution_profiles"))
+
+    audit_event(
+        "admin_execution_profile_trigger_saved",
+        actor=session.get("user_email"),
+        target=trigger["id"],
+        result="success",
+        details={
+            "trigger_type": trigger["trigger_type"],
+            "profile_id": trigger["profile_id"],
+            "enabled": trigger["enabled"],
+        },
+    )
+    flash(f"Trigger definition {trigger['id']} saved.")
+    return redirect(url_for("admin.execution_profiles"))
+
+
+@admin_bp.route("/execution-profiles/triggers/<trigger_id>/pause", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def pause_execution_profile_trigger(trigger_id):
+    """Pause a site-local trigger definition."""
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    if not store.set_trigger_definition_enabled(
+        trigger_id,
+        False,
+        actor=session.get("user_email", ""),
+    ):
+        flash(f"Trigger definition {trigger_id} was not found.")
+    else:
+        audit_event(
+            "admin_execution_profile_trigger_paused",
+            actor=session.get("user_email"),
+            target=trigger_id,
+            result="success",
+        )
+        flash(f"Trigger definition {trigger_id} paused.")
+    return redirect(url_for("admin.execution_profiles"))
+
+
+@admin_bp.route("/execution-profiles/triggers/<trigger_id>/resume", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def resume_execution_profile_trigger(trigger_id):
+    """Resume a site-local trigger definition."""
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    if not store.set_trigger_definition_enabled(
+        trigger_id,
+        True,
+        actor=session.get("user_email", ""),
+    ):
+        flash(f"Trigger definition {trigger_id} was not found.")
+    else:
+        audit_event(
+            "admin_execution_profile_trigger_resumed",
+            actor=session.get("user_email"),
+            target=trigger_id,
+            result="success",
+        )
+        flash(f"Trigger definition {trigger_id} resumed.")
+    return redirect(url_for("admin.execution_profiles"))
+
+
+@admin_bp.route("/execution-profiles/triggers/<trigger_id>/delete", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def delete_execution_profile_trigger(trigger_id):
+    """Delete a site-local trigger definition."""
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    if not store.delete_trigger_definition(trigger_id, actor=session.get("user_email", "")):
+        flash(f"Trigger definition {trigger_id} was not found.")
+    else:
+        audit_event(
+            "admin_execution_profile_trigger_deleted",
+            actor=session.get("user_email"),
+            target=trigger_id,
+            result="success",
+        )
+        flash(f"Trigger definition {trigger_id} deleted.")
+    return redirect(url_for("admin.execution_profiles"))
 
 
 @admin_bp.route("/execution-profiles/upsert", methods=["POST"])
@@ -302,6 +524,25 @@ def upsert_execution_profile():
         },
     )
     flash(f"Execution profile {profile['id']} saved.")
+    return redirect(url_for("admin.execution_profiles"))
+
+
+@admin_bp.route("/execution-profiles/<profile_id>/delete", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def delete_execution_profile(profile_id):
+    """Delete a site-local execution profile."""
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    if not store.delete_profile(profile_id, actor=session.get("user_email", "")):
+        flash(f"Execution profile {profile_id} was not found.")
+    else:
+        audit_event(
+            "admin_execution_profile_deleted",
+            actor=session.get("user_email"),
+            target=profile_id,
+            result="success",
+        )
+        flash(f"Execution profile {profile_id} deleted.")
     return redirect(url_for("admin.execution_profiles"))
 
 
@@ -364,6 +605,14 @@ def dry_run_execution_profile_submit():
     return render_template(
         "admin_execution_profiles.html",
         profile_result=profile_result,
+        registered_profiles=profile_result.profiles,
+        trigger_definitions=_list_trigger_definitions(db_path),
+        profile_filter="all",
+        profile_filter_options=_profile_filter_options(),
+        today=datetime.now(UTC).date().isoformat(),
+        edit_profile=None,
+        edit_trigger=None,
+        default_target_ref=_default_trigger_ref(),
         dry_run_result={
             "request_id": request_id,
             "status": status,
@@ -464,6 +713,14 @@ def submit_execution_profile_pipeline():
     return render_template(
         "admin_execution_profiles.html",
         profile_result=profile_result,
+        registered_profiles=profile_result.profiles,
+        trigger_definitions=_list_trigger_definitions(db_path),
+        profile_filter="all",
+        profile_filter_options=_profile_filter_options(),
+        today=datetime.now(UTC).date().isoformat(),
+        edit_profile=None,
+        edit_trigger=None,
+        default_target_ref=_default_trigger_ref(),
         dry_run_result=None,
         submit_result={
             "request_id": request_id,

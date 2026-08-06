@@ -13,7 +13,9 @@ from typing import Any
 
 
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
-SCHEMA_VERSION = 3
+TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
+MATCH_MODES = {"any", "all"}
+SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,29 @@ class ExecutionProfileLoadResult:
     def disabled_count(self) -> int:
         return len(self.profiles) - self.enabled_count
 
+    @property
+    def approved_count(self) -> int:
+        return sum(1 for profile in self.profiles if profile.get("status") == "approved")
+
+    @property
+    def inactive_count(self) -> int:
+        inactive_statuses = {"paused", "retired"}
+        return sum(
+            1
+            for profile in self.profiles
+            if not profile.get("enabled", True)
+            or profile.get("status") in inactive_statuses
+        )
+
+    @property
+    def expired_count(self) -> int:
+        today = datetime.now(UTC).date().isoformat()
+        return sum(
+            1
+            for profile in self.profiles
+            if profile.get("valid_until") and profile.get("valid_until") < today
+        )
+
 
 @dataclass(frozen=True)
 class ExecutionProfileResolveResult:
@@ -46,6 +71,12 @@ class ExecutionProfileResolveResult:
         if not self.profile:
             return ""
         return str(self.profile.get("scheduler_extra_args", ""))
+
+    @property
+    def allocation_project_id(self) -> str:
+        if not self.profile:
+            return ""
+        return str(self.profile.get("allocation_project_id", ""))
 
 
 def _utc_now_iso() -> str:
@@ -71,6 +102,35 @@ def _as_text_list(value: Any) -> list[str]:
 
 def _json_dump(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False, sort_keys=True)
+
+
+def _json_dump_list(value: Any) -> str:
+    return json.dumps(value or [], ensure_ascii=False, sort_keys=True)
+
+
+def _as_watch_targets(value: Any) -> list[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, list):
+                return _as_text_list(decoded)
+        return _split_text_block(stripped)
+    return _as_text_list(value)
+
+
+def _split_text_block(value: str) -> list[str]:
+    items = []
+    for chunk in value.replace("\n", ",").split(","):
+        text = chunk.strip()
+        if text:
+            items.append(text)
+    return items
 
 
 def _scope_matches(scope_values: list[str], target: str) -> bool:
@@ -117,6 +177,7 @@ def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] 
         "code": _as_text_list(raw_profile.get("code")),
         "system": _as_text_list(raw_profile.get("system")),
         "exp": _as_text_list(raw_profile.get("exp")),
+        "allocation_project_id": str(raw_profile.get("allocation_project_id", "")).strip(),
         "scheduler_extra_args": str(raw_profile.get("scheduler_extra_args", "")).strip(),
         "visibility": str(raw_profile.get("visibility", "")).strip(),
         "valid_from": str(raw_profile.get("valid_from", "")).strip(),
@@ -125,6 +186,75 @@ def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] 
         "approved_by": str(raw_profile.get("approved_by", "")).strip(),
         "approved_at": str(raw_profile.get("approved_at", "")).strip(),
         "metadata_json": metadata,
+    }
+    return normalized, errors
+
+
+def normalize_trigger_definition(
+    raw_trigger: Any,
+    index: int = 0,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Normalize a trigger definition from form input and return validation errors."""
+    errors: list[str] = []
+    if not isinstance(raw_trigger, dict):
+        return None, [f"trigger[{index}] must be an object"]
+
+    trigger_id = str(raw_trigger.get("id", "")).strip()
+    if not trigger_id:
+        errors.append(f"trigger[{index}] is missing id")
+    elif not PROFILE_ID_RE.match(trigger_id):
+        errors.append(f"trigger[{index}] has invalid id: {trigger_id}")
+
+    profile_id = str(raw_trigger.get("profile_id", "")).strip()
+    if not profile_id:
+        errors.append(f"trigger[{index}] profile_id is required")
+
+    trigger_type = str(raw_trigger.get("trigger_type") or "scheduled").strip()
+    if trigger_type not in TRIGGER_TYPES:
+        errors.append(f"trigger[{index}] trigger_type must be one of {sorted(TRIGGER_TYPES)}")
+
+    enabled = raw_trigger.get("enabled", True)
+    if not isinstance(enabled, bool):
+        errors.append(f"trigger[{index}] enabled must be boolean")
+        enabled = bool(enabled)
+
+    match_mode = str(raw_trigger.get("match_mode") or "any").strip()
+    if match_mode not in MATCH_MODES:
+        errors.append(f"trigger[{index}] match_mode must be one of {sorted(MATCH_MODES)}")
+
+    cron_expr = str(raw_trigger.get("cron_expr", "")).strip()
+    timezone = str(raw_trigger.get("timezone", "")).strip() or "Asia/Tokyo"
+    watch_kind = str(raw_trigger.get("watch_kind", "")).strip()
+    watch_targets = _as_watch_targets(
+        raw_trigger.get("watch_targets", raw_trigger.get("watch_targets_json", []))
+    )
+
+    if trigger_type == "scheduled" and not cron_expr:
+        errors.append(f"trigger[{index}] cron_expr is required for scheduled triggers")
+    if trigger_type == "watch_event":
+        if not watch_kind:
+            errors.append(f"trigger[{index}] watch_kind is required for watch_event triggers")
+        if not watch_targets:
+            errors.append(f"trigger[{index}] watch_targets is required for watch_event triggers")
+
+    normalized = {
+        "id": trigger_id,
+        "name": str(raw_trigger.get("name") or trigger_id).strip(),
+        "trigger_type": trigger_type,
+        "profile_id": profile_id,
+        "enabled": enabled,
+        "gitlab_target": str(raw_trigger.get("gitlab_target", "")).strip(),
+        "target_ref": str(raw_trigger.get("target_ref", "")).strip(),
+        "cron_expr": cron_expr,
+        "timezone": timezone,
+        "watch_kind": watch_kind,
+        "watch_targets": watch_targets,
+        "match_mode": match_mode,
+        "last_seen_fingerprint": str(raw_trigger.get("last_seen_fingerprint", "")).strip(),
+        "last_seen_at": str(raw_trigger.get("last_seen_at", "")).strip(),
+        "next_due_at": str(raw_trigger.get("next_due_at", "")).strip(),
+        "last_submitted_at": str(raw_trigger.get("last_submitted_at", "")).strip(),
+        "created_by": str(raw_trigger.get("created_by", "")).strip(),
     }
     return normalized, errors
 
@@ -165,6 +295,12 @@ class ExecutionProfileStore:
                 current = 2
             if current < 3:
                 self._apply_v3(conn)
+                current = 3
+            if current < 4:
+                self._apply_v4(conn)
+                current = 4
+            if current < 5:
+                self._apply_v5(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -179,6 +315,7 @@ class ExecutionProfileStore:
                 owner TEXT NOT NULL DEFAULT '',
                 purpose TEXT NOT NULL DEFAULT '',
                 visibility TEXT NOT NULL DEFAULT '',
+                allocation_project_id TEXT NOT NULL DEFAULT '',
                 scheduler_extra_args TEXT NOT NULL DEFAULT '',
                 valid_from TEXT NOT NULL DEFAULT '',
                 valid_until TEXT NOT NULL DEFAULT '',
@@ -274,23 +411,100 @@ class ExecutionProfileStore:
             (3, now),
         )
 
+    def _apply_v4(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(execution_profiles)").fetchall()
+        }
+        if "allocation_project_id" not in columns:
+            conn.execute(
+                """
+                ALTER TABLE execution_profiles
+                ADD COLUMN allocation_project_id TEXT NOT NULL DEFAULT ''
+                """
+            )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (4, now),
+        )
+
+    def _apply_v5(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS trigger_definitions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                trigger_type TEXT NOT NULL CHECK(
+                    trigger_type IN ('manual_button', 'scheduled', 'watch_event')
+                ),
+                profile_id TEXT NOT NULL REFERENCES execution_profiles(id) ON DELETE CASCADE,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                gitlab_target TEXT NOT NULL DEFAULT '',
+                target_ref TEXT NOT NULL DEFAULT '',
+                cron_expr TEXT NOT NULL DEFAULT '',
+                timezone TEXT NOT NULL DEFAULT '',
+                watch_kind TEXT NOT NULL DEFAULT '',
+                watch_targets_json TEXT NOT NULL DEFAULT '[]',
+                match_mode TEXT NOT NULL DEFAULT 'any' CHECK(match_mode IN ('any', 'all')),
+                last_seen_fingerprint TEXT NOT NULL DEFAULT '',
+                last_seen_at TEXT NOT NULL DEFAULT '',
+                next_due_at TEXT NOT NULL DEFAULT '',
+                last_submitted_at TEXT NOT NULL DEFAULT '',
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trigger_definitions_profile
+                ON trigger_definitions(profile_id, enabled, trigger_type);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (5, now),
+        )
+
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
         self.migrate()
         now = _utc_now_iso()
         with self.connect() as conn:
             existing = conn.execute(
-                "SELECT id, created_at FROM execution_profiles WHERE id = ?",
+                """
+                SELECT id, status, approved_by, approved_at, created_at
+                FROM execution_profiles
+                WHERE id = ?
+                """,
                 (profile["id"],),
             ).fetchone()
             created_at = existing["created_at"] if existing else now
+            approved_by = ""
+            approved_at = ""
+            if profile["status"] == "approved":
+                if (
+                    existing
+                    and existing["status"] == "approved"
+                    and existing["approved_by"]
+                    and existing["approved_at"]
+                ):
+                    approved_by = existing["approved_by"]
+                    approved_at = existing["approved_at"]
+                else:
+                    approved_by = actor
+                    approved_at = now
+            elif existing:
+                approved_by = existing["approved_by"]
+                approved_at = existing["approved_at"]
             conn.execute(
                 """
                 INSERT INTO execution_profiles (
                     id, display_name, enabled, status, activity, owner, purpose,
-                    visibility, scheduler_extra_args, valid_from, valid_until,
-                    created_by, approved_by, approved_at, metadata_json,
+                    visibility, allocation_project_id, scheduler_extra_args,
+                    valid_from, valid_until, created_by, approved_by, approved_at,
+                    metadata_json,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     display_name=excluded.display_name,
                     enabled=excluded.enabled,
@@ -299,6 +513,7 @@ class ExecutionProfileStore:
                     owner=excluded.owner,
                     purpose=excluded.purpose,
                     visibility=excluded.visibility,
+                    allocation_project_id=excluded.allocation_project_id,
                     scheduler_extra_args=excluded.scheduler_extra_args,
                     valid_from=excluded.valid_from,
                     valid_until=excluded.valid_until,
@@ -317,12 +532,13 @@ class ExecutionProfileStore:
                     profile["owner"],
                     profile["purpose"],
                     profile["visibility"],
+                    profile["allocation_project_id"],
                     profile["scheduler_extra_args"],
                     profile["valid_from"],
                     profile["valid_until"],
                     profile["created_by"],
-                    profile["approved_by"],
-                    profile["approved_at"],
+                    approved_by,
+                    approved_at,
                     _json_dump(profile["metadata_json"]),
                     created_at,
                     now,
@@ -357,6 +573,213 @@ class ExecutionProfileStore:
                     now,
                 ),
             )
+
+    def upsert_trigger_definition(self, trigger: dict[str, Any], *, actor: str = "") -> None:
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT id, created_at, created_by
+                FROM trigger_definitions
+                WHERE id = ?
+                """,
+                (trigger["id"],),
+            ).fetchone()
+            created_at = existing["created_at"] if existing else now
+            created_by = (
+                existing["created_by"]
+                if existing and existing["created_by"]
+                else trigger.get("created_by") or actor
+            )
+            conn.execute(
+                """
+                INSERT INTO trigger_definitions (
+                    id, name, trigger_type, profile_id, enabled, gitlab_target,
+                    target_ref, cron_expr, timezone, watch_kind, watch_targets_json,
+                    match_mode, last_seen_fingerprint, last_seen_at, next_due_at,
+                    last_submitted_at, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    trigger_type=excluded.trigger_type,
+                    profile_id=excluded.profile_id,
+                    enabled=excluded.enabled,
+                    gitlab_target=excluded.gitlab_target,
+                    target_ref=excluded.target_ref,
+                    cron_expr=excluded.cron_expr,
+                    timezone=excluded.timezone,
+                    watch_kind=excluded.watch_kind,
+                    watch_targets_json=excluded.watch_targets_json,
+                    match_mode=excluded.match_mode,
+                    last_seen_fingerprint=excluded.last_seen_fingerprint,
+                    last_seen_at=excluded.last_seen_at,
+                    next_due_at=excluded.next_due_at,
+                    last_submitted_at=excluded.last_submitted_at,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    trigger["id"],
+                    trigger["name"],
+                    trigger["trigger_type"],
+                    trigger["profile_id"],
+                    1 if trigger["enabled"] else 0,
+                    trigger["gitlab_target"],
+                    trigger["target_ref"],
+                    trigger["cron_expr"],
+                    trigger["timezone"],
+                    trigger["watch_kind"],
+                    _json_dump_list(trigger["watch_targets"]),
+                    trigger["match_mode"],
+                    trigger["last_seen_fingerprint"],
+                    trigger["last_seen_at"],
+                    trigger["next_due_at"],
+                    trigger["last_submitted_at"],
+                    created_by,
+                    created_at,
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO execution_profile_events(
+                    profile_id, actor, event_type, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    trigger["profile_id"],
+                    actor,
+                    "trigger_definition_upserted" if existing else "trigger_definition_created",
+                    _json_dump(
+                        {
+                            "trigger_id": trigger["id"],
+                            "trigger_type": trigger["trigger_type"],
+                        }
+                    ),
+                    now,
+                ),
+            )
+
+    def set_trigger_definition_enabled(
+        self,
+        trigger_id: str,
+        enabled: bool,
+        *,
+        actor: str = "",
+    ) -> bool:
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT id, profile_id
+                FROM trigger_definitions
+                WHERE id = ?
+                """,
+                (trigger_id,),
+            ).fetchone()
+            if not existing:
+                return False
+            conn.execute(
+                """
+                UPDATE trigger_definitions
+                SET enabled = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (1 if enabled else 0, now, trigger_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO execution_profile_events(
+                    profile_id, actor, event_type, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    existing["profile_id"],
+                    actor,
+                    "trigger_definition_resumed"
+                    if enabled
+                    else "trigger_definition_paused",
+                    _json_dump({"trigger_id": trigger_id}),
+                    now,
+                ),
+            )
+        return True
+
+    def delete_trigger_definition(self, trigger_id: str, *, actor: str = "") -> bool:
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT id, profile_id
+                FROM trigger_definitions
+                WHERE id = ?
+                """,
+                (trigger_id,),
+            ).fetchone()
+            if not existing:
+                return False
+            conn.execute("DELETE FROM trigger_definitions WHERE id = ?", (trigger_id,))
+            conn.execute(
+                """
+                INSERT INTO execution_profile_events(
+                    profile_id, actor, event_type, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    existing["profile_id"],
+                    actor,
+                    "trigger_definition_deleted",
+                    _json_dump({"trigger_id": trigger_id}),
+                    now,
+                ),
+            )
+        return True
+
+    def list_trigger_definitions(self) -> list[dict[str, Any]]:
+        self.migrate()
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM trigger_definitions
+                ORDER BY enabled DESC, trigger_type, id COLLATE NOCASE
+                """
+            ).fetchall()
+
+        triggers = []
+        for row in rows:
+            try:
+                watch_targets = json.loads(row["watch_targets_json"] or "[]")
+            except json.JSONDecodeError:
+                watch_targets = []
+            if not isinstance(watch_targets, list):
+                watch_targets = []
+            triggers.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "trigger_type": row["trigger_type"],
+                    "profile_id": row["profile_id"],
+                    "enabled": bool(row["enabled"]),
+                    "gitlab_target": row["gitlab_target"],
+                    "target_ref": row["target_ref"],
+                    "cron_expr": row["cron_expr"],
+                    "timezone": row["timezone"],
+                    "watch_kind": row["watch_kind"],
+                    "watch_targets": _as_text_list(watch_targets),
+                    "match_mode": row["match_mode"],
+                    "last_seen_fingerprint": row["last_seen_fingerprint"],
+                    "last_seen_at": row["last_seen_at"],
+                    "next_due_at": row["next_due_at"],
+                    "last_submitted_at": row["last_submitted_at"],
+                    "created_by": row["created_by"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+        return triggers
 
     def list_profiles(self) -> list[dict[str, Any]]:
         self.migrate()
@@ -404,6 +827,7 @@ class ExecutionProfileStore:
                     "code": profile_scopes["code"],
                     "system": profile_scopes["system"],
                     "exp": profile_scopes["exp"],
+                    "allocation_project_id": row["allocation_project_id"],
                     "scheduler_extra_args": row["scheduler_extra_args"],
                     "visibility": row["visibility"],
                     "valid_from": row["valid_from"],
@@ -417,6 +841,33 @@ class ExecutionProfileStore:
                 }
             )
         return profiles
+
+    def delete_profile(self, profile_id: str, *, actor: str = "") -> bool:
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM execution_profiles WHERE id = ?",
+                (profile_id,),
+            ).fetchone()
+            if not existing:
+                return False
+            conn.execute(
+                """
+                INSERT INTO execution_profile_events(
+                    profile_id, actor, event_type, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    profile_id,
+                    actor,
+                    "profile_deleted",
+                    _json_dump({"profile_id": profile_id}),
+                    now,
+                ),
+            )
+            conn.execute("DELETE FROM execution_profiles WHERE id = ?", (profile_id,))
+        return True
 
     def resolve_profile(
         self,
