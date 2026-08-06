@@ -33,11 +33,15 @@ Recommended order:
    reviewed. Keep the trigger token in the site-local service environment as
    `RESULT_SERVER_GITLAB_TRIGGER_TOKEN`; do not store it in SQLite, logs, or
    the OSS repository.
-6. Index received benchmark and estimation JSON metadata into SQLite while
+6. Add a site-local trigger runner timer. The runner should evaluate Portal
+   trigger definitions, keep `repo_ref` fingerprints in the Portal SQLite DB,
+   and pass the Portal-specific `RESULT_SERVER` URL to GitLab pipelines so
+   dev Portal triggers return results to the same dev Portal.
+7. Index received benchmark and estimation JSON metadata into SQLite while
    keeping JSON/tgz artifacts as raw records. The first index should be an
    auxiliary lookup table populated at ingest time; existing result and
    estimate pages can remain file-backed until the indexed views are reviewed.
-7. Add environment snapshot storage after deciding which host/runtime metadata
+8. Add environment snapshot storage after deciding which host/runtime metadata
    should define an environment identity.
 
 GitLab schedules should not be the primary governance point. The Portal should
@@ -81,6 +85,41 @@ Target IDs may contain letters, digits, `_`, `.`, and `-`. The token variable is
 `RESULT_SERVER_GITLAB_TRIGGER_TOKEN_<TARGET_ID>` with non-alphanumeric
 characters converted to `_` and uppercased. Store these variables in the Portal
 systemd `EnvironmentFile`, not in the repository.
+
+## Portal Trigger Runner
+
+Portal-managed scheduled and event triggers are evaluated by a site-local
+runner, not by GitLab schedules. Install it as a systemd user timer from the
+Portal checkout:
+
+```bash
+scripts/site/setup_trigger_runner.sh \
+  --site dev2 \
+  --repo-dir /home/nakamura/ChatGPT/benchkit \
+  --venv /home/nakamura/fugakunext/venv \
+  --db /home/nakamura/fugakunext/dev2/cx_portal.sqlite3 \
+  --env-file /home/nakamura/.config/fncx/dev2.env \
+  --result-server-url https://fncx.r-ccs.riken.jp/dev2 \
+  --submit
+```
+
+For initial bring-up, omit `--submit` or pass `--dry-run`. In dry-run mode the
+runner still records run audit rows and, by default, records repo/ref
+fingerprints when `--record-observations` is active through the setup script.
+The first observation of a `repo_ref` watch initializes the baseline and does
+not submit a pipeline; later fingerprint changes can submit.
+
+The runner uses a short-lived SQLite lock by default so overlapping timer
+invocations do not evaluate or submit the same triggers twice. Tune the lock
+TTL with `--lock-ttl-seconds` when the timer interval is changed.
+
+The generated service reads GitLab trigger configuration from the
+`EnvironmentFile`. The token must remain site-local:
+
+```text
+RESULT_SERVER_GITLAB_TARGETS=swc=gitlab.swc.example.org/group/project
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC=<site-local GitLab pipeline trigger token>
+```
 
 ## Compatibility Expectations
 
