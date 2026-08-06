@@ -423,6 +423,53 @@ def test_admin_execution_profiles_dry_run_submit_renders_payload(tmp_path, monke
         _cleanup(temp_dirs)
 
 
+def test_admin_execution_profiles_dry_run_uses_profile_scope_values(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(_profile(), actor="admin")
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/dry-run-submit",
+                data={
+                    "target_ref": "develop",
+                    "profile_id": "rikyu-qws-nightly",
+                },
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "dry_run_ready" in html
+        assert "Profile Exp is used for Portal profile matching" in html
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT status, profile_id, code, system, exp, payload_json
+                FROM execution_requests
+                """
+            ).fetchone()
+        assert row[:5] == (
+            "dry_run_ready",
+            "rikyu-qws-nightly",
+            "qws",
+            "RIKYU",
+            "case0",
+        )
+        payload_record = json.loads(row[5])
+        variables = payload_record["payload"]["variables"]
+        assert variables["code"] == "qws"
+        assert variables["system"] == "RIKYU"
+        assert "exp" not in variables
+    finally:
+        _cleanup(temp_dirs)
+
+
 def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
     tmp_path,
     monkeypatch,
@@ -639,6 +686,67 @@ def test_admin_execution_profiles_submit_uses_selected_gitlab_target(
         assert payload_record["gitlab_target"] == "gitlab_com"
         assert payload_record["gitlab_project"] == "gitlab.com/yoshifuminakamura/benchkit"
         assert payload_record["submit"]["response"]["id"] == 456
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profiles_submit_uses_profile_scope_values(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "secret-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(system=["Fugaku", "MiyabiG"]),
+        actor="admin",
+    )
+    app, temp_dirs = _admin_app(db_path)
+
+    def fake_submit(plan, *, token):
+        assert token == "secret-token"
+        assert plan.payload["variables"]["code"] == "qws"
+        assert plan.payload["variables"]["system"] == "Fugaku,MiyabiG"
+        assert "exp" not in plan.payload["variables"]
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 789, "web_url": "https://gitlab.example.org/p/789"},
+            errors=[],
+        )
+
+    monkeypatch.setattr("routes.admin.submit_pipeline_plan", fake_submit)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profiles/submit",
+                data={
+                    "target_ref": "develop",
+                    "profile_id": "rikyu-qws-nightly",
+                    "confirm_submit": "on",
+                },
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "submitted" in html
+
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT status, profile_id, code, system, exp, payload_json
+                FROM execution_requests
+                """
+            ).fetchone()
+        assert row[:5] == (
+            "submitted",
+            "rikyu-qws-nightly",
+            "qws",
+            "Fugaku,MiyabiG",
+            "case0",
+        )
+        payload_record = json.loads(row[5])
+        assert payload_record["submit"]["response"]["id"] == 789
     finally:
         _cleanup(temp_dirs)
 
