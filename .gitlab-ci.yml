@@ -116,6 +116,9 @@ trigger_child_pipeline:
       - artifact: .gitlab-ci.generated.yml
         job: generate_matrix
     strategy: depend
+    forward:
+      pipeline_variables: true
+      yaml_variables: true
   needs:
     - job: generate_matrix
       optional: true
@@ -192,6 +195,9 @@ trigger_benchpark_pipeline:
       - artifact: .gitlab-ci.benchpark.yml
         job: generate_benchpark_matrix
     strategy: depend
+    forward:
+      pipeline_variables: true
+      yaml_variables: true
   inherit:
     variables: true
   needs:

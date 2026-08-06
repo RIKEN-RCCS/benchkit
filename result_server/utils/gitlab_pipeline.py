@@ -179,7 +179,9 @@ def build_pipeline_plan(
     benchpark: bool = False,
     park_only: bool = False,
     park_send: bool = False,
+    allocation_project_id: str = "",
     scheduler_extra_args: str = "",
+    result_server_url: str = "",
     target_id: str = "",
 ) -> GitLabPipelinePlan:
     """Build the GitLab trigger API URL and form-like payload without sending it."""
@@ -207,6 +209,8 @@ def build_pipeline_plan(
         _add_variable(variables, "park_only", "true")
     if park_send:
         _add_variable(variables, "park_send", "true")
+    _add_variable(variables, "BK_ALLOCATION_PROJECT_ID", allocation_project_id)
+    _add_variable(variables, "RESULT_SERVER", result_server_url)
     if scheduler_extra_args:
         if system and "," not in system:
             _add_variable(variables, _scheduler_extra_args_key(system), scheduler_extra_args)
