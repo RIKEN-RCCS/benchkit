@@ -133,6 +133,13 @@ def _parse_bool_form(name):
     return request.form.get(name) == "on"
 
 
+def _profile_scope_csv(profile, key):
+    if not profile:
+        return ""
+    values = profile.get(key) or []
+    return ",".join(str(value).strip() for value in values if str(value).strip())
+
+
 def _build_execution_pipeline_plan(store):
     """Resolve the submitted target and build a GitLab pipeline plan."""
     target_ref = request.form.get("target_ref", "").strip() or "develop"
@@ -153,12 +160,15 @@ def _build_execution_pipeline_plan(store):
         exp=exp,
     )
     profile = resolve_result.profile
+    effective_code = code or _profile_scope_csv(profile, "code")
+    effective_system = system or _profile_scope_csv(profile, "system")
+    effective_exp = exp or _profile_scope_csv(profile, "exp")
     gitlab_target, target_errors = configured_gitlab_target(gitlab_target_id)
     plan = build_pipeline_plan(
         gitlab_repo=gitlab_target.repo if gitlab_target else "",
         target_ref=target_ref,
-        code=code,
-        system=system,
+        code=effective_code,
+        system=effective_system,
         app=app,
         benchpark=benchpark,
         park_only=park_only,
@@ -166,7 +176,7 @@ def _build_execution_pipeline_plan(store):
         scheduler_extra_args=resolve_result.scheduler_extra_args,
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )
-    if exp:
+    if effective_exp:
         plan.warnings.append(
             "Profile Exp is used for Portal profile matching and is not sent to GitLab CI."
         )
@@ -175,9 +185,9 @@ def _build_execution_pipeline_plan(store):
         "profile_id": profile_id,
         "gitlab_target": gitlab_target,
         "gitlab_target_id": gitlab_target.id if gitlab_target else gitlab_target_id,
-        "code": code,
-        "system": system,
-        "exp": exp,
+        "code": effective_code,
+        "system": effective_system,
+        "exp": effective_exp,
         "profile": profile,
         "plan": plan,
         "errors": target_errors + resolve_result.errors + plan.errors,
