@@ -1,8 +1,6 @@
 # Repository History
 
-BenchKit was originally developed in the internal GitLab repository at:
-
-- https://gitlab.swc.r-ccs.riken.jp/fugakunext/benchmark/benchkit
+BenchKit was originally developed in an internal GitLab repository.
 
 It was later relocated to the active GitHub repository with its Git history preserved:
 
@@ -16,4 +14,5 @@ Repository roles:
 
 - `benchkit`: active upstream for ongoing development
 - `benchkit-legacy`: archived historical mirror retained in case the original GitLab repository becomes unavailable
-- internal GitLab repository: archived historical source retained until on-prem GitLab is retired
+- internal GitLab repository: archived historical source retained by the site
+  until the on-prem GitLab service is retired

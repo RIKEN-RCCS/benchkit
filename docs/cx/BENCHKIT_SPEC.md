@@ -282,11 +282,12 @@ BenchKit のポータル層である。
 - 登録済み run 設定と shell 側の system 分岐に基づく app / system coverage 表示
 - 登録済み system / queue / system_info に対する軽い configuration checks
 - 管理者向け execution profile 表示
+- 管理者向け manual / scheduled / event trigger 管理
 - 結果品質サマリ表示（一覧・詳細・latest-result current-state summary・source tracking current-state を含む）
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
 
-Execution profile は、対象活動における実行登録・契機実行・定期実行の運用情報である。対象 app / exp / system、利用する allocation や scheduler 追加引数、公開範囲、所有者、有効期間を site-local に管理する。account や project group などの実値を OSS repo に載せず、CX Portal の admin 管理情報として SQLite registry に保持する。
+Execution profile は、対象活動における実行 profile である。対象 app / exp / system、system 単位の allocation project ID、有効状態、承認状態、有効期間を site-local に管理する。account や project ID などの実値を OSS repo に載せず、CX Portal の admin 管理情報として SQLite registry に保持する。manual / scheduled / event trigger は profile とは別の trigger definition として管理し、必要な profile に紐づける。scheduler ごとの具体的な投入書式は、Portal ではなく BenchKit の CI 生成層で扱う。
 
 This is the portal layer of BenchKit.
 
@@ -303,11 +304,12 @@ Main roles:
 - application/system coverage views derived from registered run settings and shell-side system branches
 - lightweight configuration checks for registered system, queue, and system-info definitions
 - admin-facing execution profile views
+- admin-facing manual, scheduled, and event trigger management
 - result-quality summaries, including list/detail presentation, latest-result current-state summaries, and source-tracking current-state visibility
 - authentication and authorization
 - future integration points for request and approval workflows
 
-Execution profiles are operational records for execution registration, event-triggered runs, and periodic runs within a target activity. They define the target app / exp / system scope, allocation or scheduler extra arguments, visibility, owner, and validity period as site-local data. Concrete account or project-group values are stored in the CX Portal admin SQLite registry instead of being committed to the OSS repository.
+Execution profiles are operational execution records for a target activity. They define the target app / exp / system scope, system-specific allocation project ID, enabled state, approval state, and validity period as site-local data. Concrete account or project ID values are stored in the CX Portal admin SQLite registry instead of being committed to the OSS repository. Manual, scheduled, and event triggers are managed as separate trigger definitions linked to the relevant profile. Scheduler-specific submit formatting belongs to the BenchKit CI generation layer, not to Portal profile records.
 
 ## 7. データモデルの基本 / Core Data Model
 

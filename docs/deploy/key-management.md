@@ -4,27 +4,30 @@ This guide covers the secrets used by `result_server/app.py`.
 
 ## Required Secrets
 
-Production deployments must provide:
+Production deployments using the built-in upload/query helper scripts must
+provide:
 
 - `FLASK_SECRET_KEY`: at least 32 characters, generated randomly.
-- `RESULT_SERVER_KEYS`: one or more runner-scoped ingest keys, or
-  `RESULT_SERVER_TRUSTED_PROXY_AUTH=mtls` when nginx verifies client
-  certificates before proxying ingest/query API requests.
+- `RESULT_SERVER_TRUSTED_PROXY_AUTH=mtls` when nginx verifies client
+  certificates before proxying ingest/query API requests. This is the expected
+  mode for the built-in upload and query helper scripts.
 
-Use runner-scoped server keys instead of the legacy server-side
+The server still accepts runner-scoped shared keys for legacy or custom clients
+that send `X-API-Key`. Use `RESULT_SERVER_KEYS`, not the legacy server-side
 `RESULT_SERVER_KEY` fallback:
 
 ```text
 RESULT_SERVER_KEYS=runner-a:<RUNNER_A_KEY>,runner-b:<RUNNER_B_KEY>
 ```
 
-`RESULT_SERVER_KEYS` is the server-side registry of accepted posting/query
-keys for deployments that still use shared API keys. Client jobs in mTLS mode
-do not use `RESULT_SERVER_KEY` and do not send an `X-API-Key` header.
+`RESULT_SERVER_KEYS` is only the server-side registry of accepted posting/query
+keys for deployments that still use shared API keys. The built-in CI upload and
+query helper scripts use mTLS, require `RESULT_SERVER_CLIENT_CERT` and
+`RESULT_SERVER_CLIENT_KEY`, and do not send an `X-API-Key` header.
 
-Each key must be at least 32 characters and must not use known insecure
-examples such as `dev-api-key`, `changeme`, or `secret`. The production app
-refuses to start when these checks fail.
+Each configured shared key must be at least 32 characters and must not use
+known insecure examples such as `dev-api-key`, `changeme`, or `secret`. The
+production app refuses to start when these checks fail.
 
 ## Client Certificate Mode
 
@@ -76,17 +79,27 @@ vault service.
 
 ## Rotation
 
-For a normal runner key rotation:
+For normal mTLS client certificate rotation:
+
+1. Issue a new client certificate/key pair.
+2. Install it on the self-managed runner host or mounted runner secret path.
+3. Keep the paths exposed to jobs as `RESULT_SERVER_CLIENT_CERT` and
+   `RESULT_SERVER_CLIENT_KEY`.
+4. Confirm successful ingest/query events through nginx mTLS.
+5. Remove the old certificate from the runner host and revoke it in the
+   certificate authority or nginx trust bundle.
+
+For legacy shared-key clients:
 
 1. Add the new key to `RESULT_SERVER_KEYS` while keeping the old key.
 2. Deploy the portal configuration.
-3. Update the corresponding CI secret so affected jobs receive the new
-   client-side `RESULT_SERVER_KEY`.
+3. Update the legacy/custom client that sends `X-API-Key`.
 4. Confirm successful ingest events for the runner.
 5. Remove the old key after the agreed overlap window.
 
-If a key may have leaked, remove it immediately, deploy the portal, update the
-affected CI secret, and review ingest logs for suspicious activity.
+If a key or client certificate may have leaked, revoke it immediately, deploy
+the portal or nginx trust configuration, update the affected runner/client, and
+review ingest logs for suspicious activity.
 
 ## Logging
 

@@ -1,57 +1,71 @@
 # Portal Execution Profiles Handoff
 
-This note captures the next implementation step after the CX Portal execution
-profile registry is merged.
+This note captures the current CX Portal execution-profile rollout status and
+the remaining follow-up work after the registry, submit path, and trigger runner
+were merged.
 
 ## Current Scope
 
-The current implementation adds the Portal-side foundation:
+The current implementation includes the Portal-side foundation and execution
+path:
 
 - A site-local SQLite registry for execution profiles.
 - An admin-only `/admin/execution-profiles` page.
 - Admin create/update for profile records.
 - Profile resolution for `code` / `system` / `exp` targets.
 - JSON seed import support for migration or initial setup.
+- Portal-triggered execution request records.
+- Admin dry-run and confirmed GitLab trigger submit paths.
+- Portal-managed scheduled and repo/ref trigger definitions.
+- A site-local trigger runner for scheduled and event-triggered execution.
 
 The registry can contain scheduler account or project-group values. Do not
 commit real site-local values to the OSS repository.
 
-## Intended Next Step on fncx
+## Deployment Status
 
-Continue the execution path on the fncx CX Portal host, where the real Portal
-data directory, service user, GitLab token handling, and received result
-artifacts are available.
+The CX Portal rollout has completed the execution-profile submit path and the
+initial trigger-runner path. Each live Portal host owns its real Portal data
+directory, service user, GitLab token handling, and received result artifacts.
+Keep site names, hostnames, tokens, service paths, and local database paths in
+the site-private operations notes, not in this public repository.
 
-Recommended order:
+Completed:
 
-1. Configure `RESULT_SERVER_DB_PATH` in the Portal systemd environment.
-2. Confirm the admin page can create and update profiles in the live SQLite DB.
-3. Add an execution request table for Portal-triggered runs.
-4. Add a dry-run submit view that resolves a profile and shows the GitLab
-   pipeline trigger payload without sending it.
-5. Add the real GitLab pipeline trigger only after the dry-run path is
-   reviewed. Keep the trigger token in the site-local service environment as
-   `RESULT_SERVER_GITLAB_TRIGGER_TOKEN`; do not store it in SQLite, logs, or
-   the OSS repository.
-6. Add a site-local trigger runner timer. The runner should evaluate Portal
-   trigger definitions, keep `repo_ref` fingerprints in the Portal SQLite DB,
-   and pass the Portal-specific `RESULT_SERVER` URL to GitLab pipelines so
-   dev Portal triggers return results to the same dev Portal.
-7. Index received benchmark and estimation JSON metadata into SQLite while
+- `RESULT_SERVER_DB_PATH` can point the Portal at the live site-local SQLite DB.
+- The admin page can create, update, pause, resume, and delete profiles and
+  trigger definitions in the live DB.
+- Portal-triggered requests are recorded in `execution_requests`.
+- The admin dry-run submit view resolves a profile and renders the GitLab
+  pipeline trigger payload without sending it.
+- Real GitLab trigger submission is available after admin confirmation. Keep
+  trigger tokens in the site-local service environment; do not store them in
+  SQLite, logs, or the OSS repository.
+- The site-local trigger runner evaluates scheduled and `repo_ref` triggers,
+  keeps fingerprints in the Portal SQLite DB, and passes the Portal-specific
+  `RESULT_SERVER` URL to GitLab pipelines so dev Portal triggers return results
+  to the same dev Portal.
+
+Remaining follow-up:
+
+1. Index received benchmark and estimation JSON metadata into SQLite while
    keeping JSON/tgz artifacts as raw records. The first index should be an
    auxiliary lookup table populated at ingest time; existing result and
    estimate pages can remain file-backed until the indexed views are reviewed.
-8. Add environment snapshot storage after deciding which host/runtime metadata
+2. Add environment snapshot storage after deciding which host/runtime metadata
    should define an environment identity.
 
 GitLab schedules should not be the primary governance point. The Portal should
 own periodic and event-triggered execution decisions, then trigger GitLab CI
 with resolved site-local variables.
 
-The current GitLab CI entry point consumes `code`, `system`, BenchPark controls,
-and optional scheduler extra args. Execution profile fields such as `exp` remain
+The current GitLab CI entry point consumes `code`, `system`, and the resolved
+allocation project ID. Execution profile fields such as `exp` remain
 Portal-side matching and audit metadata until the GitLab matrix generator grows
-a matching selector.
+a matching selector. Scheduler-specific command-line formatting belongs to the
+BenchKit CI generation layer, not to Portal profile records. BenchPark bridge
+controls in this repository are legacy; active BenchPark CI/CD/CB result
+handling has moved to a separate project.
 
 ## GitLab Pipeline Trigger Configuration
 
@@ -76,9 +90,9 @@ For multiple destinations, configure named targets instead of the single-repo
 fallback:
 
 ```text
-RESULT_SERVER_GITLAB_TARGETS=swc=gitlab.swc.example.org/group/project,gitlab_com=gitlab.com/group/project
-RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC=<site-local GitLab pipeline trigger token>
-RESULT_SERVER_GITLAB_TRIGGER_TOKEN_GITLAB_COM=<site-local GitLab pipeline trigger token>
+RESULT_SERVER_GITLAB_TARGETS=site_ci=gitlab.example.org/group/project,public_mirror=gitlab.com/group/project
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SITE_CI=<site-local GitLab pipeline trigger token>
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_PUBLIC_MIRROR=<site-local GitLab pipeline trigger token>
 ```
 
 Target IDs may contain letters, digits, `_`, `.`, and `-`. The token variable is
@@ -94,12 +108,12 @@ Portal checkout:
 
 ```bash
 scripts/site/setup_trigger_runner.sh \
-  --site dev2 \
-  --repo-dir /home/nakamura/ChatGPT/benchkit \
-  --venv /home/nakamura/fugakunext/venv \
-  --db /home/nakamura/fugakunext/dev2/cx_portal.sqlite3 \
-  --env-file /home/nakamura/.config/fncx/dev2.env \
-  --result-server-url https://fncx.r-ccs.riken.jp/dev2 \
+  --site dev \
+  --repo-dir /srv/benchkit/checkout \
+  --venv /opt/benchkit/venv \
+  --db /var/lib/benchkit/dev/cx_portal.sqlite3 \
+  --env-file /etc/benchkit/dev.env \
+  --result-server-url https://portal.example.org/dev \
   --submit
 ```
 
@@ -124,8 +138,8 @@ The generated service reads GitLab trigger configuration from the
 `EnvironmentFile`. The token must remain site-local:
 
 ```text
-RESULT_SERVER_GITLAB_TARGETS=swc=gitlab.swc.example.org/group/project
-RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SWC=<site-local GitLab pipeline trigger token>
+RESULT_SERVER_GITLAB_TARGETS=site_ci=gitlab.example.org/group/project
+RESULT_SERVER_GITLAB_TRIGGER_TOKEN_SITE_CI=<site-local GitLab pipeline trigger token>
 ```
 
 ## Compatibility Expectations
@@ -136,4 +150,5 @@ for app participation registration.
 
 `BK_SCHEDULER_EXTRA_ARGS` and `BK_SCHEDULER_EXTRA_ARGS_<SYSTEM>` remain low-level
 escape hatches for bring-up and sites that do not yet use Portal execution
-profiles.
+profiles. They should not be the primary governance interface once a site uses
+Portal-managed profiles and triggers.
