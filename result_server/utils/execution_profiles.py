@@ -1040,6 +1040,29 @@ class ExecutionProfileStore:
             )
         return runs
 
+    def has_trigger_run(
+        self,
+        *,
+        trigger_id: str,
+        status: str,
+        reason: str,
+        created_at_since: str = "",
+    ) -> bool:
+        self.migrate()
+        params: list[Any] = [trigger_id, status, reason]
+        query = """
+            SELECT 1
+            FROM trigger_runs
+            WHERE trigger_id = ? AND status = ? AND reason = ?
+        """
+        if created_at_since:
+            query += " AND created_at >= ?"
+            params.append(created_at_since)
+        query += " LIMIT 1"
+        with self.connect() as conn:
+            row = conn.execute(query, tuple(params)).fetchone()
+        return row is not None
+
     def list_profiles(self) -> list[dict[str, Any]]:
         self.migrate()
         with self.connect() as conn:

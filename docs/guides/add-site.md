@@ -626,9 +626,13 @@ scripts/site/setup_trigger_runner.sh \
 
 初回導入時は `--dry-run` のまま timer を作って動作を確認できます。`repo_ref`
 監視は初回観測では baseline を保存するだけで pipeline を投入せず、2回目以降
-の fingerprint 変化で発火します。runner は短命の SQLite lock を既定で使う
-ため、timer 実行が重なっても同じ trigger を二重評価しません。timer 間隔を
-変える場合は `--lock-ttl-seconds` で TTL を調整できます。
+の fingerprint 変化で発火します。scheduled trigger は cron の due minute
+単位で de-dup し、成功済みの同じ due minute は再 submit しません。また既定
+で5分 lookback するため、timer が少し遅れても直近の due minute を拾えます。
+timer 間隔を変える場合は `--schedule-lookback-minutes` を調整します。runner
+は短命の SQLite lock も既定で使うため、timer 実行が重なっても同じ trigger
+を二重評価しません。timer 間隔を変える場合は `--lock-ttl-seconds` で TTL も
+調整できます。
 
 Execution profile を実行要求へ適用する場合、Portal は `enabled=true` かつ
 `status=approved` の profile だけを候補にします。`code` / `system` / `exp`

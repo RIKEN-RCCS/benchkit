@@ -9,7 +9,7 @@ import socket
 import subprocess
 import sys
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -122,6 +122,35 @@ def cron_matches(cron_expr: str, now: datetime) -> tuple[bool, list[str]]:
     ), []
 
 
+def _minute_key(value: datetime) -> str:
+    return value.replace(second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _cron_due_slots(
+    cron_expr: str,
+    now: datetime,
+    *,
+    lookback_minutes: int,
+) -> tuple[list[datetime], list[str]]:
+    _, errors = cron_matches(cron_expr, now)
+    if errors:
+        return [], errors
+    current = now.replace(second=0, microsecond=0)
+    slots = []
+    for offset in range(max(0, lookback_minutes), -1, -1):
+        candidate = current - timedelta(minutes=offset)
+        matches, match_errors = cron_matches(cron_expr, candidate)
+        if match_errors:
+            return [], match_errors
+        if matches:
+            slots.append(candidate)
+    return slots, []
+
+
 def _trigger_now(trigger: dict, now: datetime) -> tuple[datetime, list[str]]:
     timezone_name = trigger.get("timezone") or "Asia/Tokyo"
     try:
@@ -182,10 +211,38 @@ def evaluate_scheduled_trigger(
     *,
     now: datetime,
     result_server_url: str,
+    schedule_lookback_minutes: int = 5,
 ) -> TriggerEvaluation:
     local_now, timezone_errors = _trigger_now(trigger, now)
-    matches, cron_errors = cron_matches(trigger.get("cron_expr", ""), local_now)
-    reason = f"cron:{trigger.get('cron_expr', '')}"
+    due_slots, cron_errors = _cron_due_slots(
+        trigger.get("cron_expr", ""),
+        local_now,
+        lookback_minutes=schedule_lookback_minutes,
+    )
+    due_slot = None
+    legacy_reason = f"cron:{trigger.get('cron_expr', '')}"
+    legacy_since = _utc_iso(now - timedelta(minutes=schedule_lookback_minutes + 1))
+    for slot in due_slots:
+        candidate_reason = f"cron:{trigger.get('cron_expr', '')}@{_minute_key(slot)}"
+        already_submitted = store.has_trigger_run(
+            trigger_id=trigger["id"],
+            status="submitted",
+            reason=candidate_reason,
+        ) or store.has_trigger_run(
+            trigger_id=trigger["id"],
+            status="submitted",
+            reason=legacy_reason,
+            created_at_since=legacy_since,
+        )
+        if not already_submitted:
+            due_slot = slot
+            break
+    reason_slot = due_slot or (due_slots[-1] if due_slots else None)
+    reason = (
+        f"cron:{trigger.get('cron_expr', '')}@{_minute_key(reason_slot)}"
+        if reason_slot
+        else f"cron:{trigger.get('cron_expr', '')}"
+    )
     payload, plan_errors = _build_trigger_plan(
         store,
         trigger,
@@ -193,8 +250,10 @@ def evaluate_scheduled_trigger(
         trigger_reason=reason,
     )
     errors = timezone_errors + cron_errors + plan_errors
-    should_fire = matches and not errors
+    should_fire = due_slot is not None and not errors
     status = "would_submit" if should_fire else "not_due"
+    if due_slots and due_slot is None:
+        status = "already_submitted"
     if errors:
         status = "blocked"
     return TriggerEvaluation(
@@ -290,6 +349,7 @@ def evaluate_trigger(
     now: datetime,
     result_server_url: str,
     ls_remote=_git_ls_remote,
+    schedule_lookback_minutes: int = 5,
 ) -> TriggerEvaluation:
     if trigger.get("trigger_type") == "scheduled":
         return evaluate_scheduled_trigger(
@@ -297,6 +357,7 @@ def evaluate_trigger(
             trigger,
             now=now,
             result_server_url=result_server_url,
+            schedule_lookback_minutes=schedule_lookback_minutes,
         )
     if trigger.get("trigger_type") == "watch_event" and trigger.get("watch_kind") == "repo_ref":
         return evaluate_repo_ref_trigger(
@@ -331,6 +392,7 @@ def run_triggers(
     use_lock: bool = True,
     lock_name: str = "default",
     lock_ttl_seconds: int = 300,
+    schedule_lookback_minutes: int = 5,
 ) -> list[TriggerEvaluation]:
     store = ExecutionProfileStore(db_path)
     current_time = now or _now_utc()
@@ -376,6 +438,7 @@ def run_triggers(
                 now=current_time,
                 result_server_url=result_url,
                 ls_remote=ls_remote,
+                schedule_lookback_minutes=schedule_lookback_minutes,
             )
             if record_observations:
                 observed_at = current_time.isoformat().replace("+00:00", "Z")
@@ -457,6 +520,12 @@ def main(argv: list[str] | None = None) -> int:
         default=300,
         help="SQLite runner lock TTL. Default: 300.",
     )
+    parser.add_argument(
+        "--schedule-lookback-minutes",
+        type=int,
+        default=5,
+        help="Look back this many minutes for missed scheduled cron slots. Default: 5.",
+    )
     parser.add_argument("--result-server-url", default="", help="RESULT_SERVER URL for submitted pipelines")
     args = parser.parse_args(argv)
 
@@ -471,6 +540,7 @@ def main(argv: list[str] | None = None) -> int:
         submit=args.submit,
         use_lock=not args.no_lock,
         lock_ttl_seconds=args.lock_ttl_seconds,
+        schedule_lookback_minutes=args.schedule_lookback_minutes,
     )
     print(json.dumps([_evaluation_to_dict(item) for item in evaluations], indent=2, sort_keys=True))
     return 1 if any(item.errors for item in evaluations) else 0
