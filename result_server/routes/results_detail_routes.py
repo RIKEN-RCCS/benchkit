@@ -7,6 +7,7 @@ from utils.result_file import (
     serve_permitted_result_file,
 )
 from utils.result_records import summarize_result_quality
+from utils.trigger_display import load_trigger_run_lookup
 
 
 def register_results_detail_routes(results_bp):
@@ -29,7 +30,11 @@ def register_results_detail_routes(results_bp):
             not_found_message="Result file not found",
         )
         quality = summarize_result_quality(result)
-        detail_context = build_result_detail_context(result, quality)
+        detail_context = build_result_detail_context(
+            result,
+            quality,
+            load_trigger_run_lookup(current_app.config.get("EXECUTION_PROFILE_DB_PATH")),
+        )
         return render_template("result_detail.html", result=result, quality=quality, **detail_context)
 
     @results_bp.route("/<filename>")

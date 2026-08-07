@@ -404,9 +404,20 @@ def test_trigger_runner_scheduled_submit_is_deduped_per_due_minute(
     assert first[0].payload["payload"]["variables"]["BK_TRIGGER_REASON"] == first[0].reason
     assert second[0].status == "already_submitted"
     assert second[0].reason == first[0].reason
+    third = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 50, tzinfo=UTC),
+        submit_pipeline=fake_submit,
+        use_lock=False,
+    )
+    assert third[0].status == "already_submitted"
 
     runs = ExecutionProfileStore(str(db_path)).list_trigger_runs("qws-fugaku-1400")
     assert [row["status"] for row in runs[:2]] == ["already_submitted", "submitted"]
+    assert sum(1 for row in runs if row["status"] == "already_submitted") == 1
 
 
 def test_trigger_runner_scheduled_submit_catches_late_timer_tick(
@@ -561,6 +572,7 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
         dry_run=True,
         result_server_url="https://fncx.r-ccs.riken.jp/dev2",
         record_observations=True,
+        now=datetime(2026, 8, 7, 1, 0, tzinfo=UTC),
         ls_remote=fake_ls_remote,
     )
 
@@ -582,6 +594,10 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
     observations = stored.list_trigger_observations("rikyu-qws-watch")
     runs = stored.list_trigger_runs("rikyu-qws-watch")
     assert len(observations) == 2
+    observed_at_by_target = {
+        observation["target"]: observation["observed_at"]
+        for observation in observations
+    }
     assert runs[0]["status"] == "would_initialize"
 
     second = run_triggers(
@@ -589,10 +605,32 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
         dry_run=True,
         result_server_url="https://fncx.r-ccs.riken.jp/dev2",
         record_observations=True,
+        now=datetime(2026, 8, 7, 1, 1, tzinfo=UTC),
         ls_remote=fake_ls_remote,
     )
     assert second[0].should_fire is False
     assert second[0].status == "unchanged"
+    after_second_store = ExecutionProfileStore(str(db_path))
+    second_observations = after_second_store.list_trigger_observations("rikyu-qws-watch")
+    assert {
+        observation["target"]: observation["observed_at"]
+        for observation in second_observations
+    } == observed_at_by_target
+    runs_after_second = after_second_store.list_trigger_runs("rikyu-qws-watch")
+    assert sum(1 for row in runs_after_second if row["status"] == "unchanged") == 1
+
+    repeated = run_triggers(
+        db_path=str(db_path),
+        dry_run=True,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        now=datetime(2026, 8, 7, 1, 2, tzinfo=UTC),
+        ls_remote=fake_ls_remote,
+    )
+    assert repeated[0].should_fire is False
+    assert repeated[0].status == "unchanged"
+    runs_after_repeated = ExecutionProfileStore(str(db_path)).list_trigger_runs("rikyu-qws-watch")
+    assert sum(1 for row in runs_after_repeated if row["status"] == "unchanged") == 1
 
     fingerprint_suffix = "changed"
     third = run_triggers(
@@ -600,10 +638,16 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
         dry_run=True,
         result_server_url="https://fncx.r-ccs.riken.jp/dev2",
         record_observations=True,
+        now=datetime(2026, 8, 7, 1, 3, tzinfo=UTC),
         ls_remote=fake_ls_remote,
     )
     assert third[0].should_fire is True
     assert third[0].status == "would_submit"
+    changed_observations = ExecutionProfileStore(str(db_path)).list_trigger_observations("rikyu-qws-watch")
+    assert any(
+        observation["observed_at"] != observed_at_by_target[observation["target"]]
+        for observation in changed_observations
+    )
 
 
 def test_trigger_runner_submit_records_submitted_run(tmp_path, monkeypatch):

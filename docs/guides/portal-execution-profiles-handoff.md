@@ -18,6 +18,8 @@ path:
 - Admin dry-run and confirmed GitLab trigger submit paths.
 - Portal-managed scheduled and repo/ref trigger definitions.
 - A site-local trigger runner for scheduled and event-triggered execution.
+- Trigger decision visibility in the admin profile page and result-level run
+  cause visibility for results produced by Portal-triggered pipelines.
 
 The registry can contain scheduler account or project-group values. Do not
 commit real site-local values to the OSS repository.
@@ -45,6 +47,10 @@ Completed:
   keeps fingerprints in the Portal SQLite DB, and passes the Portal-specific
   `RESULT_SERVER` URL to GitLab pipelines so dev Portal triggers return results
   to the same dev Portal.
+- Triggered pipelines receive `BK_TRIGGER_ID`, `BK_TRIGGER_TYPE`, and
+  `BK_TRIGGER_REASON`. `scripts/result.sh` stores these values under
+  `execution_trigger` in Result JSON, and the Portal shows them as the result
+  `Run Cause`.
 
 Remaining follow-up:
 
@@ -133,6 +139,21 @@ changed.
 The runner uses a short-lived SQLite lock by default so overlapping timer
 invocations do not evaluate or submit the same triggers twice. Tune the lock
 TTL with `--lock-ttl-seconds` when the timer interval is changed.
+
+The admin execution-profile page shows recent trigger runner decisions,
+including `not_due`, `already_submitted`, `unchanged`, `blocked`,
+`submitted`, and `submit_failed`. For `repo_ref` watches it also shows the
+latest observed target fingerprint. Results produced by Portal-triggered
+pipelines show a `Run Cause` column in the results table and a matching detail
+row when the Result JSON contains `execution_trigger`.
+
+Routine non-submit decisions such as `not_due`, `unchanged`,
+`already_submitted`, and `runner_locked` are rate-limited in `trigger_runs`.
+The default interval is 60 minutes, so a one-minute timer does not write a
+routine history row on every tick. Use `--routine-log-interval-minutes 0` only
+when intentionally debugging every runner tick.
+Repo/ref observations are only persisted when a fingerprint is first initialized
+or changes; unchanged checks do not update `observed_at` on every timer tick.
 
 The generated service reads GitLab trigger configuration from the
 `EnvironmentFile`. The token must remain site-local:

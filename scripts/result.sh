@@ -209,6 +209,18 @@ write_result_json() {
   \"pipeline_id\": $pipeline_id"
   fi
 
+  local execution_trigger_block=""
+  if [ -n "${BK_TRIGGER_ID:-}" ] || [ -n "${BK_TRIGGER_TYPE:-}" ] || [ -n "${BK_TRIGGER_REASON:-}" ]; then
+    local execution_trigger_json
+    execution_trigger_json=$(jq -n \
+      --arg id "${BK_TRIGGER_ID:-}" \
+      --arg type "${BK_TRIGGER_TYPE:-}" \
+      --arg reason "${BK_TRIGGER_REASON:-}" \
+      '{id: $id, type: $type, reason: $reason}')
+    execution_trigger_block=",
+  \"execution_trigger\": ${execution_trigger_json}"
+  fi
+
   # Attach the profiler summary that matches this FOM index. fapp exposes
   # counter events, while ncu exposes the Nsight Compute option preset.
   local profile_data_block=""
@@ -260,7 +272,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}
+  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${execution_trigger_block}
 }
 EOF
 

@@ -8,9 +8,15 @@ from utils.result_records import (
     format_result_timestamp,
     summarize_result_quality,
 )
+from utils.trigger_display import summarize_execution_trigger
 
 
-def build_result_table_row(json_filename, result_data, padata_filenames):
+def build_result_table_row(
+    json_filename,
+    result_data,
+    padata_filenames,
+    trigger_runs_by_pipeline=None,
+):
     """Build a single row for the public/confidential results index table."""
     timestamp = format_result_timestamp(json_filename)
     matched_padata = _find_matching_padata_archive(json_filename, result_data, padata_filenames)
@@ -48,6 +54,10 @@ def build_result_table_row(json_filename, result_data, padata_filenames):
         "execution_mode": result_data.get("execution_mode", "-") or "-",
         "ci_trigger": ci_trigger,
         "ci_summary": f"{ci_trigger} / {pipeline_id}",
+        "execution_trigger_summary": summarize_execution_trigger(
+            result_data,
+            trigger_runs_by_pipeline,
+        ),
         "build_job": result_data.get("build_job", "-") or "-",
         "run_job": result_data.get("run_job", "-") or "-",
         "pipeline_id": pipeline_id,

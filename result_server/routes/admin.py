@@ -37,6 +37,7 @@ from utils.gitlab_pipeline import (
     submit_pipeline_plan,
 )
 from utils.rate_limit import rate_limited
+from utils.trigger_display import build_trigger_result_links, summarize_trigger_run
 from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -213,6 +214,32 @@ def _list_trigger_definitions(db_path):
         return []
 
 
+def _list_trigger_runs(db_path):
+    try:
+        runs = ExecutionProfileStore(db_path).list_trigger_runs(limit=80)
+    except sqlite3.Error as exc:
+        flash(f"Trigger run history could not be loaded: {exc}")
+        return []
+    result_links = build_trigger_result_links(
+        current_app.config.get("RECEIVED_DIR", ""),
+        runs,
+    )
+    summaries = []
+    for run in runs:
+        summary = summarize_trigger_run(run)
+        summary["result_links"] = result_links.get(int(run.get("id") or 0), [])
+        summaries.append(summary)
+    return summaries
+
+
+def _list_trigger_observations(db_path):
+    try:
+        return ExecutionProfileStore(db_path).list_trigger_observations()
+    except sqlite3.Error as exc:
+        flash(f"Trigger observations could not be loaded: {exc}")
+        return []
+
+
 def _find_trigger_definition(triggers, trigger_id):
     if not trigger_id:
         return None
@@ -346,6 +373,8 @@ def execution_profiles():
         profile_result=profile_result,
         registered_profiles=registered_profiles,
         trigger_definitions=trigger_definitions,
+        trigger_runs=_list_trigger_runs(db_path),
+        trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),
@@ -607,6 +636,8 @@ def dry_run_execution_profile_submit():
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
         trigger_definitions=_list_trigger_definitions(db_path),
+        trigger_runs=_list_trigger_runs(db_path),
+        trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),
@@ -715,6 +746,8 @@ def submit_execution_profile_pipeline():
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
         trigger_definitions=_list_trigger_definitions(db_path),
+        trigger_runs=_list_trigger_runs(db_path),
+        trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),

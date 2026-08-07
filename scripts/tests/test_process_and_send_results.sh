@@ -45,6 +45,9 @@ export PATH="${TMP_DIR}/bin:${PATH}"
 export RESULT_SERVER="https://example.invalid"
 export RESULT_SERVER_CLIENT_CERT="${TMP_DIR}/client.crt"
 export RESULT_SERVER_CLIENT_KEY="${TMP_DIR}/client.key"
+export BK_TRIGGER_ID="qws-fugaku-1400"
+export BK_TRIGGER_TYPE="scheduled"
+export BK_TRIGGER_REASON="cron:0 14 * * *@2026-08-07T14:00+09:00"
 
 pushd "${TMP_DIR}/project" >/dev/null
 bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345
@@ -56,6 +59,8 @@ test -f "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.js
 test -f "${TMP_DIR}/project/send_results_workspace/results/pipeline_timing.json"
 
 jq -e '._server_uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
+  "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '.execution_trigger.id == "qws-fugaku-1400" and .execution_trigger.type == "scheduled"' \
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null

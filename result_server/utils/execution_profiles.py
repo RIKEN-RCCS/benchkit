@@ -304,6 +304,12 @@ class ExecutionProfileStore:
                 current = 5
             if current < 6:
                 self._apply_v6(conn)
+                current = 6
+            if current < 7:
+                self._apply_v7(conn)
+                current = 7
+            if current < 8:
+                self._apply_v8(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -509,6 +515,32 @@ class ExecutionProfileStore:
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (6, now),
+        )
+
+    def _apply_v7(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_trigger_runs_routine_lookup
+                ON trigger_runs(trigger_id, status, reason, created_at);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (7, now),
+        )
+
+    def _apply_v8(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_trigger_runs_status_id
+                ON trigger_runs(status, id);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (8, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
@@ -998,6 +1030,7 @@ class ExecutionProfileStore:
         self,
         trigger_id: str | None = None,
         *,
+        statuses: list[str] | tuple[str, ...] | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         self.migrate()
@@ -1006,9 +1039,16 @@ class ExecutionProfileStore:
             FROM trigger_runs
         """
         params: list[Any] = []
+        conditions = []
         if trigger_id:
-            query += " WHERE trigger_id = ?"
+            conditions.append("trigger_id = ?")
             params.append(trigger_id)
+        if statuses:
+            placeholders = ", ".join("?" for _status in statuses)
+            conditions.append(f"status IN ({placeholders})")
+            params.extend(statuses)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         with self.connect() as conn:

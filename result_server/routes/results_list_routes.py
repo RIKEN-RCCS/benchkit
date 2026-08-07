@@ -28,6 +28,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         filter_code=params["filter_code"],
         filter_exp=params["filter_exp"],
         padata_directory=received_padata_dir,
+        execution_profile_db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
     )
     filter_kwargs = dict(public_only=public_only)
     template_extra = {}
