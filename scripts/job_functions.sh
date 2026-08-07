@@ -66,17 +66,37 @@ get_system_queue_group() {
 
 # Return optional site-local scheduler arguments.
 #
-# These values are intentionally not stored in system.csv/queue.csv because
-# project/account/group options can vary by deployment or runner. The variable
-# must be visible where matrix_generate.sh runs, because generated GitLab jobs
-# embed SCHEDULER_PARAMETERS before the target runner submits the scheduler job.
+# Explicit BK_SCHEDULER_EXTRA_ARGS values remain site-local overrides. When no
+# explicit override is set, BenchKit derives scheduler arguments only for
+# systems whose submit syntax is known to require the semantic allocation
+# project ID supplied by the Portal.
 get_scheduler_extra_args() {
     local system="$1"
     local system_key
     local system_var
+    local explicit_args
     system_key=$(printf '%s' "$system" | tr -c '[:alnum:]_' '_')
     system_var="BK_SCHEDULER_EXTRA_ARGS_${system_key}"
-    printf '%s\n' "${!system_var:-${BK_SCHEDULER_EXTRA_ARGS:-}}"
+    explicit_args="${!system_var:-${BK_SCHEDULER_EXTRA_ARGS:-}}"
+    if [[ -n "$explicit_args" ]]; then
+        printf '%s\n' "$explicit_args"
+        return 0
+    fi
+    scheduler_args_from_allocation_project "$system" "${BK_ALLOCATION_PROJECT_ID:-}"
+    return 0
+}
+
+scheduler_args_from_allocation_project() {
+    local system="$1"
+    local allocation_project_id="$2"
+    if [[ -z "$allocation_project_id" ]]; then
+        return 0
+    fi
+    case "$system" in
+      RIKYU)
+        printf '%s\n' "--account=${allocation_project_id}"
+        ;;
+    esac
     return 0
 }
 

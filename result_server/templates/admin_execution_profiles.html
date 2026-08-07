@@ -371,8 +371,8 @@
         </label>
         <label>
             Allocation Project ID
-            <input type="text" name="allocation_project_id" required placeholder="rkp00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
-            <span class="field-help">This ID belongs to one system. Split multi-system profiles before assigning an allocation.</span>
+            <input type="text" name="allocation_project_id" placeholder="rkp00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
+            <span class="field-help">Optional. When set, this ID belongs to one system. BenchKit enables scheduler-specific account options only where supported.</span>
         </label>
         <label>
             Valid From

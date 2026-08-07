@@ -1283,7 +1283,7 @@ def test_admin_execution_profiles_edit_link_prefills_form(tmp_path):
         assert "Edit Profile" in html
         assert 'name="id" required placeholder="qws-fugaku-rkp00010" value="qws-fugaku"' in html
         assert 'name="activity" placeholder="FugakuNEXT" value="CX"' in html
-        assert 'name="allocation_project_id" required placeholder="rkp00010" value="rkp00010"' in html
+        assert 'name="allocation_project_id" placeholder="rkp00010" value="rkp00010"' in html
         assert 'name="system" placeholder="Fugaku" value="Fugaku"' in html
         assert "qws</textarea>" in html
         assert "Cancel Edit" in html
@@ -1329,7 +1329,7 @@ def test_admin_execution_profiles_rejects_allocation_without_single_system(tmp_p
         _cleanup(temp_dirs)
 
 
-def test_admin_execution_profiles_rejects_approved_profile_without_allocation(tmp_path):
+def test_admin_execution_profiles_allows_approved_profile_without_allocation(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     app, temp_dirs = _admin_app(db_path)
     try:
@@ -1348,8 +1348,9 @@ def test_admin_execution_profiles_rejects_approved_profile_without_allocation(tm
 
         result = load_execution_profiles(str(db_path))
         assert resp.status_code == 200
-        assert b"approved profiles require allocation_project_id" in resp.data
-        assert result.profiles == []
+        assert b"approved profiles require allocation_project_id" not in resp.data
+        assert result.profiles[0]["id"] == "missing-allocation"
+        assert result.profiles[0]["allocation_project_id"] == ""
     finally:
         _cleanup(temp_dirs)
 
@@ -1507,7 +1508,7 @@ def test_admin_execution_profiles_dry_run_blocks_without_matching_profile(
         _cleanup(temp_dirs)
 
 
-def test_admin_execution_profiles_dry_run_blocks_profile_without_allocation(
+def test_admin_execution_profiles_dry_run_allows_profile_without_allocation(
     tmp_path,
     monkeypatch,
 ):
@@ -1532,10 +1533,12 @@ def test_admin_execution_profiles_dry_run_blocks_profile_without_allocation(
         assert resp.status_code == 200
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
-                "SELECT status, errors_json FROM execution_requests"
+                "SELECT status, errors_json, payload_json FROM execution_requests"
             ).fetchone()
-        assert row[0] == "dry_run_blocked"
-        assert "profile allocation_project_id is required" in json.loads(row[1])
+        assert row[0] == "dry_run_ready"
+        assert json.loads(row[1]) == []
+        variables = json.loads(row[2])["payload"]["variables"]
+        assert "BK_ALLOCATION_PROJECT_ID" not in variables
     finally:
         _cleanup(temp_dirs)
 
