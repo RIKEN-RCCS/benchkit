@@ -85,7 +85,7 @@ Web 上の論理的な見え方と、result server 側の実ディレクトリ�
   - `estimated_results`
 
 現状の result server 実装では、`received` および `estimated_results` というサブディレクトリ名は固定であり、
-親ディレクトリのみが `BASE_PATH` と `main` / `dev1` などの環境別構成によって切り替わる。
+親ディレクトリのみが `BASE_PATH` と `production` / `staging` などの環境別構成によって切り替わる。
 したがって、実際の保存先は概ね以下となる。
 
 - `${BASE_PATH}/main/received`

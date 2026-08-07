@@ -114,7 +114,7 @@ ARM64 ログインノードでは `--arch arm64` を指定します。
 - `--scheduler pbs|slurm|pjm`
   - Jacamar の executor を指定します
 - `--jacamar-repo URL`
-  - Jacamar-CI の clone 元を明示します。省略時は `--scheduler pjm` の場合だけ PJM 対応 fork `https://gitlab.com/yoshifuminakamura/jacamar-ci.git` を使い、それ以外は upstream `https://gitlab.com/ecp-ci/jacamar-ci.git` を使います
+  - Jacamar-CI の clone 元を明示します。省略時の clone 元は `setup_runner.sh --help` の表示に従います。PJM 対応など site 固有の Jacamar fork が必要な場合は、このオプションで明示してください
 - `--base-dir /path/to/gitlab-runner_jacamar-ci_amd`
   - 既定は `$HOME/gitlab-runner_jacamar-ci_amd` または `$HOME/gitlab-runner_jacamar-ci_arm`
 - `--libseccomp auto|system|local|none`
@@ -579,7 +579,7 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 
 GitLab CI では scheduler parameter は `matrix_generate.sh` 実行時に展開されるため、この値は対象 runner だけでなく matrix 生成 job からも見える必要があります。機密 token ではなく、scheduler に表示されてもよい project/account/group 引数だけに使ってください。
 
-定期実行や契機実行で、app 条件と project budget / account の対応を管理する場合は、CX Portal の execution profile に寄せる方針です。`BK_SCHEDULER_EXTRA_ARGS*` は、profile 連携前の bring-up や、profile を使わない site の低レベル escape hatch として残します。
+定期実行や契機実行で app 条件と project budget / account の対応を管理する場合は、CX Portal の execution profile に寄せます。Portal は system 単位の allocation project ID を扱い、scheduler ごとの具体的な投入書式は BenchKit の CI 生成層で解釈します。`BK_SCHEDULER_EXTRA_ARGS*` は、profile 連携前の bring-up や、profile を使わない site の低レベル escape hatch として残します。
 
 Execution profile の正本は OSS repo ではなく、Portal の実行環境に置く site-local SQLite DB です。`RESULT_SERVER_DB_PATH` で指定できます。指定しない場合は Portal data directory 配下の `cx_portal.sqlite3` を使います。
 
@@ -590,15 +590,12 @@ JSON は、初期投入や移行 seed の補助形式として使えます。例
   "profiles": [
     {
       "id": "rikyu-qws-nightly",
-      "display_name": "RIKYU QWS nightly",
       "enabled": true,
+      "status": "approved",
       "activity": "FugakuNEXT",
-      "owner": "project-owner-or-team",
       "code": ["qws"],
       "system": ["RIKYU"],
-      "exp": ["case0"],
-      "scheduler_extra_args": "--account=<site-local-account>",
-      "visibility": "public-results",
+      "allocation_project_id": "<site-local-project-id>",
       "valid_from": "2026-09-01",
       "valid_until": "2027-03-31"
     }
@@ -606,7 +603,7 @@ JSON は、初期投入や移行 seed の補助形式として使えます。例
 }
 ```
 
-この JSON や SQLite DB には account や project group の実値が入り得るため、公開 OSS repo には commit しないでください。Portal では admin user だけが `/admin/execution-profiles` から確認できます。
+この JSON や SQLite DB には project ID などの site-local 実値が入り得るため、公開 OSS repo には commit しないでください。Portal では admin user だけが `/admin/execution-profiles` から確認できます。定期実行や repo/ref 監視の契機は profile とは別の trigger definition として登録し、ひとつの trigger はひとつの profile に紐づきます。
 
 Portal で作成した定期実行や repo/ref 監視トリガーは、Portal の実行環境で
 site-local trigger runner を常駐させて評価します。GitLab schedule ではなく
@@ -615,12 +612,12 @@ trigger として渡します。例:
 
 ```bash
 scripts/site/setup_trigger_runner.sh \
-  --site dev2 \
-  --repo-dir /home/nakamura/ChatGPT/benchkit \
-  --venv /home/nakamura/fugakunext/venv \
-  --db /home/nakamura/fugakunext/dev2/cx_portal.sqlite3 \
-  --env-file /home/nakamura/.config/fncx/dev2.env \
-  --result-server-url https://fncx.r-ccs.riken.jp/dev2 \
+  --site dev \
+  --repo-dir /srv/benchkit/checkout \
+  --venv /opt/benchkit/venv \
+  --db /var/lib/benchkit/dev/cx_portal.sqlite3 \
+  --env-file /etc/benchkit/dev.env \
+  --result-server-url https://portal.example.org/dev \
   --submit
 ```
 
@@ -833,13 +830,13 @@ environment = ["PATH=/path/to/gitlab-runner_jacamar-ci_amd/bin:..."]
 - ログインノードから GitLab サーバへの HTTPS 通信が可能か確認
 - プロキシ設定が必要な場合は `setup_runner.sh --proxy` で `config.toml` と systemd user service の両方に proxy を明示
 
-ログインシェルでは `curl -I https://gitlab.swc.r-ccs.riken.jp` が成功するのに、常駐ランナーが
-`Checking for jobs... failed` や `lookup gitlab.swc.r-ccs.riken.jp on [::1]:53` で失敗する場合は、
+ログインシェルでは `curl -I https://YOUR_GITLAB_SERVER` が成功するのに、常駐ランナーが
+`Checking for jobs... failed` や `lookup YOUR_GITLAB_SERVER on [::1]:53` で失敗する場合は、
 `systemd --user` のサービスがログインシェルの proxy 環境変数を継承していない可能性があります。
 
 ```bash
 env | grep -Ei 'proxy|http|https|no_proxy'
-curl -I https://gitlab.swc.r-ccs.riken.jp
+curl -I https://YOUR_GITLAB_SERVER
 systemctl --user show gitlab-runner-<site>-amd.service -p Environment
 ```
 

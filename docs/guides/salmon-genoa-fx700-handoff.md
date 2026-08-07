@@ -1,6 +1,8 @@
 # SALMON GENOA / FX700 Handoff
 
-This note is for an on-site agent continuing the SALMON integration work.
+This note is for an on-site agent continuing the SALMON integration work. Keep
+site-private paths, account names, queue names, and run logs in private
+operations notes or pull-request evidence, not in this public guide.
 
 ## Scope and rules
 
@@ -37,10 +39,10 @@ The previous GENOA failure used `/usr/lib64/mpich/bin/mpicc` and `mpif90`; that 
 
 ### AOCL configuration
 
-The site AOCL installation is expected under:
+The site AOCL installation should be provided by the target site. Example:
 
 ```text
-/lvs0/rccs-nghpcadu/nakamura/aocl/install/
+/path/to/site/aocl/install/
 ```
 
 Relevant libraries are:

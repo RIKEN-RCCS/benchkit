@@ -38,7 +38,8 @@ benchkit/
 - `programs/<code>/`
   App-specific build, run, and estimation entry points.
 - `benchpark-bridge/`
-  BenchPark integration and conversion support.
+  Legacy BenchPark bridge and conversion support. Active BenchPark CI/CD/CB
+  result handling has moved to a separate project.
 - `result_server/`
   Flask-based result portal, ingest API, authentication, admin pages, and tests.
 - `scripts/`
@@ -189,8 +190,10 @@ Data or `*.ncu-rep`.
 
 ## 5. BenchPark Integration
 
-- BenchPark-specific conversion and bridge logic lives under `benchpark-bridge/`.
-- BenchPark CI can adapt BenchPark-native outputs into the ingest schema used by the result server.
+- Legacy BenchPark-specific conversion and bridge logic remains under
+  `benchpark-bridge/`.
+- Active BenchPark CI/CD/CB result handling is maintained in a separate project. Treat this repository's bridge as legacy and QC-GH200-oriented unless a
+  future PR explicitly reworks it.
 
 ## Configuration Files
 
@@ -248,9 +251,8 @@ For production portal deployments:
 
 - Set `FLASK_SECRET_KEY` to a strong secret and run `result_server/app.py`, not `app_dev.py`.
 - `app.py` binds to `127.0.0.1:8800` by default; set `RESULT_SERVER_HOST` and `RESULT_SERVER_PORT` explicitly when the deployment requires a different bind address.
-- Set runner-scoped ingest keys with `RESULT_SERVER_KEYS=runner-a:<RUNNER_A_KEY>,runner-b:<RUNNER_B_KEY>`.
-- `RESULT_SERVER_KEYS` is the server-side registry of accepted posting/query keys. It is intentionally broader than the current single-key CI setup so the portal can later accept results from multiple trusted CI sources such as main BenchKit CI, site-managed runners, collaborator forks, or estimator-only pipelines.
-- Client jobs on mTLS-protected deployments use `RESULT_SERVER_CLIENT_CERT` and `RESULT_SERVER_CLIENT_KEY` instead of `RESULT_SERVER_KEY`; they do not send an `X-API-Key` header.
+- For built-in upload/query helper scripts, use mTLS with `RESULT_SERVER_CLIENT_CERT` and `RESULT_SERVER_CLIENT_KEY`; they do not send an `X-API-Key` header.
+- `RESULT_SERVER_KEYS=runner-a:<RUNNER_A_KEY>,runner-b:<RUNNER_B_KEY>` remains a server-side registry for legacy or custom clients that still send `X-API-Key`.
 - `FLASK_SECRET_KEY` and each ingest key must be at least 32 characters and must not use known insecure examples such as `dev-api-key`, `changeme`, or `secret`; production startup refuses these values.
 - The legacy server-side `RESULT_SERVER_KEY` variable is still accepted as runner `default` for compatibility, but production portal deployments should rotate the accepted-key registry to `RESULT_SERVER_KEYS`.
 - See `docs/deploy/key-management.md` for generation and rotation guidance.
