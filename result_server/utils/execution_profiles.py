@@ -108,6 +108,21 @@ def _json_dump_list(value: Any) -> str:
     return json.dumps(value or [], ensure_ascii=False, sort_keys=True)
 
 
+def _profile_validity_error(profile: dict[str, Any], *, today: str | None = None) -> str:
+    current = today or datetime.now(UTC).date().isoformat()
+    valid_from = str(profile.get("valid_from") or "").strip()
+    valid_until = str(profile.get("valid_until") or "").strip()
+    if valid_from and valid_from > current:
+        return f"execution profile is not active until {valid_from}: {profile.get('id', '')}"
+    if valid_until and valid_until < current:
+        return f"execution profile expired on {valid_until}: {profile.get('id', '')}"
+    return ""
+
+
+def _profile_is_current(profile: dict[str, Any], *, today: str | None = None) -> bool:
+    return not _profile_validity_error(profile, today=today)
+
+
 def _as_watch_targets(value: Any) -> list[str]:
     if isinstance(value, str):
         stripped = value.strip()
@@ -1198,6 +1213,7 @@ class ExecutionProfileStore:
         code: str = "",
         system: str = "",
         exp: str = "",
+        today: str | None = None,
     ) -> ExecutionProfileResolveResult:
         """Resolve one enabled and approved profile for a target execution."""
         target_id = profile_id.strip()
@@ -1207,7 +1223,7 @@ class ExecutionProfileStore:
             if profile.get("enabled", True) and profile.get("status") == "approved"
         ]
         if target_id:
-            matches = [
+            scoped_matches = [
                 profile
                 for profile in profiles
                 if profile.get("id") == target_id
@@ -1215,6 +1231,20 @@ class ExecutionProfileStore:
                 and _scope_matches(profile.get("system", []), system)
                 and _scope_matches(profile.get("exp", []), exp)
             ]
+            validity_errors = [
+                error
+                for error in (
+                    _profile_validity_error(profile, today=today)
+                    for profile in scoped_matches
+                )
+                if error
+            ]
+            if validity_errors:
+                return ExecutionProfileResolveResult(
+                    profile=None,
+                    errors=validity_errors,
+                )
+            matches = [profile for profile in scoped_matches if _profile_is_current(profile, today=today)]
             if not matches:
                 return ExecutionProfileResolveResult(
                     profile=None,
@@ -1225,7 +1255,8 @@ class ExecutionProfileStore:
         matches = [
             profile
             for profile in profiles
-            if _scope_matches(profile.get("code", []), code)
+            if _profile_is_current(profile, today=today)
+            and _scope_matches(profile.get("code", []), code)
             and _scope_matches(profile.get("system", []), system)
             and _scope_matches(profile.get("exp", []), exp)
         ]

@@ -64,6 +64,12 @@
         width: 100%;
         box-sizing: border-box;
     }
+    .field-help {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.35;
+    }
     .profile-form .profile-form-wide {
         grid-column: 1 / -1;
     }
@@ -366,6 +372,7 @@
         <label>
             Allocation Project ID
             <input type="text" name="allocation_project_id" required placeholder="rkp00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
+            <span class="field-help">This ID belongs to one system. Split multi-system profiles before assigning an allocation.</span>
         </label>
         <label>
             Valid From
@@ -382,6 +389,7 @@
         <label class="profile-form-wide">
             System
             <input type="text" name="system" placeholder="Fugaku" value="{{ edit_profile.system | join(', ') if edit_profile else '' }}">
+            <span class="field-help">Use a single system when Allocation Project ID is set.</span>
         </label>
         <label class="profile-form-wide">
             Exp Scope
@@ -506,7 +514,12 @@
                         / <span class="profile-mono">{{ profile.allocation_project_id or '-' }}</span>
                     </td>
                     <td class="profile-col-governance">
-                        {{ profile.activity or '-' }} / {{ profile.approved_by or '-' }} / {{ profile.valid_from or '-' }} to {{ profile.valid_until or '-' }}
+                        {{ profile.activity or '-' }} / {{ profile.approved_by or '-' }} /
+                        {% if profile.valid_from or profile.valid_until %}
+                        {{ profile.valid_from or 'open' }} to {{ profile.valid_until or 'open' }}
+                        {% else %}
+                        open-ended
+                        {% endif %}
                     </td>
                     <td>
                         <div class="profile-mini-actions">

@@ -182,8 +182,12 @@ def _build_trigger_plan(
     *,
     result_server_url: str,
     trigger_reason: str,
+    now: datetime,
 ) -> tuple[dict, list[str]]:
-    profile_result = store.resolve_profile(profile_id=trigger.get("profile_id", ""))
+    profile_result = store.resolve_profile(
+        profile_id=trigger.get("profile_id", ""),
+        today=now.date().isoformat(),
+    )
     profile = profile_result.profile
     gitlab_target, target_errors = configured_gitlab_target(trigger.get("gitlab_target", ""))
     target_ref = trigger.get("target_ref") or os.environ.get("RESULT_SERVER_GITLAB_REF", "develop")
@@ -259,6 +263,7 @@ def evaluate_scheduled_trigger(
         trigger,
         result_server_url=result_server_url,
         trigger_reason=reason,
+        now=now,
     )
     errors = timezone_errors + cron_errors + plan_errors
     should_fire = due_slot is not None and not errors
@@ -334,6 +339,7 @@ def evaluate_repo_ref_trigger(
         trigger,
         result_server_url=result_server_url,
         trigger_reason=reason,
+        now=now,
     )
     errors.extend(plan_errors)
     status = "would_submit" if should_fire and not errors else "unchanged"
