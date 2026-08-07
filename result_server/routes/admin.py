@@ -102,7 +102,12 @@ def _parse_execution_profile_form():
     system = _split_form_list(request.form.get("system", ""))
     allocation_project_id = request.form.get("allocation_project_id", "").strip()
     if allocation_project_id and len(system) != 1:
-        errors.append("allocation_project_id requires exactly one system")
+        system_label = ", ".join(system) if system else "none"
+        errors.append(
+            "allocation_project_id requires exactly one system; "
+            f"got {len(system)} ({system_label}). "
+            "Split the profile per system or keep only one system in this profile."
+        )
     if request.form.get("status", "").strip() == "approved" and not allocation_project_id:
         errors.append("approved profiles require allocation_project_id")
 
@@ -522,6 +527,9 @@ def upsert_execution_profile():
             details={"errors": errors},
         )
         flash("Execution profile was not saved: " + "; ".join(errors))
+        edit_profile_id = raw_profile.get("id", "").strip()
+        if edit_profile_id:
+            return redirect(url_for("admin.execution_profiles", edit=edit_profile_id))
         return redirect(url_for("admin.execution_profiles"))
 
     try:

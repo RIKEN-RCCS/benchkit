@@ -83,7 +83,7 @@ def _profile(**overrides):
         "allocation_project_id": "rkp00010",
         "scheduler_extra_args": "--account=site-local",
         "visibility": "public-results",
-        "valid_from": "2026-09-01",
+        "valid_from": "2026-01-01",
         "valid_until": "2027-03-31",
         "approved_by": "admin@test.com",
         "approved_at": "2026-09-01T00:00:00Z",
@@ -345,6 +345,48 @@ def test_trigger_runner_cron_matches_basic_fields():
     assert cron_matches("*/15 * * * *", now) == (True, [])
     assert cron_matches("0 2 * * *", now) == (False, [])
     assert cron_matches("0 2 *", now) == (False, ["cron expression must have 5 fields"])
+
+
+def test_trigger_runner_blocks_scheduled_trigger_outside_profile_period(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(
+        _profile(system=["Fugaku"], valid_until="2000-01-01"),
+        actor="admin@test.com",
+    )
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 10 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 15, tzinfo=UTC),
+        submit_pipeline=lambda plan, *, token: (_ for _ in ()).throw(AssertionError("submitted")),
+        use_lock=False,
+    )
+
+    assert evaluations[0].should_fire is False
+    assert evaluations[0].status == "blocked"
+    assert evaluations[0].errors == [
+        "execution profile expired on 2000-01-01: rikyu-qws-nightly"
+    ]
 
 
 def test_trigger_runner_scheduled_submit_is_deduped_per_due_minute(
@@ -794,6 +836,30 @@ def test_execution_profile_store_rejects_unapproved_or_disabled_matches(tmp_path
     assert result.errors == ["no approved execution profile matches target"]
 
 
+def test_execution_profile_store_rejects_profiles_outside_valid_period(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(
+        _profile(id="expired", valid_until="2000-01-01"),
+        actor="admin",
+    )
+    store.upsert_profile(
+        _profile(id="future", valid_from="2999-01-01"),
+        actor="admin",
+    )
+
+    expired = store.resolve_profile(profile_id="expired", code="qws", system="RIKYU")
+    future = store.resolve_profile(profile_id="future", code="qws", system="RIKYU")
+    inferred = store.resolve_profile(code="qws", system="RIKYU")
+
+    assert expired.profile is None
+    assert expired.errors == ["execution profile expired on 2000-01-01: expired"]
+    assert future.profile is None
+    assert future.errors == ["execution profile is not active until 2999-01-01: future"]
+    assert inferred.profile is None
+    assert inferred.errors == ["no approved execution profile matches target"]
+
+
 def test_execution_profile_store_reports_ambiguous_matching_profiles(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
@@ -930,6 +996,15 @@ def test_admin_execution_profiles_renders_profile_summary(tmp_path):
         _profile(),
         actor="admin@test.com",
     )
+    ExecutionProfileStore(str(db_path)).upsert_profile(
+        _profile(
+            id="qws-fugaku",
+            allocation_project_id="test",
+            valid_from="",
+            valid_until="",
+        ),
+        actor="admin@test.com",
+    )
     app, temp_dirs = _admin_app(db_path)
     try:
         with app.test_client() as client:
@@ -948,6 +1023,7 @@ def test_admin_execution_profiles_renders_profile_summary(tmp_path):
         assert "admin@test.com" in html
         assert "qws" in html
         assert "RIKYU" in html
+        assert "open-ended" in html
         assert 'href="/admin/execution-profiles?edit=rikyu-qws-nightly"' in html
         assert 'name="profile_id" value="rikyu-qws-nightly"' in html
         assert 'name="target_ref" value="main"' in html
@@ -1217,6 +1293,16 @@ def test_admin_execution_profiles_edit_link_prefills_form(tmp_path):
 
 def test_admin_execution_profiles_rejects_allocation_without_single_system(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(
+        _profile(
+            id="bad-allocation-scope",
+            status="draft",
+            allocation_project_id="",
+            system=["Fugaku", "MiyabiG"],
+        ),
+        actor="admin@test.com",
+    )
     app, temp_dirs = _admin_app(db_path)
     try:
         with app.test_client() as client:
@@ -1235,8 +1321,10 @@ def test_admin_execution_profiles_rejects_allocation_without_single_system(tmp_p
 
         result = load_execution_profiles(str(db_path))
         assert resp.status_code == 200
-        assert b"allocation_project_id requires exactly one system" in resp.data
-        assert result.profiles == []
+        assert b"allocation_project_id requires exactly one system; got 2 (Fugaku, MiyabiG)" in resp.data
+        assert b"Split the profile per system or keep only one system in this profile" in resp.data
+        assert b'name="id" required placeholder="qws-fugaku-rkp00010" value="bad-allocation-scope"' in resp.data
+        assert result.profiles[0]["allocation_project_id"] == ""
     finally:
         _cleanup(temp_dirs)
 
