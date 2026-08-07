@@ -14,6 +14,7 @@ record_observations=1
 start_service=1
 use_lock=1
 lock_ttl_seconds=300
+schedule_lookback_minutes=5
 
 usage() {
   cat <<'EOF'
@@ -36,6 +37,8 @@ Options:
   --no-record-observations Do not persist repo_ref fingerprints.
   --no-lock                Do not use the SQLite runner lock.
   --lock-ttl-seconds SEC   SQLite runner lock TTL. Default: 300.
+  --schedule-lookback-minutes MIN
+                           Scheduled trigger lookback window. Default: 5.
   --no-start               Write units but do not enable/start the timer.
   -h, --help               Show this help.
 
@@ -69,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --no-record-observations) record_observations=0; shift ;;
     --no-lock) use_lock=0; shift ;;
     --lock-ttl-seconds) lock_ttl_seconds="${2:-}"; shift 2 ;;
+    --schedule-lookback-minutes) schedule_lookback_minutes="${2:-}"; shift 2 ;;
     --no-start) start_service=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1" ;;
@@ -118,6 +122,7 @@ if [[ "$use_lock" -eq 0 ]]; then
 else
   runner_args+=(--lock-ttl-seconds "$lock_ttl_seconds")
 fi
+runner_args+=(--schedule-lookback-minutes "$schedule_lookback_minutes")
 
 info "Writing $service_path"
 {

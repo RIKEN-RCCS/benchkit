@@ -347,6 +347,184 @@ def test_trigger_runner_cron_matches_basic_fields():
     assert cron_matches("0 2 *", now) == (False, ["cron expression must have 5 fields"])
 
 
+def test_trigger_runner_scheduled_submit_is_deduped_per_due_minute(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 10 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    submitted = []
+
+    def fake_submit(plan, *, token):
+        submitted.append((plan, token))
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": len(submitted)},
+            errors=[],
+        )
+
+    first = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 15, tzinfo=UTC),
+        submit_pipeline=fake_submit,
+        use_lock=False,
+    )
+    second = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 45, tzinfo=UTC),
+        submit_pipeline=fake_submit,
+        use_lock=False,
+    )
+
+    assert len(submitted) == 1
+    assert first[0].status == "submitted"
+    assert first[0].reason == "cron:0 10 * * *@2026-08-07T10:00+09:00"
+    assert first[0].payload["payload"]["variables"]["BK_TRIGGER_REASON"] == first[0].reason
+    assert second[0].status == "already_submitted"
+    assert second[0].reason == first[0].reason
+
+    runs = ExecutionProfileStore(str(db_path)).list_trigger_runs("qws-fugaku-1400")
+    assert [row["status"] for row in runs[:2]] == ["already_submitted", "submitted"]
+
+
+def test_trigger_runner_scheduled_submit_catches_late_timer_tick(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 10 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    submitted = []
+
+    def fake_submit(plan, *, token):
+        submitted.append((plan, token))
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 123},
+            errors=[],
+        )
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 3, 0, tzinfo=UTC),
+        submit_pipeline=fake_submit,
+        use_lock=False,
+        schedule_lookback_minutes=5,
+    )
+
+    assert len(submitted) == 1
+    assert evaluations[0].status == "submitted"
+    assert evaluations[0].reason == "cron:0 10 * * *@2026-08-07T10:00+09:00"
+
+
+def test_trigger_runner_scheduled_dedup_accepts_recent_legacy_reason(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 10 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    store.create_trigger_run(
+        trigger_id="qws-fugaku-1400",
+        trigger_type="scheduled",
+        status="submitted",
+        dry_run=False,
+        reason="cron:0 10 * * *",
+    )
+    with store.connect() as conn:
+        conn.execute(
+            """
+            UPDATE trigger_runs
+            SET created_at = ?, updated_at = ?
+            WHERE trigger_id = ? AND status = ?
+            """,
+            (
+                "2026-08-07T01:00:30Z",
+                "2026-08-07T01:00:30Z",
+                "qws-fugaku-1400",
+                "submitted",
+            ),
+        )
+    submitted = []
+
+    def fake_submit(plan, *, token):
+        submitted.append((plan, token))
+        return GitLabPipelineSubmitResult(
+            status_code=201,
+            response={"id": 123},
+            errors=[],
+        )
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 45, tzinfo=UTC),
+        submit_pipeline=fake_submit,
+        use_lock=False,
+    )
+
+    assert submitted == []
+    assert evaluations[0].status == "already_submitted"
+    assert evaluations[0].reason == "cron:0 10 * * *@2026-08-07T10:00+09:00"
+
+
 def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
     tmp_path,
     monkeypatch,

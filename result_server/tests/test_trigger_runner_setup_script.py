@@ -55,6 +55,8 @@ def test_setup_trigger_runner_writes_user_units(tmp_path):
             "*:0/5",
             "--lock-ttl-seconds",
             "120",
+            "--schedule-lookback-minutes",
+            "7",
             "--submit",
         ],
         check=True,
@@ -76,6 +78,7 @@ def test_setup_trigger_runner_writes_user_units(tmp_path):
     assert "--submit" in service_text
     assert "--record-observations" in service_text
     assert "--lock-ttl-seconds 120" in service_text
+    assert "--schedule-lookback-minutes 7" in service_text
     assert "https://fncx.r-ccs.riken.jp/dev2" in service_text
     assert "OnCalendar=*:0/5" in timer_text
     assert "Unit=benchkit-trigger-runner-dev2.service" in timer_text

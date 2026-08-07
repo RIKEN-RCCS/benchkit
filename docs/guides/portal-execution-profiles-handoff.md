@@ -109,6 +109,13 @@ fingerprints when `--record-observations` is active through the setup script.
 The first observation of a `repo_ref` watch initializes the baseline and does
 not submit a pipeline; later fingerprint changes can submit.
 
+Scheduled triggers are de-duplicated by cron due minute. The runner records the
+due minute in the trigger run reason and does not submit the same due minute
+twice after a successful submission. It also looks back a short window, default
+5 minutes, so a slightly delayed timer tick can still catch a missed cron
+minute. Tune this with `--schedule-lookback-minutes` if the timer interval is
+changed.
+
 The runner uses a short-lived SQLite lock by default so overlapping timer
 invocations do not evaluate or submit the same triggers twice. Tune the lock
 TTL with `--lock-ttl-seconds` when the timer interval is changed.
