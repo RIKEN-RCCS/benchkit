@@ -19,6 +19,7 @@ on:
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_process_and_send_results.sh"
+      - "scripts/tests/test_scheduler_extra_args.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
       - "scripts/test_estimate_submit.sh"
@@ -51,6 +52,7 @@ on:
       - "scripts/tests/test_genesis_gpu_mlp_estimation.sh"
       - "scripts/tests/test_result_profile_data.sh"
       - "scripts/tests/test_process_and_send_results.sh"
+      - "scripts/tests/test_scheduler_extra_args.sh"
       - "scripts/tests/test_send_estimate_artifacts.sh"
       - "scripts/tests/test_send_results_profile_data.sh"
       - "scripts/test_estimate_submit.sh"
@@ -130,6 +132,7 @@ jobs:
           bash scripts/tests/test_ncu_plan_generation.sh
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_process_and_send_results.sh
+          bash scripts/tests/test_scheduler_extra_args.sh
           bash scripts/tests/test_send_results_profile_data.sh
           bash scripts/tests/test_send_estimate_artifacts.sh
           bash scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh

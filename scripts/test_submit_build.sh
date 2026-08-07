@@ -84,6 +84,8 @@ fi
 
 mode=$(get_system_mode "$system")
 queue_group=$(get_system_queue_group "$system")
+scheduler_extra_args=$(get_scheduler_extra_args "$system")
+read -r -a scheduler_extra_args_array <<< "$scheduler_extra_args"
 
 if [[ -z "$mode" || -z "$queue_group" ]]; then
   echo "Error: mode or queue_group not found for system=$system in $SYSTEM_FILE"
@@ -102,12 +104,15 @@ echo "  run_nodes=$run_nodes, run_numproc_node=$run_numproc_node, run_nthreads=$
 echo ""
 echo "Build submission values:"
 echo "  nodes=$build_nodes, ntasks_per_node=1, cpus_per_task=$build_cpus_per_task"
+if [[ -n "$scheduler_extra_args" ]]; then
+    echo "  scheduler_extra_args=$scheduler_extra_args (from BK_SCHEDULER_EXTRA_ARGS*, or BK_ALLOCATION_PROJECT_ID for supported systems)"
+fi
 
 case "$system" in
   RC_GH200|RC_DGXSP|RC_GENOA)
-    echo sbatch -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
+    echo sbatch "${scheduler_extra_args_array[@]}" -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
       --wrap="bash programs/$code/build.sh $system"
-    sbatch -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
+    sbatch "${scheduler_extra_args_array[@]}" -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
       --wrap="bash programs/${code}/build.sh $system"
     ;;
   *)

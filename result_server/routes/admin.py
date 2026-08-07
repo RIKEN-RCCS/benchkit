@@ -108,9 +108,6 @@ def _parse_execution_profile_form():
             f"got {len(system)} ({system_label}). "
             "Split the profile per system or keep only one system in this profile."
         )
-    if request.form.get("status", "").strip() == "approved" and not allocation_project_id:
-        errors.append("approved profiles require allocation_project_id")
-
     actor = session.get("user_email", "")
     raw_profile = {
         "id": request.form.get("id", "").strip(),
@@ -291,8 +288,6 @@ def _build_execution_pipeline_plan(store):
     request_errors = []
     if not profile_id:
         request_errors.append("profile_id is required")
-    if profile and not resolve_result.allocation_project_id:
-        request_errors.append("profile allocation_project_id is required")
     if effective_exp:
         plan.warnings.append(
             "Profile Exp is used for Portal profile matching and is not sent to GitLab CI."

@@ -215,8 +215,6 @@ def _build_trigger_plan(
         "payload": plan_payload,
     }
     errors = list(profile_result.errors) + target_errors + plan.errors
-    if profile and not profile_result.allocation_project_id:
-        errors.append("profile allocation_project_id is required")
     return payload, errors
 
 

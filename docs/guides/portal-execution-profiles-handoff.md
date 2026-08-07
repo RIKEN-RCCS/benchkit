@@ -69,8 +69,12 @@ The current GitLab CI entry point consumes `code`, `system`, and the resolved
 allocation project ID. Execution profile fields such as `exp` remain
 Portal-side matching and audit metadata until the GitLab matrix generator grows
 a matching selector. Scheduler-specific command-line formatting belongs to the
-BenchKit CI generation layer, not to Portal profile records. BenchPark bridge
-controls in this repository are legacy; active BenchPark CI/CD/CB result
+BenchKit CI generation layer, not to Portal profile records. Allocation project
+ID is optional. Slurm systems that require an explicit charged project, such as
+RIKYU, derive `--account=<BK_ALLOCATION_PROJECT_ID>` when the value is present,
+unless a site-local `BK_SCHEDULER_EXTRA_ARGS*` override is already set. Systems
+without such a scheduler requirement should leave the field empty. BenchPark
+bridge controls in this repository are legacy; active BenchPark CI/CD/CB result
 handling has moved to a separate project.
 
 ## GitLab Pipeline Trigger Configuration

@@ -71,6 +71,7 @@ The workflow accepts these inputs:
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
 | `code` | BenchKit program filter / BenchKitプログラムのフィルタ | `qws,genesis` |
 | `system` | BenchKit system filter. Legacy BenchPark bridge jobs in this repo do not honor this as a general system selector. / BenchKit systemフィルタ。このrepo内のlegacy BenchPark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
+| `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID supplied by the Portal. BenchKit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU. / Portal が渡す任意の意味的な project/allocation ID。BenchKit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>` | `rkp00010` |
 | `app` | Legacy BenchPark bridge app filter. Active BenchPark CI/CD/CB result handling is maintained in a separate project. / legacy BenchPark bridge appフィルタ。現行BenchPark CI/CD/CB結果受け取りは別プロジェクト側で管理します | `osu-micro-benchmarks` |
 | `benchpark` | Enable the legacy BenchPark bridge path together with BenchKit / legacy BenchPark bridge pathも有効化 | `true` |
 | `park_only` | Run only the legacy BenchPark bridge path / legacy BenchPark bridgeのみ実行 | `true` |

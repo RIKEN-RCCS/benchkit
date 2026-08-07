@@ -233,9 +233,9 @@ case "$system" in
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
-    echo sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+    echo sbatch -p $queue_group "${scheduler_extra_args_array[@]}" -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	 --wrap="bash programs/$code/run.sh $system $nodes $numproc_node $nthreads"
-    sbatch -p $queue_group -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
+    sbatch -p $queue_group "${scheduler_extra_args_array[@]}" -N $nodes -t $elapse --ntasks-per-node=${numproc_node} --cpus-per-task=$nthreads \
 	   --wrap="bash programs/${code}/run.sh $system $nodes $numproc_node $nthreads"
     ;;
   MiyabiC)
