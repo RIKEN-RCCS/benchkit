@@ -27,6 +27,7 @@ def _build_meta_rows(result, trigger_runs_by_pipeline=None):
         ("FOM", format_numeric_value(result.get("FOM", "N/A"))),
         ("FOM Unit", result.get("FOM_unit") or "not specified"),
         ("Node Count", result.get("node_count", "N/A")),
+        ("Pipeline ID", result.get("pipeline_id", "N/A")),
         (
             "Run Cause",
             (
@@ -41,6 +42,7 @@ def _build_meta_rows(result, trigger_runs_by_pipeline=None):
         ("Processes per Node", result.get("numproc_node")),
         ("Threads per Process", result.get("nthreads")),
         ("CPUs per Node", result.get("cpus_per_node")),
+        ("Parent Pipeline ID", result.get("parent_pipeline_id")),
     ]
     for label, value in optional_rows:
         if value not in (None, "", "N/A", "null"):

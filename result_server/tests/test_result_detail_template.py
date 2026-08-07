@@ -28,6 +28,8 @@ FULL_RESULT = {
     "FOM_version": "osu-micro-benchmarks.osu_bibw.test_mpi_2",
     "node_count": 1,
     "cpus_per_node": 2,
+    "pipeline_id": 3208,
+    "parent_pipeline_id": 3207,
     "metrics": {
         "scalar": {"FOM": 6.47, "other_metric": 1.23},
         "vector": {
@@ -100,6 +102,10 @@ class TestResultDetailTemplate:
         assert "6.470" in html
         assert "MB/s" in html
         assert "CPUs per Node" in html
+        assert "Pipeline ID" in html
+        assert "3208" in html
+        assert "Parent Pipeline ID" in html
+        assert "3207" in html
         assert "Back to Results" in html
         assert "Results" in html
 

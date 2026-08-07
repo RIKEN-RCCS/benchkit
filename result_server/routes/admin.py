@@ -285,6 +285,11 @@ def _build_execution_pipeline_plan(store):
         result_server_url=_portal_result_server_url(),
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )
+    variables = plan.payload.setdefault("variables", {})
+    manual_trigger_id = profile["id"] if profile else profile_id
+    variables["BK_TRIGGER_ID"] = manual_trigger_id
+    variables["BK_TRIGGER_TYPE"] = "manual_button"
+    variables["BK_TRIGGER_REASON"] = f"manual_button:{manual_trigger_id}"
     request_errors = []
     if not profile_id:
         request_errors.append("profile_id is required")

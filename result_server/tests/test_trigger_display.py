@@ -86,6 +86,28 @@ def test_summarize_execution_trigger_falls_back_to_pipeline_lookup():
     assert summary["subline"] == "repo/ref changed: https://github.com/RIKEN-LQCD/qws.git@master"
 
 
+def test_summarize_execution_trigger_falls_back_to_parent_pipeline_lookup():
+    runs = [
+        {
+            "trigger_id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "status": "submitted",
+            "reason": "cron:0 14 * * *@2026-08-07T14:00+09:00",
+            "payload_json": {
+                "submit": {"response": {"id": 3189}},
+            },
+        }
+    ]
+
+    summary = summarize_execution_trigger(
+        {"pipeline_id": 3190, "parent_pipeline_id": 3189},
+        build_trigger_run_lookup(runs),
+    )
+
+    assert summary["headline"] == "Scheduled / qws-fugaku-1400"
+    assert summary["subline"] == "cron 0 14 * * * / 2026-08-07T14:00+09:00"
+
+
 def test_load_trigger_run_lookup_ignores_newer_routine_runs(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
@@ -224,3 +246,27 @@ def test_build_trigger_result_links_matches_child_pipeline_fallback(tmp_path):
 
     assert links[8][0]["filename"] == result_file.name
     assert links[8][0]["pipeline_id"] == "3190"
+
+
+def test_build_trigger_result_links_matches_parent_pipeline_fallback(tmp_path):
+    result_file = tmp_path / "result_20260807_140611_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
+    result_file.write_text(
+        json.dumps({"code": "qws", "Exp": "CASE1", "pipeline_id": 3190, "parent_pipeline_id": 3189}),
+        encoding="utf-8",
+    )
+    runs = [
+        {
+            "id": 9,
+            "trigger_id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "reason": "cron:0 14 * * *@2026-08-07T14:00+09:00",
+            "payload_json": {
+                "submit": {"response": {"id": 3189}},
+            },
+        }
+    ]
+
+    links = build_trigger_result_links(str(tmp_path), runs)
+
+    assert links[9][0]["filename"] == result_file.name
+    assert links[9][0]["pipeline_id"] == "3190"
