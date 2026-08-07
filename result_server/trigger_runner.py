@@ -45,6 +45,17 @@ class TriggerEvaluation:
     observations: list[dict]
 
 
+ROUTINE_TRIGGER_STATUSES = frozenset(
+    {
+        "not_due",
+        "unchanged",
+        "already_submitted",
+        "runner_locked",
+        "would_initialize",
+    }
+)
+
+
 def _now_utc() -> datetime:
     return datetime.now(UTC).replace(second=0, microsecond=0)
 
@@ -393,6 +404,7 @@ def run_triggers(
     lock_name: str = "default",
     lock_ttl_seconds: int = 300,
     schedule_lookback_minutes: int = 5,
+    routine_log_interval_minutes: int = 60,
 ) -> list[TriggerEvaluation]:
     store = ExecutionProfileStore(db_path)
     current_time = now or _now_utc()
@@ -416,15 +428,15 @@ def run_triggers(
                 errors=[],
                 observations=[],
             )
-            store.create_trigger_run(
-                trigger_id=evaluation.trigger_id,
-                trigger_type=evaluation.trigger_type,
+            _record_trigger_run_if_needed(
+                store,
+                evaluation,
                 status=evaluation.status,
                 dry_run=dry_run,
-                reason=evaluation.reason,
                 payload=evaluation.payload,
                 errors=[],
-                actor="trigger_runner",
+                now=current_time,
+                routine_log_interval_minutes=routine_log_interval_minutes,
             )
             return [evaluation]
     evaluations = []
@@ -443,10 +455,10 @@ def run_triggers(
             if record_observations:
                 observed_at = current_time.isoformat().replace("+00:00", "Z")
                 for item in evaluation.observations:
-                    store.upsert_trigger_observation(
+                    _record_trigger_observation_if_needed(
+                        store,
                         evaluation.trigger_id,
-                        item["target"],
-                        item["fingerprint"],
+                        item,
                         observed_at=observed_at,
                     )
             status = evaluation.status
@@ -468,17 +480,29 @@ def run_triggers(
                 )
                 errors.extend(result.errors)
                 status = "submitted" if result.ok else "submit_failed"
-            reported = replace(evaluation, status=status, errors=errors)
+                evaluation_payload = dict(evaluation.payload)
+                evaluation_payload["submit"] = {
+                    "status_code": result.status_code,
+                    "response": result.response,
+                }
+            else:
+                evaluation_payload = evaluation.payload
+            reported = replace(
+                evaluation,
+                status=status,
+                errors=errors,
+                payload=evaluation_payload,
+            )
             evaluations.append(reported)
-            store.create_trigger_run(
-                trigger_id=evaluation.trigger_id,
-                trigger_type=evaluation.trigger_type,
+            _record_trigger_run_if_needed(
+                store,
+                evaluation,
                 status=status,
                 dry_run=dry_run,
-                reason=evaluation.reason,
-                payload=evaluation.payload,
+                payload=evaluation_payload,
                 errors=errors,
-                actor="trigger_runner",
+                now=current_time,
+                routine_log_interval_minutes=routine_log_interval_minutes,
             )
     finally:
         if use_lock:
@@ -488,6 +512,79 @@ def run_triggers(
                 now=current_time.isoformat().replace("+00:00", "Z"),
             )
     return evaluations
+
+
+def _record_trigger_observation_if_needed(
+    store: ExecutionProfileStore,
+    trigger_id: str,
+    observation: dict,
+    *,
+    observed_at: str,
+) -> bool:
+    if not observation.get("initialized") and not observation.get("changed"):
+        return False
+    store.upsert_trigger_observation(
+        trigger_id,
+        observation["target"],
+        observation["fingerprint"],
+        observed_at=observed_at,
+    )
+    return True
+
+
+def _record_trigger_run_if_needed(
+    store: ExecutionProfileStore,
+    evaluation: TriggerEvaluation,
+    *,
+    status: str,
+    dry_run: bool,
+    payload: dict,
+    errors: list[str],
+    now: datetime,
+    routine_log_interval_minutes: int,
+) -> bool:
+    if not _should_record_trigger_run(
+        store,
+        evaluation,
+        status=status,
+        errors=errors,
+        now=now,
+        routine_log_interval_minutes=routine_log_interval_minutes,
+    ):
+        return False
+    store.create_trigger_run(
+        trigger_id=evaluation.trigger_id,
+        trigger_type=evaluation.trigger_type,
+        status=status,
+        dry_run=dry_run,
+        reason=evaluation.reason,
+        payload=payload,
+        errors=errors,
+        actor="trigger_runner",
+    )
+    return True
+
+
+def _should_record_trigger_run(
+    store: ExecutionProfileStore,
+    evaluation: TriggerEvaluation,
+    *,
+    status: str,
+    errors: list[str],
+    now: datetime,
+    routine_log_interval_minutes: int,
+) -> bool:
+    if errors or status not in ROUTINE_TRIGGER_STATUSES:
+        return True
+    if routine_log_interval_minutes <= 0:
+        return True
+    since = _utc_iso(now - timedelta(minutes=routine_log_interval_minutes))
+    return not store.has_trigger_run(
+        trigger_id=evaluation.trigger_id,
+        status=status,
+        reason=evaluation.reason,
+        created_at_since=since,
+    )
 
 
 def _evaluation_to_dict(evaluation: TriggerEvaluation) -> dict:
@@ -526,6 +623,15 @@ def main(argv: list[str] | None = None) -> int:
         default=5,
         help="Look back this many minutes for missed scheduled cron slots. Default: 5.",
     )
+    parser.add_argument(
+        "--routine-log-interval-minutes",
+        type=int,
+        default=60,
+        help=(
+            "Minimum minutes between repeated routine trigger-run records "
+            "such as not_due or unchanged. Use 0 to record every tick. Default: 60."
+        ),
+    )
     parser.add_argument("--result-server-url", default="", help="RESULT_SERVER URL for submitted pipelines")
     args = parser.parse_args(argv)
 
@@ -541,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
         use_lock=not args.no_lock,
         lock_ttl_seconds=args.lock_ttl_seconds,
         schedule_lookback_minutes=args.schedule_lookback_minutes,
+        routine_log_interval_minutes=args.routine_log_interval_minutes,
     )
     print(json.dumps([_evaluation_to_dict(item) for item in evaluations], indent=2, sort_keys=True))
     return 1 if any(item.errors for item in evaluations) else 0

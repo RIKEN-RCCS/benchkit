@@ -11,6 +11,7 @@ from utils.result_records import (
 from utils.result_table_rows import build_result_table_row
 from utils.table_filters import filters_are_active, matches_table_filters
 from utils.table_pagination import DEFAULT_PER_PAGE, normalize_per_page, paginate_list
+from utils.trigger_display import load_trigger_run_lookup
 
 RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
 ESTIMATED_FIELD_MAP = {"system": "current_system.system", "code": "code", "exp": "exp"}
@@ -27,6 +28,7 @@ RESULT_TABLE_COLUMNS = [
     {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
     {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
     {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+    {"label": "Run Cause", "key": "execution_trigger_summary", "tooltip": "Portal trigger metadata explaining why this benchmark run was launched"},
     {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
     {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
 ]
@@ -43,6 +45,7 @@ def load_results_table(
     filter_code=None,
     filter_exp=None,
     padata_directory=None,
+    execution_profile_db_path=None,
 ):
     per_page = normalize_per_page(per_page)
 
@@ -53,6 +56,7 @@ def load_results_table(
     padata_filenames = [filename for filename in os.listdir(padata_dir) if filename.endswith(".tgz")]
 
     columns = RESULT_TABLE_COLUMNS
+    trigger_runs_by_pipeline = load_trigger_run_lookup(execution_profile_db_path)
 
     has_filters = filters_are_active(filter_system, filter_code, filter_exp)
 
@@ -78,7 +82,14 @@ def load_results_table(
             result_data = load_result_json(filename, directory)
             if result_data is None:
                 continue
-            rows.append(build_result_table_row(filename, result_data, padata_filenames))
+            rows.append(
+                build_result_table_row(
+                    filename,
+                    result_data,
+                    padata_filenames,
+                    trigger_runs_by_pipeline,
+                )
+            )
 
         return rows, columns, pagination_info
 
@@ -101,7 +112,14 @@ def load_results_table(
             field_map=RESULT_FIELD_MAP,
         ):
             continue
-        rows.append(build_result_table_row(filename, result_data, padata_filenames))
+        rows.append(
+            build_result_table_row(
+                filename,
+                result_data,
+                padata_filenames,
+                trigger_runs_by_pipeline,
+            )
+        )
 
     paginated_rows, pagination_info = paginate_list(rows, page, per_page)
     return paginated_rows, columns, pagination_info

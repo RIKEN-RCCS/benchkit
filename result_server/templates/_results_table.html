@@ -9,7 +9,7 @@
     border-radius: 14px;
 }
 .results-table {
-    min-width: 1340px;
+    min-width: 1500px;
     border-collapse: collapse;
 }
 .results-table-note {
@@ -77,6 +77,23 @@
     min-width: 88px;
     white-space: normal;
     line-height: 1.25;
+}
+.run-cause-cell {
+    min-width: 140px;
+    max-width: 220px;
+    white-space: normal;
+    line-height: 1.25;
+}
+.run-cause-headline {
+    display: block;
+    font-weight: 600;
+}
+.run-cause-subline {
+    display: block;
+    color: #607282;
+    font-size: 0.82em;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .ci-trigger,
 .ci-pipeline {
@@ -183,6 +200,13 @@
                     {% include "_results_table_cell_profile.html" %}
                 {% elif key == "ci_summary" %}
                     {% include "_results_table_cell_ci.html" %}
+                {% elif key == "execution_trigger_summary" %}
+                    <td class="run-cause-cell" title="{{ row.execution_trigger_summary.title }}">
+                        <span class="run-cause-headline">{{ row.execution_trigger_summary.headline }}</span>
+                        {% if row.execution_trigger_summary.subline %}
+                        <span class="run-cause-subline">{{ row.execution_trigger_summary.subline }}</span>
+                        {% endif %}
+                    </td>
                 {% elif key == "timestamp" %}
                     {% set ts_parts = row[key].split(' ') %}
                     <td class="ts-cell">{{ ts_parts[0] }}<br>{{ ts_parts[1] if ts_parts|length > 1 else '' }}</td>

@@ -1,14 +1,15 @@
 from utils.result_records import build_labeled_value_rows, format_numeric_value
+from utils.trigger_display import summarize_execution_trigger
 
 
-def build_result_detail_context(result, quality):
+def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None):
     profile_data = result.get("profile_data") or {}
     build_data = result.get("build") or {}
     vector_metrics = (result.get("metrics") or {}).get("vector")
     scalar_metrics = (result.get("metrics") or {}).get("scalar") or {}
 
     return {
-        "meta_rows": _build_meta_rows(result),
+        "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": _build_quality_rows(quality),
         "vector_metrics": vector_metrics,
@@ -17,7 +18,8 @@ def build_result_detail_context(result, quality):
     }
 
 
-def _build_meta_rows(result):
+def _build_meta_rows(result, trigger_runs_by_pipeline=None):
+    trigger_summary = summarize_execution_trigger(result, trigger_runs_by_pipeline)
     rows = build_labeled_value_rows([
         ("Code", result.get("code", "N/A")),
         ("System", result.get("system", "N/A")),
@@ -25,6 +27,14 @@ def _build_meta_rows(result):
         ("FOM", format_numeric_value(result.get("FOM", "N/A"))),
         ("FOM Unit", result.get("FOM_unit") or "not specified"),
         ("Node Count", result.get("node_count", "N/A")),
+        (
+            "Run Cause",
+            (
+                f"{trigger_summary['headline']} ({trigger_summary['subline']})"
+                if trigger_summary.get("subline")
+                else trigger_summary["headline"]
+            ),
+        ),
     ])
 
     optional_rows = [

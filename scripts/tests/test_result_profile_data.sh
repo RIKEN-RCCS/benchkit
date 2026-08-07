@@ -87,7 +87,11 @@ EOF
 tar -czf "${TMP_DIR}/ncu/results/padata0.tgz" -C "${TMP_DIR}/ncu" bk_profiler_artifact
 
 pushd "${TMP_DIR}" >/dev/null
+export BK_TRIGGER_ID="qws-fugaku-watch"
+export BK_TRIGGER_TYPE="watch_event"
+export BK_TRIGGER_REASON="repo_ref:https://github.com/RIKEN-LQCD/qws.git@master"
 bash "${REPO_DIR}/scripts/result.sh" qws Fugaku cross build run 999 >/dev/null
+unset BK_TRIGGER_ID BK_TRIGGER_TYPE BK_TRIGGER_REASON
 popd >/dev/null
 
 pushd "${TMP_DIR}/ncu" >/dev/null
@@ -110,6 +114,9 @@ jq -e '
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
   .pipeline_timing.run_time == 34 and
+  .execution_trigger.id == "qws-fugaku-watch" and
+  .execution_trigger.type == "watch_event" and
+  .execution_trigger.reason == "repo_ref:https://github.com/RIKEN-LQCD/qws.git@master" and
   (.profile_data.events | index("pa1") != null) and
   (.profile_data.report_kinds | index("summary_text") != null)
 ' "${RESULT_JSON}" >/dev/null

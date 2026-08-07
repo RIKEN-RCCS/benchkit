@@ -154,6 +154,46 @@
     .trigger-definition-table td {
         vertical-align: middle;
     }
+    .trigger-history-table {
+        table-layout: fixed;
+        min-width: 1180px;
+    }
+    .trigger-history-table td {
+        vertical-align: top;
+        white-space: normal;
+    }
+    .trigger-history-table th:nth-child(1) { width: 150px; }
+    .trigger-history-table th:nth-child(2) { width: 160px; }
+    .trigger-history-table th:nth-child(3) { width: 120px; }
+    .trigger-history-table th:nth-child(4) { width: 240px; }
+    .trigger-history-table th:nth-child(5) { width: 220px; }
+    .trigger-history-table th:nth-child(6) { width: 150px; }
+    .trigger-history-table th:nth-child(7) { width: 180px; }
+    .trigger-run-subline {
+        display: block;
+        margin-top: 2px;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.25;
+    }
+    .trigger-run-reason {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .trigger-run-error {
+        color: #991b1b;
+        font-weight: 700;
+    }
+    .trigger-observation-table {
+        table-layout: fixed;
+        min-width: 900px;
+    }
+    .trigger-observation-table td {
+        vertical-align: top;
+        white-space: normal;
+    }
     .trigger-condition {
         max-width: 46ch;
     }
@@ -629,6 +669,108 @@
             {% else %}
                 <tr>
                     <td colspan="7">No trigger definitions are registered.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+<section class="page-card table-card">
+    <h2 class="section-title">Trigger Run History</h2>
+    <p class="help-text">Recent trigger runner decisions, including why scheduled and repo/ref triggers did or did not submit a GitLab pipeline.</p>
+    <div class="table-wrap">
+        <table class="trigger-history-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th>Target</th>
+                    <th>Scope</th>
+                    <th>Results</th>
+                    <th>Errors</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for run in trigger_runs %}
+                <tr>
+                    <td>
+                        <span class="profile-mono">{{ run.created_at }}</span>
+                        <span class="trigger-run-subline">{{ run.actor }}{% if run.dry_run %} / dry-run{% endif %}</span>
+                    </td>
+                    <td>
+                        <span class="profile-mono">{{ run.trigger_id }}</span>
+                        <span class="trigger-run-subline">{{ run.trigger_type }}</span>
+                    </td>
+                    <td>{{ run.status }}</td>
+                    <td title="{{ run.reason }}">
+                        <span class="trigger-run-reason">{{ run.reason_label or run.reason }}</span>
+                    </td>
+                    <td>
+                        <span class="profile-mono">{{ run.gitlab_target }}</span>
+                        <span class="trigger-run-subline">{{ run.target_ref }}</span>
+                    </td>
+                    <td>
+                        <span class="profile-mono">{{ run.code }}</span>
+                        / <span class="profile-mono">{{ run.system }}</span>
+                        <span class="trigger-run-subline">{{ run.allocation_project_id }}</span>
+                    </td>
+                    <td>
+                        {% if run.result_links %}
+                        {% for result_link in run.result_links[:4] %}
+                        <a href="{{ url_for('results.result_detail', filename=result_link.filename) }}">{{ result_link.label }}</a>{% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                        {% if run.result_links|length > 4 %}
+                        <span class="trigger-run-subline">+{{ run.result_links|length - 4 }} more</span>
+                        {% endif %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.error_summary %}
+                        <span class="trigger-run-error" title="{{ run.error_summary }}">error</span>
+                        <span class="trigger-run-subline">{{ run.error_summary }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="8">No trigger runner decisions have been recorded.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="page-card table-card">
+    <h2 class="section-title">Trigger Observations</h2>
+    <p class="help-text">Latest repo/ref fingerprints recorded by watch-event triggers.</p>
+    <div class="table-wrap">
+        <table class="trigger-observation-table">
+            <thead>
+                <tr>
+                    <th>Trigger</th>
+                    <th>Target</th>
+                    <th>Fingerprint</th>
+                    <th>Observed At</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for observation in trigger_observations %}
+                <tr>
+                    <td><span class="profile-mono">{{ observation.trigger_id }}</span></td>
+                    <td title="{{ observation.target }}">{{ observation.target }}</td>
+                    <td><span class="profile-mono">{{ observation.fingerprint[:12] }}{% if observation.fingerprint|length > 12 %}...{% endif %}</span></td>
+                    <td><span class="profile-mono">{{ observation.observed_at }}</span></td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">No repo/ref observations have been recorded.</td>
                 </tr>
             {% endfor %}
             </tbody>
