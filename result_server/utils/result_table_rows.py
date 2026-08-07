@@ -31,6 +31,14 @@ def build_result_table_row(
         pipeline_id = "-"
     else:
         pipeline_id = str(pipeline_id)
+    pipeline_label = f"#{pipeline_id}" if pipeline_id != "-" else "-"
+    parent_pipeline_id = result_data.get("parent_pipeline_id", "")
+    parent_pipeline_id = str(parent_pipeline_id) if parent_pipeline_id not in (None, "") else ""
+    ci_title = f"{ci_trigger} / {pipeline_label}"
+    ci_subline = ""
+    if parent_pipeline_id and parent_pipeline_id != pipeline_id:
+        ci_title = f"{ci_trigger} / child #{pipeline_id} / parent #{parent_pipeline_id}"
+        ci_subline = f"parent #{parent_pipeline_id}"
 
     return {
         "timestamp": timestamp,
@@ -54,6 +62,9 @@ def build_result_table_row(
         "execution_mode": result_data.get("execution_mode", "-") or "-",
         "ci_trigger": ci_trigger,
         "ci_summary": f"{ci_trigger} / {pipeline_id}",
+        "ci_title": ci_title,
+        "ci_subline": ci_subline,
+        "pipeline_label": pipeline_label,
         "execution_trigger_summary": summarize_execution_trigger(
             result_data,
             trigger_runs_by_pipeline,
@@ -61,6 +72,7 @@ def build_result_table_row(
         "build_job": result_data.get("build_job", "-") or "-",
         "run_job": result_data.get("run_job", "-") or "-",
         "pipeline_id": pipeline_id,
+        "parent_pipeline_id": parent_pipeline_id,
         "source_info": source_info,
         "source_link": source_link,
         "source_hash": _format_source_hash(source_info),

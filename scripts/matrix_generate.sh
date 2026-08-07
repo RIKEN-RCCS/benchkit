@@ -13,6 +13,7 @@ QUEUE_FILE="config/queue.csv"
 SYSTEM_INFO_FILE="config/system_info.csv"
 OUTPUT_FILE=".gitlab-ci.generated.yml"
 PARENT_PIPELINE_SOURCE="${CI_PIPELINE_SOURCE:-local}"
+PARENT_PIPELINE_ID="${CI_PIPELINE_ID:-}"
 
 source ./scripts/job_functions.sh
 
@@ -43,6 +44,7 @@ stages:
 
 variables:
   PARENT_PIPELINE_SOURCE: \"$PARENT_PIPELINE_SOURCE\"
+  PARENT_PIPELINE_ID: \"$PARENT_PIPELINE_ID\"
   BK_ESTIMATE_RUNNER_TAG: \"$ESTIMATE_RUNNER_TAG\"
 " >> "$OUTPUT_FILE"
 

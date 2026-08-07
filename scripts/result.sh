@@ -209,6 +209,12 @@ write_result_json() {
   \"pipeline_id\": $pipeline_id"
   fi
 
+  local parent_pipeline_id_block=""
+  if [ -n "${PARENT_PIPELINE_ID:-}" ]; then
+    parent_pipeline_id_block=",
+  \"parent_pipeline_id\": ${PARENT_PIPELINE_ID}"
+  fi
+
   local execution_trigger_block=""
   if [ -n "${BK_TRIGGER_ID:-}" ] || [ -n "${BK_TRIGGER_TYPE:-}" ] || [ -n "${BK_TRIGGER_REASON:-}" ]; then
     local execution_trigger_json
@@ -272,7 +278,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${execution_trigger_block}
+  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}
 }
 EOF
 

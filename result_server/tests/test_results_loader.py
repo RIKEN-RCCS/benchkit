@@ -447,6 +447,7 @@ class TestPipelineTimingFields:
             "build_job": "qws_Fugaku_build",
             "run_job": "qws_Fugaku_N1_P4_T12_run",
             "pipeline_id": 17026,
+            "parent_pipeline_id": 17025,
         }
         _write_json(tmp_dir, filename, data)
 
@@ -463,6 +464,10 @@ class TestPipelineTimingFields:
         assert row["build_job"] == "qws_Fugaku_build"
         assert row["run_job"] == "qws_Fugaku_N1_P4_T12_run"
         assert row["pipeline_id"] == "17026"
+        assert row["pipeline_label"] == "#17026"
+        assert row["parent_pipeline_id"] == "17025"
+        assert row["ci_title"] == "schedule / child #17026 / parent #17025"
+        assert row["ci_subline"] == "parent #17025"
 
     def test_row_without_pipeline_timing_fields(self, flask_app, tmp_dir):
         """Test case."""
@@ -484,6 +489,10 @@ class TestPipelineTimingFields:
         assert row["build_job"] == "-"
         assert row["run_job"] == "-"
         assert row["pipeline_id"] == "-"
+        assert row["pipeline_label"] == "-"
+        assert row["parent_pipeline_id"] == ""
+        assert row["ci_title"] == "- / -"
+        assert row["ci_subline"] == ""
 
     def test_row_with_partial_pipeline_timing(self, flask_app, tmp_dir):
         """Test case."""

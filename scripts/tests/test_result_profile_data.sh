@@ -90,8 +90,9 @@ pushd "${TMP_DIR}" >/dev/null
 export BK_TRIGGER_ID="qws-fugaku-watch"
 export BK_TRIGGER_TYPE="watch_event"
 export BK_TRIGGER_REASON="repo_ref:https://github.com/RIKEN-LQCD/qws.git@master"
+export PARENT_PIPELINE_ID="888"
 bash "${REPO_DIR}/scripts/result.sh" qws Fugaku cross build run 999 >/dev/null
-unset BK_TRIGGER_ID BK_TRIGGER_TYPE BK_TRIGGER_REASON
+unset BK_TRIGGER_ID BK_TRIGGER_TYPE BK_TRIGGER_REASON PARENT_PIPELINE_ID
 popd >/dev/null
 
 pushd "${TMP_DIR}/ncu" >/dev/null
@@ -114,6 +115,8 @@ jq -e '
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
   .pipeline_timing.run_time == 34 and
+  .pipeline_id == 999 and
+  .parent_pipeline_id == 888 and
   .execution_trigger.id == "qws-fugaku-watch" and
   .execution_trigger.type == "watch_event" and
   .execution_trigger.reason == "repo_ref:https://github.com/RIKEN-LQCD/qws.git@master" and

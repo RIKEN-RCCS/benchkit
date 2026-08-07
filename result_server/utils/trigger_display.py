@@ -159,8 +159,8 @@ def _index_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
 
 
 def _result_matches_trigger_run(result: dict[str, Any], run: dict[str, Any]) -> bool:
-    pipeline_id = str(result.get("pipeline_id") or "").strip()
-    if pipeline_id and pipeline_id in run["pipeline_ids"]:
+    result_pipeline_ids = _result_pipeline_ids(result)
+    if set(result_pipeline_ids).intersection(run["pipeline_ids"]):
         return True
     trigger = extract_execution_trigger(result)
     if not trigger["id"]:
@@ -205,8 +205,11 @@ def _execution_trigger_from_pipeline(
     trigger_runs_by_pipeline: dict[str, dict[str, Any]],
 ) -> dict[str, str]:
     data = result if isinstance(result, dict) else {}
-    pipeline_id = str(data.get("pipeline_id") or "").strip()
-    run = trigger_runs_by_pipeline.get(pipeline_id) if pipeline_id else None
+    run = None
+    for pipeline_id in _result_pipeline_ids(data):
+        run = trigger_runs_by_pipeline.get(pipeline_id)
+        if run:
+            break
     if not run:
         return {"id": "", "type": "", "reason": ""}
     return {
@@ -229,6 +232,15 @@ def _trigger_run_pipeline_ids(run: dict[str, Any]) -> list[str]:
         for value in values
         if value not in (None, "") and str(value).strip()
     ]
+
+
+def _result_pipeline_ids(result: dict[str, Any]) -> list[str]:
+    values = []
+    for value in (result.get("pipeline_id"), result.get("parent_pipeline_id")):
+        text = str(value).strip() if value not in (None, "") else ""
+        if text and text not in values:
+            values.append(text)
+    return values
 
 
 def _format_trigger_type(trigger_type: str) -> str:

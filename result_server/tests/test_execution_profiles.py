@@ -1383,6 +1383,9 @@ def test_admin_execution_profiles_dry_run_submit_records_payload(tmp_path, monke
         assert variables["code"] == "qws"
         assert variables["BK_ALLOCATION_PROJECT_ID"] == "rkp00010"
         assert variables["RESULT_SERVER"] == "http://localhost"
+        assert variables["BK_TRIGGER_ID"] == "rikyu-qws-nightly"
+        assert variables["BK_TRIGGER_TYPE"] == "manual_button"
+        assert variables["BK_TRIGGER_REASON"] == "manual_button:rikyu-qws-nightly"
         assert "BK_SCHEDULER_EXTRA_ARGS_RIKYU" not in variables
         assert "exp" not in variables
         assert payload_record["gitlab_project"] == "gitlab.example.org/group/benchkit.git"
@@ -1755,6 +1758,9 @@ def test_admin_execution_profiles_submit_uses_profile_scope_values(
         assert plan.payload["variables"]["system"] == "Fugaku"
         assert plan.payload["variables"]["BK_ALLOCATION_PROJECT_ID"] == "rkp00010"
         assert plan.payload["variables"]["RESULT_SERVER"] == "http://localhost"
+        assert plan.payload["variables"]["BK_TRIGGER_ID"] == "rikyu-qws-nightly"
+        assert plan.payload["variables"]["BK_TRIGGER_TYPE"] == "manual_button"
+        assert plan.payload["variables"]["BK_TRIGGER_REASON"] == "manual_button:rikyu-qws-nightly"
         assert "exp" not in plan.payload["variables"]
         return GitLabPipelineSubmitResult(
             status_code=201,
