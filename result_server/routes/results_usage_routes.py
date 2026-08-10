@@ -15,5 +15,6 @@ def register_results_usage_routes(results_bp):
             current_app.config["RECEIVED_DIR"],
             request.args,
             get_fiscal_year(datetime.now()),
+            current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
         )
         return render_template("usage_report.html", **usage_context)

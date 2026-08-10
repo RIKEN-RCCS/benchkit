@@ -44,11 +44,17 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
         "build_result_quality_rollup",
         lambda directory: {"rows": []},
     )
+    monkeypatch.setattr(
+        usage_report_view,
+        "build_profile_usage_overview",
+        lambda directory, db_path: {"available": False, "rows": []},
+    )
 
     context = usage_report_view.build_usage_report_context(
         "received",
         MultiDict(),
         2025,
+        "cx_portal.sqlite3",
     )
 
     assert context["period_type"] == "fiscal_year"
@@ -58,3 +64,4 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
     assert context["app_support_rows"] == [{"app": "qws", "systems": {}}]
     assert context["site_diagnostics"] == {"registered_system_count": 1}
     assert context["result_quality_rollup"] == {"rows": []}
+    assert context["profile_usage_overview"] == {"available": False, "rows": []}

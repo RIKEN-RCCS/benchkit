@@ -1,0 +1,87 @@
+<section class="page-card table-card">
+  <h2 class="section-title">Profile Operations Overview</h2>
+  <p class="section-intro">Execution profile activity across allocation, triggers, collected results, and node-hour usage.</p>
+
+  {% if profile_usage_overview.available %}
+  <div class="diagnostic-grid">
+    <div class="diagnostic-card">
+      <h3>Profiles</h3>
+      <p>{{ profile_usage_overview.summary.profile_count }} registered / {{ profile_usage_overview.summary.profile_with_results_count }} with results</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Triggers</h3>
+      <p>{{ profile_usage_overview.summary.trigger_count }} definitions</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Results</h3>
+      <p>{{ profile_usage_overview.summary.result_count }} records / {{ profile_usage_overview.summary.node_hours }} node-hours</p>
+    </div>
+  </div>
+
+  {% if profile_usage_overview.rows %}
+  <div class="table-wrap">
+    <table class="profile-usage-table">
+      <thead>
+        <tr>
+          <th>Profile</th>
+          <th>Scope</th>
+          <th>Allocation</th>
+          <th>Triggers</th>
+          <th>Latest Trigger Run</th>
+          <th>Results</th>
+          <th>Latest Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in profile_usage_overview.rows %}
+        <tr>
+          <td>
+            <a href="{{ url_for('admin.execution_profiles', edit=row.profile_id) }}">{{ row.profile_id }}</a>
+            <span class="profile-usage-subline">{{ row.status }}{% if not row.enabled %} / disabled{% endif %}</span>
+          </td>
+          <td>
+            <span class="profile-usage-mono">{{ row.code }}</span>
+            / <span class="profile-usage-mono">{{ row.system }}</span>
+            <span class="profile-usage-subline">exp {{ row.exp }}</span>
+          </td>
+          <td><span class="profile-usage-mono">{{ row.allocation_project_id }}</span></td>
+          <td>
+            {{ row.enabled_trigger_count }} / {{ row.trigger_count }} enabled
+            {% for label in row.trigger_labels %}
+            <span class="profile-usage-subline">{{ label }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if row.latest_trigger_run %}
+            {{ row.latest_trigger_run.status }}
+            <span class="profile-usage-subline">{{ row.latest_trigger_run.created_at }}</span>
+            <span class="profile-usage-subline">{{ row.latest_trigger_run.reason }}</span>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+          <td>
+            {{ row.result_count }} results
+            <span class="profile-usage-subline">{{ row.node_hours }} node-hours</span>
+          </td>
+          <td>
+            {% if row.latest_result %}
+            <a href="{{ url_for('results.result_detail', filename=row.latest_result.filename) }}">{{ row.latest_result.timestamp }}</a>
+            <span class="profile-usage-subline">{{ row.latest_result.code }} / {{ row.latest_result.system }} / {{ row.latest_result.exp }}</span>
+            <span class="profile-usage-subline">{{ row.latest_result.trigger_headline }} / pipeline {{ row.latest_result.pipeline_id }}</span>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted-empty">No execution profiles are registered.</p>
+  {% endif %}
+  {% else %}
+  <p class="muted-empty">Execution profile database is not configured for this Portal.</p>
+  {% endif %}
+</section>

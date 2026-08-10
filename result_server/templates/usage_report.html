@@ -203,8 +203,36 @@
       min-width: 280px;
       flex: 1 1 320px;
     }
+    .profile-usage-table {
+      min-width: 1120px;
+      table-layout: fixed;
+    }
+    .profile-usage-table th:nth-child(1) { width: 170px; }
+    .profile-usage-table th:nth-child(2) { width: 190px; }
+    .profile-usage-table th:nth-child(3) { width: 120px; }
+    .profile-usage-table th:nth-child(4) { width: 180px; }
+    .profile-usage-table th:nth-child(5) { width: 230px; }
+    .profile-usage-table th:nth-child(6) { width: 120px; }
+    .profile-usage-table th:nth-child(7) { width: 230px; }
+    .profile-usage-table td {
+      vertical-align: top;
+      white-space: normal;
+    }
+    .profile-usage-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    .profile-usage-subline {
+      display: block;
+      margin-top: 2px;
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
   </style>
 
+  {% include "_usage_report_profile_overview_section.html" %}
   {% include "_usage_report_node_hours_section.html" %}
   {% include "_usage_report_configuration_checks.html" %}
   {% include "_usage_report_coverage_section.html" %}
@@ -214,7 +242,7 @@
   function applyUsageSearch() {
     const input = document.getElementById('usageSearchInput');
     const needle = (input?.value || '').toLowerCase().trim();
-    const targets = ['.coverage-table tbody tr', '.quality-table tbody tr'];
+    const targets = ['.profile-usage-table tbody tr', '.coverage-table tbody tr', '.quality-table tbody tr'];
 
     targets.forEach((selector) => {
       document.querySelectorAll(selector).forEach((row) => {

@@ -335,8 +335,10 @@ def test_usage_report_template_renders_search_box():
             coverage_systems=[],
             app_support_rows=[],
             result_quality_rollup={"rows": []},
+            profile_usage_overview={"available": False, "rows": []},
         )
 
+    assert "Profile Operations Overview" in html
     assert "Filter coverage and current-state tables" in html
     assert "applyUsageSearch" in html
     assert "Application Entry Points" in html
@@ -392,6 +394,7 @@ def test_usage_report_node_hours_table_uses_explicit_column_widths():
             coverage_systems=[],
             app_support_rows=[],
             result_quality_rollup={"rows": []},
+            profile_usage_overview={"available": False, "rows": []},
         )
 
     assert 'class="usage-node-hours-app-col"' in html
@@ -479,6 +482,7 @@ def test_usage_report_quality_section_renders_actions_and_improvement_candidates
             },
             coverage_systems=[],
             app_support_rows=[],
+            profile_usage_overview={"available": False, "rows": []},
             result_quality_rollup={
                 "rows": [
                     {
