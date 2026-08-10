@@ -12,6 +12,7 @@ def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None):
         "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": _build_quality_rows(quality),
+        "environment_rows": _build_environment_rows(result.get("environment_snapshot")),
         "vector_metrics": vector_metrics,
         "scalar_rows": _build_scalar_rows(scalar_metrics),
         "build_rows": _build_build_rows(build_data),
@@ -132,6 +133,41 @@ def _build_quality_rows(quality):
         {"label": "Improvement Candidates", "list": quality.get("validator_candidates") or ["none"]},
         {"label": "Warnings", "list": warnings or ["none"]},
     ]
+
+
+def _build_environment_rows(environment_snapshot):
+    if not isinstance(environment_snapshot, dict):
+        return []
+
+    summary = environment_snapshot.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    payload = environment_snapshot.get("payload")
+    payload = payload if isinstance(payload, dict) else {}
+    system = payload.get("system") if isinstance(payload.get("system"), dict) else {}
+    scheduler = payload.get("scheduler") if isinstance(payload.get("scheduler"), dict) else {}
+    runner = payload.get("runner") if isinstance(payload.get("runner"), dict) else {}
+    ci = payload.get("ci") if isinstance(payload.get("ci"), dict) else {}
+    benchkit = payload.get("benchkit") if isinstance(payload.get("benchkit"), dict) else {}
+    toolchain = payload.get("toolchain") if isinstance(payload.get("toolchain"), dict) else {}
+
+    rows = build_labeled_value_rows([
+        ("Snapshot Hash", environment_snapshot.get("hash", "N/A")),
+        ("System", summary.get("system") or system.get("name") or "N/A"),
+        (
+            "Allocation Project ID",
+            summary.get("allocation_project_id")
+            or system.get("allocation_project_id")
+            or "not specified",
+        ),
+        ("Scheduler", summary.get("scheduler") or scheduler.get("kind") or "N/A"),
+        ("Runner", summary.get("runner") or runner.get("description") or "N/A"),
+        ("CI Job", ci.get("job_name") or "N/A"),
+        ("BenchKit Commit", summary.get("benchkit_commit") or benchkit.get("commit_hash") or "N/A"),
+    ])
+    modules = toolchain.get("modules") or []
+    if modules:
+        rows.append({"label": "Modules", "list": modules[:20]})
+    return rows
 
 
 def _build_scalar_rows(scalar_metrics):

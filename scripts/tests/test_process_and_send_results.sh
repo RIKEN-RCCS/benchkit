@@ -14,6 +14,7 @@ trap 'chmod -R u+rwX "${TMP_DIR}" 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/project/scripts/result_server" "${TMP_DIR}/project/results" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/collect_timing.sh" "${TMP_DIR}/project/scripts/collect_timing.sh"
+cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
 cp "${REPO_DIR}/scripts/result_server/send_results.sh" "${TMP_DIR}/project/scripts/result_server/send_results.sh"
 cp "${REPO_DIR}/scripts/result_server/process_and_send_results.sh" "${TMP_DIR}/project/scripts/result_server/process_and_send_results.sh"
@@ -26,6 +27,29 @@ printf '%s\n' 100 > "${TMP_DIR}/project/results/build_start"
 printf '%s\n' 105 > "${TMP_DIR}/project/results/build_end"
 printf '%s\n' 110 > "${TMP_DIR}/project/results/run_start"
 printf '%s\n' 120 > "${TMP_DIR}/project/results/run_end"
+cat > "${TMP_DIR}/project/results/environment_snapshot_run.json" <<'EOF'
+{
+  "schema_version": 1,
+  "stage": "run",
+  "collected_at": "2026-08-10T00:00:00Z",
+  "system": {
+    "name": "Fugaku",
+    "allocation_project_id": "rkp00010"
+  },
+  "scheduler": {
+    "kind": "pbs"
+  },
+  "runner": {
+    "description": "fugaku-runner"
+  },
+  "ci": {
+    "pipeline_id": "12345"
+  },
+  "benchkit": {
+    "commit_hash": "abcdef"
+  }
+}
+EOF
 
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
@@ -58,6 +82,7 @@ test ! -f "${TMP_DIR}/project/results/result0.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/result0.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/pipeline_timing.json"
+test -f "${TMP_DIR}/project/send_results_workspace/results/environment_snapshot_run.json"
 
 jq -e '._server_uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
@@ -65,6 +90,15 @@ jq -e '.execution_trigger.id == "qws-fugaku-1400" and .execution_trigger.type ==
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '.pipeline_id == 12345 and .parent_pipeline_id == 54321' \
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
+  .environment_snapshot.hash | startswith("sha256:")
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
+  .environment_snapshot.summary.system == "Fugaku"
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
+  .environment_snapshot.payload.stages.run.stage == "run"
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null
 

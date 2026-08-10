@@ -152,6 +152,110 @@ build_source_info_block() {
 # It is parsed as data and converted with jq; it is never sourced as shell.
 source_info_block=$(build_source_info_block)
 
+sha256_text() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+    return 0
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+    return 0
+  fi
+  return 1
+}
+
+build_environment_snapshot_block() {
+  local snapshot_file="results/environment_snapshot.json"
+  local build_snapshot_file="results/environment_snapshot_build.json"
+  local run_snapshot_file="results/environment_snapshot_run.json"
+  local native_snapshot_file="results/environment_snapshot_build_run.json"
+  local snapshot_source
+
+  if [ -f "$snapshot_file" ]; then
+    snapshot_source=$(jq -cS . "$snapshot_file" 2>/dev/null || true)
+  elif [ -f "$build_snapshot_file" ] || [ -f "$run_snapshot_file" ] || [ -f "$native_snapshot_file" ]; then
+    local build_snapshot="{}"
+    local run_snapshot="{}"
+    local build_run_snapshot="{}"
+    if [ -f "$build_snapshot_file" ]; then
+      build_snapshot=$(jq -cS . "$build_snapshot_file" 2>/dev/null || printf '{}')
+    fi
+    if [ -f "$run_snapshot_file" ]; then
+      run_snapshot=$(jq -cS . "$run_snapshot_file" 2>/dev/null || printf '{}')
+    fi
+    if [ -f "$native_snapshot_file" ]; then
+      build_run_snapshot=$(jq -cS . "$native_snapshot_file" 2>/dev/null || printf '{}')
+    fi
+    snapshot_source=$(jq -cS -n \
+      --argjson build "$build_snapshot" \
+      --argjson run "$run_snapshot" \
+      --argjson build_run "$build_run_snapshot" \
+      '
+      ($run | if . == {} then ($build_run | if . == {} then $build else . end) else . end) as $primary |
+      {
+        schema_version: 1,
+        collected_at: ($primary.collected_at // ""),
+        system: ($primary.system // {}),
+        scheduler: ($primary.scheduler // {}),
+        runner: ($primary.runner // {}),
+        ci: ($primary.ci // {}),
+        benchkit: (
+          if ($build.benchkit // {}) != {}
+          then $build.benchkit
+          else ($primary.benchkit // {})
+          end
+        ),
+        toolchain: {
+          build: ($build.toolchain // {}),
+          run: ($run.toolchain // {}),
+          build_run: ($build_run.toolchain // {})
+        },
+        stages: {
+          build: $build,
+          run: $run,
+          build_run: $build_run
+        }
+      }
+      ' 2>/dev/null || true)
+  else
+    printf '%s' ""
+    return 0
+  fi
+
+  local canonical_json
+  canonical_json=$(printf '%s' "$snapshot_source" | jq -cS . 2>/dev/null || true)
+  if [ -z "$canonical_json" ] || [ "$canonical_json" = "null" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local snapshot_hash
+  snapshot_hash=$(printf '%s' "$canonical_json" | sha256_text 2>/dev/null || true)
+  if [ -z "$snapshot_hash" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  jq -n -c \
+    --arg hash "sha256:${snapshot_hash}" \
+    --argjson payload "$canonical_json" \
+    '{
+      schema_version: ($payload.schema_version // 1),
+      hash: $hash,
+      summary: {
+        system: ($payload.system.name // ""),
+        allocation_project_id: ($payload.system.allocation_project_id // ""),
+        scheduler: ($payload.scheduler.kind // ""),
+        runner: ($payload.runner.description // ""),
+        ci_pipeline_id: ($payload.ci.pipeline_id // ""),
+        benchkit_commit: ($payload.benchkit.commit_hash // "")
+      },
+      payload: $payload
+    }'
+}
+
+environment_snapshot_block=$(build_environment_snapshot_block)
+
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_unit, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
@@ -227,6 +331,12 @@ write_result_json() {
   \"execution_trigger\": ${execution_trigger_json}"
   fi
 
+  local environment_snapshot_json_block=""
+  if [ -n "$environment_snapshot_block" ]; then
+    environment_snapshot_json_block=",
+  \"environment_snapshot\": ${environment_snapshot_block}"
+  fi
+
   # Attach the profiler summary that matches this FOM index. fapp exposes
   # counter events, while ncu exposes the Nsight Compute option preset.
   local profile_data_block=""
@@ -278,7 +388,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}
+  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}
 }
 EOF
 

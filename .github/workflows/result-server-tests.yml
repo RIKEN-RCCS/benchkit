@@ -5,7 +5,9 @@ on:
     paths:
       - "result_server/**"
       - "scripts/bk_functions.sh"
+      - "scripts/collect_environment_snapshot.sh"
       - "scripts/collect_timing.sh"
+      - "scripts/matrix_generate.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/site/setup_trigger_runner.sh"
@@ -39,7 +41,9 @@ on:
     paths:
       - "result_server/**"
       - "scripts/bk_functions.sh"
+      - "scripts/collect_environment_snapshot.sh"
       - "scripts/collect_timing.sh"
+      - "scripts/matrix_generate.sh"
       - "scripts/result.sh"
       - "scripts/result_server/**"
       - "scripts/site/setup_trigger_runner.sh"
