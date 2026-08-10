@@ -155,8 +155,8 @@ def _result_matches_profile(
     trigger_ids: set[str],
 ) -> bool:
     trigger_id = extract_execution_trigger(result)["id"]
-    if trigger_id and trigger_id in trigger_ids:
-        return True
+    if trigger_id:
+        return trigger_id == profile.get("id") or trigger_id in trigger_ids
     return (
         _scope_matches(profile.get("code", []), result.get("code"))
         and _scope_matches(profile.get("system", []), result.get("system"))
