@@ -114,6 +114,82 @@ def test_profile_usage_overview_links_profile_triggers_results_and_node_hours(tm
     assert row["latest_result"]["environment_snapshot"]["allocation_project_id"] == "rkp00010"
 
 
+def test_profile_usage_overview_does_not_scope_match_triggered_results_to_other_profiles(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    received_dir = tmp_path / "received"
+    received_dir.mkdir()
+
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(id="qws-fugaku"), actor="admin@test.com")
+    store.upsert_profile(
+        _profile(
+            id="qws-test",
+            system=["Fugaku", "MiyabiG"],
+            allocation_project_id="",
+        ),
+        actor="admin@test.com",
+    )
+    store.upsert_trigger_definition(_trigger(profile_id="qws-fugaku"), actor="admin@test.com")
+    (received_dir / "result_20260810_170000_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json").write_text(
+        json.dumps(
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "Exp": "CASE0",
+                "node_count": "1",
+                "execution_mode": "cross",
+                "pipeline_timing": {"run_time": 3600},
+                "execution_trigger": {
+                    "id": "qws-fugaku-time",
+                    "type": "scheduled",
+                    "reason": "cron:0 14 * * *",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (received_dir / "result_20260810_180000_cccccccc-dddd-eeee-ffff-000000000000.json").write_text(
+        json.dumps(
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "Exp": "CASE0",
+                "node_count": "1",
+                "execution_mode": "cross",
+                "pipeline_timing": {"run_time": 900},
+                "execution_trigger": {
+                    "id": "qws-fugaku",
+                    "type": "manual_button",
+                    "reason": "manual_button:qws-fugaku",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (received_dir / "result_20260809_170000_bbbbbbbb-cccc-dddd-eeee-ffffffffffff.json").write_text(
+        json.dumps(
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "Exp": "CASE0",
+                "node_count": "1",
+                "execution_mode": "cross",
+                "pipeline_timing": {"run_time": 1800},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    overview = build_profile_usage_overview(str(received_dir), str(db_path))
+
+    rows = {row["profile_id"]: row for row in overview["rows"]}
+    assert rows["qws-fugaku"]["result_count"] == 3
+    assert rows["qws-fugaku"]["node_hours"] == 1.75
+    assert rows["qws-test"]["result_count"] == 1
+    assert rows["qws-test"]["node_hours"] == 0.5
+    assert rows["qws-test"]["latest_result"]["timestamp"] == "2026-08-09 17:00:00"
+
+
 def test_profile_usage_overview_handles_missing_db(tmp_path):
     overview = build_profile_usage_overview(str(tmp_path), None)
 
