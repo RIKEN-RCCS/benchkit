@@ -192,6 +192,13 @@
         color: #991b1b;
         font-weight: 700;
     }
+    .trigger-target-warning {
+        display: block;
+        margin-top: 2px;
+        color: #991b1b;
+        font-size: 12px;
+        font-weight: 700;
+    }
     .trigger-observation-table {
         table-layout: fixed;
         min-width: 900px;
@@ -661,6 +668,9 @@
                     <td>
                         <span class="profile-mono">{{ trigger.gitlab_target or 'default' }}</span>
                         / <span class="profile-mono">{{ trigger.target_ref or default_target_ref }}</span>
+                        {% if not trigger.target_ref %}
+                        <span class="trigger-target-warning">ref not set</span>
+                        {% endif %}
                     </td>
                     <td>{% if trigger.enabled %}enabled{% else %}disabled{% endif %}</td>
                     <td>
