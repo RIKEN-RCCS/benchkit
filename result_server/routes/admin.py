@@ -141,7 +141,7 @@ def _parse_trigger_definition_form():
         "profile_id": request.form.get("profile_id", "").strip(),
         "enabled": request.form.get("enabled", "on") == "on",
         "gitlab_target": request.form.get("gitlab_target", "").strip(),
-        "target_ref": "",
+        "target_ref": request.form.get("target_ref", "").strip(),
         "cron_expr": request.form.get("cron_expr", "").strip(),
         "timezone": request.form.get("timezone", "").strip(),
         "watch_kind": request.form.get("watch_kind", "").strip(),

@@ -190,7 +190,7 @@ def _build_trigger_plan(
     )
     profile = profile_result.profile
     gitlab_target, target_errors = configured_gitlab_target(trigger.get("gitlab_target", ""))
-    target_ref = trigger.get("target_ref") or os.environ.get("RESULT_SERVER_GITLAB_REF", "develop")
+    target_ref = trigger.get("target_ref") or os.environ.get("RESULT_SERVER_GITLAB_REF", "")
     code = _profile_scope_csv(profile, "code")
     system = _profile_scope_csv(profile, "system")
     plan = build_pipeline_plan(
@@ -215,6 +215,8 @@ def _build_trigger_plan(
         "payload": plan_payload,
     }
     errors = list(profile_result.errors) + target_errors + plan.errors
+    if not target_ref:
+        errors.append("trigger target_ref is required; set target_ref or RESULT_SERVER_GITLAB_REF")
     return payload, errors
 
 
@@ -456,15 +458,6 @@ def run_triggers(
                 ls_remote=ls_remote,
                 schedule_lookback_minutes=schedule_lookback_minutes,
             )
-            if record_observations:
-                observed_at = current_time.isoformat().replace("+00:00", "Z")
-                for item in evaluation.observations:
-                    _record_trigger_observation_if_needed(
-                        store,
-                        evaluation.trigger_id,
-                        item,
-                        observed_at=observed_at,
-                    )
             status = evaluation.status
             errors = list(evaluation.errors)
             if submit and evaluation.should_fire:
@@ -498,6 +491,17 @@ def run_triggers(
                 payload=evaluation_payload,
             )
             evaluations.append(reported)
+            if record_observations:
+                observed_at = current_time.isoformat().replace("+00:00", "Z")
+                for item in evaluation.observations:
+                    _record_trigger_observation_if_needed(
+                        store,
+                        evaluation.trigger_id,
+                        item,
+                        status=status,
+                        dry_run=dry_run,
+                        observed_at=observed_at,
+                    )
             _record_trigger_run_if_needed(
                 store,
                 evaluation,
@@ -523,9 +527,15 @@ def _record_trigger_observation_if_needed(
     trigger_id: str,
     observation: dict,
     *,
+    status: str,
+    dry_run: bool,
     observed_at: str,
 ) -> bool:
     if not observation.get("initialized") and not observation.get("changed"):
+        return False
+    if dry_run:
+        return False
+    if observation.get("changed") and status != "submitted":
         return False
     store.upsert_trigger_observation(
         trigger_id,
