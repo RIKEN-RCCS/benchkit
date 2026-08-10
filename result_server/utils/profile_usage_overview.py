@@ -184,6 +184,7 @@ def _latest_result_context(record: dict[str, Any] | None) -> dict[str, Any] | No
     if not record:
         return None
     trigger_summary = summarize_execution_trigger(record["data"])
+    snapshot = _environment_snapshot_context(record["data"].get("environment_snapshot"))
     return {
         "filename": record["filename"],
         "timestamp": record["timestamp_label"],
@@ -192,6 +193,7 @@ def _latest_result_context(record: dict[str, Any] | None) -> dict[str, Any] | No
         "exp": record["data"].get("Exp") or "-",
         "pipeline_id": record["data"].get("pipeline_id") or "-",
         "trigger_headline": trigger_summary.get("headline") or "-",
+        "environment_snapshot": snapshot,
     }
 
 
@@ -202,4 +204,25 @@ def _latest_run_context(run: dict[str, Any] | None) -> dict[str, str] | None:
         "status": str(run.get("status") or "-"),
         "created_at": str(run.get("created_at") or "-"),
         "reason": str(run.get("reason") or "-"),
+    }
+
+
+def _environment_snapshot_context(snapshot: Any) -> dict[str, str] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    snapshot_hash = str(snapshot.get("hash") or "").strip()
+    if not snapshot_hash:
+        return None
+    summary = snapshot.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    short_hash = snapshot_hash
+    if snapshot_hash.startswith("sha256:") and len(snapshot_hash) > 18:
+        short_hash = f"{snapshot_hash[:17]}..."
+    return {
+        "hash": snapshot_hash,
+        "short_hash": short_hash,
+        "system": str(summary.get("system") or "-"),
+        "allocation_project_id": str(summary.get("allocation_project_id") or "-"),
+        "scheduler": str(summary.get("scheduler") or "-"),
+        "runner": str(summary.get("runner") or "-"),
     }
