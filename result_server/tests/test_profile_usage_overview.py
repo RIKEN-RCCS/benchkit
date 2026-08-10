@@ -79,6 +79,15 @@ def test_profile_usage_overview_links_profile_triggers_results_and_node_hours(tm
                     "type": "scheduled",
                     "reason": "cron:0 14 * * *@2026-08-10T14:00+09:00",
                 },
+                "environment_snapshot": {
+                    "hash": "sha256:54d4b0024f2e58b62b80cc5ca2b86f522fa69fee381c5a15e4cf37168debe7fb",
+                    "summary": {
+                        "system": "Fugaku",
+                        "allocation_project_id": "rkp00010",
+                        "scheduler": "pbs",
+                        "runner": "fugaku-runner",
+                    },
+                },
             }
         ),
         encoding="utf-8",
@@ -101,6 +110,8 @@ def test_profile_usage_overview_links_profile_triggers_results_and_node_hours(tm
     assert row["latest_trigger_run"]["status"] == "submitted"
     assert row["latest_result"]["filename"] == result_file
     assert row["latest_result"]["trigger_headline"] == "Scheduled / qws-fugaku-time"
+    assert row["latest_result"]["environment_snapshot"]["short_hash"] == "sha256:54d4b0024f..."
+    assert row["latest_result"]["environment_snapshot"]["allocation_project_id"] == "rkp00010"
 
 
 def test_profile_usage_overview_handles_missing_db(tmp_path):
