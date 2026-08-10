@@ -582,6 +582,10 @@
                 {% endif %}
             </select>
         </label>
+        <label>
+            Target Ref
+            <input type="text" name="target_ref" placeholder="{{ default_target_ref }}" value="{{ edit_trigger.target_ref if edit_trigger else default_target_ref }}">
+        </label>
         <div class="trigger-type-fields{% if selected_trigger_type == 'scheduled' %} trigger-type-fields-active{% endif %}" data-trigger-type-fields="scheduled">
             <label>
                 Cron

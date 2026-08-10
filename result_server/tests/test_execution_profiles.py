@@ -195,6 +195,7 @@ def test_execution_profile_store_creates_scheduled_trigger_definition(tmp_path):
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
             "gitlab_target": "swc",
+            "target_ref": "develop",
             "cron_expr": "0 2 * * *",
             "timezone": "Asia/Tokyo",
         }
@@ -212,6 +213,7 @@ def test_execution_profile_store_creates_scheduled_trigger_definition(tmp_path):
     assert triggers[0]["cron_expr"] == "0 2 * * *"
     assert triggers[0]["timezone"] == "Asia/Tokyo"
     assert triggers[0]["gitlab_target"] == "swc"
+    assert triggers[0]["target_ref"] == "develop"
 
 
 def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path):
@@ -224,6 +226,7 @@ def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path
             "trigger_type": "watch_event",
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
+            "target_ref": "develop",
             "watch_kind": "repo_ref",
             "watch_targets": (
                 "https://github.com/RIKEN-LQCD/qws.git@master\n"
@@ -239,6 +242,7 @@ def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path
 
     triggers = store.list_trigger_definitions()
     assert triggers[0]["trigger_type"] == "watch_event"
+    assert triggers[0]["target_ref"] == "develop"
     assert triggers[0]["watch_kind"] == "repo_ref"
     assert triggers[0]["watch_targets"] == [
         "https://github.com/RIKEN-LQCD/qws.git@master",
@@ -364,6 +368,7 @@ def test_trigger_runner_blocks_scheduled_trigger_outside_profile_period(
             "trigger_type": "scheduled",
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
+            "target_ref": "develop",
             "cron_expr": "0 10 * * *",
             "timezone": "Asia/Tokyo",
         }
@@ -404,6 +409,7 @@ def test_trigger_runner_scheduled_submit_is_deduped_per_due_minute(
             "trigger_type": "scheduled",
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
+            "target_ref": "develop",
             "cron_expr": "0 10 * * *",
             "timezone": "Asia/Tokyo",
         }
@@ -462,6 +468,44 @@ def test_trigger_runner_scheduled_submit_is_deduped_per_due_minute(
     assert sum(1 for row in runs if row["status"] == "already_submitted") == 1
 
 
+def test_trigger_runner_blocks_due_trigger_without_target_ref(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.delenv("RESULT_SERVER_GITLAB_REF", raising=False)
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "qws-fugaku-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "cron_expr": "0 10 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        submit=True,
+        now=datetime(2026, 8, 7, 1, 0, 15, tzinfo=UTC),
+        submit_pipeline=lambda plan, *, token: (_ for _ in ()).throw(AssertionError("submitted")),
+        use_lock=False,
+    )
+
+    assert evaluations[0].should_fire is False
+    assert evaluations[0].status == "blocked"
+    assert "trigger target_ref is required; set target_ref or RESULT_SERVER_GITLAB_REF" in evaluations[0].errors
+
+
 def test_trigger_runner_scheduled_submit_catches_late_timer_tick(
     tmp_path,
     monkeypatch,
@@ -477,6 +521,7 @@ def test_trigger_runner_scheduled_submit_catches_late_timer_tick(
             "trigger_type": "scheduled",
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
+            "target_ref": "develop",
             "cron_expr": "0 10 * * *",
             "timezone": "Asia/Tokyo",
         }
@@ -525,6 +570,7 @@ def test_trigger_runner_scheduled_dedup_accepts_recent_legacy_reason(
             "trigger_type": "scheduled",
             "profile_id": "rikyu-qws-nightly",
             "enabled": True,
+            "target_ref": "develop",
             "cron_expr": "0 10 * * *",
             "timezone": "Asia/Tokyo",
         }
@@ -583,6 +629,7 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
     monkeypatch,
 ):
     monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REF", "develop")
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
     store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
@@ -635,12 +682,25 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
     stored = ExecutionProfileStore(str(db_path))
     observations = stored.list_trigger_observations("rikyu-qws-watch")
     runs = stored.list_trigger_runs("rikyu-qws-watch")
+    assert observations == []
+    assert runs[0]["status"] == "would_initialize"
+
+    initialized = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        now=datetime(2026, 8, 7, 1, 0, 30, tzinfo=UTC),
+        ls_remote=fake_ls_remote,
+    )
+    assert initialized[0].status == "would_initialize"
+    stored = ExecutionProfileStore(str(db_path))
+    observations = stored.list_trigger_observations("rikyu-qws-watch")
     assert len(observations) == 2
     observed_at_by_target = {
         observation["target"]: observation["observed_at"]
         for observation in observations
     }
-    assert runs[0]["status"] == "would_initialize"
 
     second = run_triggers(
         db_path=str(db_path),
@@ -686,15 +746,16 @@ def test_trigger_runner_dry_run_detects_repo_ref_change_and_records_run(
     assert third[0].should_fire is True
     assert third[0].status == "would_submit"
     changed_observations = ExecutionProfileStore(str(db_path)).list_trigger_observations("rikyu-qws-watch")
-    assert any(
-        observation["observed_at"] != observed_at_by_target[observation["target"]]
+    assert {
+        observation["target"]: observation["observed_at"]
         for observation in changed_observations
-    )
+    } == observed_at_by_target
 
 
 def test_trigger_runner_submit_records_submitted_run(tmp_path, monkeypatch):
     monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
     monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REF", "develop")
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
     store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
@@ -754,6 +815,63 @@ def test_trigger_runner_submit_records_submitted_run(tmp_path, monkeypatch):
     assert runs[0]["status"] == "submitted"
     assert runs[0]["dry_run"] is False
     assert runs[0]["errors"] == []
+    observations = stored.list_trigger_observations("rikyu-qws-watch")
+    assert observations[0]["fingerprint"] == "https://github.com/RIKEN-LQCD/qws.git:master:new-fingerprint"
+
+
+def test_trigger_runner_submit_failure_keeps_repo_ref_observation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TRIGGER_TOKEN", "trigger-token")
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REF", "develop")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(system=["Fugaku"]), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": "https://github.com/RIKEN-LQCD/qws.git@master",
+            "match_mode": "any",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+    store.upsert_trigger_definition(trigger, actor="admin@test.com")
+    store.upsert_trigger_observation(
+        "rikyu-qws-watch",
+        "https://github.com/RIKEN-LQCD/qws.git@master",
+        "old-fingerprint",
+    )
+
+    def fake_ls_remote(repo, ref):
+        return f"{repo}:{ref}:new-fingerprint"
+
+    def fake_submit(plan, *, token):
+        return GitLabPipelineSubmitResult(
+            status_code=500,
+            response={"message": "failed"},
+            errors=["submit failed"],
+        )
+
+    evaluations = run_triggers(
+        db_path=str(db_path),
+        dry_run=False,
+        result_server_url="https://fncx.r-ccs.riken.jp/dev2",
+        record_observations=True,
+        submit=True,
+        ls_remote=fake_ls_remote,
+        submit_pipeline=fake_submit,
+    )
+
+    assert evaluations[0].status == "submit_failed"
+    observations = ExecutionProfileStore(str(db_path)).list_trigger_observations("rikyu-qws-watch")
+    assert observations[0]["fingerprint"] == "old-fingerprint"
 
 
 def test_trigger_runner_skips_when_lock_is_held(tmp_path, monkeypatch):
@@ -1118,6 +1236,7 @@ def test_admin_execution_profiles_upserts_scheduled_trigger_from_form(tmp_path):
                     "profile_id": "rikyu-qws-nightly",
                     "enabled": "on",
                     "gitlab_target": "swc",
+                    "target_ref": "main",
                     "cron_expr": "0 2 * * *",
                     "timezone": "Asia/Tokyo",
                 },
@@ -1129,8 +1248,10 @@ def test_admin_execution_profiles_upserts_scheduled_trigger_from_form(tmp_path):
         assert resp.status_code == 200
         assert b"Trigger definition rikyu-qws-nightly saved." in resp.data
         assert triggers[0]["cron_expr"] == "0 2 * * *"
+        assert triggers[0]["target_ref"] == "main"
         assert "Registered Triggers" in html
         assert "rikyu-qws-nightly" in html
+        assert "main" in html
         assert "0 2 * * *" in html
         assert "0 */6 * * * = every 6 hours" in html
         assert 'type="checkbox" name="enabled"' not in html
@@ -1155,6 +1276,7 @@ def test_admin_execution_profiles_upserts_watch_event_trigger_from_form(tmp_path
                     "trigger_type": "watch_event",
                     "profile_id": "rikyu-qws-nightly",
                     "enabled": "on",
+                    "target_ref": "main",
                     "watch_kind": "repo_ref",
                     "watch_targets": (
                         "https://github.com/RIKEN-LQCD/qws.git@master\n"
@@ -1174,6 +1296,7 @@ def test_admin_execution_profiles_upserts_watch_event_trigger_from_form(tmp_path
             "https://github.com/RIKEN-LQCD/qws.git@develop",
         ]
         assert triggers[0]["match_mode"] == "all"
+        assert triggers[0]["target_ref"] == "main"
         assert (
             "https://github.com/RIKEN-LQCD/qws.git@master, "
             "https://github.com/RIKEN-LQCD/qws.git@develop"
