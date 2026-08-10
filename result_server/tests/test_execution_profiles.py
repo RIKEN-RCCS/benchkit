@@ -1346,6 +1346,7 @@ def test_admin_execution_profiles_edits_pauses_resumes_and_deletes_trigger(tmp_p
         assert edit_resp.status_code == 200
         assert "Edit Trigger" in edit_html
         assert 'name="id" required placeholder="qws-fugaku-nightly" value="rikyu-qws-nightly"' in edit_html
+        assert "ref not set" in edit_html
         assert pause_resp.status_code == 200
         assert b"Trigger definition rikyu-qws-nightly paused." in pause_resp.data
         assert resume_resp.status_code == 200
