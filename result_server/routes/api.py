@@ -15,6 +15,7 @@ from datetime import datetime
 
 from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
+from utils.environment_snapshots import index_environment_snapshot
 from utils.rate_limit import rate_limited
 from utils.result_metadata_index import index_result_metadata
 
@@ -140,6 +141,27 @@ def _index_saved_json(record_type, saved):
             result="failure",
             level=logging.ERROR,
             details={"record_type": record_type, "error": str(exc)},
+        )
+        return False
+    return indexed
+
+
+def _index_environment_snapshot(saved):
+    """Index an embedded environment snapshot when present."""
+    try:
+        indexed = index_environment_snapshot(
+            db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
+            payload=saved.get("payload", {}),
+            json_file=saved.get("json_file", ""),
+        )
+    except (sqlite3.Error, OSError, ValueError) as exc:
+        current_app.logger.exception("environment snapshot index update failed")
+        audit_event(
+            "environment_snapshot_index_failed",
+            target=saved.get("json_file", ""),
+            result="failure",
+            level=logging.ERROR,
+            details={"error": str(exc)},
         )
         return False
     return indexed
@@ -317,6 +339,7 @@ def ingest_result():
         prefix="result",
         out_dir=current_app.config["RECEIVED_DIR"],
     )
+    _index_environment_snapshot(saved)
     _index_saved_json("result", saved)
     audit_event(
         "ingest_accepted",

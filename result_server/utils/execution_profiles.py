@@ -15,7 +15,7 @@ from typing import Any
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
 MATCH_MODES = {"any", "all"}
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 9
 
 
 @dataclass(frozen=True)
@@ -325,6 +325,9 @@ class ExecutionProfileStore:
                 current = 7
             if current < 8:
                 self._apply_v8(conn)
+                current = 8
+            if current < 9:
+                self._apply_v9(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -556,6 +559,44 @@ class ExecutionProfileStore:
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (8, now),
+        )
+
+    def _apply_v9(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS environment_snapshots (
+                snapshot_hash TEXT PRIMARY KEY,
+                schema_version INTEGER NOT NULL DEFAULT 1,
+                summary_json TEXT NOT NULL DEFAULT '{}',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                result_count INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS environment_snapshot_results (
+                result_uuid TEXT PRIMARY KEY,
+                snapshot_hash TEXT NOT NULL REFERENCES environment_snapshots(snapshot_hash)
+                    ON DELETE CASCADE,
+                json_file TEXT NOT NULL DEFAULT '',
+                code TEXT NOT NULL DEFAULT '',
+                system TEXT NOT NULL DEFAULT '',
+                exp TEXT NOT NULL DEFAULT '',
+                pipeline_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_environment_snapshot_results_hash
+                ON environment_snapshot_results(snapshot_hash, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_environment_snapshot_results_scope
+                ON environment_snapshot_results(code, system, exp);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (9, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:

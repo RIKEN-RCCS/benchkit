@@ -140,6 +140,76 @@ class TestIngestResult:
             "3152",
         )
 
+    def test_post_valid_json_indexes_environment_snapshot(self, tmp_dirs, tmp_path):
+        """Accepted result payloads should index embedded environment snapshots."""
+        received, received_padata, received_estimation_artifacts, estimated = tmp_dirs
+        db_path = tmp_path / "cx_portal.sqlite3"
+        app = build_api_route_app(
+            received_dir=received,
+            received_padata_dir=received_padata,
+            received_estimation_artifacts_dir=received_estimation_artifacts,
+            estimated_dir=estimated,
+            execution_profile_db_path=str(db_path),
+        )
+        app.config["INGEST_KEYS"] = {API_KEY: "test-runner"}
+
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/result",
+                data=json.dumps({
+                    "code": "qws",
+                    "system": "Fugaku",
+                    "Exp": "CASE1",
+                    "pipeline_id": 3270,
+                    "environment_snapshot": {
+                        "schema_version": 1,
+                        "hash": "sha256:test",
+                        "summary": {
+                            "system": "Fugaku",
+                            "allocation_project_id": "rkp00010",
+                            "scheduler": "pbs",
+                        },
+                        "payload": {
+                            "schema_version": 1,
+                            "system": {
+                                "name": "Fugaku",
+                                "allocation_project_id": "rkp00010",
+                            },
+                            "scheduler": {"kind": "pbs"},
+                        },
+                    },
+                }),
+                headers={
+                    "X-API-Key": API_KEY,
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        import sqlite3
+
+        with sqlite3.connect(db_path) as conn:
+            snapshot = conn.execute(
+                "SELECT snapshot_hash, result_count FROM environment_snapshots"
+            ).fetchone()
+            link = conn.execute(
+                """
+                SELECT result_uuid, snapshot_hash, json_file, code, system, exp, pipeline_id
+                FROM environment_snapshot_results
+                """
+            ).fetchone()
+        assert snapshot == ("sha256:test", 1)
+        assert link == (
+            body["id"],
+            "sha256:test",
+            body["json_file"],
+            "qws",
+            "Fugaku",
+            "CASE1",
+            "3270",
+        )
+
     def test_valid_key_logs_runner_id(self, client, caplog):
         """Accepted API requests should include the resolved runner id in logs."""
         with caplog.at_level(logging.INFO):

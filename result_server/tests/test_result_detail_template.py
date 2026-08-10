@@ -63,6 +63,22 @@ FULL_RESULT = {
         "events": ["pa1"],
         "report_kinds": ["summary_text"],
     },
+    "environment_snapshot": {
+        "schema_version": 1,
+        "hash": "sha256:abcdef",
+        "summary": {
+            "system": "RC_GH200",
+            "allocation_project_id": "rccs-cloud",
+            "scheduler": "slurm",
+            "runner": "gh200-runner",
+            "benchkit_commit": "1234567",
+        },
+        "payload": {
+            "schema_version": 1,
+            "ci": {"job_name": "qws_RC_GH200_run"},
+            "toolchain": {"modules": ["gcc/11.5.0", "openmpi/4.1.7"]},
+        },
+    },
 }
 
 FULL_QUALITY = {
@@ -106,6 +122,10 @@ class TestResultDetailTemplate:
         assert "3208" in html
         assert "Parent Pipeline ID" in html
         assert "3207" in html
+        assert "Environment Snapshot" in html
+        assert "sha256:abcdef" in html
+        assert "rccs-cloud" in html
+        assert "slurm" in html
         assert "Back to Results" in html
         assert "Results" in html
 

@@ -123,6 +123,7 @@ ${build_key}_build:
   tags: [\"$build_tag\"]
   script:
     - mkdir -p results
+    - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build.json
     - bash scripts/record_timestamp.sh results/build_start
     - echo \"[BUILD] $program for $system\"
     - bash $program_path/build.sh $system
@@ -153,6 +154,7 @@ ${job_prefix}_run:
   script:
     - echo \"Starting job\"
     - ls -la $program_path/
+    - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
@@ -199,6 +201,7 @@ ${job_prefix}_build_run:
     - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting build and run\"
+    - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build_run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build_run.json
     - bash scripts/record_timestamp.sh results/build_start
     - bash $program_path/build.sh $system
     - bash scripts/record_timestamp.sh results/build_end
