@@ -51,15 +51,16 @@ Completed:
   `BK_TRIGGER_REASON`. `scripts/result.sh` stores these values under
   `execution_trigger` in Result JSON, and the Portal shows them as the result
   `Run Cause`.
+- Received benchmark and estimation JSON metadata is indexed into
+  `result_metadata_index` at ingest time. JSON/tgz artifacts remain the raw
+  records and existing result pages remain file-backed.
 
 Remaining follow-up:
 
-1. Index received benchmark and estimation JSON metadata into SQLite while
-   keeping JSON/tgz artifacts as raw records. The first index should be an
-   auxiliary lookup table populated at ingest time; existing result and
-   estimate pages can remain file-backed until the indexed views are reviewed.
-2. Add environment snapshot storage after deciding which host/runtime metadata
+1. Add environment snapshot storage after deciding which host/runtime metadata
    should define an environment identity.
+2. Review which result and estimate views should move from file-backed scans to
+   indexed lookup once the operational view requirements are stable.
 
 GitLab schedules should not be the primary governance point. The Portal should
 own periodic and event-triggered execution decisions, then trigger GitLab CI
@@ -76,6 +77,11 @@ unless a site-local `BK_SCHEDULER_EXTRA_ARGS*` override is already set. Systems
 without such a scheduler requirement should leave the field empty. BenchPark
 bridge controls in this repository are legacy; active BenchPark CI/CD/CB result
 handling has moved to a separate project.
+
+Node-hour accounting follows the Result JSON `execution_mode` value. `cross`
+results count run time only, because build and run are separated. Systems that
+build and run in one scheduler job are recorded as `native`; `native` counts
+build time plus run time.
 
 ## GitLab Pipeline Trigger Configuration
 

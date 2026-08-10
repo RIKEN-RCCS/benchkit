@@ -139,10 +139,11 @@ class TestUsageRoute:
 
         captured = {}
 
-        def fake_build_usage_report_context(directory, args, current_fiscal_year):
+        def fake_build_usage_report_context(directory, args, current_fiscal_year, db_path=None):
             captured["directory"] = directory
             captured["args"] = args
             captured["current_fiscal_year"] = current_fiscal_year
+            captured["db_path"] = db_path
             return {
                 "result": {
                     "apps": [],
@@ -169,6 +170,7 @@ class TestUsageRoute:
                     "partial_support": [],
                 },
                 "result_quality_rollup": {"rows": []},
+                "profile_usage_overview": {"available": False, "rows": []},
             }
 
         import routes.results_usage_routes as usage_routes_mod
@@ -179,6 +181,7 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         assert resp.status_code == 200
         assert captured["directory"] == app.config["RECEIVED_DIR"]
+        assert captured["db_path"] == app.config.get("EXECUTION_PROFILE_DB_PATH")
         assert captured["current_fiscal_year"] == 2025
         assert captured["args"].get("period_type") is None
 
