@@ -99,6 +99,38 @@ payload assembled from `results/environment_snapshot_build.json`,
 `results/environment_snapshot_run.json`, or
 `results/environment_snapshot_build_run.json`.
 
+## Profile Request Workflow
+
+Execution profile requests are tracked separately from the approved profile
+registry. The applicant-facing page is `/execution-profile-requests/`; it is
+available to authenticated users and records the requester from the active
+session. The admin review page is `/admin/execution-profile-requests`.
+
+The applicant form intentionally asks only for fields the application side can
+reasonably own: application code, system, optional exp/case scope, optional
+activity, optional desired schedule, optional desired repo/ref watch target, and
+an operational note. Allocation project ID, validity, and trigger conversion are
+reviewer responsibilities.
+
+Requests have a `request_type`:
+
+- `new_profile`: creates an approved execution profile after review.
+- `change_profile`: updates an existing linked profile after review.
+- `pause_profile`: disables the linked profile and its trigger definitions.
+- `retire_profile`: marks the linked profile retired and disables its trigger
+  definitions.
+
+Pause and retirement are state transitions, not deletes. The profile and request
+history remain in the site-local DB so operators can audit what happened and
+why. Deleting a profile remains an admin operation outside the applicant request
+workflow.
+
+The applicant page shows each request's linked profile, current profile status,
+enabled state, allocation project ID, and enabled/total trigger counts when a
+profile has been created. Follow-up requests are created from that linked
+profile, so the applicant view and the approved registry stay connected after
+the initial approval.
+
 ## GitLab Pipeline Trigger Configuration
 
 Dry-run payload rendering requires:

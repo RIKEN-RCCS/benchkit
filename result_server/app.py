@@ -133,7 +133,7 @@ def _configure_execution_profiles(app, base_dir):
 
 def _register_portal_blueprints(app, prefix):
     """Register all portal blueprints using the given URL prefix."""
-    from routes.admin import admin_bp
+    from routes.admin import admin_bp, profile_requests_bp
     from routes.auth import auth_bp
     from routes.security_metadata import register_security_metadata_routes
 
@@ -142,6 +142,10 @@ def _register_portal_blueprints(app, prefix):
     app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
     app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
     app.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
+    app.register_blueprint(
+        profile_requests_bp,
+        url_prefix=f"{prefix}/execution-profile-requests",
+    )
     app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
 
 
