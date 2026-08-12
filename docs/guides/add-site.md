@@ -694,7 +694,7 @@ NewSystem,NewSystem,Example CPU,2,64,Example GPU,4,512GB,10
 5. `result0.json` が作られること
    - `scripts/result.sh` が Result JSON を組み立てられることを確認します。
 6. `send_results` まで通ること
-   - API key、Result Server 接続、`results/result*.json` の配置を確認します。
+   - mTLS client certificate/key、Result Server 接続、`results/result*.json` の配置を確認します。
 
 最初の動作確認では、既存アプリで最小の 1 条件だけ `list.csv` に足して `scripts/test_submit.sh` で試すのが安全です。
 
@@ -709,7 +709,7 @@ NewSystem,NewSystem,Example CPU,2,64,Example GPU,4,512GB,10
 | build | `module load` の typo、コンパイラ不一致、依存ライブラリ不足 | `programs/<code>/build.sh` |
 | run | `mpirun` / `srun` の引数、affinity、ノード側環境差異 | `programs/<code>/run.sh`, scheduler log |
 | result 生成 | `results/result` がない、FOM 出力形式が違う、`bk_emit_*` 未使用 | `scripts/result.sh`, `scripts/bk_functions.sh` |
-| send_results | API key、Result Server 接続、JSON 不足 | `scripts/result_server/send_results.sh`, Result Server log |
+| send_results | mTLS client certificate/key、Result Server 接続、JSON 不足 | `scripts/result_server/send_results.sh`, Result Server log |
 
 CI ログでは、まず「どの stage まで進んだか」を見ると切り分けが早くなります。`get_sources` 前、build 前、run 前、send_results 前で原因の層がかなり絞れます。
 

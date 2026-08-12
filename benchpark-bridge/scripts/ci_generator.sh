@@ -61,7 +61,8 @@ ${job_prefix}_send:
   script:
     - echo \"Checking CI variables\"
     - test -n \"\$RESULT_SERVER\" && echo \"RESULT_SERVER is set\" || echo \"RESULT_SERVER is NOT set\"
-    - test -n \"\$RESULT_SERVER_KEY\" && echo \"RESULT_SERVER_KEY is set\" || echo \"RESULT_SERVER_KEY is NOT set\"
+    - test -n \"\$RESULT_SERVER_CLIENT_CERT\" && echo \"RESULT_SERVER_CLIENT_CERT is set\" || echo \"RESULT_SERVER_CLIENT_CERT is NOT set\"
+    - test -n \"\$RESULT_SERVER_CLIENT_KEY\" && echo \"RESULT_SERVER_CLIENT_KEY is set\" || echo \"RESULT_SERVER_CLIENT_KEY is NOT set\"
     - echo \"Sending results to server\"
     - bash scripts/result_server/send_results.sh
 

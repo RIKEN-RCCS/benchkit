@@ -77,7 +77,9 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 - detailed result and estimate pages
 - usage reporting
 - TOTP-based authentication
-- admin pages for user management
+- admin pages for user management, execution profile governance, Portal-managed
+  GitLab trigger submission, trigger-runner observations, and related operation
+  history
 
 ### Main Route Groups
 
@@ -100,7 +102,8 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 - `result_server/routes/auth.py`
   Login, setup, logout, and TOTP flow.
 - `result_server/routes/admin.py`
-  Admin-only user management.
+  Admin-only user management, execution profile registry, manual GitLab trigger
+  submission, trigger definitions, trigger run history, and runner observations.
 
 ### Main API Endpoints
 
@@ -143,6 +146,8 @@ Data or `*.ncu-rep`.
   TOTP setup page.
 - `result_server/templates/admin_users.html`
   Admin user management page.
+- `result_server/templates/admin_execution_profiles.html`
+  Admin execution profile, trigger definition, trigger run, and observation page.
 
 ## CI Pipeline Structure
 
