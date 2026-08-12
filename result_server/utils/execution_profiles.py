@@ -15,7 +15,21 @@ from typing import Any
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
 MATCH_MODES = {"any", "all"}
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
+PROFILE_REQUEST_TYPES = {
+    "new_profile",
+    "change_profile",
+    "pause_profile",
+    "retire_profile",
+}
+PROFILE_REQUEST_STATUSES = {
+    "draft",
+    "submitted",
+    "changes_requested",
+    "approved",
+    "rejected",
+    "cancelled",
+}
 
 
 @dataclass(frozen=True)
@@ -328,6 +342,12 @@ class ExecutionProfileStore:
                 current = 8
             if current < 9:
                 self._apply_v9(conn)
+                current = 9
+            if current < 10:
+                self._apply_v10(conn)
+                current = 10
+            if current < 11:
+                self._apply_v11(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -599,113 +619,209 @@ class ExecutionProfileStore:
             (9, now),
         )
 
+    def _apply_v10(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS execution_profile_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id TEXT NOT NULL DEFAULT '',
+                requester_email TEXT NOT NULL DEFAULT '',
+                requester_affiliation TEXT NOT NULL DEFAULT '',
+                requested_profile_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL CHECK(
+                    status IN (
+                        'draft', 'submitted', 'changes_requested',
+                        'approved', 'rejected', 'cancelled'
+                    )
+                ),
+                reviewer_email TEXT NOT NULL DEFAULT '',
+                review_comment TEXT NOT NULL DEFAULT '',
+                source_profile_id TEXT NOT NULL DEFAULT '',
+                created_profile_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                submitted_at TEXT NOT NULL DEFAULT '',
+                reviewed_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS execution_profile_request_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id INTEGER NOT NULL REFERENCES execution_profile_requests(id)
+                    ON DELETE CASCADE,
+                actor TEXT NOT NULL DEFAULT '',
+                event_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_execution_profile_requests_status
+                ON execution_profile_requests(status, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_execution_profile_requests_profile
+                ON execution_profile_requests(profile_id, status);
+            CREATE INDEX IF NOT EXISTS idx_execution_profile_request_events_request
+                ON execution_profile_request_events(request_id, created_at);
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (10, now),
+        )
+
+    def _apply_v11(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(execution_profile_requests)").fetchall()
+        }
+        if "request_type" not in columns:
+            conn.execute(
+                """
+                ALTER TABLE execution_profile_requests
+                ADD COLUMN request_type TEXT NOT NULL DEFAULT 'new_profile'
+                """
+            )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_execution_profile_requests_type
+                ON execution_profile_requests(request_type, status, updated_at)
+            """
+        )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (11, now),
+        )
+
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
         self.migrate()
         now = _utc_now_iso()
         with self.connect() as conn:
-            existing = conn.execute(
-                """
-                SELECT id, status, approved_by, approved_at, created_at
-                FROM execution_profiles
-                WHERE id = ?
-                """,
-                (profile["id"],),
-            ).fetchone()
-            created_at = existing["created_at"] if existing else now
-            approved_by = ""
-            approved_at = ""
-            if profile["status"] == "approved":
-                if (
-                    existing
-                    and existing["status"] == "approved"
-                    and existing["approved_by"]
-                    and existing["approved_at"]
-                ):
-                    approved_by = existing["approved_by"]
-                    approved_at = existing["approved_at"]
-                else:
-                    approved_by = actor
-                    approved_at = now
-            elif existing:
+            self._upsert_profile_in_conn(conn, profile, actor=actor, now=now)
+
+    def _upsert_profile_in_conn(
+        self,
+        conn: sqlite3.Connection,
+        profile: dict[str, Any],
+        *,
+        actor: str,
+        now: str,
+    ) -> None:
+        existing = conn.execute(
+            """
+            SELECT id, status, approved_by, approved_at, created_at
+            FROM execution_profiles
+            WHERE id = ?
+            """,
+            (profile["id"],),
+        ).fetchone()
+        created_at = existing["created_at"] if existing else now
+        approved_by = ""
+        approved_at = ""
+        if profile["status"] == "approved":
+            if (
+                existing
+                and existing["status"] == "approved"
+                and existing["approved_by"]
+                and existing["approved_at"]
+            ):
                 approved_by = existing["approved_by"]
                 approved_at = existing["approved_at"]
-            conn.execute(
+            else:
+                approved_by = actor
+                approved_at = now
+        elif existing:
+            approved_by = existing["approved_by"]
+            approved_at = existing["approved_at"]
+        conn.execute(
+            """
+            INSERT INTO execution_profiles (
+                id, display_name, enabled, status, activity, owner, purpose,
+                visibility, allocation_project_id, scheduler_extra_args,
+                valid_from, valid_until, created_by, approved_by, approved_at,
+                metadata_json,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                display_name=excluded.display_name,
+                enabled=excluded.enabled,
+                status=excluded.status,
+                activity=excluded.activity,
+                owner=excluded.owner,
+                purpose=excluded.purpose,
+                visibility=excluded.visibility,
+                allocation_project_id=excluded.allocation_project_id,
+                scheduler_extra_args=excluded.scheduler_extra_args,
+                valid_from=excluded.valid_from,
+                valid_until=excluded.valid_until,
+                created_by=excluded.created_by,
+                approved_by=excluded.approved_by,
+                approved_at=excluded.approved_at,
+                metadata_json=excluded.metadata_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                profile["id"],
+                profile["display_name"],
+                1 if profile["enabled"] else 0,
+                profile["status"],
+                profile["activity"],
+                profile["owner"],
+                profile["purpose"],
+                profile["visibility"],
+                profile["allocation_project_id"],
+                profile["scheduler_extra_args"],
+                profile["valid_from"],
+                profile["valid_until"],
+                profile["created_by"],
+                approved_by,
+                approved_at,
+                _json_dump(profile["metadata_json"]),
+                created_at,
+                now,
+            ),
+        )
+        conn.execute(
+            "DELETE FROM execution_profile_scopes WHERE profile_id = ?",
+            (profile["id"],),
+        )
+        for scope_type in ("code", "system", "exp"):
+            conn.executemany(
                 """
-                INSERT INTO execution_profiles (
-                    id, display_name, enabled, status, activity, owner, purpose,
-                    visibility, allocation_project_id, scheduler_extra_args,
-                    valid_from, valid_until, created_by, approved_by, approved_at,
-                    metadata_json,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    display_name=excluded.display_name,
-                    enabled=excluded.enabled,
-                    status=excluded.status,
-                    activity=excluded.activity,
-                    owner=excluded.owner,
-                    purpose=excluded.purpose,
-                    visibility=excluded.visibility,
-                    allocation_project_id=excluded.allocation_project_id,
-                    scheduler_extra_args=excluded.scheduler_extra_args,
-                    valid_from=excluded.valid_from,
-                    valid_until=excluded.valid_until,
-                    created_by=excluded.created_by,
-                    approved_by=excluded.approved_by,
-                    approved_at=excluded.approved_at,
-                    metadata_json=excluded.metadata_json,
-                    updated_at=excluded.updated_at
+                INSERT INTO execution_profile_scopes(profile_id, scope_type, value)
+                VALUES (?, ?, ?)
                 """,
-                (
-                    profile["id"],
-                    profile["display_name"],
-                    1 if profile["enabled"] else 0,
-                    profile["status"],
-                    profile["activity"],
-                    profile["owner"],
-                    profile["purpose"],
-                    profile["visibility"],
-                    profile["allocation_project_id"],
-                    profile["scheduler_extra_args"],
-                    profile["valid_from"],
-                    profile["valid_until"],
-                    profile["created_by"],
-                    approved_by,
-                    approved_at,
-                    _json_dump(profile["metadata_json"]),
-                    created_at,
-                    now,
-                ),
+                [
+                    (profile["id"], scope_type, value)
+                    for value in profile.get(scope_type, [])
+                ],
             )
-            conn.execute(
-                "DELETE FROM execution_profile_scopes WHERE profile_id = ?",
-                (profile["id"],),
-            )
-            for scope_type in ("code", "system", "exp"):
-                conn.executemany(
-                    """
-                    INSERT INTO execution_profile_scopes(profile_id, scope_type, value)
-                    VALUES (?, ?, ?)
-                    """,
-                    [
-                        (profile["id"], scope_type, value)
-                        for value in profile.get(scope_type, [])
-                    ],
-                )
-            conn.execute(
-                """
-                INSERT INTO execution_profile_events(
-                    profile_id, actor, event_type, payload_json, created_at
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    profile["id"],
-                    actor,
-                    "profile_upserted" if existing else "profile_created",
-                    _json_dump({"source": "admin_or_seed"}),
-                    now,
-                ),
-            )
+        self._add_profile_event_in_conn(
+            conn,
+            profile_id=profile["id"],
+            actor=actor,
+            event_type="profile_upserted" if existing else "profile_created",
+            payload={"source": "admin_or_seed"},
+            created_at=now,
+        )
+
+    def _add_profile_event_in_conn(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        profile_id: str,
+        actor: str,
+        event_type: str,
+        payload: dict[str, Any],
+        created_at: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO execution_profile_events(
+                profile_id, actor, event_type, payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (profile_id, actor, event_type, _json_dump(payload), created_at),
+        )
 
     def upsert_trigger_definition(self, trigger: dict[str, Any], *, actor: str = "") -> None:
         self.migrate()
@@ -1158,6 +1274,314 @@ class ExecutionProfileStore:
         with self.connect() as conn:
             row = conn.execute(query, tuple(params)).fetchone()
         return row is not None
+
+    def create_profile_request(
+        self,
+        *,
+        requested_profile: dict[str, Any],
+        requester_email: str,
+        requester_affiliation: str = "",
+        request_type: str = "new_profile",
+        status: str = "submitted",
+        source_profile_id: str = "",
+        actor: str = "",
+    ) -> int:
+        """Create an execution-profile request draft or submitted request."""
+        self.migrate()
+        normalized, errors = normalize_profile(requested_profile)
+        if errors or normalized is None:
+            raise ValueError("; ".join(errors))
+        if status not in PROFILE_REQUEST_STATUSES:
+            raise ValueError(f"invalid profile request status: {status}")
+        if request_type not in PROFILE_REQUEST_TYPES:
+            raise ValueError(f"invalid profile request type: {request_type}")
+
+        now = _utc_now_iso()
+        submitted_at = now if status == "submitted" else ""
+        request_actor = actor or requester_email
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO execution_profile_requests (
+                    profile_id, requester_email, requester_affiliation,
+                    requested_profile_json, status, request_type, source_profile_id,
+                    created_at, updated_at, submitted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    normalized["id"],
+                    requester_email,
+                    requester_affiliation,
+                    _json_dump(normalized),
+                    status,
+                    request_type,
+                    source_profile_id,
+                    now,
+                    now,
+                    submitted_at,
+                ),
+            )
+            request_id = int(cur.lastrowid)
+            self._add_profile_request_event(
+                conn,
+                request_id=request_id,
+                actor=request_actor,
+                event_type="profile_request_created"
+                if status == "draft"
+                else "profile_request_submitted",
+                payload={
+                    "profile_id": normalized["id"],
+                    "request_type": request_type,
+                    "status": status,
+                },
+                created_at=now,
+            )
+            return request_id
+
+    def list_profile_requests(
+        self,
+        *,
+        statuses: list[str] | tuple[str, ...] | None = None,
+        requester_email: str = "",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """List execution-profile requests ordered by most recent update."""
+        self.migrate()
+        params: list[Any] = []
+        query = "SELECT * FROM execution_profile_requests"
+        clauses = []
+        if statuses:
+            placeholders = ", ".join("?" for _status in statuses)
+            clauses.append(f"status IN ({placeholders})")
+            params.extend(statuses)
+        if requester_email:
+            clauses.append("requester_email = ?")
+            params.append(requester_email)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+        params.append(limit)
+        with self.connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+        return [self._profile_request_from_row(row) for row in rows]
+
+    def get_profile_request(self, request_id: int) -> dict[str, Any] | None:
+        """Return one execution-profile request."""
+        self.migrate()
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM execution_profile_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+        return self._profile_request_from_row(row) if row else None
+
+    def list_profile_request_events(self, request_id: int) -> list[dict[str, Any]]:
+        """Return request review events in chronological order."""
+        self.migrate()
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM execution_profile_request_events
+                WHERE request_id = ?
+                ORDER BY id
+                """,
+                (request_id,),
+            ).fetchall()
+        return [self._profile_request_event_from_row(row) for row in rows]
+
+    def review_profile_request(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        actor: str,
+        comment: str = "",
+        profile_overrides: dict[str, Any] | None = None,
+    ) -> tuple[bool, list[str]]:
+        """Approve, reject, request changes, or cancel a profile request."""
+        if action not in {"approve", "reject", "request_changes", "cancel"}:
+            return False, [f"unsupported review action: {action}"]
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM execution_profile_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+            if not row:
+                return False, [f"profile request {request_id} was not found"]
+            profile_request = self._profile_request_from_row(row)
+            status = profile_request["status"]
+            allowed = {
+                "approve": {"submitted"},
+                "reject": {"submitted"},
+                "request_changes": {"submitted"},
+                "cancel": {"draft", "submitted", "changes_requested"},
+            }
+            if status not in allowed[action]:
+                return False, [f"cannot {action} profile request in status {status}"]
+
+            created_profile_id = profile_request["created_profile_id"]
+            new_status = {
+                "approve": "approved",
+                "reject": "rejected",
+                "request_changes": "changes_requested",
+                "cancel": "cancelled",
+            }[action]
+            errors: list[str] = []
+            if action == "approve":
+                request_type = profile_request["request_type"]
+                if request_type in {"new_profile", "change_profile"}:
+                    payload = dict(profile_request["requested_profile"])
+                    for key, value in (profile_overrides or {}).items():
+                        if value not in (None, ""):
+                            payload[key] = value
+                    if request_type == "change_profile" and profile_request["source_profile_id"]:
+                        payload["id"] = profile_request["source_profile_id"]
+                    payload["status"] = "approved"
+                    payload["approved_by"] = ""
+                    payload["approved_at"] = ""
+                    allocation_project_id = str(payload.get("allocation_project_id") or "").strip()
+                    systems = _as_text_list(payload.get("system"))
+                    if allocation_project_id and len(systems) != 1:
+                        system_label = ", ".join(systems) if systems else "none"
+                        return False, [
+                            "allocation_project_id requires exactly one system; "
+                            f"got {len(systems)} ({system_label})"
+                        ]
+                    profile, errors = normalize_profile(payload)
+                    if errors or profile is None:
+                        return False, errors
+                    self._upsert_profile_in_conn(conn, profile, actor=actor, now=now)
+                    created_profile_id = profile["id"]
+                    self._add_profile_event_in_conn(
+                        conn,
+                        profile_id=profile["id"],
+                        actor=actor,
+                        event_type="profile_request_approved",
+                        payload={"request_id": request_id, "request_type": request_type},
+                        created_at=now,
+                    )
+                elif request_type in {"pause_profile", "retire_profile"}:
+                    source_profile_id = profile_request["source_profile_id"]
+                    if not source_profile_id:
+                        return False, [f"{request_type} requires source_profile_id"]
+                    row = conn.execute(
+                        "SELECT * FROM execution_profiles WHERE id = ?",
+                        (source_profile_id,),
+                    ).fetchone()
+                    if not row:
+                        return False, [f"source profile was not found: {source_profile_id}"]
+                    new_profile_status = "paused" if request_type == "pause_profile" else "retired"
+                    conn.execute(
+                        """
+                        UPDATE execution_profiles
+                        SET enabled = 0, status = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (new_profile_status, now, source_profile_id),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE trigger_definitions
+                        SET enabled = 0, updated_at = ?
+                        WHERE profile_id = ?
+                        """,
+                        (now, source_profile_id),
+                    )
+                    created_profile_id = source_profile_id
+                    self._add_profile_event_in_conn(
+                        conn,
+                        profile_id=source_profile_id,
+                        actor=actor,
+                        event_type=f"profile_request_{new_profile_status}",
+                        payload={"request_id": request_id, "request_type": request_type},
+                        created_at=now,
+                    )
+
+            conn.execute(
+                """
+                UPDATE execution_profile_requests
+                SET status = ?, reviewer_email = ?, review_comment = ?,
+                    created_profile_id = ?, updated_at = ?, reviewed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    new_status,
+                    actor,
+                    comment,
+                    created_profile_id,
+                    now,
+                    now,
+                    request_id,
+                ),
+            )
+            self._add_profile_request_event(
+                conn,
+                request_id=request_id,
+                actor=actor,
+                event_type=f"profile_request_{new_status}",
+                payload={"comment": comment, "created_profile_id": created_profile_id},
+                created_at=now,
+            )
+        return True, []
+
+    def _profile_request_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            requested_profile = json.loads(row["requested_profile_json"] or "{}")
+        except json.JSONDecodeError:
+            requested_profile = {"_invalid_requested_profile_json": row["requested_profile_json"]}
+        return {
+            "id": row["id"],
+            "profile_id": row["profile_id"],
+            "requester_email": row["requester_email"],
+            "requester_affiliation": row["requester_affiliation"],
+            "requested_profile": requested_profile if isinstance(requested_profile, dict) else {},
+            "status": row["status"],
+            "request_type": row["request_type"] if "request_type" in row.keys() else "new_profile",
+            "reviewer_email": row["reviewer_email"],
+            "review_comment": row["review_comment"],
+            "source_profile_id": row["source_profile_id"],
+            "created_profile_id": row["created_profile_id"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "submitted_at": row["submitted_at"],
+            "reviewed_at": row["reviewed_at"],
+        }
+
+    def _profile_request_event_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            payload = json.loads(row["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            payload = {"_invalid_payload_json": row["payload_json"]}
+        return {
+            "id": row["id"],
+            "request_id": row["request_id"],
+            "actor": row["actor"],
+            "event_type": row["event_type"],
+            "payload": payload if isinstance(payload, dict) else {},
+            "created_at": row["created_at"],
+        }
+
+    def _add_profile_request_event(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        request_id: int,
+        actor: str,
+        event_type: str,
+        payload: dict[str, Any],
+        created_at: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO execution_profile_request_events(
+                request_id, actor, event_type, payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (request_id, actor, event_type, _json_dump(payload), created_at),
+        )
 
     def list_profiles(self) -> list[dict[str, Any]]:
         self.migrate()

@@ -246,10 +246,11 @@ def create_dev_app(base_dir):
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
-    from routes.admin import admin_bp
+    from routes.admin import admin_bp, profile_requests_bp
 
     init_csrf(app, exempt_blueprints=(api_bp,))
 
+    app.register_blueprint(profile_requests_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
     @app.route("/systemlist")

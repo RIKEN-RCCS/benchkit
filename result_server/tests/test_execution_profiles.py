@@ -51,6 +51,13 @@ def _login_admin(client):
         sess["user_affiliations"] = ["admin"]
 
 
+def _login_user(client, email="applicant@test.com"):
+    with client.session_transaction() as sess:
+        sess["authenticated"] = True
+        sess["user_email"] = email
+        sess["user_affiliations"] = ["app"]
+
+
 def _admin_app(db_path):
     received = tempfile.mkdtemp()
     estimated = tempfile.mkdtemp()
@@ -136,6 +143,73 @@ def test_execution_profile_store_updates_profile_and_scopes(tmp_path):
     assert result.profiles[0]["system"] == ["MiyabiG", "RIKYU"]
     assert result.profiles[0]["exp"] == []
     assert result.profiles[0]["scheduler_extra_args"] == "--account=updated"
+
+
+def test_execution_profile_request_approval_creates_profile(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    request_id = store.create_profile_request(
+        requested_profile=_profile(id="qws-fugaku-request", status="draft"),
+        requester_email="applicant@test.com",
+        requester_affiliation="project-a",
+        status="submitted",
+        actor="applicant@test.com",
+    )
+
+    request_row = store.get_profile_request(request_id)
+    assert request_row is not None
+    assert request_row["profile_id"] == "qws-fugaku-request"
+    assert request_row["status"] == "submitted"
+    assert request_row["requested_profile"]["status"] == "draft"
+
+    ok, errors = store.review_profile_request(
+        request_id,
+        action="approve",
+        actor="approver@test.com",
+        comment="approved for test",
+    )
+
+    assert ok is True
+    assert errors == []
+    reviewed = store.get_profile_request(request_id)
+    assert reviewed["status"] == "approved"
+    assert reviewed["reviewer_email"] == "approver@test.com"
+    assert reviewed["created_profile_id"] == "qws-fugaku-request"
+    profile = load_execution_profiles(str(db_path)).profiles[0]
+    assert profile["id"] == "qws-fugaku-request"
+    assert profile["status"] == "approved"
+    assert profile["approved_by"] == "approver@test.com"
+    assert profile["approved_at"].endswith("Z")
+    events = store.list_profile_request_events(request_id)
+    assert [event["event_type"] for event in events] == [
+        "profile_request_submitted",
+        "profile_request_approved",
+    ]
+
+
+def test_execution_profile_request_reject_does_not_create_profile(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    request_id = store.create_profile_request(
+        requested_profile=_profile(id="qws-rejected", status="draft"),
+        requester_email="applicant@test.com",
+        status="submitted",
+        actor="applicant@test.com",
+    )
+
+    ok, errors = store.review_profile_request(
+        request_id,
+        action="reject",
+        actor="approver@test.com",
+        comment="not enough information",
+    )
+
+    assert ok is True
+    assert errors == []
+    reviewed = store.get_profile_request(request_id)
+    assert reviewed["status"] == "rejected"
+    assert reviewed["review_comment"] == "not enough information"
+    assert load_execution_profiles(str(db_path)).profiles == []
 
 
 def test_execution_profile_summary_counts_status_and_expiration(tmp_path):
@@ -1104,6 +1178,220 @@ def test_admin_execution_profiles_requires_admin(tmp_path):
 
         assert resp.status_code == 302
         assert "/auth/login" in resp.headers["Location"]
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_execution_profile_requests_create_and_approve(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.post(
+                "/admin/execution-profile-requests/create",
+                data={
+                    "code": "qws",
+                    "system": "Fugaku",
+                    "desired_schedule": "0 14 * * * / Asia/Tokyo",
+                    "desired_watch_target": "https://github.com/RIKEN-LQCD/qws.git@master",
+                    "note": "routine qws validation",
+                    "activity": "FugakuNEXT",
+                    "exp": "CASE0",
+                },
+                follow_redirects=True,
+            )
+
+            html = resp.data.decode()
+            assert resp.status_code == 200
+            assert "Execution profile request #1 submitted." in html
+            assert "Create Request" not in html
+            assert "Open Applicant Request View" in html
+            assert "FugakuNEXT-qws-Fugaku" in html
+            assert "admin@test.com" in html
+            assert "watch https://github.com/RIKEN-LQCD/qws.git@master" in html
+
+            resp = client.post(
+                "/admin/execution-profile-requests/1/review",
+                data={
+                    "action": "approve",
+                    "approved_profile_id": "qws-fugaku-request",
+                    "allocation_project_id": "rkp00010",
+                    "valid_from": "2026-09-01",
+                    "valid_until": "2027-03-31",
+                    "review_comment": "approved for operation",
+                    "target_ref": "develop",
+                    "create_scheduled_trigger": "on",
+                    "create_watch_trigger": "on",
+                },
+                follow_redirects=True,
+            )
+            mine_resp = client.get("/execution-profile-requests/")
+
+        assert resp.status_code == 200
+        mine_html = mine_resp.data.decode()
+        assert mine_resp.status_code == 200
+        assert "Linked Profile" in mine_html
+        assert "qws-fugaku-request" in mine_html
+        assert "approved" in mine_html
+        assert "2 / 2 triggers enabled" in mine_html
+        assert "New follow-up" in mine_html
+        assert "Pause request" in mine_html
+        result = load_execution_profiles(str(db_path))
+        assert len(result.profiles) == 1
+        assert result.profiles[0]["id"] == "qws-fugaku-request"
+        assert result.profiles[0]["status"] == "approved"
+        assert result.profiles[0]["approved_by"] == "admin@test.com"
+        assert result.profiles[0]["allocation_project_id"] == "rkp00010"
+        assert result.profiles[0]["valid_from"] == "2026-09-01"
+        assert result.profiles[0]["valid_until"] == "2027-03-31"
+        assert result.profiles[0]["metadata_json"]["note"] == "routine qws validation"
+        assert (
+            result.profiles[0]["metadata_json"]["desired_watch_target"]
+            == "https://github.com/RIKEN-LQCD/qws.git@master"
+        )
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        assert request_row["status"] == "approved"
+        assert request_row["requester_email"] == "admin@test.com"
+        assert request_row["requester_affiliation"] == ""
+        assert request_row["review_comment"] == "approved for operation"
+        triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+        assert [trigger["id"] for trigger in triggers] == [
+            "qws-fugaku-request-scheduled",
+            "qws-fugaku-request-watch",
+        ]
+        assert triggers[0]["profile_id"] == "qws-fugaku-request"
+        assert triggers[0]["trigger_type"] == "scheduled"
+        assert triggers[0]["cron_expr"] == "0 14 * * *"
+        assert triggers[0]["timezone"] == "Asia/Tokyo"
+        assert triggers[0]["target_ref"] == "develop"
+        assert triggers[1]["trigger_type"] == "watch_event"
+        assert triggers[1]["watch_kind"] == "repo_ref"
+        assert triggers[1]["watch_targets"] == ["https://github.com/RIKEN-LQCD/qws.git@master"]
+
+        with app.test_client() as client:
+            _login_admin(client)
+            followup_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "qws-fugaku-request",
+                    "request_type": "pause_profile",
+                    "note": "pause during maintenance",
+                },
+                follow_redirects=True,
+            )
+            pause_review_page = client.get("/admin/execution-profile-requests")
+            pause_review_resp = client.post(
+                "/admin/execution-profile-requests/2/review",
+                data={"action": "approve", "review_comment": "paused"},
+                follow_redirects=True,
+            )
+
+        assert followup_resp.status_code == 200
+        assert b"Execution profile follow-up request #2 submitted." in followup_resp.data
+        assert b"Pause request" in followup_resp.data
+        assert b"Approval disables the source profile" in pause_review_page.data
+        assert b"Allocation Project ID" not in pause_review_page.data
+        assert pause_review_resp.status_code == 200
+        paused_result = load_execution_profiles(str(db_path))
+        assert paused_result.profiles[0]["id"] == "qws-fugaku-request"
+        assert paused_result.profiles[0]["status"] == "paused"
+        assert paused_result.profiles[0]["enabled"] is False
+        paused_triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+        assert all(not trigger["enabled"] for trigger in paused_triggers)
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_authenticated_user_can_submit_own_execution_profile_request(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            unauthenticated = client.get("/execution-profile-requests/")
+            assert unauthenticated.status_code == 302
+            assert "/auth/login" in unauthenticated.headers["Location"]
+
+            _login_user(client)
+            resp = client.post(
+                "/execution-profile-requests/",
+                data={
+                    "code": "qws",
+                    "system": "Fugaku",
+                    "desired_schedule": "0 14 * * * / Asia/Tokyo",
+                    "note": "please review",
+                },
+                follow_redirects=True,
+            )
+            html = resp.data.decode()
+            assert resp.status_code == 200
+            assert "Execution profile request #1 submitted." in html
+            assert "My Requests" in html
+            assert "applicant@test.com" in html
+            assert "please review" in html
+
+            admin_page = client.get("/admin/execution-profile-requests")
+            assert admin_page.status_code == 403
+
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        assert request_row["requester_email"] == "applicant@test.com"
+        assert request_row["requester_affiliation"] == ""
+        assert request_row["status"] == "submitted"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_can_open_applicant_execution_profile_requests_view(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/execution-profile-requests/")
+            submit_resp = client.post(
+                "/execution-profile-requests/",
+                data={"code": "qws", "system": "Fugaku"},
+                follow_redirects=True,
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Applicant request view" in html
+        assert "Create Request" in html
+        assert "Open Applicant Request View" not in html
+        assert "admin@test.com" in html
+        assert "My Requests" in html
+        assert submit_resp.status_code == 200
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        assert request_row["requester_email"] == "admin@test.com"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_page_shows_only_current_user_requests(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.create_profile_request(
+        requested_profile=_profile(id="mine", status="draft"),
+        requester_email="applicant@test.com",
+        actor="applicant@test.com",
+    )
+    store.create_profile_request(
+        requested_profile=_profile(id="theirs", status="draft"),
+        requester_email="other@test.com",
+        actor="other@test.com",
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            resp = client.get("/execution-profile-requests/")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "mine" in html
+        assert "theirs" not in html
+        assert "Review Queue" not in html
     finally:
         _cleanup(temp_dirs)
 

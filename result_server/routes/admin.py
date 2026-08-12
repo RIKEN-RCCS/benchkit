@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import json
 import logging
 import os
+import re
 import sqlite3
 
 from flask import (
@@ -41,6 +42,11 @@ from utils.trigger_display import build_trigger_result_links, summarize_trigger_
 from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+profile_requests_bp = Blueprint(
+    "profile_requests",
+    __name__,
+    url_prefix="/execution-profile-requests",
+)
 
 
 def _add_no_store_headers(response):
@@ -131,6 +137,64 @@ def _parse_execution_profile_form():
     return raw_profile, errors
 
 
+def _profile_request_slug(*parts):
+    text = "-".join(part for part in (str(item).strip() for item in parts) if part)
+    text = re.sub(r"[^A-Za-z0-9_.:-]+", "-", text).strip("-")
+    return text[:128] or "execution-profile-request"
+
+
+def _parse_execution_profile_request_form():
+    """Return applicant-owned request data as a draft profile payload."""
+    errors = []
+    code = _split_form_list(request.form.get("code", ""))
+    system = _split_form_list(request.form.get("system", ""))
+    if not code:
+        errors.append("code is required")
+    if not system:
+        errors.append("system is required")
+
+    activity = request.form.get("activity", "").strip()
+    profile_id = request.form.get("profile_id", "").strip() or _profile_request_slug(
+        activity,
+        code[0] if code else "",
+        system[0] if system else "",
+    )
+    actor = session.get("user_email", "")
+    metadata = {
+        "note": request.form.get("note", "").strip(),
+        "desired_schedule": request.form.get("desired_schedule", "").strip(),
+        "desired_watch_target": request.form.get("desired_watch_target", "").strip(),
+    }
+    raw_profile = {
+        "id": profile_id,
+        "display_name": profile_id,
+        "enabled": True,
+        "status": "draft",
+        "owner": "",
+        "purpose": metadata["note"],
+        "activity": activity,
+        "code": code,
+        "system": system,
+        "exp": _split_form_list(request.form.get("exp", "")),
+        "allocation_project_id": "",
+        "scheduler_extra_args": "",
+        "visibility": "",
+        "valid_from": "",
+        "valid_until": "",
+        "created_by": actor,
+        "metadata_json": metadata,
+    }
+    return raw_profile, errors
+
+
+def _profile_request_note_metadata(note: str) -> dict:
+    return {
+        "note": note.strip(),
+        "desired_schedule": "",
+        "desired_watch_target": "",
+    }
+
+
 def _parse_trigger_definition_form():
     """Return a raw trigger definition object from the submitted admin form."""
     actor = session.get("user_email", "")
@@ -153,6 +217,22 @@ def _parse_trigger_definition_form():
 
 def _parse_bool_form(name):
     return request.form.get(name) == "on"
+
+
+def _profile_request_status_filter():
+    selected = request.args.get("status", "open").strip()
+    options = {
+        "open": ("submitted", "changes_requested"),
+        "submitted": ("submitted",),
+        "changes_requested": ("changes_requested",),
+        "approved": ("approved",),
+        "rejected": ("rejected",),
+        "cancelled": ("cancelled",),
+        "all": None,
+    }
+    if selected not in options:
+        selected = "open"
+    return selected, options[selected]
 
 
 def _profile_scope_csv(profile, key):
@@ -251,6 +331,103 @@ def _find_trigger_definition(triggers, trigger_id):
     )
 
 
+def _build_profile_request_links(store, requests):
+    """Attach approved/source profile and trigger state for request views."""
+    profiles_by_id = {profile["id"]: profile for profile in store.list_profiles()}
+    triggers_by_profile: dict[str, list[dict]] = {}
+    for trigger in store.list_trigger_definitions():
+        triggers_by_profile.setdefault(trigger["profile_id"], []).append(trigger)
+
+    links = {}
+    for item in requests:
+        linked_profile_id = item.get("created_profile_id") or item.get("source_profile_id") or ""
+        profile = profiles_by_id.get(linked_profile_id)
+        triggers = triggers_by_profile.get(linked_profile_id, [])
+        links[item["id"]] = {
+            "profile_id": linked_profile_id,
+            "profile": profile,
+            "triggers": triggers,
+            "trigger_count": len(triggers),
+            "enabled_trigger_count": sum(1 for trigger in triggers if trigger.get("enabled")),
+        }
+    return links
+
+
+def _requester_can_follow_profile(store, requester_email, source_profile_id):
+    if _session_is_admin():
+        return True
+    for item in store.list_profile_requests(requester_email=requester_email, limit=500):
+        if item.get("created_profile_id") == source_profile_id:
+            return True
+        if item.get("source_profile_id") == source_profile_id:
+            return True
+    return False
+
+
+def _split_requested_schedule(value):
+    value = str(value or "").strip()
+    if not value:
+        return "", "Asia/Tokyo"
+    if " / " not in value:
+        return value, "Asia/Tokyo"
+    cron_expr, timezone = value.rsplit(" / ", 1)
+    return cron_expr.strip(), timezone.strip() or "Asia/Tokyo"
+
+
+def _create_review_requested_triggers(store, profile_request, profile_id, actor):
+    """Create approved trigger definitions requested by the applicant."""
+    requested_profile = profile_request.get("requested_profile") or {}
+    metadata = requested_profile.get("metadata_json") or {}
+    created = []
+    errors = []
+    gitlab_target = request.form.get("gitlab_target", "").strip()
+    target_ref = request.form.get("target_ref", "").strip() or _default_trigger_ref()
+
+    if request.form.get("create_scheduled_trigger") == "on":
+        cron_expr, timezone = _split_requested_schedule(metadata.get("desired_schedule", ""))
+        raw_trigger = {
+            "id": _profile_request_slug(profile_id, "scheduled"),
+            "name": _profile_request_slug(profile_id, "scheduled"),
+            "trigger_type": "scheduled",
+            "profile_id": profile_id,
+            "enabled": True,
+            "gitlab_target": gitlab_target,
+            "target_ref": target_ref,
+            "cron_expr": cron_expr,
+            "timezone": timezone,
+            "created_by": actor,
+        }
+        trigger, trigger_errors = normalize_trigger_definition(raw_trigger)
+        if trigger_errors or trigger is None:
+            errors.extend(trigger_errors)
+        else:
+            store.upsert_trigger_definition(trigger, actor=actor)
+            created.append(trigger["id"])
+
+    if request.form.get("create_watch_trigger") == "on":
+        raw_trigger = {
+            "id": _profile_request_slug(profile_id, "watch"),
+            "name": _profile_request_slug(profile_id, "watch"),
+            "trigger_type": "watch_event",
+            "profile_id": profile_id,
+            "enabled": True,
+            "gitlab_target": gitlab_target,
+            "target_ref": target_ref,
+            "watch_kind": "repo_ref",
+            "watch_targets": _split_form_list(metadata.get("desired_watch_target", "")),
+            "match_mode": "any",
+            "created_by": actor,
+        }
+        trigger, trigger_errors = normalize_trigger_definition(raw_trigger)
+        if trigger_errors or trigger is None:
+            errors.extend(trigger_errors)
+        else:
+            store.upsert_trigger_definition(trigger, actor=actor)
+            created.append(trigger["id"])
+
+    return created, errors
+
+
 def _build_execution_pipeline_plan(store):
     """Resolve the submitted target and build a GitLab pipeline plan."""
     target_ref = request.form.get("target_ref", "").strip() or _default_trigger_ref()
@@ -345,6 +522,22 @@ def admin_required(f):
     return decorated
 
 
+def authenticated_required(f):
+    """Allow access only to authenticated portal users."""
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return _add_no_store_headers(make_response(redirect(url_for("auth.login"))))
+        return _add_no_store_headers(make_response(f(*args, **kwargs)))
+
+    return decorated
+
+
+def _session_is_admin():
+    return "admin" in session.get("user_affiliations", [])
+
+
 @admin_bp.route("/users", methods=["GET"])
 @admin_required
 def users():
@@ -390,6 +583,236 @@ def execution_profiles():
         submit_result=None,
         gitlab_targets=configured_gitlab_targets()[0],
     )
+
+
+@admin_bp.route("/execution-profile-requests", methods=["GET"])
+@admin_required
+def execution_profile_requests():
+    """Render execution-profile request review queue for admins."""
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    store = ExecutionProfileStore(db_path)
+    selected_status, statuses = _profile_request_status_filter()
+    requests = store.list_profile_requests(statuses=statuses)
+    profile_links = _build_profile_request_links(store, requests)
+    return render_template(
+        "admin_execution_profile_requests.html",
+        profile_requests=requests,
+        profile_links=profile_links,
+        selected_status=selected_status,
+        status_options=[
+            ("open", "Open"),
+            ("submitted", "Submitted"),
+            ("changes_requested", "Changes Requested"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
+            ("cancelled", "Cancelled"),
+            ("all", "All"),
+        ],
+        today=datetime.now(UTC).date().isoformat(),
+        default_target_ref=_default_trigger_ref(),
+        gitlab_targets=configured_gitlab_targets()[0],
+        review_mode=True,
+        create_endpoint="admin.create_execution_profile_request",
+    )
+
+
+@profile_requests_bp.route("/", methods=["GET"])
+@authenticated_required
+def profile_requests():
+    """Render the authenticated user's execution-profile requests."""
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    store = ExecutionProfileStore(db_path)
+    requester_email = session.get("user_email", "")
+    requests = store.list_profile_requests(requester_email=requester_email)
+    profile_links = _build_profile_request_links(store, requests)
+    return render_template(
+        "admin_execution_profile_requests.html",
+        profile_requests=requests,
+        profile_links=profile_links,
+        selected_status="mine",
+        status_options=[],
+        today=datetime.now(UTC).date().isoformat(),
+        default_target_ref=_default_trigger_ref(),
+        gitlab_targets=[],
+        review_mode=False,
+        create_endpoint="profile_requests.submit_execution_profile_request",
+        current_requester_email=requester_email,
+    )
+
+
+def _create_execution_profile_request_response(redirect_endpoint):
+    """Create a submitted execution-profile request from the review queue."""
+    raw_profile, errors = _parse_execution_profile_request_form()
+    if not errors:
+        _profile, errors = normalize_profile(raw_profile)
+    if errors:
+        audit_event(
+            "admin_execution_profile_request_rejected",
+            actor=session.get("user_email"),
+            target=raw_profile.get("id", "")[:128],
+            result="failure",
+            level=logging.WARNING,
+            details={"errors": errors},
+        )
+        flash("Execution profile request was not created: " + "; ".join(errors))
+        return redirect(url_for(redirect_endpoint))
+
+    requester_email = session.get("user_email", "")
+    try:
+        store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+        request_id = store.create_profile_request(
+            requested_profile=raw_profile,
+            requester_email=requester_email,
+            requester_affiliation="",
+            status="submitted",
+            actor=session.get("user_email", ""),
+        )
+    except (ValueError, sqlite3.Error) as exc:
+        audit_event(
+            "admin_execution_profile_request_create_failed",
+            actor=session.get("user_email"),
+            target=raw_profile.get("id", "")[:128],
+            result="failure",
+            level=logging.ERROR,
+            details={"error": str(exc)},
+        )
+        flash(f"Execution profile request was not created: {exc}")
+        return redirect(url_for(redirect_endpoint))
+
+    audit_event(
+        "admin_execution_profile_request_created",
+        actor=session.get("user_email"),
+        target=raw_profile.get("id", "")[:128],
+        result="success",
+        details={"request_id": request_id, "requester_email": requester_email},
+    )
+    flash(f"Execution profile request #{request_id} submitted.")
+    return redirect(url_for(redirect_endpoint))
+
+
+@profile_requests_bp.route("/", methods=["POST"])
+@authenticated_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
+def submit_execution_profile_request():
+    """Create a submitted execution-profile request for the logged-in user."""
+    return _create_execution_profile_request_response("profile_requests.profile_requests")
+
+
+@profile_requests_bp.route("/follow-up", methods=["POST"])
+@authenticated_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
+def submit_execution_profile_followup_request():
+    """Create a change, pause, or retirement request for an approved profile."""
+    requester_email = session.get("user_email", "")
+    source_profile_id = request.form.get("source_profile_id", "").strip()
+    request_type = request.form.get("request_type", "").strip()
+    note = request.form.get("note", "").strip()
+    if request_type not in {"change_profile", "pause_profile", "retire_profile"}:
+        flash("Execution profile follow-up request was not created: invalid request type")
+        return redirect(url_for("profile_requests.profile_requests"))
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    profiles = {profile["id"]: profile for profile in store.list_profiles()}
+    source_profile = profiles.get(source_profile_id)
+    if not source_profile:
+        flash(f"Execution profile follow-up request was not created: profile not found: {source_profile_id}")
+        return redirect(url_for("profile_requests.profile_requests"))
+    if not _requester_can_follow_profile(store, requester_email, source_profile_id):
+        abort(403)
+
+    requested_profile = dict(source_profile)
+    requested_profile["status"] = "draft"
+    requested_profile["metadata_json"] = {
+        **(source_profile.get("metadata_json") or {}),
+        **_profile_request_note_metadata(note),
+    }
+    try:
+        request_id = store.create_profile_request(
+            requested_profile=requested_profile,
+            requester_email=requester_email,
+            requester_affiliation="",
+            request_type=request_type,
+            status="submitted",
+            source_profile_id=source_profile_id,
+            actor=requester_email,
+        )
+    except (ValueError, sqlite3.Error) as exc:
+        flash(f"Execution profile follow-up request was not created: {exc}")
+        return redirect(url_for("profile_requests.profile_requests"))
+
+    audit_event(
+        "execution_profile_followup_request_created",
+        actor=requester_email,
+        target=source_profile_id,
+        result="success",
+        details={"request_id": request_id, "request_type": request_type},
+    )
+    flash(f"Execution profile follow-up request #{request_id} submitted.")
+    return redirect(url_for("profile_requests.profile_requests"))
+
+
+@admin_bp.route("/execution-profile-requests/create", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def create_execution_profile_request():
+    """Create a submitted execution-profile request from the review queue."""
+    return _create_execution_profile_request_response("admin.execution_profile_requests")
+
+
+@admin_bp.route("/execution-profile-requests/<int:request_id>/review", methods=["POST"])
+@admin_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="admin_write")
+def review_execution_profile_request(request_id):
+    """Review an execution-profile request."""
+    action = request.form.get("action", "").strip()
+    comment = request.form.get("review_comment", "").strip()
+    actor = session.get("user_email", "")
+    profile_overrides = {}
+    if action == "approve":
+        profile_overrides = {
+            "id": request.form.get("approved_profile_id", "").strip(),
+            "allocation_project_id": request.form.get("allocation_project_id", "").strip(),
+            "valid_from": request.form.get("valid_from", "").strip(),
+            "valid_until": request.form.get("valid_until", "").strip(),
+        }
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    ok, errors = store.review_profile_request(
+        request_id,
+        action=action,
+        actor=actor,
+        comment=comment,
+        profile_overrides=profile_overrides,
+    )
+    created_triggers = []
+    trigger_errors = []
+    if ok and action == "approve":
+        reviewed_request = store.get_profile_request(request_id)
+        profile_id = (reviewed_request or {}).get("created_profile_id", "")
+        created_triggers, trigger_errors = _create_review_requested_triggers(
+            store,
+            reviewed_request or {},
+            profile_id,
+            actor,
+        )
+    audit_event(
+        "admin_execution_profile_request_reviewed",
+        actor=actor,
+        target=str(request_id),
+        result="success" if ok and not trigger_errors else "failure",
+        details={
+            "action": action,
+            "errors": errors,
+            "trigger_errors": trigger_errors,
+            "created_triggers": created_triggers,
+        },
+    )
+    if ok:
+        trigger_note = f" Created triggers: {', '.join(created_triggers)}." if created_triggers else ""
+        if trigger_errors:
+            trigger_note += " Requested triggers were not fully created: " + "; ".join(trigger_errors)
+        flash(f"Execution profile request #{request_id} {action.replace('_', ' ')}.{trigger_note}")
+    else:
+        flash("Execution profile request was not reviewed: " + "; ".join(errors))
+    return redirect(url_for("admin.execution_profile_requests"))
 
 
 @admin_bp.route("/execution-profiles/triggers/upsert", methods=["POST"])

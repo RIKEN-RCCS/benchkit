@@ -85,6 +85,10 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def execution_profiles():
         return ""
 
+    @admin_bp.route("/execution-profile-requests")
+    def execution_profile_requests():
+        return ""
+
     @admin_bp.route("/users/add", methods=["POST"])
     def add_user():
         return ""
@@ -227,8 +231,9 @@ def build_portal_route_app(
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
     if include_admin:
-        from routes.admin import admin_bp
+        from routes.admin import admin_bp, profile_requests_bp
 
+        app.register_blueprint(profile_requests_bp)
         app.register_blueprint(admin_bp, url_prefix="/admin")
 
     @app.route("/systemlist")
