@@ -106,10 +106,17 @@ def test_profile_usage_overview_links_profile_triggers_results_and_node_hours(tm
     assert row["allocation_project_id"] == "rkp00010"
     assert row["enabled_trigger_count"] == 1
     assert row["result_count"] == 1
+    assert row["snapshot_count"] == 1
     assert row["node_hours"] == 2.0
+    assert row["attribution_counts"] == {
+        "trigger_id_match": 1,
+        "manual_profile_match": 0,
+        "legacy_scope_fallback": 0,
+    }
     assert row["latest_trigger_run"]["status"] == "submitted"
     assert row["latest_result"]["filename"] == result_file
     assert row["latest_result"]["trigger_headline"] == "Scheduled / qws-fugaku-time"
+    assert row["latest_result"]["attribution"]["reason"] == "trigger_id_match"
     assert row["latest_result"]["environment_snapshot"]["short_hash"] == "sha256:54d4b0024f..."
     assert row["latest_result"]["environment_snapshot"]["allocation_project_id"] == "rkp00010"
 
@@ -185,9 +192,21 @@ def test_profile_usage_overview_does_not_scope_match_triggered_results_to_other_
     rows = {row["profile_id"]: row for row in overview["rows"]}
     assert rows["qws-fugaku"]["result_count"] == 3
     assert rows["qws-fugaku"]["node_hours"] == 1.75
+    assert rows["qws-fugaku"]["attribution_counts"] == {
+        "trigger_id_match": 1,
+        "manual_profile_match": 1,
+        "legacy_scope_fallback": 1,
+    }
+    assert rows["qws-fugaku"]["latest_result"]["attribution"]["reason"] == "manual_profile_match"
     assert rows["qws-test"]["result_count"] == 1
     assert rows["qws-test"]["node_hours"] == 0.5
+    assert rows["qws-test"]["attribution_counts"] == {
+        "trigger_id_match": 0,
+        "manual_profile_match": 0,
+        "legacy_scope_fallback": 1,
+    }
     assert rows["qws-test"]["latest_result"]["timestamp"] == "2026-08-09 17:00:00"
+    assert rows["qws-test"]["latest_result"]["attribution"]["reason"] == "legacy_scope_fallback"
 
 
 def test_profile_usage_overview_handles_missing_db(tmp_path):

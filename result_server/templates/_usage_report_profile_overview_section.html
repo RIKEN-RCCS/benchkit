@@ -63,15 +63,23 @@
           <td>
             {{ row.result_count }} results
             <span class="profile-usage-subline">{{ row.node_hours }} node-hours</span>
+            <span class="profile-usage-subline">{{ row.snapshot_count }} snapshots</span>
+            <span class="profile-usage-subline">
+              attribution trigger/manual/legacy:
+              {{ row.attribution_counts.trigger_id_match }}/{{ row.attribution_counts.manual_profile_match }}/{{ row.attribution_counts.legacy_scope_fallback }}
+            </span>
           </td>
           <td>
             {% if row.latest_result %}
             <a href="{{ url_for('results.result_detail', filename=row.latest_result.filename) }}">{{ row.latest_result.timestamp }}</a>
             <span class="profile-usage-subline">{{ row.latest_result.code }} / {{ row.latest_result.system }} / {{ row.latest_result.exp }}</span>
             <span class="profile-usage-subline">{{ row.latest_result.trigger_headline }} / pipeline {{ row.latest_result.pipeline_id }}</span>
+            {% if row.latest_result.attribution %}
+            <span class="profile-usage-subline">attributed by {{ row.latest_result.attribution.label }}</span>
+            {% endif %}
             {% if row.latest_result.environment_snapshot %}
             <span class="profile-usage-subline" title="{{ row.latest_result.environment_snapshot.hash }}">
-              snapshot {{ row.latest_result.environment_snapshot.short_hash }}
+              <a href="{{ url_for('results.environment_snapshot_results', snapshot_hash=row.latest_result.environment_snapshot.hash) }}">snapshot {{ row.latest_result.environment_snapshot.short_hash }}</a>
               / {{ row.latest_result.environment_snapshot.allocation_project_id }}
               / {{ row.latest_result.environment_snapshot.scheduler }}
             </span>

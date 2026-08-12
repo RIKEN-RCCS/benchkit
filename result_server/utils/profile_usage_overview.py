@@ -45,11 +45,7 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
     for profile in profile_result.profiles:
         profile_triggers = triggers_by_profile.get(profile["id"], [])
         trigger_ids = {trigger["id"] for trigger in profile_triggers}
-        matched_results = [
-            record
-            for record in result_records
-            if _result_matches_profile(record["data"], profile, trigger_ids)
-        ]
+        matched_results = _attributed_result_records(result_records, profile, trigger_ids)
         latest_result = matched_results[0] if matched_results else None
         latest_run = _latest_profile_run(profile_triggers, runs_by_trigger)
         node_hours = round(sum(record["node_hours"] for record in matched_results), 2)
@@ -66,7 +62,9 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
                 "enabled_trigger_count": sum(1 for trigger in profile_triggers if trigger.get("enabled")),
                 "trigger_labels": [_trigger_label(trigger) for trigger in profile_triggers[:3]],
                 "result_count": len(matched_results),
+                "snapshot_count": _environment_snapshot_count(matched_results),
                 "node_hours": node_hours,
+                "attribution_counts": _attribution_counts(matched_results),
                 "latest_result": _latest_result_context(latest_result),
                 "latest_trigger_run": _latest_run_context(latest_run),
             }
@@ -154,14 +152,84 @@ def _result_matches_profile(
     profile: dict[str, Any],
     trigger_ids: set[str],
 ) -> bool:
+    return _profile_attribution(result, profile, trigger_ids)["matched"]
+
+
+def _attributed_result_records(
+    result_records: list[dict[str, Any]],
+    profile: dict[str, Any],
+    trigger_ids: set[str],
+) -> list[dict[str, Any]]:
+    records = []
+    for record in result_records:
+        attribution = _profile_attribution(record["data"], profile, trigger_ids)
+        if not attribution["matched"]:
+            continue
+        records.append({**record, "attribution": attribution})
+    return records
+
+
+def _profile_attribution(
+    result: dict[str, Any],
+    profile: dict[str, Any],
+    trigger_ids: set[str],
+) -> dict[str, Any]:
     trigger_id = extract_execution_trigger(result)["id"]
     if trigger_id:
-        return trigger_id == profile.get("id") or trigger_id in trigger_ids
-    return (
+        if trigger_id in trigger_ids:
+            return {
+                "matched": True,
+                "reason": "trigger_id_match",
+                "label": "trigger id match",
+                "trigger_id": trigger_id,
+            }
+        if trigger_id == profile.get("id"):
+            return {
+                "matched": True,
+                "reason": "manual_profile_match",
+                "label": "manual profile match",
+                "trigger_id": trigger_id,
+            }
+        return {
+            "matched": False,
+            "reason": "unmatched_trigger_id",
+            "label": "unmatched trigger id",
+            "trigger_id": trigger_id,
+        }
+
+    if (
         _scope_matches(profile.get("code", []), result.get("code"))
         and _scope_matches(profile.get("system", []), result.get("system"))
         and _scope_matches(profile.get("exp", []), result.get("Exp"))
-    )
+    ):
+        return {
+            "matched": True,
+            "reason": "legacy_scope_fallback",
+            "label": "legacy scope fallback",
+            "trigger_id": "",
+        }
+
+    return {
+        "matched": False,
+        "reason": "unmatched_scope",
+        "label": "unmatched scope",
+        "trigger_id": "",
+    }
+
+
+def _attribution_counts(records: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {
+        "trigger_id_match": 0,
+        "manual_profile_match": 0,
+        "legacy_scope_fallback": 0,
+    }
+    for record in records:
+        attribution = record.get("attribution") or {}
+        reason = attribution.get("reason")
+        if reason in counts:
+            counts[reason] += 1
+    return counts
+
 
 def _scope_matches(scope: list[str], value: Any) -> bool:
     if not scope:
@@ -193,8 +261,21 @@ def _latest_result_context(record: dict[str, Any] | None) -> dict[str, Any] | No
         "exp": record["data"].get("Exp") or "-",
         "pipeline_id": record["data"].get("pipeline_id") or "-",
         "trigger_headline": trigger_summary.get("headline") or "-",
+        "attribution": record.get("attribution") or {},
         "environment_snapshot": snapshot,
     }
+
+
+def _environment_snapshot_count(records: list[dict[str, Any]]) -> int:
+    hashes = set()
+    for record in records:
+        snapshot = record["data"].get("environment_snapshot")
+        if not isinstance(snapshot, dict):
+            continue
+        snapshot_hash = str(snapshot.get("hash") or "").strip()
+        if snapshot_hash:
+            hashes.add(snapshot_hash)
+    return len(hashes)
 
 
 def _latest_run_context(run: dict[str, Any] | None) -> dict[str, str] | None:

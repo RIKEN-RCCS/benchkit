@@ -10,7 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils.environment_snapshots import (  # noqa: E402
     extract_environment_snapshot_record,
+    get_environment_snapshot,
     index_environment_snapshot,
+    list_environment_snapshot_results,
     list_environment_snapshots,
 )
 
@@ -75,6 +77,12 @@ def test_index_environment_snapshot_deduplicates_payloads(tmp_path):
     assert len(rows) == 1
     assert rows[0]["snapshot_hash"] == "sha256:abc123"
     assert rows[0]["result_count"] == 2
+    snapshot = get_environment_snapshot(str(db_path), "sha256:abc123")
+    assert snapshot is not None
+    assert snapshot["summary"]["system"] == "Fugaku"
+    assert snapshot["payload"]["scheduler"]["kind"] == "pbs"
+    linked_results = list_environment_snapshot_results(str(db_path), "sha256:abc123")
+    assert [row["json_file"] for row in linked_results] == ["result-b.json", "result-a.json"]
 
     import sqlite3
 

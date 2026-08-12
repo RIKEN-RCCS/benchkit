@@ -1,0 +1,102 @@
+{% extends "_results_base.html" %}
+{% from "_detail_tables.html" import render_titled_key_value_table %}
+
+{% block title %}Environment Snapshot Results{% endblock %}
+{% block page_subtitle %}Results collected from the same indexed execution environment snapshot.{% endblock %}
+
+{% block content %}
+{% include "_detail_page_styles.html" %}
+<style>
+    .snapshot-table { width: 100%; table-layout: fixed; }
+    .snapshot-table th,
+    .snapshot-table td { white-space: normal; vertical-align: top; line-height: 1.4; }
+    .snapshot-table th:nth-child(1) { width: 150px; }
+    .snapshot-table th:nth-child(2) { width: 230px; }
+    .snapshot-table th:nth-child(4) { width: 120px; }
+    .snapshot-table th:nth-child(5) { width: 110px; }
+    .snapshot-table th:nth-child(6) { width: 240px; }
+    .snapshot-subline { display: block; color: #5f6b7a; font-size: 0.88em; margin-top: 0.2rem; }
+    .snapshot-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .snapshot-hash { overflow-wrap: anywhere; }
+</style>
+
+<a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
+
+{% set summary = snapshot.summary if snapshot.summary is mapping else {} %}
+{% set payload = snapshot.payload if snapshot.payload is mapping else {} %}
+{% set system_payload = payload.system if payload.system is mapping else {} %}
+{% set scheduler_payload = payload.scheduler if payload.scheduler is mapping else {} %}
+{% set runner_payload = payload.runner if payload.runner is mapping else {} %}
+{% set benchkit_payload = payload.benchkit if payload.benchkit is mapping else {} %}
+{% set snapshot_rows = [
+    {"label": "Snapshot Hash", "value": snapshot.snapshot_hash, "value_class": "snapshot-hash snapshot-mono"},
+    {"label": "System", "value": summary.system or system_payload.name or "N/A"},
+    {"label": "Allocation Project ID", "value": summary.allocation_project_id or system_payload.allocation_project_id or "not specified"},
+    {"label": "Scheduler", "value": summary.scheduler or scheduler_payload.kind or "N/A"},
+    {"label": "Runner", "value": summary.runner or runner_payload.description or "N/A"},
+    {"label": "BenchKit Commit", "value": summary.benchkit_commit or benchkit_payload.commit_hash or "N/A"},
+    {"label": "Result Count", "value": snapshot.result_count},
+    {"label": "First Seen", "value": snapshot.first_seen_at},
+    {"label": "Last Seen", "value": snapshot.last_seen_at},
+] %}
+
+{{ render_titled_key_value_table("Environment Snapshot", snapshot_rows, "meta-table") }}
+
+<div class="diagnostic-grid">
+    <div class="diagnostic-card">
+        <h3>Visible Results</h3>
+        <p>{{ result_summary.visible_count }} / {{ result_summary.linked_count }} linked</p>
+    </div>
+    <div class="diagnostic-card">
+        <h3>Node-hours</h3>
+        <p>{{ result_summary.node_hours }}</p>
+    </div>
+    <div class="diagnostic-card">
+        <h3>Latest Result</h3>
+        <p>{{ result_summary.latest_timestamp }}</p>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Results</h2>
+    {% if result_rows %}
+    <div class="detail-table-wrap">
+        <table class="snapshot-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Scope</th>
+                    <th>FOM</th>
+                    <th>Pipeline</th>
+                    <th>Node-hours</th>
+                    <th>Run Cause</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in result_rows %}
+                <tr>
+                    <td><a href="{{ url_for('results.result_detail', filename=row.filename) }}">{{ row.timestamp }}</a></td>
+                    <td>
+                        <span class="snapshot-mono">{{ row.code }}</span>
+                        / <span class="snapshot-mono">{{ row.system }}</span>
+                        <span class="snapshot-subline">exp {{ row.exp }}</span>
+                    </td>
+                    <td>{{ row.fom }}{% if row.fom_unit %} {{ row.fom_unit }}{% endif %}</td>
+                    <td>{{ row.pipeline_id }}</td>
+                    <td>{{ row.node_hours }}</td>
+                    <td title="{{ row.trigger_title }}">
+                        {{ row.trigger_headline }}
+                        {% if row.trigger_subline %}
+                        <span class="snapshot-subline">{{ row.trigger_subline }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted-empty">No permitted results are linked to this snapshot.</p>
+    {% endif %}
+</div>
+{% endblock %}
