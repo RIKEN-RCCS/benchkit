@@ -13,6 +13,7 @@ def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None):
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": _build_quality_rows(quality),
         "environment_rows": _build_environment_rows(result.get("environment_snapshot")),
+        "environment_snapshot_hash": _environment_snapshot_hash(result.get("environment_snapshot")),
         "vector_metrics": vector_metrics,
         "scalar_rows": _build_scalar_rows(scalar_metrics),
         "build_rows": _build_build_rows(build_data),
@@ -168,6 +169,12 @@ def _build_environment_rows(environment_snapshot):
     if modules:
         rows.append({"label": "Modules", "list": modules[:20]})
     return rows
+
+
+def _environment_snapshot_hash(environment_snapshot):
+    if not isinstance(environment_snapshot, dict):
+        return ""
+    return str(environment_snapshot.get("hash") or "").strip()
 
 
 def _build_scalar_rows(scalar_metrics):

@@ -347,6 +347,77 @@ def test_usage_report_template_renders_search_box():
     assert "UNKNOWN_SYSTEM" in html
 
 
+def test_profile_usage_overview_template_shows_snapshot_count_and_link():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results/usage"):
+        from flask import render_template
+
+        html = render_template(
+            "_usage_report_profile_overview_section.html",
+            profile_usage_overview={
+                "available": True,
+                "summary": {
+                    "profile_count": 1,
+                    "profile_with_results_count": 1,
+                    "trigger_count": 1,
+                    "result_count": 2,
+                    "node_hours": 0.5,
+                },
+                "rows": [
+                    {
+                        "profile_id": "qws-fugaku",
+                        "status": "approved",
+                        "enabled": True,
+                        "code": "qws",
+                        "system": "Fugaku",
+                        "exp": "*",
+                        "allocation_project_id": "rkp00010",
+                        "enabled_trigger_count": 1,
+                        "trigger_count": 1,
+                        "trigger_labels": ["scheduled / qws-fugaku-time / on"],
+                        "latest_trigger_run": None,
+                        "result_count": 2,
+                        "node_hours": 0.5,
+                        "snapshot_count": 2,
+                        "attribution_counts": {
+                            "trigger_id_match": 1,
+                            "manual_profile_match": 0,
+                            "legacy_scope_fallback": 1,
+                        },
+                        "latest_result": {
+                            "filename": "result_20260810_160604_uuid.json",
+                            "timestamp": "2026-08-10 16:06:04",
+                            "code": "qws",
+                            "system": "Fugaku",
+                            "exp": "CASE0",
+                            "trigger_headline": "Scheduled / qws-fugaku-time",
+                            "pipeline_id": 3301,
+                            "attribution": {
+                                "label": "trigger id match",
+                                "reason": "trigger_id_match",
+                            },
+                            "environment_snapshot": {
+                                "hash": "sha256:abcdef",
+                                "short_hash": "sha256:abcdef",
+                                "allocation_project_id": "rkp00010",
+                                "scheduler": "pbs",
+                            },
+                        },
+                    }
+                ],
+            },
+        )
+
+    assert "2 snapshots" in html
+    assert "attribution trigger/manual/legacy:" in html
+    assert "1/0/1" in html
+    assert "attributed by trigger id match" in html
+    assert "/results/environment-snapshots/sha256:abcdef" in html
+    assert "snapshot sha256:abcdef" in html
+
+
 def test_usage_report_node_hours_table_uses_explicit_column_widths():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),

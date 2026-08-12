@@ -76,6 +76,11 @@
 
 {% if environment_rows %}
 {{ render_titled_key_value_table("Environment Snapshot", environment_rows, "meta-table") }}
+{% if environment_snapshot_results_url %}
+<p class="detail-action-link">
+    <a href="{{ environment_snapshot_results_url }}">View results with this snapshot</a>
+</p>
+{% endif %}
 {% endif %}
 
 {% if vector_metrics %}

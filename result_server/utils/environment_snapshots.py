@@ -23,6 +23,16 @@ def _json_dump(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False, sort_keys=True)
 
 
+def _json_load(value: Any) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        loaded = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
 def extract_environment_snapshot_record(payload: dict[str, Any]) -> dict[str, Any] | None:
     """Return normalized snapshot fields from a Result JSON payload."""
     snapshot = payload.get("environment_snapshot")
@@ -181,5 +191,56 @@ def list_environment_snapshots(db_path: str, *, limit: int = 100) -> list[dict[s
                 LIMIT ?
                 """,
                 (limit,),
+            ).fetchall()
+        ]
+
+
+def get_environment_snapshot(db_path: str, snapshot_hash: str) -> dict[str, Any] | None:
+    """Return one environment snapshot row with decoded summary and payload."""
+    if not db_path or not snapshot_hash:
+        return None
+
+    store = ExecutionProfileStore(db_path)
+    store.migrate()
+    with store.connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM environment_snapshots
+            WHERE snapshot_hash = ?
+            """,
+            (snapshot_hash,),
+        ).fetchone()
+    if row is None:
+        return None
+
+    snapshot = dict(row)
+    snapshot["summary"] = _json_load(snapshot.get("summary_json"))
+    snapshot["payload"] = _json_load(snapshot.get("payload_json"))
+    return snapshot
+
+
+def list_environment_snapshot_results(
+    db_path: str,
+    snapshot_hash: str,
+    *,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Return result links for one environment snapshot, newest first."""
+    if not db_path or not snapshot_hash:
+        return []
+
+    store = ExecutionProfileStore(db_path)
+    store.migrate()
+    with store.connect() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT * FROM environment_snapshot_results
+                WHERE snapshot_hash = ?
+                ORDER BY updated_at DESC, json_file DESC
+                LIMIT ?
+                """,
+                (snapshot_hash, limit),
             ).fetchall()
         ]
