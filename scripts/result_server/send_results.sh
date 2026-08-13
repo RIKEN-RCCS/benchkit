@@ -9,12 +9,18 @@ meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
 
 result_server_set_curl_args() {
+  if [[ -z "${RESULT_SERVER:-}" ]]; then
+    echo "ERROR: RESULT_SERVER is not set" >&2
+    exit 1
+  fi
   if [[ -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
     echo "ERROR: RESULT_SERVER_CLIENT_CERT and RESULT_SERVER_CLIENT_KEY must be set" >&2
     exit 1
   fi
   curl_auth_args=(--cert "$RESULT_SERVER_CLIENT_CERT" --key "$RESULT_SERVER_CLIENT_KEY")
 }
+
+result_server_set_curl_args >/dev/null
 
 # Backfill profile_data for older result JSONs that were produced before
 # result.sh learned to embed profiler summaries. The summary comes from

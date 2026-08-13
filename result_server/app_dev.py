@@ -157,6 +157,7 @@ def create_dev_app(base_dir):
     sys.modules["redis"] = types.ModuleType("redis")
     sys.modules["utils.totp_manager"] = _create_stub_totp_manager()
 
+    from cachelib import FileSystemCache
     from flask import Flask, jsonify, render_template
     from flask_session import Session
 
@@ -171,9 +172,10 @@ def create_dev_app(base_dir):
     app = Flask(__name__, template_folder="templates")
 
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
+    session_dir = os.path.join(base_dir, "main", "flask_session")
     app.config.update(
-        SESSION_TYPE="filesystem",
-        SESSION_FILE_DIR=os.path.join(base_dir, "main", "flask_session"),
+        SESSION_TYPE="cachelib",
+        SESSION_CACHELIB=FileSystemCache(session_dir, threshold=500, mode=0o600),
         SESSION_PERMANENT=False,
         AUTH_REQUIRES_REDIS=False,
         INGEST_KEYS=parse_ingest_keys(),
