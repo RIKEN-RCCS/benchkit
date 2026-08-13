@@ -51,3 +51,5 @@ def test_create_dev_app_configures_execution_profile_db(tmp_path, monkeypatch):
     app = app_dev.create_dev_app(str(tmp_path))
 
     assert app.config["EXECUTION_PROFILE_DB_PATH"] == str(tmp_path / "cx_portal.sqlite3")
+    assert app.config["SESSION_TYPE"] == "cachelib"
+    assert app.config["SESSION_CACHELIB"]._path == str(tmp_path / "main" / "flask_session")

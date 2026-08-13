@@ -22,6 +22,9 @@ from utils.result_metadata_index import index_result_metadata
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
 DEFAULT_MAX_ARCHIVE_MEMBER_SIZE = 1024 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE = 1024 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
+_ARCHIVE_COPY_CHUNK_SIZE = 1024 * 1024
 
 
 # ==========================================
@@ -267,10 +270,25 @@ def _safe_extract_tar_bytes(file_storage, target_dir):
         "MAX_ARCHIVE_MEMBER_SIZE",
         DEFAULT_MAX_ARCHIVE_MEMBER_SIZE,
     )
+    max_total_size = current_app.config.get(
+        "MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE",
+        DEFAULT_MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE,
+    )
+    max_member_count = current_app.config.get(
+        "MAX_ARCHIVE_MEMBER_COUNT",
+        DEFAULT_MAX_ARCHIVE_MEMBER_COUNT,
+    )
+    declared_total_size = 0
+    copied_total_size = 0
     with tarfile.open(fileobj=file_storage.stream, mode="r:*") as tar:
-        for member in tar.getmembers():
+        for member_count, member in enumerate(tar, start=1):
+            if member_count > max_member_count:
+                abort(400, description="Archive contains too many entries")
             if member.size > max_member_size:
                 abort(400, description="Archive member too large")
+            declared_total_size += member.size
+            if declared_total_size > max_total_size:
+                abort(400, description="Archive extracted size too large")
             normalized = os.path.normpath(member.name)
             drive, _ = os.path.splitdrive(normalized)
             if (
@@ -304,7 +322,18 @@ def _safe_extract_tar_bytes(file_storage, target_dir):
             if source is None:
                 abort(400, description="Unsafe archive entry")
             with source, open(destination, "wb") as output:
-                shutil.copyfileobj(source, output)
+                copied = 0
+                while True:
+                    chunk = source.read(_ARCHIVE_COPY_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    if copied > max_member_size:
+                        abort(400, description="Archive member too large")
+                    copied_total_size += len(chunk)
+                    if copied_total_size > max_total_size:
+                        abort(400, description="Archive extracted size too large")
+                    output.write(chunk)
 
 
 def _replace_directory_after_success(source_dir, target_dir):

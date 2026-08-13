@@ -64,12 +64,21 @@ def _parse_repo_ref_target(target: str) -> tuple[str, str] | None:
     repo, sep, ref = target.strip().rpartition("@")
     if not sep or not repo.strip() or not ref.strip():
         return None
-    return repo.strip(), ref.strip()
+    repo = repo.strip()
+    ref = ref.strip()
+    if (
+        repo.startswith("-")
+        or ref.startswith("-")
+        or any(char.isspace() or ord(char) < 32 for char in repo)
+        or any(char.isspace() or ord(char) < 32 for char in ref)
+    ):
+        return None
+    return repo, ref
 
 
 def _git_ls_remote(repo: str, ref: str, *, timeout: float = 20.0) -> str:
     completed = subprocess.run(
-        ["git", "ls-remote", repo, ref],
+        ["git", "ls-remote", "--", repo, ref],
         check=True,
         capture_output=True,
         text=True,

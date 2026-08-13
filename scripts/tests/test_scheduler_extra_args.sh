@@ -16,6 +16,13 @@ test "$(get_scheduler_extra_args RIKYU)" = "--account=rkp00010"
 test "$(get_scheduler_extra_args RC_GH200)" = ""
 test "$(get_scheduler_extra_args Fugaku)" = ""
 
+export BK_ALLOCATION_PROJECT_ID="rkp00010 --qos=debug"
+if get_scheduler_extra_args RIKYU >/dev/null 2>&1; then
+    echo "RIKYU must reject invalid BK_ALLOCATION_PROJECT_ID" >&2
+    exit 1
+fi
+export BK_ALLOCATION_PROJECT_ID="rkp00010"
+
 export BK_SCHEDULER_EXTRA_ARGS_RIKYU="--account=explicit-rikyu"
 test "$(get_scheduler_extra_args RIKYU)" = "--account=explicit-rikyu"
 

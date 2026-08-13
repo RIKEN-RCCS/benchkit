@@ -13,6 +13,7 @@ from typing import Any
 
 
 PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+ALLOCATION_PROJECT_ID_RE = PROFILE_ID_RE
 TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
 MATCH_MODES = {"any", "all"}
 SCHEMA_VERSION = 11
@@ -170,6 +171,20 @@ def _scope_score(profile: dict[str, Any]) -> int:
     return sum(1 for key in ("code", "system", "exp") if profile.get(key))
 
 
+def _is_safe_repo_ref_target(target: str) -> bool:
+    repo, sep, ref = target.strip().rpartition("@")
+    if not sep or not repo.strip() or not ref.strip():
+        return False
+    repo = repo.strip()
+    ref = ref.strip()
+    return not (
+        repo.startswith("-")
+        or ref.startswith("-")
+        or any(char.isspace() or ord(char) < 32 for char in repo)
+        or any(char.isspace() or ord(char) < 32 for char in ref)
+    )
+
+
 def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] | None, list[str]]:
     """Normalize a profile from JSON/form input and return validation errors."""
     errors: list[str] = []
@@ -181,6 +196,9 @@ def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] 
         errors.append(f"profile[{index}] is missing id")
     elif not PROFILE_ID_RE.match(profile_id):
         errors.append(f"profile[{index}] has invalid id: {profile_id}")
+    allocation_project_id = str(raw_profile.get("allocation_project_id", "")).strip()
+    if allocation_project_id and not ALLOCATION_PROJECT_ID_RE.match(allocation_project_id):
+        errors.append(f"profile[{index}] has invalid allocation_project_id: {allocation_project_id}")
 
     enabled = raw_profile.get("enabled", True)
     if not isinstance(enabled, bool):
@@ -206,7 +224,7 @@ def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] 
         "code": _as_text_list(raw_profile.get("code")),
         "system": _as_text_list(raw_profile.get("system")),
         "exp": _as_text_list(raw_profile.get("exp")),
-        "allocation_project_id": str(raw_profile.get("allocation_project_id", "")).strip(),
+        "allocation_project_id": allocation_project_id,
         "scheduler_extra_args": str(raw_profile.get("scheduler_extra_args", "")).strip(),
         "visibility": str(raw_profile.get("visibility", "")).strip(),
         "valid_from": str(raw_profile.get("valid_from", "")).strip(),
@@ -265,6 +283,10 @@ def normalize_trigger_definition(
             errors.append(f"trigger[{index}] watch_kind is required for watch_event triggers")
         if not watch_targets:
             errors.append(f"trigger[{index}] watch_targets is required for watch_event triggers")
+        if watch_kind == "repo_ref":
+            for target in watch_targets:
+                if not _is_safe_repo_ref_target(target):
+                    errors.append(f"trigger[{index}] has invalid repo_ref watch target: {target}")
 
     normalized = {
         "id": trigger_id,
