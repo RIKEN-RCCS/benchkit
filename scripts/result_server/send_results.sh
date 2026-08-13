@@ -3,24 +3,14 @@ set -euo pipefail
 
 echo "Sending results to server"
 
+source "$(dirname "${BASH_SOURCE[0]}")/client_env.sh"
+
+bk_result_server_require_env
+
 ls results/
 
 meta_file="results/server_result_meta.json"
 echo "{}" > "$meta_file"
-
-result_server_set_curl_args() {
-  if [[ -z "${RESULT_SERVER:-}" ]]; then
-    echo "ERROR: RESULT_SERVER is not set" >&2
-    exit 1
-  fi
-  if [[ -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
-    echo "ERROR: RESULT_SERVER_CLIENT_CERT and RESULT_SERVER_CLIENT_KEY must be set" >&2
-    exit 1
-  fi
-  curl_auth_args=(--cert "$RESULT_SERVER_CLIENT_CERT" --key "$RESULT_SERVER_CLIENT_KEY")
-}
-
-result_server_set_curl_args >/dev/null
 
 # Backfill profile_data for older result JSONs that were produced before
 # result.sh learned to embed profiler summaries. The summary comes from
@@ -80,7 +70,7 @@ upload_padata_archive() {
 
   echo "Uploading $tgz_file with UUID $uuid"
   local curl_auth_args=()
-  result_server_set_curl_args
+  bk_result_server_set_curl_args
   if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/padata" \
     -F "id=${uuid}" \
     -F "timestamp=${timestamp}" \
@@ -136,7 +126,7 @@ for json_file in results/result*.json; do
 
   # Post JSON and capture response
   curl_auth_args=()
-  result_server_set_curl_args
+  bk_result_server_set_curl_args
   response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file")

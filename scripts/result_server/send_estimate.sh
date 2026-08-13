@@ -6,19 +6,9 @@ set -euo pipefail
 
 echo "Sending estimate results to server"
 
-result_server_set_curl_args() {
-  if [[ -z "${RESULT_SERVER:-}" ]]; then
-    echo "ERROR: RESULT_SERVER is not set" >&2
-    exit 1
-  fi
-  if [[ -z "${RESULT_SERVER_CLIENT_CERT:-}" || -z "${RESULT_SERVER_CLIENT_KEY:-}" ]]; then
-    echo "ERROR: RESULT_SERVER_CLIENT_CERT and RESULT_SERVER_CLIENT_KEY must be set" >&2
-    exit 1
-  fi
-  curl_auth_args=(--cert "$RESULT_SERVER_CLIENT_CERT" --key "$RESULT_SERVER_CLIENT_KEY")
-}
+source "$(dirname "${BASH_SOURCE[0]}")/client_env.sh"
 
-result_server_set_curl_args >/dev/null
+bk_result_server_require_env
 
 upload_estimation_artifacts() {
   local json_file="$1"
@@ -56,7 +46,7 @@ upload_estimation_artifacts() {
   endpoints=("/api/ingest/estimation-artifacts" "/api/ingest/estimation-inputs")
   for endpoint in "${endpoints[@]}"; do
     local curl_auth_args=()
-    result_server_set_curl_args
+    bk_result_server_set_curl_args
     if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}${endpoint}" \
       -F "id=${source_uuid}" \
       -F "file=@${archive}" 2>&1); then
@@ -105,7 +95,7 @@ for json_file in results/estimate*.json; do
   ' "$json_file")
   echo "Posting $json_file to ${RESULT_SERVER}/api/ingest/estimate"
   curl_auth_args=()
-  result_server_set_curl_args
+  bk_result_server_set_curl_args
   curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/estimate" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file"

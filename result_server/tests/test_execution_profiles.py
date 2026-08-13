@@ -35,6 +35,7 @@ from utils.gitlab_pipeline import (  # noqa: E402
 from routes.admin import _portal_result_server_url  # noqa: E402
 from trigger_runner import (  # noqa: E402
     cron_matches,
+    _git_ls_remote,
     run_triggers,
 )
 
@@ -122,6 +123,20 @@ def test_execution_profile_store_creates_sqlite_registry(tmp_path):
     assert result.profiles[0]["allocation_project_id"] == "rkp00010"
     assert result.profiles[0]["scheduler_extra_args"] == "--account=site-local"
     assert result.profiles[0]["metadata_json"] == {"terms_version": "v1"}
+
+
+def test_normalize_profile_rejects_invalid_allocation_project_id():
+    normalized, errors = normalize_profile(
+        {
+            "id": "rikyu-qws-nightly",
+            "allocation_project_id": "rkp00010 --qos=debug",
+        }
+    )
+
+    assert normalized is not None
+    assert errors == [
+        "profile[0] has invalid allocation_project_id: rkp00010 --qos=debug"
+    ]
 
 
 def test_execution_profile_store_updates_profile_and_scopes(tmp_path):
@@ -323,6 +338,49 @@ def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path
         "https://github.com/RIKEN-LQCD/qws.git@develop",
     ]
     assert triggers[0]["match_mode"] == "any"
+
+
+def test_watch_event_trigger_rejects_repo_ref_git_option_target():
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "rikyu-qws-watch",
+            "trigger_type": "watch_event",
+            "profile_id": "rikyu-qws-nightly",
+            "enabled": True,
+            "watch_kind": "repo_ref",
+            "watch_targets": "--upload-pack=/tmp/pwn@master",
+            "match_mode": "any",
+        }
+    )
+
+    assert trigger is not None
+    assert errors == [
+        "trigger[0] has invalid repo_ref watch target: --upload-pack=/tmp/pwn@master"
+    ]
+
+
+def test_git_ls_remote_uses_option_separator(monkeypatch):
+    captured = {}
+
+    class Completed:
+        stdout = "abc123\trefs/heads/main\n"
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return Completed()
+
+    monkeypatch.setattr("trigger_runner.subprocess.run", fake_run)
+
+    assert _git_ls_remote("https://example.test/repo.git", "main") == "abc123"
+    assert captured["args"] == [
+        "git",
+        "ls-remote",
+        "--",
+        "https://example.test/repo.git",
+        "main",
+    ]
+    assert captured["kwargs"]["check"] is True
 
 
 def test_execution_profile_store_records_trigger_observations_and_runs(tmp_path):

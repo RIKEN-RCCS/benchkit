@@ -202,6 +202,7 @@ chmod +x "${TMP_DIR}/bin/curl" "${TMP_DIR}/bin/jq" "${TMP_DIR}/bin/python" "${TM
 export PATH="${TMP_DIR}/bin:${PATH}"
 export RESULT_SERVER_CLIENT_CERT="${TMP_DIR}/client.crt"
 export RESULT_SERVER_CLIENT_KEY="${TMP_DIR}/client.key"
+touch "$RESULT_SERVER_CLIENT_CERT" "$RESULT_SERVER_CLIENT_KEY"
 
 pushd "${TMP_DIR}" >/dev/null
 if env -u RESULT_SERVER bash "${REPO_DIR}/scripts/result_server/send_results.sh" > missing_result_server.log 2>&1; then
@@ -209,6 +210,13 @@ if env -u RESULT_SERVER bash "${REPO_DIR}/scripts/result_server/send_results.sh"
   exit 1
 fi
 grep -q "ERROR: RESULT_SERVER is not set" missing_result_server.log
+test ! -f results/server_result_meta.json
+
+if RESULT_SERVER="http://example.invalid" bash "${REPO_DIR}/scripts/result_server/send_results.sh" > insecure_result_server.log 2>&1; then
+  echo "send_results.sh unexpectedly succeeded with non-HTTPS RESULT_SERVER" >&2
+  exit 1
+fi
+grep -q "ERROR: RESULT_SERVER must use https://" insecure_result_server.log
 
 export RESULT_SERVER="https://example.invalid"
 bash "${REPO_DIR}/scripts/result_server/send_results.sh" >/dev/null

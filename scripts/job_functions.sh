@@ -83,7 +83,6 @@ get_scheduler_extra_args() {
         return 0
     fi
     scheduler_args_from_allocation_project "$system" "${BK_ALLOCATION_PROJECT_ID:-}"
-    return 0
 }
 
 scheduler_args_from_allocation_project() {
@@ -91,6 +90,10 @@ scheduler_args_from_allocation_project() {
     local allocation_project_id="$2"
     if [[ -z "$allocation_project_id" ]]; then
         return 0
+    fi
+    if [[ ! "$allocation_project_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$ ]]; then
+        echo "Invalid BK_ALLOCATION_PROJECT_ID: use letters, digits, dot, underscore, colon, or dash; do not start with dash" >&2
+        return 1
     fi
     case "$system" in
       RIKYU)

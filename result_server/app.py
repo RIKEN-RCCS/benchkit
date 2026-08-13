@@ -20,6 +20,8 @@ from utils.preflight import validate_production_config
 
 DEFAULT_MAX_UPLOAD_MB = 512
 DEFAULT_MAX_ARCHIVE_MEMBER_MB = 1024
+DEFAULT_MAX_ARCHIVE_TOTAL_MB = 1024
+DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
 INGEST_KEYS = parse_ingest_keys()
 PREFLIGHT_ERRORS = validate_production_config(os.environ, INGEST_KEYS)
 
@@ -99,8 +101,16 @@ def _configure_upload_limits(app):
     max_member_mb = int(
         os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB", DEFAULT_MAX_ARCHIVE_MEMBER_MB)
     )
+    max_total_mb = int(
+        os.environ.get("RESULT_SERVER_MAX_ARCHIVE_TOTAL_MB", DEFAULT_MAX_ARCHIVE_TOTAL_MB)
+    )
+    max_member_count = int(
+        os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_COUNT", DEFAULT_MAX_ARCHIVE_MEMBER_COUNT)
+    )
     app.config["MAX_CONTENT_LENGTH"] = max_upload_mb * 1024 * 1024
     app.config["MAX_ARCHIVE_MEMBER_SIZE"] = max_member_mb * 1024 * 1024
+    app.config["MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE"] = max_total_mb * 1024 * 1024
+    app.config["MAX_ARCHIVE_MEMBER_COUNT"] = max_member_count
 
     @app.errorhandler(413)
     def payload_too_large(_error):

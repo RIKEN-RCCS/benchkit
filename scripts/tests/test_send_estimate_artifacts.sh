@@ -76,6 +76,7 @@ export CURL_LOG="${TMP_DIR}/curl.log"
 export ESTIMATION_ARTIFACTS_TAR_LIST="${TMP_DIR}/estimation_artifacts_tar_list.txt"
 export RESULT_SERVER_CLIENT_CERT="${TMP_DIR}/client.crt"
 export RESULT_SERVER_CLIENT_KEY="${TMP_DIR}/client.key"
+touch "$RESULT_SERVER_CLIENT_CERT" "$RESULT_SERVER_CLIENT_KEY"
 
 cd "$TMP_DIR"
 if env -u RESULT_SERVER bash "${REPO_DIR}/scripts/result_server/send_estimate.sh" > missing_result_server.log 2>&1; then
@@ -83,6 +84,12 @@ if env -u RESULT_SERVER bash "${REPO_DIR}/scripts/result_server/send_estimate.sh
   exit 1
 fi
 grep -q "ERROR: RESULT_SERVER is not set" missing_result_server.log
+
+if RESULT_SERVER="http://result.example.test" bash "${REPO_DIR}/scripts/result_server/send_estimate.sh" > insecure_result_server.log 2>&1; then
+  echo "send_estimate.sh unexpectedly succeeded with non-HTTPS RESULT_SERVER" >&2
+  exit 1
+fi
+grep -q "ERROR: RESULT_SERVER must use https://" insecure_result_server.log
 
 export RESULT_SERVER="https://result.example.test"
 bash "${REPO_DIR}/scripts/result_server/send_estimate.sh"

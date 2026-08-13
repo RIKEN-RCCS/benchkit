@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 DEFAULT_MAX_UPLOAD_MB = 512
 DEFAULT_MAX_ARCHIVE_MEMBER_MB = 1024
+DEFAULT_MAX_ARCHIVE_TOTAL_MB = 1024
+DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
 
 
 def setup_dev_environment(base_dir):
@@ -188,6 +190,14 @@ def create_dev_app(base_dir):
             int(os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_MB", DEFAULT_MAX_ARCHIVE_MEMBER_MB))
             * 1024
             * 1024
+        ),
+        MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE=(
+            int(os.environ.get("RESULT_SERVER_MAX_ARCHIVE_TOTAL_MB", DEFAULT_MAX_ARCHIVE_TOTAL_MB))
+            * 1024
+            * 1024
+        ),
+        MAX_ARCHIVE_MEMBER_COUNT=int(
+            os.environ.get("RESULT_SERVER_MAX_ARCHIVE_MEMBER_COUNT", DEFAULT_MAX_ARCHIVE_MEMBER_COUNT)
         ),
         ALLOWED_AFFILIATIONS=parse_allowed_affiliations(
             os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS")

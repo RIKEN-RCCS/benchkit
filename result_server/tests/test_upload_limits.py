@@ -87,3 +87,68 @@ def test_estimation_artifacts_rejects_archive_member_over_limit():
         assert resp.status_code == 400
     finally:
         _cleanup(temp_dirs)
+
+
+def test_estimation_artifacts_rejects_archive_over_total_extracted_limit():
+    app, temp_dirs = _api_app()
+    received = temp_dirs[0]
+    app.config["MAX_ARCHIVE_MEMBER_SIZE"] = 10
+    app.config["MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE"] = 5
+    uuid_value = "12345678-1234-1234-1234-123456789abc"
+    result_filename = f"result_20250101_000000_{uuid_value}.json"
+    with open(os.path.join(received, result_filename), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+
+    archive_bytes = io.BytesIO()
+    with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+        for name in ("input-a.json", "input-b.json"):
+            payload = b"abc"
+            info = tarfile.TarInfo(name=name)
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+    archive_bytes.seek(0)
+
+    try:
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/estimation-artifacts",
+                data={"id": uuid_value, "file": (archive_bytes, "inputs.tgz")},
+                headers={"X-API-Key": API_KEY},
+                content_type="multipart/form-data",
+            )
+
+        assert resp.status_code == 400
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_estimation_artifacts_rejects_archive_over_member_count_limit():
+    app, temp_dirs = _api_app()
+    received = temp_dirs[0]
+    app.config["MAX_ARCHIVE_MEMBER_COUNT"] = 1
+    uuid_value = "12345678-1234-1234-1234-123456789abc"
+    result_filename = f"result_20250101_000000_{uuid_value}.json"
+    with open(os.path.join(received, result_filename), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+
+    archive_bytes = io.BytesIO()
+    with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
+        for name in ("input-a.json", "input-b.json"):
+            payload = b"x"
+            info = tarfile.TarInfo(name=name)
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+    archive_bytes.seek(0)
+
+    try:
+        with app.test_client() as client:
+            resp = client.post(
+                "/api/ingest/estimation-artifacts",
+                data={"id": uuid_value, "file": (archive_bytes, "inputs.tgz")},
+                headers={"X-API-Key": API_KEY},
+                content_type="multipart/form-data",
+            )
+
+        assert resp.status_code == 400
+    finally:
+        _cleanup(temp_dirs)
