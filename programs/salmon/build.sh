@@ -7,6 +7,22 @@ REPO_URL="https://github.com/SALMON-TDDFT/SALMON2"
 REPO_DIR="SALMON2"
 VERSION_TAG="v.2.2.2"
 BUILD_DIR="build-benchkit"
+
+# RIKYU pin: v.2.2.2 is over a year stale (2025-06-06) and measured
+# GPU-decomposition numbers on this repo were never actually run against it --
+# they came from a much newer, hand-patched checkout (~100 commits ahead,
+# including PR #1276's OpenACC tuning). Rather than let RIKYU silently build
+# something nobody has benchmarked, pin it to a tag that IS what was
+# benchmarked: develop-2.0.0@9b93a8c4 (2026-08-16) + PR #1276's stencil/
+# current/pseudo-pt OpenACC optimizations (batched cuBLAS GEMM for pseudo-pt,
+# not the old USE_CUDA hand-written kernels -- see below) + the nvhpc/26.5
+# Ewald-reduction fix, combined into one branch on william-dawson/SALMON2.
+# See .claude/skills/salmon-gpu-optimization-ideas and salmon-build in
+# subwg2-benchmarks for how each piece was measured/root-caused.
+if [[ "${system}" == "RIKYU" ]]; then
+  REPO_URL="https://github.com/william-dawson/SALMON2"
+  VERSION_TAG="v.2.2.2-rikyu-optimized-265"
+fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
 BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
@@ -198,18 +214,38 @@ case "${system}" in
       -DCMAKE_C_COMPILER=mpicc
       -DOPENMP_FLAGS=-Mnoopenmp
       -DUSE_OPENACC=ON
-      -DUSE_CUDA=ON
       -DUSE_MPI_DEFAULT=ON
       -DCMAKE_SYSTEM_PROCESSOR=openacc
-      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas -cuda -Minfo=accel -DUSE_OPENACC -DUSE_CUDA"
-      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas -cuda -Minfo=accel -DUSE_OPENACC -DUSE_CUDA"
-      -DCMAKE_CUDA_ARCHITECTURES=100
-      -DCMAKE_CUDA_FLAGS=-arch=sm_100
+      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
+      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
       # nvhpc/26.5, native MPI3 ON (no FORTRAN_COMPILER_HAS_MPI_VERSION3
       # override): the HPC-X libnbc bug that forced MPI3 off is 26.3-only.
       # Confirmed bit-exact and faster than the old 26.3+MPI3-off build on
       # a 2-GPU domain-decomposition case -- see nvhpc265-ewald-reduction
       # patch header and subwg2-benchmarks' salmon-build skill.
+      #
+      # NOT -DUSE_CUDA -- that flag controls a completely different, OLDER
+      # optimization path (src/common/{zpseudo,stencil_current}.cu, hand-
+      # written CUDA kernels) that this pinned source (see VERSION_TAG
+      # above) replaces with PR #1276's tuned pure-OpenACC kernels instead:
+      # a batched cuBLAS GEMM rewrite of pseudo-pt (-DUSE_GEMM, needs
+      # cusolver linked in) and an inlined OpenACC current-density kernel.
+      # That's where the real speedup comes from, not USE_CUDA -- measured
+      # data only ever showed the OLD CUDA kernels net *losing* time
+      # (pseudo-pt 3.1-3.5x slower under USE_CUDA than plain OpenACC; the
+      # 1.4-3x win on current-density wasn't enough to make up for it).
+      # USE_CUDA also has a real, deterministic bug independent of any of
+      # this: stencil_current.cu's host wrapper sizes its device idx/idy/idz
+      # buffers by each rank's LOCAL grid extent but indexes them with the
+      # RAW/global grid coordinate, which only happens to fit when a rank's
+      # is()=1 on that axis (single GPU, or pure orbital decomposition,
+      # where every rank owns the full box). Any real-space (nproc_rgrid>1)
+      # decomposition puts a non-first rank at is()>1 on the split axis and
+      # overruns the buffer -- reproduced as a deterministic Accelerator
+      # Fatal Error / CUDA_ERROR_ILLEGAL_ADDRESS in calc_current
+      # (density_matrix.f90) on every axis and Po x Pg combination tried.
+      # See subwg2-benchmarks' salmon-gpu-optimization-ideas skill (Open
+      # item 5) and salmon-build skill for the full trail on both points.
     )
     ;;
   *)
