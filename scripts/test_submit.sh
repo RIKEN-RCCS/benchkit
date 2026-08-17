@@ -106,12 +106,17 @@ echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script
 # --- システム別ジョブ投入 ---
 case "$system" in
   Fugaku|FugakuCN)
-    echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+    if [ -z "${BK_PJM_GROUP:-}" ]; then
+      echo "Error: BK_PJM_GROUP is not set. Fugaku requires a project group (-g)." >&2
+      echo "  Set it via: export BK_PJM_GROUP=<your-project-group> (e.g. ra000009)" >&2
+      exit 1
+    fi
+    echo pjsub --no-check-directory -g "$BK_PJM_GROUP" -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
           --mpi max-proc-per-node=$numproc_node \
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh
 
-    pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+    pjsub --no-check-directory -g "$BK_PJM_GROUP" -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
           --mpi max-proc-per-node=$numproc_node \
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh
