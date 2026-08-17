@@ -12,6 +12,7 @@ RESULTS_DIR="${PWD}/results"
 BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 FJMPI_PATCH="${PWD}/programs/salmon/patches/fjmpi-topology-guard.patch"
+EWALD_265_PATCH="${PWD}/programs/salmon/patches/nvhpc265-ewald-reduction.patch"
 
 source scripts/bk_functions.sh
 
@@ -28,6 +29,24 @@ else
   echo "SALMON Fujitsu MPI topology patch does not apply to ${VERSION_TAG}" >&2
   exit 1
 fi
+
+apply_ewald_265_patch() {
+  # Works around a silent nvfortran 26.5 OpenACC reduction-codegen bug that
+  # gives a wrong (but plausible) total energy -- see the patch file itself
+  # and .claude/skills/salmon-build in subwg2-benchmarks for the full trail.
+  # Safe to apply on every OpenACC/GPU build regardless of nvhpc version:
+  # the fix gates itself on __NVCOMPILER_MAJOR__/__NVCOMPILER_MINOR__ at
+  # compile time, so it's a no-op on unaffected compilers (<26.5).
+  if git apply --check "${EWALD_265_PATCH}"; then
+    git apply "${EWALD_265_PATCH}"
+  elif git apply --reverse --check "${EWALD_265_PATCH}" >/dev/null 2>&1; then
+    echo "SALMON nvhpc/26.5 Ewald-reduction patch is already applied"
+  else
+    echo "SALMON nvhpc/26.5 Ewald-reduction patch does not apply to ${VERSION_TAG}" >&2
+    exit 1
+  fi
+}
+
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
@@ -83,6 +102,7 @@ case "${system}" in
   RC_GH200)
     module purge
     module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
+    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -102,6 +122,7 @@ case "${system}" in
     source /etc/profile.d/modules.sh
     module purge
     module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -169,7 +190,8 @@ case "${system}" in
   #   ;;
   RIKYU)
     module purge
-    module load nvhpc/26.3
+    module load nvhpc/26.5
+    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -183,7 +205,11 @@ case "${system}" in
       -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas -cuda -Minfo=accel -DUSE_OPENACC -DUSE_CUDA"
       -DCMAKE_CUDA_ARCHITECTURES=100
       -DCMAKE_CUDA_FLAGS=-arch=sm_100
-      -DFORTRAN_COMPILER_HAS_MPI_VERSION3=OFF
+      # nvhpc/26.5, native MPI3 ON (no FORTRAN_COMPILER_HAS_MPI_VERSION3
+      # override): the HPC-X libnbc bug that forced MPI3 off is 26.3-only.
+      # Confirmed bit-exact and faster than the old 26.3+MPI3-off build on
+      # a 2-GPU domain-decomposition case -- see nvhpc265-ewald-reduction
+      # patch header and subwg2-benchmarks' salmon-build skill.
     )
     ;;
   *)
