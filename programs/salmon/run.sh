@@ -21,10 +21,12 @@ AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 # subwg2-benchmarks) and stored on each machine so the benchmark itself
 # never pays for a from-scratch ground state. Add a new case here (and a
 # matching directory on that system) to move another system onto this
-# path -- see the RIKYU entry for the shape a new one needs
+# path -- see the RIKYU or RC_DGXSP entries for the shape a new one needs
 # (restart/, *.psp8, and one TDDFT .nml, all siblings in one directory).
 RIKYU_RESTART_DIR_DEFAULT="/data1/rkp00012/CX_input/SALMON/3x3x3-folded"
 RIKYU_RESTART_NML="Si-3-3-3-tddft.nml"
+RC_DGXSP_RESTART_DIR_DEFAULT="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON_2x2x2_folded"
+RC_DGXSP_RESTART_NML="Si-2-2-2-tddft.nml"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
@@ -36,7 +38,7 @@ fi
 
 uses_prestaged_restart() {
   case "$1" in
-    RIKYU)
+    RIKYU|RC_DGXSP)
       return 0
       ;;
     *)
@@ -65,6 +67,10 @@ if uses_prestaged_restart "${system}"; then
       restart_dir="${BK_SALMON_RESTART_DIR:-${RIKYU_RESTART_DIR_DEFAULT}}"
       tddft_nml="${RIKYU_RESTART_NML}"
       ;;
+    RC_DGXSP)
+      restart_dir="${BK_SALMON_RESTART_DIR:-${RC_DGXSP_RESTART_DIR_DEFAULT}}"
+      tddft_nml="${RC_DGXSP_RESTART_NML}"
+      ;;
   esac
 
   if [[ ! -d "${restart_dir}" || ! -d "${restart_dir}/restart" ]]; then
@@ -88,7 +94,7 @@ else
       exec_gs=(-stdin Si-1-1-1.nml ./salmon)
       exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
       ;;
-    RC_GH200|RC_DGXSP|RC_GENOA)
+    RC_GH200|RC_GENOA)
       input_archive="${INPUT_ARCHIVE_CLOUD}"
       exec_gs=(./salmon)
       exec_rt=(./salmon)
