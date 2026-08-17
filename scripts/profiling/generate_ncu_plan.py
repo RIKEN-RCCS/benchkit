@@ -199,23 +199,8 @@ def _kernel_match_token(kernel_name: str) -> str:
     Nsight Systems summaries often include the full demangled signature. Passing
     that signature through shell variables is fragile because argument lists and
     template parameters contain spaces.  NCU only needs a stable substring, so
-    prefer GENESIS-style kernel family names and fall back to the function stem.
+    use the demangled function stem instead of the full signature.
     """
-
-    if "build_pairlist" in kernel_name:
-        return "build_pairlist"
-    if "energyforce_inter_cell" in kernel_name:
-        return "energyforce_inter_cell"
-    if "energyforce_intra_cell" in kernel_name:
-        return "energyforce_intra_cell"
-    if "force_inter_cell" in kernel_name:
-        return "force_inter_cell"
-    if "force_intra_cell" in kernel_name:
-        return "force_intra_cell"
-    if "inter_cell" in kernel_name:
-        return "inter_cell"
-    if "intra_cell" in kernel_name:
-        return "intra_cell"
 
     stem = kernel_name.split("(", 1)[0].strip()
     stem = re.sub(r"<.*>$", "", stem).strip()

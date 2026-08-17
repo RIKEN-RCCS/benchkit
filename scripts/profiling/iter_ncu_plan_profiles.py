@@ -14,14 +14,6 @@ def _profile_section(profile: dict[str, Any]) -> str:
     section = profile.get("section")
     if section:
         return str(section)
-
-    kernel_name = str(profile.get("kernel_name") or "")
-    if "build_pairlist" in kernel_name:
-        return "pairlist"
-    if "force_inter_cell" in kernel_name or "inter_cell" in kernel_name:
-        return "pme_real_inter"
-    if "force_intra_cell" in kernel_name or "intra_cell" in kernel_name:
-        return "pme_real_intra"
     return ""
 
 
@@ -55,9 +47,10 @@ def main(argv: list[str] | None = None) -> int:
         if not name or not pattern:
             continue
         section = _profile_section(profile)
+        kernel_name = str(profile.get("kernel_name") or "")
         launch_skip = int(profile.get("launch_skip") or 0)
         launch_count = int(profile.get("launch_count") or 1)
-        print("\t".join([name, section, pattern, str(launch_skip), str(launch_count)]))
+        print("\t".join([name, section, pattern, str(launch_skip), str(launch_count), kernel_name]))
 
     return 0
 

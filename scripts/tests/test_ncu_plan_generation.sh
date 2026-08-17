@@ -52,9 +52,10 @@ jq -e '
   .profiles[0].launch_skip == 12 and
   .profiles[0].launch_count == 10 and
   .profiles[0].kernel_match.name_base == "demangled" and
-  .profiles[0].kernel_match.pattern == "regex:.*inter_cell.*" and
-  .profiles[1].kernel_match.pattern == "regex:.*intra_cell.*" and
-  .profiles[2].kernel_match.pattern == "regex:.*build_pairlist.*" and
+  .profiles[0].section == null and
+  .profiles[0].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__inter_cell.*" and
+  .profiles[1].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__intra_cell.*" and
+  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist.*" and
   (.profiles[2].kernel_name | contains("build_pairlist"))
 ' "${TMP_DIR}/ncu_plan.json" >/dev/null
 
@@ -86,12 +87,13 @@ CSV
 
 jq -e '
   (.profiles | length) == 3 and
-  .profiles[0].kernel_match.pattern == "regex:.*force_inter_cell.*" and
+  .profiles[0].section == null and
+  .profiles[0].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__force_inter_cell.*" and
   .profiles[0].launch_skip == 1 and
   .profiles[0].selection.source_gpu_duration_ns == 9750000 and
   .profiles[0].selection.discovery_gpu_time_pct == 97.5 and
-  .profiles[1].kernel_match.pattern == "regex:.*force_intra_cell.*" and
-  .profiles[2].kernel_match.pattern == "regex:.*build_pairlist.*"
+  .profiles[1].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__force_intra_cell.*" and
+  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist.*"
 ' "${TMP_DIR}/dominant_ncu_plan.json" >/dev/null
 
 "${PYTHON_BIN}" "${REPO_DIR}/scripts/profiling/generate_ncu_plan.py" \
@@ -102,7 +104,7 @@ jq -e '
 
 jq -e '
   (.profiles | length) == 5 and
-  .profiles[3].kernel_match.pattern == "regex:.*energyforce_inter_cell.*"
+  .profiles[3].kernel_match.pattern == "regex:.*kern_compute_energy_nonbond_table_linear_univ__energyforce_inter_cell.*"
 ' "${TMP_DIR}/all_ncu_plan.json" >/dev/null
 
 jq -e '
@@ -114,14 +116,12 @@ jq -e '
   (.commands[0].env.BK_PROFILER_ARGS | contains("--kernel-name-base")) and
   (.commands[0].env.BK_PROFILER_ARGS | contains("\u0027") | not) and
   (.commands[0].env.BK_PROFILER_ARGS | contains("\"") | not) and
-  (.commands[0].env.BK_PROFILER_ARGS | contains("regex:.*inter_cell.*")) and
+  (.commands[0].env.BK_PROFILER_ARGS | contains("regex:.*kern_compute_force_nonbond_table_linear_univ__inter_cell.*")) and
   (.commands[0].argv | index("bk_profiler") == 0) and
   (.commands[0].argv | index("--archive") != null) and
   (.commands[0].argv | index("./app") != null)
 ' "${TMP_DIR}/ncu_commands.json" >/dev/null
 
-grep -q $'\tpme_real_inter\t' "${TMP_DIR}/ncu_plan_profiles.tsv"
-grep -q $'\tpme_real_intra\t' "${TMP_DIR}/ncu_plan_profiles.tsv"
-grep -q $'\tpairlist\t' "${TMP_DIR}/ncu_plan_profiles.tsv"
+awk -F '\t' 'NF != 6 { exit 1 } $2 != "" { exit 1 } $6 == "" { exit 1 }' "${TMP_DIR}/ncu_plan_profiles.tsv"
 
 echo "ncu plan generation tests passed"
