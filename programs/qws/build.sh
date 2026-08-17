@@ -9,15 +9,19 @@ bk_fetch_source https://github.com/RIKEN-LQCD/qws.git qws
 
 cd qws
 
-qws_profiler_tool="fapp"
+qws_profiler_tool=$(bk_resolve_profiler_tool fapp QWS_PROFILER_TOOL)
+qws_make_profiler_args=()
+if [ "$qws_profiler_tool" = "fapp" ]; then
+	qws_make_profiler_args+=(profiler=fapp)
+fi
 
 # システムに合わせてbuild方法を書く。systemの選択肢はlist.csvに合わせる。
 case "$system" in
     Fugaku)
-	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_cross rdma= mpi=1 powerapi= profiler=${qws_profiler_tool}
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_cross rdma= mpi=1 powerapi= "${qws_make_profiler_args[@]}"
 	;;
     FugakuCN)
-	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= profiler=${qws_profiler_tool}
+	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= "${qws_make_profiler_args[@]}"
 	;;
     # FugakuLN retired; previous LN smoke build kept for reference.
     # FugakuLN)

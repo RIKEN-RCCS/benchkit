@@ -1140,6 +1140,266 @@ bk_profiler_call_optional_hook() {
   fi
 }
 
+bk_bool_enabled() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+bk_profile_key() {
+  printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
+}
+
+bk_profile_slug() {
+  _bk_profile_slug=$(printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/_/g; s/^_*//; s/_*$//')
+  printf '%s\n' "${_bk_profile_slug:-profile}"
+}
+
+bk_resolve_profiler_tool() {
+  _bk_profiler_default="${1:-none}"
+  shift || true
+
+  for _bk_profiler_var_name in "$@"; do
+    [ -n "$_bk_profiler_var_name" ] || continue
+    case "$_bk_profiler_var_name" in
+      [!A-Za-z_]*|*[!A-Za-z0-9_]*)
+        echo "bk_resolve_profiler_tool: invalid variable name '${_bk_profiler_var_name}'" >&2
+        return 1
+        ;;
+    esac
+    eval "_bk_profiler_candidate=\${${_bk_profiler_var_name}:-}"
+    if [ -n "$_bk_profiler_candidate" ]; then
+      bk_get_profiler_tool "$_bk_profiler_candidate"
+      return $?
+    fi
+  done
+
+  if [ -n "${BK_PROFILER:-}" ]; then
+    bk_get_profiler_tool "$BK_PROFILER"
+    return $?
+  fi
+  if [ -n "${BK_PROFILER_TOOL:-}" ]; then
+    bk_get_profiler_tool "$BK_PROFILER_TOOL"
+    return $?
+  fi
+
+  bk_get_profiler_tool "$_bk_profiler_default"
+}
+
+bk_resolve_profiler_level() {
+  _bk_profiler_level_default="${1:-}"
+  shift || true
+
+  for _bk_profiler_var_name in "$@"; do
+    [ -n "$_bk_profiler_var_name" ] || continue
+    case "$_bk_profiler_var_name" in
+      [!A-Za-z_]*|*[!A-Za-z0-9_]*)
+        echo "bk_resolve_profiler_level: invalid variable name '${_bk_profiler_var_name}'" >&2
+        return 1
+        ;;
+    esac
+    eval "_bk_profiler_level_candidate=\${${_bk_profiler_var_name}:-}"
+    if [ -n "$_bk_profiler_level_candidate" ]; then
+      printf '%s\n' "$_bk_profiler_level_candidate"
+      return 0
+    fi
+  done
+
+  if [ -n "${BK_PROFILER_LEVEL:-}" ]; then
+    printf '%s\n' "$BK_PROFILER_LEVEL"
+    return 0
+  fi
+
+  printf '%s\n' "$_bk_profiler_level_default"
+}
+
+bk_write_gpu_kernel_profile_metadata() {
+  _bk_metadata_path="$1"
+  _bk_archive_rel_path="$2"
+  _bk_section_name="$3"
+  _bk_profile_name="$4"
+  _bk_profile_slug="$5"
+  _bk_kernel_regex="$6"
+  _bk_launch_skip="$7"
+  _bk_launch_count="$8"
+  _bk_discovery_metadata_json="${9:-}"
+  if [ -z "$_bk_discovery_metadata_json" ]; then
+    _bk_discovery_metadata_json="{}"
+  fi
+
+  mkdir -p "$(dirname "$_bk_metadata_path")"
+  jq -n \
+    --arg kind "gpu_kernel_profile_metadata" \
+    --arg profiler "ncu" \
+    --arg section "$_bk_section_name" \
+    --arg profile_name "$_bk_profile_name" \
+    --arg profile_slug "$_bk_profile_slug" \
+    --arg artifact_path "$_bk_archive_rel_path" \
+    --arg kernel_regex "$_bk_kernel_regex" \
+    --argjson launch_skip "$_bk_launch_skip" \
+    --argjson launch_count "$_bk_launch_count" \
+    --argjson discovery "$_bk_discovery_metadata_json" '
+    ($discovery
+      | if type == "object" and (.section // "") == "" and $section != ""
+        then . + {section: $section}
+        else .
+        end) as $normalized_discovery
+    | {
+        schema_version: 1,
+        kind: $kind,
+        profiler: $profiler,
+        section: $section,
+        profile_name: $profile_name,
+        profile_slug: $profile_slug,
+        artifact_path: $artifact_path,
+        ncu: {
+          kernel_regex: $kernel_regex,
+          launch_skip: $launch_skip,
+          launch_count: $launch_count
+        },
+        nsys_discovery: $normalized_discovery
+      }
+    ' > "$_bk_metadata_path"
+}
+
+bk_run_ncu_acquisition_profile() {
+  _bk_ncu_profile_name=""
+  _bk_ncu_profile_slug=""
+  _bk_ncu_kernel_regex=""
+  _bk_ncu_launch_skip=""
+  _bk_ncu_launch_count=""
+  _bk_ncu_level="${BK_PROFILER_LEVEL:-detailed}"
+  _bk_ncu_archive=""
+  _bk_ncu_archive_rel=""
+  _bk_ncu_raw_dir=""
+  _bk_ncu_log=""
+  _bk_ncu_section=""
+  _bk_ncu_metadata=""
+  _bk_ncu_discovery_json="{}"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile-name) shift; _bk_ncu_profile_name="${1:-}" ;;
+      --profile-slug) shift; _bk_ncu_profile_slug="${1:-}" ;;
+      --kernel-regex) shift; _bk_ncu_kernel_regex="${1:-}" ;;
+      --launch-skip) shift; _bk_ncu_launch_skip="${1:-}" ;;
+      --launch-count) shift; _bk_ncu_launch_count="${1:-}" ;;
+      --level) shift; _bk_ncu_level="${1:-}" ;;
+      --archive) shift; _bk_ncu_archive="${1:-}" ;;
+      --archive-rel) shift; _bk_ncu_archive_rel="${1:-}" ;;
+      --raw-dir) shift; _bk_ncu_raw_dir="${1:-}" ;;
+      --log) shift; _bk_ncu_log="${1:-}" ;;
+      --section) shift; _bk_ncu_section="${1:-}" ;;
+      --metadata) shift; _bk_ncu_metadata="${1:-}" ;;
+      --discovery-json)
+        shift
+        _bk_ncu_discovery_json="${1:-}"
+        if [ -z "$_bk_ncu_discovery_json" ]; then
+          _bk_ncu_discovery_json="{}"
+        fi
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        echo "bk_run_ncu_acquisition_profile: unknown argument '$1'" >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
+
+  if [ $# -eq 0 ]; then
+    echo "bk_run_ncu_acquisition_profile: requires command after --" >&2
+    return 1
+  fi
+  if [ -z "$_bk_ncu_profile_name" ] || [ -z "$_bk_ncu_kernel_regex" ] || [ -z "$_bk_ncu_launch_skip" ] || [ -z "$_bk_ncu_launch_count" ]; then
+    echo "bk_run_ncu_acquisition_profile: profile name, kernel regex, launch skip, and launch count are required" >&2
+    return 1
+  fi
+
+  _bk_ncu_profile_slug="${_bk_ncu_profile_slug:-$(bk_profile_slug "$_bk_ncu_profile_name")}"
+  _bk_ncu_archive="${_bk_ncu_archive:-results/padata_${_bk_ncu_profile_slug}.tgz}"
+  _bk_ncu_archive_rel="${_bk_ncu_archive_rel:-$_bk_ncu_archive}"
+  _bk_ncu_raw_dir="${_bk_ncu_raw_dir:-ncu_${_bk_ncu_profile_slug}}"
+  _bk_ncu_metadata="${_bk_ncu_metadata:-${_bk_ncu_archive%.tgz}.metadata.json}"
+
+  _bk_ncu_old_profiler_args="${BK_PROFILER_ARGS:-}"
+  _bk_ncu_old_profiler_raw_csv="${BK_PROFILER_NCU_RAW_CSV:-}"
+  _bk_ncu_had_profiler_args=0
+  _bk_ncu_had_profiler_raw_csv=0
+  _bk_ncu_had_errexit=0
+  if [ "${BK_PROFILER_ARGS+x}" ]; then
+    _bk_ncu_had_profiler_args=1
+  fi
+  if [ "${BK_PROFILER_NCU_RAW_CSV+x}" ]; then
+    _bk_ncu_had_profiler_raw_csv=1
+  fi
+  case "$-" in
+    *e*) _bk_ncu_had_errexit=1 ;;
+  esac
+
+  export BK_PROFILER_ARGS="--kernel-name-base demangled --kernel-name ${_bk_ncu_kernel_regex} --launch-skip ${_bk_ncu_launch_skip} --launch-count ${_bk_ncu_launch_count}"
+  export BK_PROFILER_NCU_RAW_CSV=true
+
+  echo "bk_run_ncu_acquisition_profile: profile='${_bk_ncu_profile_name}' kernel='${_bk_ncu_kernel_regex}' skip=${_bk_ncu_launch_skip} count=${_bk_ncu_launch_count}" >&2
+  set +e
+  if [ -n "$_bk_ncu_log" ]; then
+    bk_profiler ncu \
+      --level "$_bk_ncu_level" \
+      --archive "$_bk_ncu_archive" \
+      --raw-dir "$_bk_ncu_raw_dir" \
+      -- "$@" </dev/null 2>&1 | tee "$_bk_ncu_log"
+    _bk_ncu_status=${PIPESTATUS[0]}
+  else
+    bk_profiler ncu \
+      --level "$_bk_ncu_level" \
+      --archive "$_bk_ncu_archive" \
+      --raw-dir "$_bk_ncu_raw_dir" \
+      -- "$@"
+    _bk_ncu_status=$?
+  fi
+  if [ "$_bk_ncu_had_errexit" -eq 1 ]; then
+    set -e
+  else
+    set +e
+  fi
+
+  if [ "$_bk_ncu_had_profiler_args" -eq 1 ]; then
+    export BK_PROFILER_ARGS="$_bk_ncu_old_profiler_args"
+  else
+    unset BK_PROFILER_ARGS
+  fi
+  if [ "$_bk_ncu_had_profiler_raw_csv" -eq 1 ]; then
+    export BK_PROFILER_NCU_RAW_CSV="$_bk_ncu_old_profiler_raw_csv"
+  else
+    unset BK_PROFILER_NCU_RAW_CSV
+  fi
+
+  if [ "$_bk_ncu_status" -ne 0 ]; then
+    echo "bk_run_ncu_acquisition_profile: profile '${_bk_ncu_profile_name}' failed with status ${_bk_ncu_status}" >&2
+    return "$_bk_ncu_status"
+  fi
+
+  if [ -n "$_bk_ncu_section" ]; then
+    bk_write_gpu_kernel_profile_metadata \
+      "$_bk_ncu_metadata" \
+      "$_bk_ncu_archive_rel" \
+      "$_bk_ncu_section" \
+      "$_bk_ncu_profile_name" \
+      "$_bk_ncu_profile_slug" \
+      "$_bk_ncu_kernel_regex" \
+      "$_bk_ncu_launch_skip" \
+      "$_bk_ncu_launch_count" \
+      "$_bk_ncu_discovery_json" || return $?
+    echo "bk_run_ncu_acquisition_profile: metadata ${_bk_ncu_metadata}" >&2
+  fi
+}
+
 bk_profiler() {
   if [ $# -lt 2 ]; then
     echo "bk_profiler: requires a profiler tool and an execution command" >&2

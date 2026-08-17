@@ -13,8 +13,18 @@ For MiyabiG and RC_GH200, `run.sh` first runs GENESIS without a profiler and
 uses that run to measure the app FOM and section timings. It then runs
 additional NCU acquisition passes by default; those passes are used only to
 derive GPU kernel source/target time ratios for estimation. Set
-`BK_GENESIS_NCU_PROFILE=false` or `GENESIS_PROFILER_TOOL=none` to skip the
-additional profiler runs.
+`BK_PROFILER=none`, `BK_GENESIS_NCU_PROFILE=false`, or
+`GENESIS_PROFILER_TOOL=none` to skip the additional profiler runs.
+
+The preferred profiler control variables are shared across applications:
+
+```bash
+BK_PROFILER=ncu          # none|fapp|ncu
+BK_PROFILER_LEVEL=detailed
+```
+
+GENESIS still accepts the app/site-specific overrides below for compatibility
+and site-local tuning; they override the generic variables when set.
 
 The current GENESIS wrapper can collect multiple NCU windows as separate
 archives:
@@ -200,4 +210,5 @@ GENESIS_PROFILER_LEVEL
 ```
 
 `GENESIS_*_PROFILER_TOOL=ncu` requests additional NCU acquisition. `none`
-disables it explicitly.
+disables it explicitly. Prefer `BK_PROFILER` / `BK_PROFILER_LEVEL` for new
+generic CI/profile control unless a site needs a GENESIS-specific override.

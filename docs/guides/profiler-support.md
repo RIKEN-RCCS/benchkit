@@ -43,6 +43,8 @@ bk_profiler <tool> [options] -- <command ...>
 
 環境変数でも次を上書きできる。
 
+- `BK_PROFILER`
+- `BK_PROFILER_TOOL`
 - `BK_PROFILER_LEVEL`
 - `BK_PROFILER_REPORT_FORMAT`
 - `BK_PROFILER_ARGS`
@@ -50,6 +52,11 @@ bk_profiler <tool> [options] -- <command ...>
 - `BK_PROFILER_DIR`
 - `BK_PROFILER_STAGE_DIR`
 - `BK_PROFILER_ARCHIVE_NCU_REPORT`
+
+`BK_PROFILER` / `BK_PROFILER_TOOL` は profiler tool の共通入口で、`none` / `off`
+などを指定すると profiler を使わない。新規 app wrapper では、tool と level の解決に
+`bk_resolve_profiler_tool` / `bk_resolve_profiler_level` を使う。既存運用や site-local
+調整のために app 固有変数が必要な場合は、共通変数の上書きとして helper に渡す。
 
 ## 3. 共通語彙としての level
 
@@ -220,14 +227,16 @@ bk_profiler_artifact/
 アプリ側は profiler helper を直接一般化しすぎず、次だけを持てばよい。
 
 - どの system で profiler を使うか
-- どの tool を使うか
-- どの level を使うか
+- 既定でどの tool / level を使うか
+- app 固有または site-local の profiler 上書き変数を許すか
 - build 時に profiler 用 option が必要か
 
-例として `qws` では、
+例として、ある app wrapper では、
 
-- Fugaku 系 build で `profiler=fapp` を渡す
-- Fugaku 系 run で `bk_profiler fapp --level detailed -- ...` を呼ぶ
+- Fugaku 系 build で必要なら `profiler=fapp` を渡す
+- run で `bk_resolve_profiler_tool fapp APP_PROFILER_TOOL` と
+  `bk_resolve_profiler_level detailed APP_PROFILER_LEVEL` を使う
+- 解決された tool が空でなければ `bk_profiler "$tool" --level "$level" -- ...` を呼ぶ
 
 だけを持つ。
 
@@ -237,7 +246,7 @@ BenchKit 共通層と推定 package 層は、これらのアプリ固有値を�
 
 アプリ固有の環境変数は `programs/<code>/build.sh`、`programs/<code>/run.sh`、`programs/<code>/estimate.sh` の内部で、同じアプリ内の重複を減らすために使います。
 共通 CI/matrix、共通 profiler helper、推定 package は、そのアプリ固有変数が存在することを前提にしないでください。
-GENESIS の現在の GH200 GPU profiling 例は `programs/genesis/README.md` と `programs/genesis/run.sh` に置いています。
+特定 app の profiling 例や kernel-to-section mapping は `programs/<code>/` 側に置きます。
 
 ## 9. 今は固定しないこと
 

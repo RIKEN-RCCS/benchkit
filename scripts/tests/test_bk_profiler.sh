@@ -9,6 +9,16 @@ source "${REPO_DIR}/scripts/bk_functions.sh"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+test "$(bk_resolve_profiler_tool fapp)" = "fapp"
+(export BK_PROFILER=ncu; test "$(bk_resolve_profiler_tool fapp)" = "ncu")
+(export BK_PROFILER=none; test "$(bk_resolve_profiler_tool fapp)" = "")
+(export APP_PROFILER_TOOL=none BK_PROFILER=fapp; test "$(bk_resolve_profiler_tool fapp APP_PROFILER_TOOL)" = "")
+(export APP_PROFILER_LEVEL=standard BK_PROFILER_LEVEL=detailed; test "$(bk_resolve_profiler_level single APP_PROFILER_LEVEL)" = "standard")
+if bk_resolve_profiler_tool fapp 'BAD;NAME' >/dev/null 2>&1; then
+  echo "invalid profiler variable names must be rejected" >&2
+  exit 1
+fi
+
 FAKE_BIN="${TMP_DIR}/bin"
 mkdir -p "${FAKE_BIN}"
 
@@ -97,7 +107,7 @@ while [ $# -gt 0 ]; do
       import_file="$1"
       import_mode=1
       ;;
-    --page|--target-processes|--launch-count|--set)
+    --page|--target-processes|--launch-count|--set|--kernel-name-base|--kernel-name|--launch-skip)
       shift
       ;;
     --nvtx)
@@ -207,6 +217,78 @@ test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile_raw.csv"
 ! test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
 grep -q '"kind": "ncu_raw_csv"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
 ! grep -q '"kind": "ncu_report"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
+
+ncu_acq_archive="${TMP_DIR}/ncu_acq.tgz"
+ncu_acq_metadata="${TMP_DIR}/ncu_acq.metadata.json"
+ncu_acq_raw="${TMP_DIR}/ncu_acq_pa"
+export BK_PROFILER_ARGS="--old-arg"
+export BK_PROFILER_NCU_RAW_CSV=false
+bk_run_ncu_acquisition_profile \
+  --profile-name "sample kernel" \
+  --profile-slug "sample_kernel" \
+  --kernel-regex 'regex:.*sample_kernel.*' \
+  --launch-skip 2 \
+  --launch-count 3 \
+  --level single \
+  --archive "$ncu_acq_archive" \
+  --archive-rel "results/padata_sample_kernel.tgz" \
+  --raw-dir "$ncu_acq_raw" \
+  --section "generic_section" \
+  --metadata "$ncu_acq_metadata" \
+  --discovery-json '{"kernel_name":"sample_kernel","instances":100}' \
+  -- bash -c 'printf "ncu acquisition target\n"'
+test "$BK_PROFILER_ARGS" = "--old-arg"
+test "$BK_PROFILER_NCU_RAW_CSV" = "false"
+test -f "$ncu_acq_archive"
+test -f "$ncu_acq_metadata"
+jq -e '
+  .kind == "gpu_kernel_profile_metadata" and
+  .profiler == "ncu" and
+  .section == "generic_section" and
+  .artifact_path == "results/padata_sample_kernel.tgz" and
+  .ncu.kernel_regex == "regex:.*sample_kernel.*" and
+  .ncu.launch_skip == 2 and
+  .ncu.launch_count == 3 and
+  .nsys_discovery.section == "generic_section" and
+  .nsys_discovery.kernel_name == "sample_kernel"
+' "$ncu_acq_metadata" >/dev/null
+unset BK_PROFILER_ARGS
+unset BK_PROFILER_NCU_RAW_CSV
+
+(
+  set +e
+  bk_run_ncu_acquisition_profile \
+    --profile-name "errexit restore" \
+    --kernel-regex 'regex:.*restore.*' \
+    --launch-skip 0 \
+    --launch-count 1 \
+    --level single \
+    --archive "${TMP_DIR}/ncu_no_errexit.tgz" \
+    --raw-dir "${TMP_DIR}/ncu_no_errexit_pa" \
+    -- bash -c 'printf "ncu no-errexit target\n"'
+  case "$-" in
+    *e*)
+      echo "bk_run_ncu_acquisition_profile must not enable errexit when caller had it disabled" >&2
+      exit 1
+      ;;
+  esac
+)
+
+if bk_run_ncu_acquisition_profile \
+  --profile-name "bad discovery metadata" \
+  --kernel-regex 'regex:.*bad.*' \
+  --launch-skip 0 \
+  --launch-count 1 \
+  --level single \
+  --archive "${TMP_DIR}/ncu_bad_discovery.tgz" \
+  --raw-dir "${TMP_DIR}/ncu_bad_discovery_pa" \
+  --section "bad_section" \
+  --metadata "${TMP_DIR}/ncu_bad_discovery.metadata.json" \
+  --discovery-json '{' \
+  -- bash -c 'printf "ncu bad-discovery target\n"' >/dev/null 2>&1; then
+  echo "bk_run_ncu_acquisition_profile must fail when metadata JSON is invalid" >&2
+  exit 1
+fi
 
 fapp_fail_archive="${TMP_DIR}/fapp_fail.tgz"
 fapp_fail_extract="${TMP_DIR}/fapp_fail_extract"
