@@ -13,8 +13,18 @@ RESULTS_DIR="${PWD}/results"
 WORK_DIR="${PWD}/salmon_run"
 INPUT_ARCHIVE_DEFAULT="/vol0003/rccs-sdt/data/a01010/benchmark_data/SALMON.tar.gz"
 INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
-INPUT_ARCHIVE_RIKYU="/data1/rkp00012/CX_input/SALMON/SALMON.tar.gz"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
+
+# Pre-staged, python-folded restarts: GS(k) -> Python fold -> complex Gamma
+# TDDFT restart, prepared once offline via `benchgen salmon create
+# --python-fold` (see README.md / salmon-benchmarking in
+# subwg2-benchmarks) and stored on each machine so the benchmark itself
+# never pays for a from-scratch ground state. Add a new case here (and a
+# matching directory on that system) to move another system onto this
+# path -- see the RIKYU entry for the shape a new one needs
+# (restart/, *.psp8, and one TDDFT .nml, all siblings in one directory).
+RIKYU_RESTART_DIR_DEFAULT="/data1/rkp00012/CX_input/SALMON/3x3x3-folded"
+RIKYU_RESTART_NML="Si-3-3-3-tddft.nml"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
@@ -24,32 +34,16 @@ if [[ ! -x artifacts/salmon ]]; then
   exit 1
 fi
 
-case "${system}" in
-  Fugaku)
-    input_archive="${INPUT_ARCHIVE_DEFAULT}"
-    exec_gs=(-stdin Si-1-1-1.nml ./salmon)
-    exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
-    ;;
-  RIKYU)
-    input_archive="${BK_SALMON_INPUT_ARCHIVE:-${INPUT_ARCHIVE_RIKYU}}"
-    exec_gs=(./salmon)
-    exec_rt=(./salmon)
-    ;;
-  RC_GH200|RC_DGXSP|RC_GENOA)
-    input_archive="${INPUT_ARCHIVE_CLOUD}"
-    exec_gs=(./salmon)
-    exec_rt=(./salmon)
-    ;;
-  *)
-    echo "Unknown system: ${system}" >&2
-    exit 1
-    ;;
-esac
-
-if [[ ! -f "${input_archive}" ]]; then
-  echo "Input archive not found: ${input_archive}" >&2
-  exit 1
-fi
+uses_prestaged_restart() {
+  case "$1" in
+    RIKYU)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 uses_stdin_input() {
   case "$1" in
@@ -63,22 +57,70 @@ uses_stdin_input() {
 }
 
 rm -rf "${WORK_DIR}"
-mkdir -p "${WORK_DIR}/input"
-tar -xzf "${input_archive}" -C "${WORK_DIR}/input"
+mkdir -p "${WORK_DIR}"
 
-input_dir=$(find "${WORK_DIR}/input" -type d -path "*/Si-1-1-1/input" | head -n 1)
-if [[ -z "${input_dir}" ]]; then
-  input_dir=$(find "${WORK_DIR}/input" -type f -name "Si-1-1-1.nml" -printf '%h\n' | head -n 1)
-fi
-if [[ -z "${input_dir}" || ! -d "${input_dir}" ]]; then
-  echo "SALMON Si-1-1-1 input directory not found in ${input_archive}" >&2
-  exit 1
-fi
+if uses_prestaged_restart "${system}"; then
+  case "${system}" in
+    RIKYU)
+      restart_dir="${BK_SALMON_RESTART_DIR:-${RIKYU_RESTART_DIR_DEFAULT}}"
+      tddft_nml="${RIKYU_RESTART_NML}"
+      ;;
+  esac
 
-cp artifacts/salmon "${WORK_DIR}/salmon"
-chmod +x "${WORK_DIR}/salmon"
-cp "${input_dir}"/* "${WORK_DIR}/"
-grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/Si-1-1-1.nml" "${WORK_DIR}/Si-1-1-1-tddft.nml" >&2 || true
+  if [[ ! -d "${restart_dir}" || ! -d "${restart_dir}/restart" ]]; then
+    echo "Pre-staged restart not found: ${restart_dir} (expects restart/, *.psp8, ${tddft_nml})" >&2
+    exit 1
+  fi
+
+  cp artifacts/salmon "${WORK_DIR}/salmon"
+  chmod +x "${WORK_DIR}/salmon"
+  cp "${restart_dir}/${tddft_nml}" "${restart_dir}"/*.psp8 "${WORK_DIR}/"
+  # Symlink, never copy: the restart is O(10s of GB) (a folded 3x3x3
+  # wfn.bin alone is ~35GB) and is immutable input, so copying it into a
+  # throwaway per-run work dir would burn most of the wall-clock budget on
+  # I/O instead of the benchmark itself.
+  ln -s "${restart_dir}/restart" "${WORK_DIR}/restart"
+  grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/${tddft_nml}" >&2 || true
+else
+  case "${system}" in
+    Fugaku)
+      input_archive="${INPUT_ARCHIVE_DEFAULT}"
+      exec_gs=(-stdin Si-1-1-1.nml ./salmon)
+      exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
+      ;;
+    RC_GH200|RC_DGXSP|RC_GENOA)
+      input_archive="${INPUT_ARCHIVE_CLOUD}"
+      exec_gs=(./salmon)
+      exec_rt=(./salmon)
+      ;;
+    *)
+      echo "Unknown system: ${system}" >&2
+      exit 1
+      ;;
+  esac
+
+  if [[ ! -f "${input_archive}" ]]; then
+    echo "Input archive not found: ${input_archive}" >&2
+    exit 1
+  fi
+
+  mkdir -p "${WORK_DIR}/input"
+  tar -xzf "${input_archive}" -C "${WORK_DIR}/input"
+
+  input_dir=$(find "${WORK_DIR}/input" -type d -path "*/Si-1-1-1/input" | head -n 1)
+  if [[ -z "${input_dir}" ]]; then
+    input_dir=$(find "${WORK_DIR}/input" -type f -name "Si-1-1-1.nml" -printf '%h\n' | head -n 1)
+  fi
+  if [[ -z "${input_dir}" || ! -d "${input_dir}" ]]; then
+    echo "SALMON Si-1-1-1 input directory not found in ${input_archive}" >&2
+    exit 1
+  fi
+
+  cp artifacts/salmon "${WORK_DIR}/salmon"
+  chmod +x "${WORK_DIR}/salmon"
+  cp "${input_dir}"/* "${WORK_DIR}/"
+  grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/Si-1-1-1.nml" "${WORK_DIR}/Si-1-1-1-tddft.nml" >&2 || true
+fi
 cd "${WORK_DIR}"
 
 case "${system}" in
@@ -116,16 +158,14 @@ case "${system}" in
     ;;
   RIKYU)
     module purge
-    module load nvhpc/26.3
+    module load nvhpc/26.5
     export OMP_NUM_THREADS="${nthreads}"
-    for nml in Si-1-1-1.nml Si-1-1-1-tddft.nml; do
-      awk -v nproc_ob="${n_ranks}" '
-        /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = 1, 1, 1"; in_parallel=1; next }
-        in_parallel && /^\// { in_parallel=0; print; next }
-        in_parallel { next }
-        { print }
-      ' "$nml" > "$nml.tmp" && mv "$nml.tmp" "$nml"
-    done
+    awk -v nproc_ob="${n_ranks}" '
+      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = 1, 1, 1"; in_parallel=1; next }
+      in_parallel && /^\// { in_parallel=0; print; next }
+      in_parallel { next }
+      { print }
+    ' "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
     if [[ "${n_ranks}" -gt 1 ]]; then
       cat > wrapper.sh <<'WRAPPER'
 #!/bin/bash
@@ -228,57 +268,90 @@ print_salmon_output_diagnostics() {
   )
 }
 
-touch .gs_start_marker
-gs_start=$(date +%s.%N)
-if uses_stdin_input "${system}"; then
-  run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}" < Si-1-1-1.nml
-else
-  run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}"
-fi
-gs_end=$(date +%s.%N)
+if uses_prestaged_restart "${system}"; then
+  # GS is offline prep, done once when the restart was staged -- see
+  # salmon-benchmarking in subwg2-benchmarks for how/when to regenerate
+  # it. The benchmark itself is TDDFT-only.
+  touch .rt_start_marker
+  rt_start=$(date +%s.%N)
+  run_salmon_or_diagnose RT .rt_start_marker rt.log ./salmon < "${tddft_nml}"
+  rt_end=$(date +%s.%N)
 
-if [[ -d data_for_restart ]]; then
-  rm -rf restart
-  mv data_for_restart restart
-fi
+  rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
 
-touch .rt_start_marker
-rt_start=$(date +%s.%N)
-if uses_stdin_input "${system}"; then
-  run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
-else
-  run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}"
-fi
-rt_end=$(date +%s.%N)
+  cp rt.log "${RESULTS_DIR}/"
 
-gs_elapsed=$(awk -v start="${gs_start}" -v end="${gs_end}" 'BEGIN {printf "%.6f", end - start}')
-rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
-total_elapsed=$(awk -v gs="${gs_elapsed}" -v rt="${rt_elapsed}" 'BEGIN {printf "%.6f", gs + rt}')
+  if ! salmon_output_has_marker_since rt.log .rt_start_marker; then
+    echo "SALMON RT run failed" >&2
+    echo "---- rt.log tail ----" >&2
+    tail -n 40 rt.log >&2 || true
+    echo "---- files updated since RT start ----" >&2
+    print_salmon_output_diagnostics .rt_start_marker
+    exit 1
+  fi
 
-cp gs.log rt.log "${RESULTS_DIR}/"
-
-if ! salmon_output_has_marker_since gs.log .gs_start_marker || ! salmon_output_has_marker_since rt.log .rt_start_marker; then
-  echo "SALMON success marker not found in both gs.log and rt.log" >&2
-  echo "---- gs.log tail ----" >&2
-  tail -n 40 gs.log >&2 || true
-  echo "---- rt.log tail ----" >&2
-  tail -n 40 rt.log >&2 || true
-  echo "---- files updated since GS start ----" >&2
-  print_salmon_output_diagnostics .gs_start_marker
-  echo "---- files updated since RT start ----" >&2
-  print_salmon_output_diagnostics .rt_start_marker
-  exit 1
-fi
-
-{
   bk_emit_result \
-    --fom "${total_elapsed}" \
+    --fom "${rt_elapsed}" \
     --fom-unit s \
-    --fom-version "total_elapsed_time_s" \
-    --exp "Si-1-1-1" \
+    --fom-version "tddft_elapsed_time_s_folded_restart" \
+    --exp "${tddft_nml%.nml}" \
     --nodes "${nodes}" \
     --numproc-node "${numproc_node}" \
-    --nthreads "${nthreads}"
-  bk_emit_section gs "${gs_elapsed}"
-  bk_emit_section rt "${rt_elapsed}"
-} >> "${RESULTS_DIR}/result"
+    --nthreads "${nthreads}" \
+    >> "${RESULTS_DIR}/result"
+else
+  touch .gs_start_marker
+  gs_start=$(date +%s.%N)
+  if uses_stdin_input "${system}"; then
+    run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}" < Si-1-1-1.nml
+  else
+    run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}"
+  fi
+  gs_end=$(date +%s.%N)
+
+  if [[ -d data_for_restart ]]; then
+    rm -rf restart
+    mv data_for_restart restart
+  fi
+
+  touch .rt_start_marker
+  rt_start=$(date +%s.%N)
+  if uses_stdin_input "${system}"; then
+    run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
+  else
+    run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}"
+  fi
+  rt_end=$(date +%s.%N)
+
+  gs_elapsed=$(awk -v start="${gs_start}" -v end="${gs_end}" 'BEGIN {printf "%.6f", end - start}')
+  rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
+  total_elapsed=$(awk -v gs="${gs_elapsed}" -v rt="${rt_elapsed}" 'BEGIN {printf "%.6f", gs + rt}')
+
+  cp gs.log rt.log "${RESULTS_DIR}/"
+
+  if ! salmon_output_has_marker_since gs.log .gs_start_marker || ! salmon_output_has_marker_since rt.log .rt_start_marker; then
+    echo "SALMON success marker not found in both gs.log and rt.log" >&2
+    echo "---- gs.log tail ----" >&2
+    tail -n 40 gs.log >&2 || true
+    echo "---- rt.log tail ----" >&2
+    tail -n 40 rt.log >&2 || true
+    echo "---- files updated since GS start ----" >&2
+    print_salmon_output_diagnostics .gs_start_marker
+    echo "---- files updated since RT start ----" >&2
+    print_salmon_output_diagnostics .rt_start_marker
+    exit 1
+  fi
+
+  {
+    bk_emit_result \
+      --fom "${total_elapsed}" \
+      --fom-unit s \
+      --fom-version "total_elapsed_time_s" \
+      --exp "Si-1-1-1" \
+      --nodes "${nodes}" \
+      --numproc-node "${numproc_node}" \
+      --nthreads "${nthreads}"
+    bk_emit_section gs "${gs_elapsed}"
+    bk_emit_section rt "${rt_elapsed}"
+  } >> "${RESULTS_DIR}/result"
+fi
