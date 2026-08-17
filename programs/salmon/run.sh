@@ -11,7 +11,6 @@ source "${PWD}/scripts/bk_functions.sh"
 
 RESULTS_DIR="${PWD}/results"
 WORK_DIR="${PWD}/salmon_run"
-INPUT_ARCHIVE_DEFAULT="/vol0003/rccs-sdt/data/a01010/benchmark_data/SALMON.tar.gz"
 INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 
@@ -27,6 +26,20 @@ RIKYU_RESTART_DIR_DEFAULT="/data1/rkp00012/CX_input/SALMON/3x3x3-folded"
 RIKYU_RESTART_NML="Si-3-3-3-tddft.nml"
 RC_DGXSP_RESTART_DIR_DEFAULT="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON_2x2x2_folded"
 RC_DGXSP_RESTART_NML="Si-2-2-2-tddft.nml"
+FUGAKU_RESTART_DIR_DEFAULT="/home/ra000009/data/u10035/CX_input_fugaku/SALMON_3x3x3_folded"
+FUGAKU_RESTART_NML="Si-3-3-3-tddft.nml"
+# Fugaku's list.csv row MUST use enough MPI ranks that each rank's local
+# wfn.bin chunk stays under ~2GB: SALMON's default restart reader
+# (method_wf_distributor='single') does one MPI_File_read_all per rank
+# spanning its whole orbital slice, and Fujitsu MPI's MPI-IO throws
+# MPI_ERR_ARG on per-rank reads above that size (a real, reproduced,
+# vendor-specific MPI-IO limit -- confirmed independent of both restart
+# provenance and physical memory: it reproduced identically whether the
+# restart was folded on the login node or a genuine A64FX compute node,
+# and separately from the plain OOM that a too-small node count/rank
+# count hits first for this restart's 37GB wfn.bin). 24 ranks (81
+# orbitals/rank, ~1.5GB/rank) is the smallest node count validated so far
+# for the 3x3x3 case; going lower reintroduces the failure.
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
@@ -38,7 +51,7 @@ fi
 
 uses_prestaged_restart() {
   case "$1" in
-    RIKYU|RC_DGXSP)
+    RIKYU|RC_DGXSP|Fugaku)
       return 0
       ;;
     *)
@@ -71,6 +84,10 @@ if uses_prestaged_restart "${system}"; then
       restart_dir="${BK_SALMON_RESTART_DIR:-${RC_DGXSP_RESTART_DIR_DEFAULT}}"
       tddft_nml="${RC_DGXSP_RESTART_NML}"
       ;;
+    Fugaku)
+      restart_dir="${BK_SALMON_RESTART_DIR:-${FUGAKU_RESTART_DIR_DEFAULT}}"
+      tddft_nml="${FUGAKU_RESTART_NML}"
+      ;;
   esac
 
   if [[ ! -d "${restart_dir}" || ! -d "${restart_dir}/restart" ]]; then
@@ -89,11 +106,6 @@ if uses_prestaged_restart "${system}"; then
   grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/${tddft_nml}" >&2 || true
 else
   case "${system}" in
-    Fugaku)
-      input_archive="${INPUT_ARCHIVE_DEFAULT}"
-      exec_gs=(-stdin Si-1-1-1.nml ./salmon)
-      exec_rt=(-stdin Si-1-1-1-tddft.nml ./salmon)
-      ;;
     RC_GH200|RC_GENOA)
       input_archive="${INPUT_ARCHIVE_CLOUD}"
       exec_gs=(./salmon)
@@ -132,6 +144,14 @@ cd "${WORK_DIR}"
 case "${system}" in
   Fugaku)
     export OMP_NUM_THREADS="${nthreads}"
+    # Fugaku always uses the pre-staged-restart path (see
+    # uses_prestaged_restart above), so tddft_nml is always set here.
+    awk -v nproc_ob="${n_ranks}" '
+      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = 1, 1, 1"; in_parallel=1; next }
+      in_parallel && /^\// { in_parallel=0; print; next }
+      in_parallel { next }
+      { print }
+    ' "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
     ;;
   RC_GH200)
     module purge
@@ -280,7 +300,14 @@ if uses_prestaged_restart "${system}"; then
   # it. The benchmark itself is TDDFT-only.
   touch .rt_start_marker
   rt_start=$(date +%s.%N)
-  run_salmon_or_diagnose RT .rt_start_marker rt.log ./salmon < "${tddft_nml}"
+  if uses_stdin_input "${system}"; then
+    run_salmon_or_diagnose RT .rt_start_marker rt.log ./salmon < "${tddft_nml}"
+  else
+    # Fugaku (Fujitsu MPI): -stdin FILE must be an mpiexec-level argument,
+    # not shell redirection -- plain `< file` only feeds rank 0's stdin
+    # under pjsub's mpiexec, not all ranks.
+    run_salmon_or_diagnose RT .rt_start_marker rt.log -stdin "${tddft_nml}" ./salmon
+  fi
   rt_end=$(date +%s.%N)
 
   rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
