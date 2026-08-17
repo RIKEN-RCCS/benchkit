@@ -34,8 +34,15 @@ case "${system}" in
   RIKYU)
     DATA=/data1/rkp00015/benchkit-data/petsc-gmres/audikw_1.petscbin
     module load nvhpc-hpcx/26.3
+    # One MPI rank per GPU: each rank gets a distinct GPU via
+    # CUDA_VISIBLE_DEVICES (set inside mpirun so OMPI_COMM_WORLD_LOCAL_RANK
+    # is available per-rank), and -mat_type aijcusparse puts the matrix
+    # on-device. Without these the solve runs on CPU even though GPUs
+    # are allocated (see petsc-benchmarking for the measured difference).
     mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to core --map-by core \
-      "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
+      bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
+      _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
+      -mat_type aijcusparse \
       > "${logfile}" 2>&1 || true
     ;;
   Fugaku)
