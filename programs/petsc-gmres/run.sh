@@ -21,18 +21,18 @@ fi
 
 export OMP_NUM_THREADS="${nthreads}"
 
-# The benchmark matrix (audikw_1, SuiteSparse GHS_psdef group, 943,695 x
-# 943,695, 77,651,847 nnz, converted once to PETSc binary format) is
-# pre-staged at a fixed path per system rather than fetched at build/run
-# time -- same convention as this repo's ffb and LQCD_dw_solver, which
-# pre-stage their (much larger) source archives the same way. See
-# README.md for exactly how each copy was produced and how to re-stage it.
+# The benchmark matrix (stokes2, 4,260,568 x 4,260,568, 256,285,536 nnz --
+# a Stokes flow saddle-point system from an ellipsoid mesh, generated via
+# Gmsh/FreeFEM and written directly to PETSc binary format by FreeFEM's
+# ObjectView, so no mtx2petsc conversion is needed) is pre-staged at a
+# fixed path per system. See README.md for how each copy was produced and
+# how to re-stage it.
 logfile="solve.log"
 touch .run_marker
 
 case "${system}" in
   RIKYU)
-    DATA=/data1/rkp00015/benchkit-data/petsc-gmres/audikw_1.petscbin
+    DATA=/data1/rkp00015/benchkit-data/petsc-gmres/stokes2.dat
     module load nvhpc-hpcx/26.3
     # One MPI rank per GPU: each rank gets a distinct GPU via
     # CUDA_VISIBLE_DEVICES (set inside mpirun so OMPI_COMM_WORLD_LOCAL_RANK
@@ -42,7 +42,7 @@ case "${system}" in
     mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to core --map-by core \
       bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
-      -mat_type aijcusparse \
+      -mat_type aijcusparse -matload_block_size 1 \
       > "${logfile}" 2>&1 || true
     ;;
   Fugaku)
@@ -54,11 +54,12 @@ case "${system}" in
     # this was staged) is what actually resolves from a compute-node job;
     # found by testing the real run.sh in a real job, not by trusting the
     # canonical-looking path a filesystem tool reported.
-    DATA=/vol0500/data/ra250029/benchkit-data/petsc-gmres/audikw_1.petscbin
+    DATA=/vol0500/data/ra250029/benchkit-data/petsc-gmres/stokes2.dat
     module load lang/tcsds-1.2.43
     module load LLVM/llvmorg-22.1.0
     mpiexec -n "${n_ranks}" \
       "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
+      -matload_block_size 1 \
       > "${logfile}" 2>&1 || true
     # Fugaku's PJM mpiexec writes each rank's real stdout/stderr under
     # ./output.$PJM_JOBID/, ignoring plain shell redirection for the
@@ -73,12 +74,13 @@ case "${system}" in
     # GPU run (1 rank/GPU) -- see build.sh. This system has no separate
     # group-storage tier (see README.md), so the data lives under $HOME
     # like everything else here.
-    DATA=/home/users/william.dawson/benchkit-data/petsc-gmres/audikw_1.petscbin
+    DATA=/home/users/william.dawson/benchkit-data/petsc-gmres/stokes2.dat
     source /etc/profile.d/modules.sh
     module load system/ng-dgx nvhpc-hpcx
     mpirun -np "${n_ranks}" \
-      "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
-      -mat_type aijcusparse \
+      bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
+      _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
+      -mat_type aijcusparse -matload_block_size 1 \
       > "${logfile}" 2>&1 || true
     ;;
   *)
@@ -105,7 +107,7 @@ bk_emit_result \
   --fom "${ksp_iter_time}" \
   --fom-unit s \
   --fom-version ksp_iter_time \
-  --exp audikw_1 \
+  --exp stokes2 \
   --nodes "${nodes}" \
   --numproc-node "${numproc_node}" \
   --nthreads "${nthreads}" >> "${RESULTS_DIR}/result"
