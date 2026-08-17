@@ -92,12 +92,12 @@ if ! grep -q "^FOM: ranks=" "${logfile}" 2>/dev/null; then
   exit 1
 fi
 
-solve_time=$(grep "^FOM: ranks=" "${logfile}" | sed -E 's/.*solve_time_s=([0-9.]+).*/\1/')
+ksp_iter_time=$(grep "^FOM: ranks=" "${logfile}" | sed -E 's/.*ksp_iter_time_s=([0-9.]+).*/\1/')
 
 bk_emit_result \
-  --fom "${solve_time}" \
+  --fom "${ksp_iter_time}" \
   --fom-unit s \
-  --fom-version solve_time \
+  --fom-version ksp_iter_time \
   --exp audikw_1 \
   --nodes "${nodes}" \
   --numproc-node "${numproc_node}" \

@@ -5,7 +5,16 @@ load the `audikw_1` sparse SPD matrix ([SuiteSparse Matrix
 Collection](https://sparse.tamu.edu/GHS_psdef/audikw_1), `GHS_psdef`
 group — a real structural-engineering FEM problem, 943,695 rows,
 77,651,847 nonzeros), solve `Ax = b` for a known `x`, report the relative
-L2 error and solve wall-time (`FOM: ranks=<N> solve_time_s=<t>`).
+L2 error and GMRES-iterate wall-time (`FOM: ranks=<N> ksp_iter_time_s=<t>`).
+
+The FOM measures the GMRES **iterate only** — `KSPSetUp(ksp)` is called
+explicitly before the timed `KSPSolve`, so GAMG setup (coarsening + PtAP)
+is excluded. The iterate is the MatMult-bound SpMV loop that tracks memory
+bandwidth / Flop/s; setup is communication-bound and is read off
+`-log_view` (`PCSetUp_GAMG`, `MatMult`, ...) instead. (Previously the FOM
+included setup; narrowed after `-log_view` showed setup was ~70% of the
+timed `KSPSolve` on a 4-GPU run — see the internal repo's
+`petsc-benchmarking` skill.)
 
 Source (`src/GMRES-PETSc.cpp`) is vendored directly in this directory
 rather than fetched from a separate repo at build time, since its
