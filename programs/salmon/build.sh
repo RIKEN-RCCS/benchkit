@@ -206,7 +206,7 @@ case "${system}" in
   #   ;;
   RIKYU)
     module purge
-    module load nvhpc/26.5
+    module load nvhpc/26.3
     apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
@@ -216,13 +216,27 @@ case "${system}" in
       -DUSE_OPENACC=ON
       -DUSE_MPI_DEFAULT=ON
       -DCMAKE_SYSTEM_PROCESSOR=openacc
+      -DFORTRAN_COMPILER_HAS_MPI_VERSION3=OFF
       -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
       -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
-      # nvhpc/26.5, native MPI3 ON (no FORTRAN_COMPILER_HAS_MPI_VERSION3
-      # override): the HPC-X libnbc bug that forced MPI3 off is 26.3-only.
-      # Confirmed bit-exact and faster than the old 26.3+MPI3-off build on
-      # a 2-GPU domain-decomposition case -- see nvhpc265-ewald-reduction
-      # patch header and subwg2-benchmarks' salmon-build skill.
+      # nvhpc/26.3, not 26.5, and FORTRAN_COMPILER_HAS_MPI_VERSION3=OFF:
+      # native MPI3 on nvhpc/26.5 is faster for single-node/domain-
+      # decomposition (see nvhpc265-ewald-reduction patch header and
+      # subwg2-benchmarks' salmon-build skill) but genuinely HANGS 8-GPU
+      # (2+ node) orbital decomposition -- reproducibly dies right after
+      # init_ps with a UCC inter-node protocol error
+      # (`cannot find remote protocol for: UCC_UCP_CONTEXT inter-node
+      # cfg#N | tag_send from cuda-managed/GPU0`), then spins at ~99% CPU
+      # producing zero further output. Confirmed NOT a version-mixing
+      # artifact (this build mixes nothing -- 26.3 compiler, 26.3 runtime)
+      # and NOT a GPU-binding bug (verified correct per-rank binding via
+      # an instrumented wrapper.sh) -- it's specific to native MPI3 at
+      # 2+ nodes. 26.3+MPI3-off is the one combination proven correct and
+      # hang-free at every scale BenchKit actually needs here (1, 2, 4, 8
+      # GPU all bit-exact on this pinned source; 16/32 GPU proven on an
+      # earlier source revision -- see rikyu-32gpu-scaling skill). The
+      # Ewald patch above is a no-op on 26.3 (its version gate only fires
+      # for nvhpc>=26.5) -- harmless to keep applying regardless.
       #
       # NOT -DUSE_CUDA -- that flag controls a completely different, OLDER
       # optimization path (src/common/{zpseudo,stencil_current}.cu, hand-
