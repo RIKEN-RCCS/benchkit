@@ -7,7 +7,7 @@ environment variables documented here. They are local conveniences for
 layers through common artifacts such as `results/result`, `SECTION:` metadata,
 and `padata*.tgz`.
 
-## GH200 GPU Run And NCU Collection
+## NVIDIA GPU Run And NCU Collection
 
 For MiyabiG and RC_GH200, `run.sh` first runs GENESIS without a profiler and
 uses that run to measure the app FOM and section timings. It then runs
@@ -25,6 +25,34 @@ BK_PROFILER_LEVEL=detailed
 
 GENESIS still accepts the app/site-specific overrides below for compatibility
 and site-local tuning; they override the generic variables when set.
+
+RIKYU is a GB200 system. The default GENESIS RIKYU build path uses the current
+site development SIF image because it provides CUDA, GNU compilers,
+GNU-compatible Open MPI Fortran modules, and Nsight tools:
+
+```bash
+GENESIS_RIKYU_SIF=/shared/software/hpc-dev-container/hpc_dev.sif
+GENESIS_RIKYU_COMPILER_FAMILY=gnu
+GENESIS_RIKYU_GPU_ARCH=sm_100
+```
+
+The RIKYU SIF image name, path, and contents are still site-local and may
+change. Set `GENESIS_RIKYU_SIF` to override the image path. Set
+`GENESIS_RIKYU_APPTAINER` to override the Apptainer command and
+`GENESIS_RIKYU_APPTAINER_BINDS` to add comma-separated bind mounts.
+
+The RIKYU run path keeps the benchmark at the p8 default size and launches the
+container per rank from inside the Slurm allocation:
+
+```bash
+srun --mpi=pmix -n 8 --ntasks-per-node=4 apptainer exec --nv ... ./spdyn p8.inp.sub
+```
+
+`PMIX_MCA_gds=hash` is set by default for RIKYU because the containerized
+Open MPI runtime otherwise fails to read Slurm PMIx shared-memory state on
+multi-node p8 runs. RIKYU also defaults `GENESIS_RIKYU_PROFILER_TOOL=none`;
+set it to `ncu` explicitly if profiler acquisition is needed after validating
+the profiler launcher path for the site image.
 
 The current GENESIS wrapper can collect multiple NCU windows as separate
 archives:
@@ -197,14 +225,27 @@ These variables are app-local knobs consumed by `programs/genesis/build.sh` and
 ```bash
 GENESIS_MIYABIG_MODULE
 GENESIS_GH200_MODULE
+GENESIS_RIKYU_MODULE
 GENESIS_MIYABIG_CUDA_PATH
+GENESIS_RIKYU_CUDA_PATH
 GENESIS_MIYABIG_FC
 GENESIS_MIYABIG_CC
+GENESIS_RIKYU_FC
+GENESIS_RIKYU_CC
+GENESIS_RIKYU_CXX
+GENESIS_RIKYU_F77
 GENESIS_MIYABIG_CONFIG_ARGS
+GENESIS_RIKYU_CONFIG_ARGS
+GENESIS_RIKYU_COMPILER_FAMILY
+GENESIS_RIKYU_GPU_ARCH
 GENESIS_MIYABIG_PROFILER_TOOL
 GENESIS_GH200_PROFILER_TOOL
+GENESIS_RIKYU_PROFILER_TOOL
 GENESIS_MIYABIG_PROFILER_LEVEL
 GENESIS_GH200_PROFILER_LEVEL
+GENESIS_RIKYU_PROFILER_LEVEL
+GENESIS_RIKYU_MPI_CMD
+GENESIS_RIKYU_MPI_ARGS
 GENESIS_PROFILER_TOOL
 GENESIS_PROFILER_LEVEL
 ```

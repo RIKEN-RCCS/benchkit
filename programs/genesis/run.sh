@@ -114,10 +114,10 @@ if [[ ! -f ${inputdir}/apoa1.rst ]]; then
 fi
 cp ${inputdir}/apoa1.rst  .
 
-# Shared GH200-class run path. The env_prefix pattern mirrors build.sh so each
+# Shared NVIDIA GPU run path. The env_prefix pattern mirrors build.sh so each
 # site can override modules, MPI launcher, GPU visibility, and profiler policy
 # independently while keeping the benchmark invocation identical.
-run_genesis_gh200_gpu() {
+run_genesis_nvidia_gpu() {
     local system_name="$1"
     local env_prefix="$2"
     local default_module="$3"
@@ -136,8 +136,8 @@ run_genesis_gh200_gpu() {
 
     read -r -a mpi_cmd <<< "${!mpi_cmd_var:-mpirun -np ${numproc}}"
     if [ -n "${!mpi_args_var:-}" ]; then
-        read -r -a gh200_mpi_args <<< "${!mpi_args_var}"
-        mpi_cmd+=("${gh200_mpi_args[@]}")
+        read -r -a nvidia_mpi_args <<< "${!mpi_args_var}"
+        mpi_cmd+=("${nvidia_mpi_args[@]}")
     fi
 
     export OMP_NUM_THREADS=${nthreads}
@@ -147,9 +147,40 @@ run_genesis_gh200_gpu() {
 
     genesis_configure_ncu_profile "$system_name" "$profiler_tool_var" "$profiler_level_var" "$module_var" || return 1
 
-    echo "Running ${system_name} as Grace-Hopper GPU benchmark run without profiler"
+    echo "Running ${system_name} as NVIDIA GPU benchmark run without profiler"
     "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
     genesis_run_configured_ncu_profiles "$system_name" "${mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
+}
+
+genesis_rikyu_apptainer_run_prefix() {
+    local image="${GENESIS_RIKYU_SIF:-/shared/software/hpc-dev-container/hpc_dev.sif}"
+    local apptainer_bin="${GENESIS_RIKYU_APPTAINER:-apptainer}"
+    local binds="${SCRIPT_DIR}:${SCRIPT_DIR}"
+    local bind_path=""
+
+    if [ ! -f "$image" ]; then
+        echo "GENESIS RIKYU container image not found: $image" >&2
+        return 1
+    fi
+    if ! command -v "$apptainer_bin" >/dev/null 2>&1; then
+        echo "Apptainer command not found for GENESIS RIKYU container: $apptainer_bin" >&2
+        return 1
+    fi
+
+    for bind_path in \
+        /var/spool/slurmd \
+        /etc/passwd \
+        /etc/group; do
+        if [ -e "$bind_path" ]; then
+            binds="${binds},${bind_path}:${bind_path}"
+        fi
+    done
+
+    if [ -n "${GENESIS_RIKYU_APPTAINER_BINDS:-}" ]; then
+        binds="${binds},${GENESIS_RIKYU_APPTAINER_BINDS}"
+    fi
+
+    printf '%s\n' "$apptainer_bin exec --nv --bind $binds --pwd $PWD $image"
 }
 
 case "$system" in
@@ -174,10 +205,19 @@ case "$system" in
 	# ${mpi_cmd} ./${binary} ${input}.sub 2>&1 | tee ${output}
     # ;;
   MiyabiG)
-    run_genesis_gh200_gpu "$system" GENESIS_MIYABIG none
+    run_genesis_nvidia_gpu "$system" GENESIS_MIYABIG none
     ;;
   RC_GH200)
-    run_genesis_gh200_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    run_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    ;;
+  RIKYU)
+    export GENESIS_RIKYU_MODULE="${GENESIS_RIKYU_MODULE:-none}"
+    export PMIX_MCA_gds="${PMIX_MCA_gds:-hash}"
+    GENESIS_RIKYU_APPTAINER_PREFIX=$(genesis_rikyu_apptainer_run_prefix)
+    export GENESIS_RIKYU_MPI_CMD="${GENESIS_RIKYU_MPI_CMD:-srun --mpi=pmix -n ${numproc} --ntasks-per-node=${numproc_node} ${GENESIS_RIKYU_APPTAINER_PREFIX}}"
+    export GENESIS_RIKYU_MPI_ARGS="${GENESIS_RIKYU_MPI_ARGS:-}"
+    export GENESIS_RIKYU_PROFILER_TOOL="${GENESIS_RIKYU_PROFILER_TOOL:-none}"
+    run_genesis_nvidia_gpu "$system" GENESIS_RIKYU "$GENESIS_RIKYU_MODULE"
     ;;
   *)
     echo "Unknown Running system: $system"

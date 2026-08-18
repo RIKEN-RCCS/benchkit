@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
         pattern = _profile_pattern(profile)
         if not name or not pattern:
             continue
-        section = _profile_section(profile)
+        section = _profile_section(profile) or "-"
         kernel_name = str(profile.get("kernel_name") or "")
         launch_skip = int(profile.get("launch_skip") or 0)
         launch_count = int(profile.get("launch_count") or 1)
