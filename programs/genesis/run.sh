@@ -216,7 +216,6 @@ case "$system" in
     GENESIS_RIKYU_APPTAINER_PREFIX=$(genesis_rikyu_apptainer_run_prefix)
     export GENESIS_RIKYU_MPI_CMD="${GENESIS_RIKYU_MPI_CMD:-srun --mpi=pmix -n ${numproc} --ntasks-per-node=${numproc_node} ${GENESIS_RIKYU_APPTAINER_PREFIX}}"
     export GENESIS_RIKYU_MPI_ARGS="${GENESIS_RIKYU_MPI_ARGS:-}"
-    export GENESIS_RIKYU_PROFILER_TOOL="${GENESIS_RIKYU_PROFILER_TOOL:-none}"
     run_genesis_nvidia_gpu "$system" GENESIS_RIKYU "$GENESIS_RIKYU_MODULE"
     ;;
   *)
