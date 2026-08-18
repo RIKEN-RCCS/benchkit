@@ -9,7 +9,7 @@ BRANCH="${GENESIS_BRANCH:-main}"
 
 run_genesis_rikyu_in_container() {
     local image="${GENESIS_RIKYU_SIF:-/shared/software/hpc-dev-container/hpc_dev.sif}"
-    local apptainer_bin="${GENESIS_RIKYU_APPTAINER:-/shared/software/apptainer/bin/apptainer}"
+    local apptainer_bin="${GENESIS_RIKYU_APPTAINER:-apptainer}"
     local binds="${PWD}:${PWD}"
 
     if [ "${GENESIS_RIKYU_IN_CONTAINER:-false}" = "true" ]; then

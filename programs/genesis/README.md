@@ -38,10 +38,9 @@ GENESIS_RIKYU_GPU_ARCH=sm_100
 
 The RIKYU SIF image name, path, and contents are still site-local and may
 change. Set `GENESIS_RIKYU_SIF` to override the image path. Set
-`GENESIS_RIKYU_APPTAINER` to override the Apptainer command; it defaults to the
-RIKYU site path `/shared/software/apptainer/bin/apptainer` because the custom
-executor environment may not inherit the normal login shell path. Set
-`GENESIS_RIKYU_APPTAINER_BINDS` to add comma-separated bind mounts.
+`GENESIS_RIKYU_APPTAINER` to override the Apptainer command and
+`GENESIS_RIKYU_APPTAINER_BINDS` to add comma-separated bind mounts. The CI
+runner environment is expected to make `apptainer` available on `PATH`.
 
 The RIKYU run path keeps the benchmark at the p8 default size and launches the
 container per rank from inside the Slurm allocation:
@@ -52,9 +51,9 @@ srun --mpi=pmix -n 8 --ntasks-per-node=4 apptainer exec --nv ... ./spdyn p8.inp.
 
 `PMIX_MCA_gds=hash` is set by default for RIKYU because the containerized
 Open MPI runtime otherwise fails to read Slurm PMIx shared-memory state on
-multi-node p8 runs. RIKYU also defaults `GENESIS_RIKYU_PROFILER_TOOL=none`;
-set it to `ncu` explicitly if profiler acquisition is needed after validating
-the profiler launcher path for the site image.
+multi-node p8 runs. RIKYU follows the same default additional NCU acquisition
+policy as the other NVIDIA GPU systems; set `BK_PROFILER=none` or
+`GENESIS_RIKYU_PROFILER_TOOL=none` to run without profiling.
 
 The current GENESIS wrapper can collect multiple NCU windows as separate
 archives:
