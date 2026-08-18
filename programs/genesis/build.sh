@@ -7,6 +7,38 @@ REPO_DIR="genesis"
 REPO_URL="${GENESIS_REPO_URL:-https://github.com/genesis-release-r-ccs/${REPO_DIR}.git}"
 BRANCH="${GENESIS_BRANCH:-main}"
 
+run_genesis_rikyu_in_container() {
+    local image="${GENESIS_RIKYU_SIF:-/shared/software/hpc-dev-container/hpc_dev.sif}"
+    local apptainer_bin="${GENESIS_RIKYU_APPTAINER:-apptainer}"
+    local binds="${PWD}:${PWD}"
+
+    if [ "${GENESIS_RIKYU_IN_CONTAINER:-false}" = "true" ]; then
+        return 0
+    fi
+    if [ ! -f "$image" ]; then
+        echo "GENESIS RIKYU container image not found: $image" >&2
+        exit 1
+    fi
+    if ! command -v "$apptainer_bin" >/dev/null 2>&1; then
+        echo "Apptainer command not found for GENESIS RIKYU container: $apptainer_bin" >&2
+        exit 1
+    fi
+
+    if [ -n "${GENESIS_RIKYU_APPTAINER_BINDS:-}" ]; then
+        binds="${binds},${GENESIS_RIKYU_APPTAINER_BINDS}"
+    fi
+
+    echo "Running GENESIS RIKYU build in Apptainer image: $image"
+    "$apptainer_bin" exec --nv --bind "$binds" --pwd "$PWD" \
+        --env GENESIS_RIKYU_IN_CONTAINER=true \
+        "$image" bash "$0" "$@"
+    exit $?
+}
+
+if [ "$system" = "RIKYU" ]; then
+    run_genesis_rikyu_in_container "$@"
+fi
+
 echo "[${REPO_DIR}] Building on system: $system"
 mkdir -p artifacts
 
@@ -34,7 +66,7 @@ append_env_flags() {
     fi
 }
 
-# Resolve the CUDA root for NVHPC/Grace-Hopper builds. NVHPC often puts nvcc in
+# Resolve the CUDA root for NVIDIA GPU builds. Some compiler stacks put nvcc in
 # a compiler bin directory while libcudart lives in a sibling cuda directory, so
 # command -v nvcc alone is not enough for GENESIS configure.
 detect_cuda_path() {
@@ -149,7 +181,7 @@ apply_genesis_nvfortran_configure_patch() {
 }
 
 # Replace obsolete PGI CUDA flags with NVHPC flags and remove options that fail
-# on aarch64 Grace-Hopper nodes. This keeps the patch local to the CI checkout.
+# on aarch64 NVIDIA GPU nodes. This keeps the patch local to the CI checkout.
 apply_genesis_nvhpc_configure_flags_patch() {
     if [ ! -f configure.ac ]; then
         return 0
@@ -186,10 +218,10 @@ bootstrap_genesis() {
     fi
 }
 
-# Shared configuration for GH200-class systems. env_prefix lets each site
+# Shared configuration for NVIDIA GPU systems. env_prefix lets each site
 # override modules, compilers, CUDA path, GPU arch, and configure args without
-# duplicating the whole build block for MiyabiG/RC_GH200.
-configure_genesis_gh200_gpu() {
+# duplicating the whole build block for MiyabiG/RC_GH200/RIKYU.
+configure_genesis_nvidia_gpu() {
     local system_name="$1"
     local env_prefix="$2"
     local default_module="$3"
@@ -203,10 +235,12 @@ configure_genesis_gh200_gpu() {
     local cuda_path_var="${env_prefix}_CUDA_PATH"
     local lapack_libs_var="${env_prefix}_LAPACK_LIBS"
     local ppflags_var="${env_prefix}_PPFLAGS"
+    local compiler_family_var="${env_prefix}_COMPILER_FAMILY"
     local default_ppflags="-traditional-cpp -traditional -D_SINGLE -DHAVE_MPI_GENESIS -DOMP -DFFTE -DUSE_GPU"
     local gpu_arch_value="${!gpu_arch_var:-sm_90}"
     local cuda_arch_number="${gpu_arch_value#sm_}"
     local gpu_arch="sm_${cuda_arch_number}"
+    local compiler_family="${!compiler_family_var:-nvhpc}"
     local cuda_prefix=""
 
     local module_name="${!module_var:-$default_module}"
@@ -227,7 +261,9 @@ configure_genesis_gh200_gpu() {
         cuda_prefix=$(detect_cuda_path || true)
     fi
     configure_cuda_environment "$cuda_prefix" "$cuda_arch_number"
-    export GENESIS_NVHPC_GPU_FLAGS="${GENESIS_NVHPC_GPU_FLAGS:--cuda -gpu=cc${cuda_arch_number}}"
+    if [ "$compiler_family" = "nvhpc" ]; then
+        export GENESIS_NVHPC_GPU_FLAGS="${GENESIS_NVHPC_GPU_FLAGS:--cuda -gpu=cc${cuda_arch_number}}"
+    fi
 
     # Site-specific CONFIG_ARGS is a full replacement. Otherwise use a portable
     # single-precision MPI/OpenMP GPU configuration and add CUDA/LAPACK only when
@@ -249,9 +285,11 @@ configure_genesis_gh200_gpu() {
     append_env_flags PPFLAGS "${!ppflags_var:-$default_ppflags}"
 
     apply_genesis_nvtx_include_patch
-    apply_genesis_nvfortran_configure_patch
-    apply_genesis_nvhpc_configure_flags_patch
-    echo "Configured ${system_name} as Grace-Hopper GPU build"
+    if [ "$compiler_family" = "nvhpc" ]; then
+        apply_genesis_nvfortran_configure_patch
+        apply_genesis_nvhpc_configure_flags_patch
+    fi
+    echo "Configured ${system_name} as NVIDIA GPU build (${compiler_family}, ${gpu_arch})"
 }
 
 case "$system" in
@@ -277,11 +315,18 @@ case "$system" in
 	# ;;
 
     MiyabiG)
-    configure_genesis_gh200_gpu "$system" GENESIS_MIYABIG none
+    configure_genesis_nvidia_gpu "$system" GENESIS_MIYABIG none
 	;;
 
     RC_GH200)
-    configure_genesis_gh200_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    configure_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+	;;
+
+    RIKYU)
+    export GENESIS_RIKYU_COMPILER_FAMILY="${GENESIS_RIKYU_COMPILER_FAMILY:-gnu}"
+    export GENESIS_RIKYU_GPU_ARCH="${GENESIS_RIKYU_GPU_ARCH:-sm_100}"
+    export GENESIS_RIKYU_MODULE="${GENESIS_RIKYU_MODULE:-none}"
+    configure_genesis_nvidia_gpu "$system" GENESIS_RIKYU "$GENESIS_RIKYU_MODULE"
 	;;
 
     *)

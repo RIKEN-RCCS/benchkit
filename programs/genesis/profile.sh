@@ -426,6 +426,9 @@ genesis_run_ncu_plan_profiles() {
         if [ -z "$profile_name" ] || [ -z "$kernel_regex" ]; then
             continue
         fi
+        if [ "$section_name" = "-" ]; then
+            section_name=""
+        fi
         if [ -z "$section_name" ]; then
             section_name=$(genesis_profile_section_name_from_kernel "$kernel_name")
         fi

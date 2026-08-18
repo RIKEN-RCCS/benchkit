@@ -122,6 +122,6 @@ jq -e '
   (.commands[0].argv | index("./app") != null)
 ' "${TMP_DIR}/ncu_commands.json" >/dev/null
 
-awk -F '\t' 'NF != 6 { exit 1 } $2 != "" { exit 1 } $6 == "" { exit 1 }' "${TMP_DIR}/ncu_plan_profiles.tsv"
+awk -F '\t' 'NF != 6 { exit 1 } $2 != "-" { exit 1 } $6 == "" { exit 1 }' "${TMP_DIR}/ncu_plan_profiles.tsv"
 
 echo "ncu plan generation tests passed"

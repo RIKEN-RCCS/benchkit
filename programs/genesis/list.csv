@@ -1,4 +1,5 @@
 system,enable,nodes,numproc_node,nthreads,elapse
+RIKYU,yes,2,4,18,0:10:00
 Fugaku,yes,2,4,12,0:10:00
 FugakuCN,no,1,8,2,0:10:00
 MiyabiG,yes,1,8,9,0:10:00
