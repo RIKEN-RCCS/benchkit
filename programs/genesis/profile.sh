@@ -11,6 +11,106 @@ genesis_ncu_profile_enabled() {
     return 0
 }
 
+genesis_find_apptainer_payload_index() {
+    local cmd_name="$1"
+    local -n cmd_ref="$cmd_name"
+    local idx=0
+    local apptainer_idx=-1
+    local arg
+
+    GENESIS_APPTAINER_INDEX=-1
+    GENESIS_APPTAINER_IMAGE_INDEX=-1
+    GENESIS_APPTAINER_PAYLOAD_INDEX=-1
+
+    for idx in "${!cmd_ref[@]}"; do
+        case "${cmd_ref[$idx]}" in
+          apptainer|*/apptainer|singularity|*/singularity)
+            apptainer_idx="$idx"
+            break
+            ;;
+        esac
+    done
+    if [ "$apptainer_idx" -lt 0 ]; then
+        return 1
+    fi
+
+    idx=$((apptainer_idx + 1))
+    if [ "${cmd_ref[$idx]:-}" = "exec" ]; then
+        idx=$((idx + 1))
+    fi
+
+    while [ "$idx" -lt "${#cmd_ref[@]}" ]; do
+        arg="${cmd_ref[$idx]}"
+        case "$arg" in
+          --)
+            idx=$((idx + 1))
+            break
+            ;;
+          --bind|--mount|--env|--env-file|--pwd|--cwd|--home|--workdir|-B|-H|-W)
+            idx=$((idx + 2))
+            ;;
+          --bind=*|--mount=*|--env=*|--env-file=*|--pwd=*|--cwd=*|--home=*|--workdir=*)
+            idx=$((idx + 1))
+            ;;
+          --nv|--nvccli|--rocm|--cleanenv|--contain|--containall|--no-home|--no-pid|--no-umask|--no-mount|--writable-tmpfs|--sharens)
+            idx=$((idx + 1))
+            ;;
+          -*)
+            idx=$((idx + 1))
+            ;;
+          *)
+            GENESIS_APPTAINER_INDEX="$apptainer_idx"
+            GENESIS_APPTAINER_IMAGE_INDEX="$idx"
+            GENESIS_APPTAINER_PAYLOAD_INDEX=$((idx + 1))
+            return 0
+            ;;
+        esac
+    done
+
+    return 1
+}
+
+genesis_build_container_rank0_profile_command() {
+    local profile_name="$1"
+    local app_name="$2"
+    local out_name="$3"
+    local -n profile_ref="$profile_name"
+    local -n app_ref="$app_name"
+    local -n out_ref="$out_name"
+    local payload_index
+    local profile_argc
+
+    genesis_find_apptainer_payload_index "$app_name" || return 1
+    payload_index="$GENESIS_APPTAINER_PAYLOAD_INDEX"
+    profile_argc="${#profile_ref[@]}"
+
+    out_ref=(
+        "${app_ref[@]:0:$payload_index}"
+        bash -lc
+        'rank=${SLURM_PROCID:-${PMIX_RANK:-${OMPI_COMM_WORLD_RANK:-0}}}; profile_argc=$1; shift; profile_cmd=(); i=0; while [ "$i" -lt "$profile_argc" ]; do profile_cmd+=("$1"); shift; i=$((i + 1)); done; if [ "$rank" = 0 ]; then exec "${profile_cmd[@]}"; fi; exec "$@"'
+        bash
+        "$profile_argc"
+        "${profile_ref[@]}"
+        "${app_ref[@]:$payload_index}"
+    )
+}
+
+genesis_build_container_once_command() {
+    local app_name="$1"
+    local out_name="$2"
+    shift 2
+    local -n app_ref="$app_name"
+    local -n out_ref="$out_name"
+    local prefix_len
+
+    genesis_find_apptainer_payload_index "$app_name" || return 1
+    prefix_len=$((GENESIS_APPTAINER_PAYLOAD_INDEX - GENESIS_APPTAINER_INDEX))
+    out_ref=(
+        "${app_ref[@]:$GENESIS_APPTAINER_INDEX:$prefix_len}"
+        "$@"
+    )
+}
+
 genesis_configure_ncu_profile() {
     local system_name="$1"
     local profiler_tool_var="$2"
@@ -43,7 +143,9 @@ genesis_configure_ncu_profile() {
         return 1
     fi
 
-    if ! command -v ncu >/dev/null 2>&1; then
+    if ! command -v ncu >/dev/null 2>&1 && [ "$system_name" = "RIKYU" ]; then
+        echo "Genesis ${system_name}: host ncu is not in PATH; profiler commands will run inside the Apptainer container." >&2
+    elif ! command -v ncu >/dev/null 2>&1; then
         echo "Genesis ${system_name}: ncu profiler requested but ncu is not in PATH." >&2
         echo "Load Nsight Compute with ${module_var}, or set ${profiler_tool_var}=none / GENESIS_PROFILER_TOOL=none / BK_PROFILER=none to run without profiling." >&2
         return 1
@@ -212,26 +314,166 @@ genesis_run_ncu_profile() {
     local metadata_rel_path="${archive_rel_path%.tgz}.metadata.json"
     local raw_dir="ncu_${profile_slug}"
     local profile_log="${resultsdir}/log_${header}_ncu_${profile_slug}.txt"
+    local profile_cmd=("$@")
 
-    bk_run_ncu_acquisition_profile \
-        --profile-name "$profile_name" \
-        --profile-slug "$profile_slug" \
-        --kernel-regex "$kernel_regex" \
-        --launch-skip "$launch_skip" \
-        --launch-count "$launch_count" \
-        --level "$profiler_level" \
-        --archive "$archive_path" \
-        --archive-rel "$archive_rel_path" \
-        --raw-dir "$raw_dir" \
-        --log "$profile_log" \
-        --section "$section_name" \
-        --metadata "$metadata_path" \
-        --discovery-json "${discovery_metadata_json:-{}}" \
-        -- "$@"
+    if genesis_find_apptainer_payload_index profile_cmd; then
+        genesis_run_container_ncu_acquisition_profile \
+            "$profile_name" \
+            "$profile_slug" \
+            "$kernel_regex" \
+            "$launch_skip" \
+            "$launch_count" \
+            "$profiler_level" \
+            "$section_name" \
+            "$archive_path" \
+            "$archive_rel_path" \
+            "$raw_dir" \
+            "$profile_log" \
+            "$metadata_path" \
+            "${discovery_metadata_json:-{}}" \
+            "${profile_cmd[@]}"
+    else
+        bk_run_ncu_acquisition_profile \
+            --profile-name "$profile_name" \
+            --profile-slug "$profile_slug" \
+            --kernel-regex "$kernel_regex" \
+            --launch-skip "$launch_skip" \
+            --launch-count "$launch_count" \
+            --level "$profiler_level" \
+            --archive "$archive_path" \
+            --archive-rel "$archive_rel_path" \
+            --raw-dir "$raw_dir" \
+            --log "$profile_log" \
+            --section "$section_name" \
+            --metadata "$metadata_path" \
+            --discovery-json "${discovery_metadata_json:-{}}" \
+            -- "${profile_cmd[@]}"
+    fi
 
     if [ -n "$section_name" ]; then
         echo "GENESIS NCU profile metadata: ${metadata_rel_path}" >&2
         genesis_register_section_artifact "$section_name" "$archive_rel_path"
+    fi
+}
+
+genesis_run_container_ncu_acquisition_profile() {
+    local profile_name="$1"
+    local profile_slug="$2"
+    local kernel_regex="$3"
+    local launch_skip="$4"
+    local launch_count="$5"
+    local profiler_level="$6"
+    local section_name="$7"
+    local archive_path="$8"
+    local archive_rel_path="$9"
+    local raw_dir="${10}"
+    local profile_log="${11}"
+    local metadata_path="${12}"
+    local discovery_metadata_json="${13:-{}}"
+    shift 13
+
+    local app_cmd=("$@")
+    local payload=()
+    local ncu_level_args=()
+    local profile_payload=()
+    local profile_cmd=()
+    local import_cmd=()
+    local stage_dir="${BK_PROFILER_STAGE_DIR:-bk_profiler_artifact}"
+    local rep_name="rep1"
+    local rep_dir="${raw_dir}/${rep_name}"
+    local profile_base="${rep_dir}/profile"
+    local report_file
+    local profiler_status
+    local archive_status
+
+    genesis_find_apptainer_payload_index app_cmd || return 1
+    payload=("${app_cmd[@]:$GENESIS_APPTAINER_PAYLOAD_INDEX}")
+    read -r -a ncu_level_args <<< "$(bk_profiler_ncu_level_args "$profiler_level")"
+
+    rm -rf "$raw_dir" "$stage_dir"
+    mkdir -p "$rep_dir" "$stage_dir/raw" "$stage_dir/reports"
+
+    profile_payload=(
+        ncu
+        -o "$profile_base"
+        --target-processes all
+        "${ncu_level_args[@]}"
+        --kernel-name-base demangled
+        --kernel-name "$kernel_regex"
+        --launch-skip "$launch_skip"
+        --launch-count "$launch_count"
+        "${payload[@]}"
+    )
+    genesis_build_container_rank0_profile_command profile_payload app_cmd profile_cmd || return 1
+
+    echo "bk_run_ncu_acquisition_profile: profile='${profile_name}' kernel='${kernel_regex}' skip=${launch_skip} count=${launch_count}" >&2
+    echo "bk_profiler[ncu]: starting ${rep_name} level=${profiler_level} inside container rank 0" >&2
+    set +e
+    "${profile_cmd[@]}" </dev/null 2>&1 | tee "$profile_log"
+    profiler_status=${PIPESTATUS[0]}
+    set -e
+
+    if [ "$profiler_status" -eq 0 ]; then
+        echo "bk_profiler[ncu]: completed ${rep_name} level=${profiler_level}" >&2
+    else
+        echo "bk_profiler[ncu]: failed ${rep_name} level=${profiler_level} status=${profiler_status}" >&2
+    fi
+
+    report_file=$(bk_profiler_find_ncu_report "$rep_dir" || true)
+    if [ -n "$report_file" ]; then
+        genesis_build_container_once_command app_cmd import_cmd \
+            ncu --import "$report_file" \
+            --page raw \
+            --csv \
+            --print-units base \
+            --print-fp || return 1
+        "${import_cmd[@]}" > "${rep_dir}/profile_raw.csv" 2> "${rep_dir}/profile_raw.csv.log" || true
+
+        import_cmd=()
+        genesis_build_container_once_command app_cmd import_cmd \
+            ncu --import "$report_file" --page details || return 1
+        "${import_cmd[@]}" > "$stage_dir/reports/ncu_import_${rep_name}.txt" 2>&1 || true
+    fi
+
+    cp -R "$rep_dir" "$stage_dir/raw/${rep_name}"
+    case "${BK_PROFILER_ARCHIVE_NCU_REPORT:-false}" in
+      1|true|TRUE|yes|YES|on|ON) ;;
+      *)
+        find "$stage_dir/raw/${rep_name}" -maxdepth 1 -type f \( \
+          -name '*.ncu-rep' -o \
+          -name '*.nsight-cuprof' \
+        \) -delete
+        ;;
+    esac
+    bk_profiler_write_meta "$stage_dir" ncu "$profiler_level" both "$rep_name" "$profiler_level" \
+        "--kernel-name-base demangled --kernel-name ${kernel_regex} --launch-skip ${launch_skip} --launch-count ${launch_count}" ""
+    if tar -czf "$archive_path" "$stage_dir"; then
+        archive_status=0
+    else
+        archive_status=$?
+    fi
+    rm -rf "$stage_dir"
+
+    if [ "$archive_status" -ne 0 ]; then
+        return "$archive_status"
+    fi
+    if [ "$profiler_status" -ne 0 ]; then
+        echo "bk_run_ncu_acquisition_profile: profile '${profile_name}' failed with status ${profiler_status}" >&2
+        return "$profiler_status"
+    fi
+
+    if [ -n "$section_name" ]; then
+        bk_write_gpu_kernel_profile_metadata \
+          "$metadata_path" \
+          "$archive_rel_path" \
+          "$section_name" \
+          "$profile_name" \
+          "$profile_slug" \
+          "$kernel_regex" \
+          "$launch_skip" \
+          "$launch_count" \
+          "$discovery_metadata_json" || return $?
+        echo "bk_run_ncu_acquisition_profile: metadata ${metadata_path}" >&2
     fi
 }
 
@@ -309,6 +551,9 @@ genesis_generate_ncu_plan() {
     local generated_csv
     local nsys_status
     local plan_top_k="${BK_GENESIS_NCU_PLAN_TOP_K:-}"
+    local nsys_payload=()
+    local nsys_profile_cmd=()
+    local nsys_stats_cmd=()
 
     python_bin="${PYTHON_BIN:-python3}"
     if ! command -v "$python_bin" >/dev/null 2>&1; then
@@ -317,11 +562,6 @@ genesis_generate_ncu_plan() {
     fi
 
     if [ -z "$discovery_csv" ]; then
-        if ! command -v nsys >/dev/null 2>&1; then
-            echo "GENESIS NCU discovery requires nsys, or set BK_GENESIS_NCU_DISCOVERY_CSV to an existing cuda_gpu_kern_sum CSV." >&2
-            return 1
-        fi
-
         discovery_cmd=("$@")
         last_index=$((${#discovery_cmd[@]} - 1))
         if [ "$last_index" -lt 0 ]; then
@@ -330,15 +570,34 @@ genesis_generate_ncu_plan() {
         fi
         discovery_input=$(genesis_prepare_ncu_input "${discovery_cmd[$last_index]}" "discovery" "discovery" "DISCOVERY")
         discovery_cmd[$last_index]="$discovery_input"
+        if ! genesis_find_apptainer_payload_index discovery_cmd && ! command -v nsys >/dev/null 2>&1; then
+            echo "GENESIS NCU discovery requires nsys, or set BK_GENESIS_NCU_DISCOVERY_CSV to an existing cuda_gpu_kern_sum CSV." >&2
+            return 1
+        fi
+        rm -f "$nsys_report" "${nsys_base}.sqlite" "${nsys_csv}" "${nsys_csv}"*
 
         echo "Running GENESIS NSYS kernel discovery for automatic NCU plan generation level=${profiler_level}" >&2
         set +e
-        nsys profile \
-            --force-overwrite=true \
-            --trace=cuda \
-            --sample=none \
-            -o "$nsys_base" \
-            "${discovery_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
+        if genesis_find_apptainer_payload_index discovery_cmd; then
+            nsys_payload=(
+                nsys
+                profile
+                --force-overwrite=true
+                --trace=cuda
+                --sample=none
+                -o "$nsys_base"
+                "${discovery_cmd[@]:$GENESIS_APPTAINER_PAYLOAD_INDEX}"
+            )
+            genesis_build_container_rank0_profile_command nsys_payload discovery_cmd nsys_profile_cmd
+            "${nsys_profile_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
+        else
+            nsys profile \
+                --force-overwrite=true \
+                --trace=cuda \
+                --sample=none \
+                -o "$nsys_base" \
+                "${discovery_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
+        fi
         nsys_status=${PIPESTATUS[0]}
         set -e
         if [ "$nsys_status" -ne 0 ]; then
@@ -350,7 +609,13 @@ genesis_generate_ncu_plan() {
             echo "GENESIS NSYS report was not created: ${nsys_report}" >&2
             return 1
         fi
-        nsys stats --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" >/dev/null
+        if genesis_find_apptainer_payload_index discovery_cmd; then
+            genesis_build_container_once_command discovery_cmd nsys_stats_cmd \
+                nsys stats --force-export=true --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" || return 1
+            "${nsys_stats_cmd[@]}" >/dev/null
+        else
+            nsys stats --force-export=true --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" >/dev/null
+        fi
         generated_csv=$(find "${resultsdir}" -maxdepth 1 -type f \( -name 'nsys_cuda_gpu_kern_sum*.csv' -o -name 'nsys_cuda_gpu_kern_sum*.csv.*' \) | sort | head -n 1)
         discovery_csv="${generated_csv:-$nsys_csv}"
         echo "GENESIS NSYS CUDA kernel summary CSV: ${discovery_csv}" >&2
@@ -496,7 +761,7 @@ genesis_run_configured_ncu_profiles() {
         genesis_run_ncu_plan_profiles "$plan_json" "$profiler_level" "$@"
         ;;
       discovery-only|auto-discovery-only)
-        genesis_generate_ncu_plan "$profiler_level" "$@" >/dev/null
+        genesis_generate_ncu_plan "$profiler_level" "$@" >/dev/null || return $?
         echo "Genesis ${system_name}: completed NSYS kernel discovery; skipping NCU profile execution."
         ;;
       *)
