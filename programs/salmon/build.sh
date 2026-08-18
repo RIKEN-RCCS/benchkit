@@ -12,16 +12,23 @@ BUILD_DIR="build-benchkit"
 # GPU-decomposition numbers on this repo were never actually run against it --
 # they came from a much newer, hand-patched checkout (~100 commits ahead,
 # including PR #1276's OpenACC tuning). Rather than let RIKYU silently build
-# something nobody has benchmarked, pin it to a tag that IS what was
-# benchmarked: develop-2.0.0@9b93a8c4 (2026-08-16) + PR #1276's stencil/
-# current/pseudo-pt OpenACC optimizations (batched cuBLAS GEMM for pseudo-pt,
-# not the old USE_CUDA hand-written kernels -- see below) + the nvhpc/26.5
-# Ewald-reduction fix, combined into one branch on william-dawson/SALMON2.
+# something nobody has benchmarked, pin it to FugakuNEXT-v1 on
+# william-dawson/SALMON2 (also open as SALMON-TDDFT/SALMON2#1276) --
+# develop-2.0.0@9b93a8c4 (2026-08-16) plus four commits, one per concern:
+#   1. PR #1276's stencil/current/pseudo-pt OpenACC tuning (batched cuBLAS
+#      GEMM for pseudo-pt, not the old USE_CUDA hand-written kernels --
+#      see below)
+#   2. the nvhpc-openacc-gemm.cmake platform file that wires it up
+#   3. the nvhpc/26.5 Ewald-reduction compiler-bug workaround
+#   4. a fix for a real, 100%-reproducible 2+ node hang on native
+#      nvhpc/26.5 (forces CUDA context creation before MPI_Init_thread --
+#      see below, and salmon-gpu-optimization-ideas' Open item 5 in
+#      subwg2-benchmarks for the full root-cause trail)
 # See .claude/skills/salmon-gpu-optimization-ideas and salmon-build in
 # subwg2-benchmarks for how each piece was measured/root-caused.
 if [[ "${system}" == "RIKYU" ]]; then
   REPO_URL="https://github.com/william-dawson/SALMON2"
-  VERSION_TAG="v.2.2.2-rikyu-optimized-265"
+  VERSION_TAG="FugakuNEXT-v1"
 fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
@@ -206,7 +213,7 @@ case "${system}" in
   #   ;;
   RIKYU)
     module purge
-    module load nvhpc/26.3
+    module load nvhpc/26.5
     apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
@@ -216,27 +223,25 @@ case "${system}" in
       -DUSE_OPENACC=ON
       -DUSE_MPI_DEFAULT=ON
       -DCMAKE_SYSTEM_PROCESSOR=openacc
-      -DFORTRAN_COMPILER_HAS_MPI_VERSION3=OFF
       -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
       -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
-      # nvhpc/26.3, not 26.5, and FORTRAN_COMPILER_HAS_MPI_VERSION3=OFF:
-      # native MPI3 on nvhpc/26.5 is faster for single-node/domain-
-      # decomposition (see nvhpc265-ewald-reduction patch header and
-      # subwg2-benchmarks' salmon-build skill) but genuinely HANGS 8-GPU
-      # (2+ node) orbital decomposition -- reproducibly dies right after
-      # init_ps with a UCC inter-node protocol error
+      # nvhpc/26.5, native MPI3 ON (no FORTRAN_COMPILER_HAS_MPI_VERSION3
+      # override needed): this used to hang 2+ node orbital decomposition
+      # -- died right after init_ps with a UCC inter-node protocol error
       # (`cannot find remote protocol for: UCC_UCP_CONTEXT inter-node
-      # cfg#N | tag_send from cuda-managed/GPU0`), then spins at ~99% CPU
-      # producing zero further output. Confirmed NOT a version-mixing
-      # artifact (this build mixes nothing -- 26.3 compiler, 26.3 runtime)
-      # and NOT a GPU-binding bug (verified correct per-rank binding via
-      # an instrumented wrapper.sh) -- it's specific to native MPI3 at
-      # 2+ nodes. 26.3+MPI3-off is the one combination proven correct and
-      # hang-free at every scale BenchKit actually needs here (1, 2, 4, 8
-      # GPU all bit-exact on this pinned source; 16/32 GPU proven on an
-      # earlier source revision -- see rikyu-32gpu-scaling skill). The
-      # Ewald patch above is a no-op on 26.3 (its version gate only fires
-      # for nvhpc>=26.5) -- harmless to keep applying regardless.
+      # cfg#N | tag_send from cuda-managed/GPU0`), then spun at ~99% CPU
+      # producing zero further output -- but that's now fixed at the
+      # source (FugakuNEXT-v1's 4th commit: acc_init(acc_device_nvidia)
+      # before MPI_Init_thread, so UCC's CUDA-aware protocol probe during
+      # MPI_Init's team bootstrap doesn't run with no CUDA context and
+      # cache a broken config). Root-caused via a live gdb backtrace on
+      # the hung process and compute-sanitizer on the real binary -- see
+      # subwg2-benchmarks' salmon-gpu-optimization-ideas skill, Open item
+      # 5, for the full trail, and don't reintroduce the old
+      # nvhpc/26.3 + FORTRAN_COMPILER_HAS_MPI_VERSION3=OFF workaround this
+      # replaces: native 26.5 MPI3 is faster and this pin is what's
+      # actually been verified end-to-end (orbital 1-8 nodes, domain 1-2
+      # nodes, all bit-exact, on the real build.sh + real artifact).
       #
       # NOT -DUSE_CUDA -- that flag controls a completely different, OLDER
       # optimization path (src/common/{zpseudo,stencil_current}.cu, hand-
