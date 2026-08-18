@@ -38,7 +38,9 @@ GENESIS_RIKYU_GPU_ARCH=sm_100
 
 The RIKYU SIF image name, path, and contents are still site-local and may
 change. Set `GENESIS_RIKYU_SIF` to override the image path. Set
-`GENESIS_RIKYU_APPTAINER` to override the Apptainer command and
+`GENESIS_RIKYU_APPTAINER` to override the Apptainer command; it defaults to the
+RIKYU site path `/shared/software/apptainer/bin/apptainer` because the custom
+executor environment may not inherit the normal login shell path. Set
 `GENESIS_RIKYU_APPTAINER_BINDS` to add comma-separated bind mounts.
 
 The RIKYU run path keeps the benchmark at the p8 default size and launches the
