@@ -62,6 +62,32 @@ build_profile_data_summary() {
   ' 2>/dev/null || true
 }
 
+list_section_padata_archives() {
+  local json_file="$1"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  jq -r '
+    .fom_breakdown.sections[]?.artifacts[]?.path? // empty
+    | select(test("(^|/)padata.*[.]tgz$"))
+  ' "$json_file" 2>/dev/null || true
+}
+
+padata_archive_already_uploaded() {
+  local tgz_file="$1"
+  local uploaded_file
+  shift
+
+  for uploaded_file in "$@"; do
+    if [[ "$uploaded_file" == "$tgz_file" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 upload_padata_archive() {
   local tgz_file="$1"
   local uuid="$2"
@@ -108,6 +134,7 @@ for json_file in results/result*.json; do
   fi
 
   echo tgz_file $tgz_file
+  uploaded_tgz_files=()
 
   profile_data_summary=$(build_profile_data_summary "$tgz_file")
   if [[ -n "$profile_data_summary" ]]; then
@@ -173,9 +200,23 @@ for json_file in results/result*.json; do
   # Upload TGZ if it exists
   if [[ -f "$tgz_file" ]]; then
     upload_padata_archive "$tgz_file" "$uuid" "$timestamp"
+    uploaded_tgz_files+=("$tgz_file")
   else
     echo "No matching TGZ found for $json_file (expected: $tgz_file). Skipping upload."
   fi
+
+  while IFS= read -r section_tgz_file; do
+    [[ -n "$section_tgz_file" ]] || continue
+    if padata_archive_already_uploaded "$section_tgz_file" "${uploaded_tgz_files[@]}"; then
+      continue
+    fi
+    if [[ -f "$section_tgz_file" ]]; then
+      upload_padata_archive "$section_tgz_file" "$uuid" "$timestamp"
+      uploaded_tgz_files+=("$section_tgz_file")
+    else
+      echo "No matching section TGZ found for $json_file (expected: $section_tgz_file). Skipping upload."
+    fi
+  done < <(list_section_padata_archives "$json_file")
 
 done
 

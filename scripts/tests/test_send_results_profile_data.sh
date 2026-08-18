@@ -22,7 +22,38 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
   "nthreads": "2",
   "description": "null",
   "confidential": "null",
-  "source_info": null
+  "source_info": null,
+  "fom_breakdown": {
+    "sections": [
+      {
+        "name": "pme_real_inter",
+        "artifacts": [
+          {
+            "type": "file_reference",
+            "path": "results/padata_k001.tgz"
+          }
+        ]
+      },
+      {
+        "name": "pme_real_intra",
+        "artifacts": [
+          {
+            "type": "file_reference",
+            "path": "results/padata_k002.tgz"
+          }
+        ]
+      },
+      {
+        "name": "pairlist",
+        "artifacts": [
+          {
+            "type": "file_reference",
+            "path": "results/padata_k003.tgz"
+          }
+        ]
+      }
+    ]
+  }
 }
 EOF
 
@@ -50,6 +81,9 @@ cat > "${TMP_DIR}/bk_profiler_artifact/meta.json" <<'EOF'
 EOF
 
 tar -czf "${TMP_DIR}/results/padata0.tgz" -C "${TMP_DIR}" bk_profiler_artifact
+tar -czf "${TMP_DIR}/results/padata_k001.tgz" -C "${TMP_DIR}" bk_profiler_artifact
+tar -czf "${TMP_DIR}/results/padata_k002.tgz" -C "${TMP_DIR}" bk_profiler_artifact
+tar -czf "${TMP_DIR}/results/padata_k003.tgz" -C "${TMP_DIR}" bk_profiler_artifact
 
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
@@ -59,6 +93,7 @@ if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
   exit 0
 fi
 if printf '%s\n' "$*" | grep -q '/api/ingest/padata'; then
+  printf '%s\n' "$*" >> "${TMP_DIR}/padata_uploads.log"
   if [ "${FAKE_PADATA_STATUS:-200}" = "413" ]; then
     echo "curl: (22) The requested URL returned error: 413" >&2
     exit 22
@@ -126,6 +161,29 @@ if "tool: .tool" in expr and "report_kinds" in expr:
     sys.exit(0)
 raise SystemExit(1)
 PY
+fi
+
+if [ "$1" = "-r" ]; then
+  shift
+  expr="$1"
+  target_file="$2"
+  "$python_exe" - "$target_file" "$expr" <<'PY'
+import json
+import sys
+
+path, expr = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+if "fom_breakdown.sections" in expr and "padata" in expr:
+    for section in data.get("fom_breakdown", {}).get("sections", []):
+        for artifact in section.get("artifacts", []):
+            artifact_path = artifact.get("path")
+            if artifact_path and artifact_path.split("/")[-1].startswith("padata") and artifact_path.endswith(".tgz"):
+                print(artifact_path)
+    sys.exit(0)
+raise SystemExit(1)
+PY
+  exit 0
 fi
 
 args=("$@")
@@ -231,10 +289,18 @@ grep -Eq '"ncu_options":[[:space:]]*\[' "${TMP_DIR}/results/result0.json"
 grep -Eq '"ncu_report"' "${TMP_DIR}/results/result0.json"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/results/result0.json"
 grep -q '"result0.json"' "${TMP_DIR}/results/server_result_meta.json"
+grep -q 'padata0.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'padata_k001.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'padata_k002.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'padata_k003.tgz' "${TMP_DIR}/padata_uploads.log"
+test "$(grep -c '/api/ingest/padata' "${TMP_DIR}/padata_uploads.log")" = "4"
 
 mkdir -p "${TMP_DIR}/case413/results"
 cp "${TMP_DIR}/results/result0.json" "${TMP_DIR}/case413/results/result0.json"
 cp "${TMP_DIR}/results/padata0.tgz" "${TMP_DIR}/case413/results/padata0.tgz"
+cp "${TMP_DIR}/results/padata_k001.tgz" "${TMP_DIR}/case413/results/padata_k001.tgz"
+cp "${TMP_DIR}/results/padata_k002.tgz" "${TMP_DIR}/case413/results/padata_k002.tgz"
+cp "${TMP_DIR}/results/padata_k003.tgz" "${TMP_DIR}/case413/results/padata_k003.tgz"
 
 export FAKE_PADATA_STATUS=413
 pushd "${TMP_DIR}/case413" >/dev/null
