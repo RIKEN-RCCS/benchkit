@@ -1231,8 +1231,14 @@ bk_write_gpu_kernel_profile_metadata() {
   fi
 
   mkdir -p "$(dirname "$_bk_metadata_path")"
+  _bk_metadata_tmp="${_bk_metadata_path}.tmp.$$"
   if command -v jq >/dev/null 2>&1; then
-    jq -n \
+    if ! printf '%s' "$_bk_discovery_metadata_json" | jq -e . >/dev/null 2>&1; then
+      echo "bk_write_gpu_kernel_profile_metadata: invalid discovery JSON" >&2
+      rm -f "$_bk_metadata_tmp"
+      return 1
+    fi
+    if jq -n \
       --arg kind "gpu_kernel_profile_metadata" \
       --arg profiler "ncu" \
       --arg section "$_bk_section_name" \
@@ -1263,11 +1269,20 @@ bk_write_gpu_kernel_profile_metadata() {
           },
           nsys_discovery: $normalized_discovery
         }
-      ' > "$_bk_metadata_path"
-  elif command -v python3 >/dev/null 2>&1; then
+      ' > "$_bk_metadata_tmp"; then
+      mv "$_bk_metadata_tmp" "$_bk_metadata_path"
+      return 0
+    fi
+    rm -f "$_bk_metadata_tmp"
+    if ! command -v python3 >/dev/null 2>&1; then
+      return 1
+    fi
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
     python3 - "$_bk_archive_rel_path" "$_bk_section_name" "$_bk_profile_name" \
       "$_bk_profile_slug" "$_bk_kernel_regex" "$_bk_launch_skip" \
-      "$_bk_launch_count" "$_bk_discovery_metadata_json" > "$_bk_metadata_path" <<'PY'
+      "$_bk_launch_count" "$_bk_discovery_metadata_json" > "$_bk_metadata_tmp" <<'PY'
 import json
 import sys
 
@@ -1276,9 +1291,11 @@ kernel_regex, launch_skip, launch_count, discovery_json = sys.argv[5:9]
 try:
     discovery = json.loads(discovery_json)
 except json.JSONDecodeError:
-    discovery = {}
+    print("bk_write_gpu_kernel_profile_metadata: invalid discovery JSON", file=sys.stderr)
+    raise SystemExit(1)
 if not isinstance(discovery, dict):
-    discovery = {}
+    print("bk_write_gpu_kernel_profile_metadata: discovery JSON must be an object", file=sys.stderr)
+    raise SystemExit(1)
 if not discovery.get("section") and section_name:
     discovery["section"] = section_name
 
@@ -1304,8 +1321,16 @@ json.dump(
 )
 sys.stdout.write("\n")
 PY
+    _bk_metadata_status=$?
+    if [ "$_bk_metadata_status" -eq 0 ]; then
+      mv "$_bk_metadata_tmp" "$_bk_metadata_path"
+      return 0
+    fi
+    rm -f "$_bk_metadata_tmp"
+    return "$_bk_metadata_status"
   else
     echo "bk_write_gpu_kernel_profile_metadata: jq or python3 is required" >&2
+    rm -f "$_bk_metadata_tmp"
     return 1
   fi
 }
