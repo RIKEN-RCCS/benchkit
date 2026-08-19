@@ -49,6 +49,10 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def result_detail(filename):
         return filename
 
+    @results_bp.route("/<filename>")
+    def show_result(filename):
+        return filename
+
     @results_bp.route("/environment-snapshots/<path:snapshot_hash>")
     def environment_snapshot_results(snapshot_hash):
         return snapshot_hash

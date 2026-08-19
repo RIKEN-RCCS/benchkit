@@ -452,6 +452,59 @@ class TestIngestPadata:
         saved_files = os.listdir(tmp_dirs[1])
         assert saved_files == ["padata_20250101_120000_12345678-1234-1234-1234-123456789abc.tgz"]
 
+    def test_upload_section_artifacts_do_not_replace_each_other(self, client, tmp_dirs):
+        """Section padata archives for one result UUID are stored separately."""
+        uuid_value = "12345678-1234-1234-1234-123456789abc"
+        base_data = {
+            "id": uuid_value,
+            "timestamp": "20250101_120000",
+            "file": (io.BytesIO(b"legacy"), "legacy.tgz"),
+        }
+        resp = client.post("/api/ingest/padata",
+                           data=base_data,
+                           headers={"X-API-Key": API_KEY},
+                           content_type="multipart/form-data")
+        assert resp.status_code == 200
+
+        for artifact_name in ("padata_pairlist.tgz", "padata_pme_real_inter.tgz"):
+            resp = client.post("/api/ingest/padata",
+                               data={
+                                   "id": uuid_value,
+                                   "timestamp": "20250101_120000",
+                                   "artifact_path": f"results/{artifact_name}",
+                                   "file": (io.BytesIO(artifact_name.encode("utf-8")), artifact_name),
+                               },
+                               headers={"X-API-Key": API_KEY},
+                               content_type="multipart/form-data")
+            assert resp.status_code == 200
+            assert resp.get_json()["replaced"] is False
+
+        assert sorted(os.listdir(tmp_dirs[1])) == [
+            "padata_20250101_120000_12345678-1234-1234-1234-123456789abc.tgz",
+            "padata_20250101_120000_12345678-1234-1234-1234-123456789abc_padata_pairlist.tgz",
+            "padata_20250101_120000_12345678-1234-1234-1234-123456789abc_padata_pme_real_inter.tgz",
+        ]
+
+    @pytest.mark.parametrize("artifact_path", [
+        "../padata.tgz",
+        "results/../padata.tgz",
+        "/tmp/padata.tgz",
+        "results/bad name.tgz",
+        "artifacts/padata.tgz",
+    ])
+    def test_rejects_invalid_padata_artifact_path(self, client, artifact_path):
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "20250101_120000",
+            "artifact_path": artifact_path,
+            "file": (io.BytesIO(b"data"), "test.tgz"),
+        }
+        resp = client.post("/api/ingest/padata",
+                           data=data,
+                           headers={"X-API-Key": API_KEY},
+                           content_type="multipart/form-data")
+        assert resp.status_code == 400
+
     def test_missing_uuid_returns_400(self, client):
         """Test case."""
         import io

@@ -1,3 +1,5 @@
+import os
+
 from flask import abort, current_app, render_template, request, url_for
 from werkzeug.exceptions import Forbidden, NotFound
 
@@ -40,10 +42,13 @@ def register_results_detail_routes(results_bp):
             not_found_message="Result file not found",
         )
         quality = summarize_result_quality(result)
+        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
+        padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]
         detail_context = build_result_detail_context(
             result,
             quality,
             load_trigger_run_lookup(current_app.config.get("EXECUTION_PROFILE_DB_PATH")),
+            padata_filenames,
         )
         if detail_context.get("environment_snapshot_hash"):
             detail_context["environment_snapshot_results_url"] = url_for(
