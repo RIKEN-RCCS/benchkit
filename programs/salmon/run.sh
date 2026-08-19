@@ -186,29 +186,7 @@ case "${system}" in
     module purge
     module load nvhpc-hpcx-cuda13/26.5
     export OMP_NUM_THREADS="${nthreads}"
-    # Mixed decomposition: split the real-space grid 2x2x1 *within* a node
-    # (4 GPUs, NVLink) and distribute orbitals across nodes. Only the grid
-    # split reduces calculating-curr, which does not scale under orbital
-    # decomposition at all (109.5 -> 44.2 ms/iter at 4 GPUs); with the NCCL
-    # reduce the pseudo-pt cost of splitting is down to ~5 ms/iter.
-    # Measured on 3x3x3 SiO2, rt iterations vs pure orbital: 8 GPUs
-    # 56.2 -> 48.0 s, 16 GPUs 44.6 -> 31.0 s, all bit-exact.
-    #
-    # process_allocation='grid_sequential' is REQUIRED: it orders ranks
-    # grid-fastest so each icomm_r is one node's 4 ranks. The default
-    # 'orbital_sequential' strides icomm_r across nodes, which puts the
-    # halo exchange on InfiniBand instead of NVLink.
-    if [[ "${numproc_node}" -eq 4 ]]; then
-      salmon_nproc_ob="${nodes}"; salmon_rgrid="2, 2, 1"; salmon_alloc="grid_sequential"
-    else
-      salmon_nproc_ob="${n_ranks}"; salmon_rgrid="1, 1, 1"; salmon_alloc="orbital_sequential"
-    fi
-    awk -v nproc_ob="${salmon_nproc_ob}" -v rgrid="${salmon_rgrid}" -v alloc="${salmon_alloc}" '
-      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = " rgrid; print "  process_allocation = " q alloc q; in_parallel=1; next }
-      in_parallel && /^\// { in_parallel=0; print; next }
-      in_parallel { next }
-      { print }
-    ' q="'" "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
+    # Layout is set per RT run below (RIKYU benchmarks two of them).
     if [[ "${n_ranks}" -gt 1 ]]; then
       cat > wrapper.sh <<'WRAPPER'
 #!/bin/bash
@@ -322,40 +300,73 @@ if uses_prestaged_restart "${system}"; then
   # GS is offline prep, done once when the restart was staged -- see
   # salmon-benchmarking in subwg2-benchmarks for how/when to regenerate
   # it. The benchmark itself is TDDFT-only.
-  touch .rt_start_marker
-  rt_start=$(date +%s.%N)
-  if uses_stdin_input "${system}"; then
-    run_salmon_or_diagnose RT .rt_start_marker rt.log ./salmon < "${tddft_nml}"
+  # Rewrite the &parallel block in place.
+  salmon_set_parallel () {
+    awk -v nproc_ob="$1" -v rgrid="$2" -v alloc="$3" '
+      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = " rgrid; print "  process_allocation = " q alloc q; in_parallel=1; next }
+      in_parallel && /^\// { in_parallel=0; print; next }
+      in_parallel { next }
+      { print }
+    ' q="'" "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
+  }
+
+  # One timed RT run at the current layout, emitting one result line.
+  run_rt_once () {
+    local label="$1" logfile="rt_$1.log"
+    touch .rt_start_marker
+    local t0 t1
+    t0=$(date +%s.%N)
+    if uses_stdin_input "${system}"; then
+      run_salmon_or_diagnose RT .rt_start_marker "${logfile}" ./salmon < "${tddft_nml}"
+    else
+      # Fugaku (Fujitsu MPI): -stdin FILE must be an mpiexec-level argument,
+      # not shell redirection -- plain `< file` only feeds rank 0's stdin
+      # under pjsub's mpiexec, not all ranks.
+      run_salmon_or_diagnose RT .rt_start_marker "${logfile}" -stdin "${tddft_nml}" ./salmon
+    fi
+    t1=$(date +%s.%N)
+    cp "${logfile}" "${RESULTS_DIR}/"
+    if ! salmon_output_has_marker_since "${logfile}" .rt_start_marker; then
+      echo "SALMON RT run failed (${label})" >&2
+      tail -n 40 "${logfile}" >&2 || true
+      print_salmon_output_diagnostics .rt_start_marker
+      exit 1
+    fi
+    # FOM is SALMON's own rt-iterations timer, not wall clock: the one-time
+    # restart read is ~40-150 s depending on whether Lustre is cold, which
+    # swamps and reorders the comparison when two layouts run in one job.
+    # Production runs do very many steps, so the RT loop is what matters.
+    local rt_s
+    rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${logfile}")
+    if [[ -z "${rt_s}" ]]; then
+      echo "could not read 'rt iterations' from ${logfile}" >&2
+      exit 1
+    fi
+    bk_emit_result \
+      --fom "${rt_s}" \
+      --fom-unit s \
+      --fom-version "rt_iterations_s_folded_restart" \
+      --exp "${tddft_nml%.nml}-${label}" \
+      --nodes "${nodes}" \
+      --numproc-node "${numproc_node}" \
+      --nthreads "${nthreads}" \
+      >> "${RESULTS_DIR}/result"
+  }
+
+  if [[ "${system}" == "RIKYU" && "${numproc_node}" -eq 4 ]]; then
+    # Benchmark both decompositions. Orbital is currently the faster of the
+    # two at every node count measured, but mixed is what a problem with less
+    # orbital parallelism has to fall back on, so both are worth tracking.
+    # Mixed keeps the 2x2x1 grid split inside a node (NVLink) and spreads
+    # orbitals across nodes; process_allocation='grid_sequential' is required
+    # for that, since the default strides icomm_r across nodes.
+    salmon_set_parallel "${n_ranks}" "1, 1, 1" "orbital_sequential"
+    run_rt_once orbital
+    salmon_set_parallel "${nodes}"   "2, 2, 1" "grid_sequential"
+    run_rt_once mixed
   else
-    # Fugaku (Fujitsu MPI): -stdin FILE must be an mpiexec-level argument,
-    # not shell redirection -- plain `< file` only feeds rank 0's stdin
-    # under pjsub's mpiexec, not all ranks.
-    run_salmon_or_diagnose RT .rt_start_marker rt.log -stdin "${tddft_nml}" ./salmon
+    run_rt_once default
   fi
-  rt_end=$(date +%s.%N)
-
-  rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
-
-  cp rt.log "${RESULTS_DIR}/"
-
-  if ! salmon_output_has_marker_since rt.log .rt_start_marker; then
-    echo "SALMON RT run failed" >&2
-    echo "---- rt.log tail ----" >&2
-    tail -n 40 rt.log >&2 || true
-    echo "---- files updated since RT start ----" >&2
-    print_salmon_output_diagnostics .rt_start_marker
-    exit 1
-  fi
-
-  bk_emit_result \
-    --fom "${rt_elapsed}" \
-    --fom-unit s \
-    --fom-version "tddft_elapsed_time_s_folded_restart" \
-    --exp "${tddft_nml%.nml}" \
-    --nodes "${nodes}" \
-    --numproc-node "${numproc_node}" \
-    --nthreads "${nthreads}" \
-    >> "${RESULTS_DIR}/result"
 else
   touch .gs_start_marker
   gs_start=$(date +%s.%N)
