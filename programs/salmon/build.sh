@@ -28,7 +28,7 @@ BUILD_DIR="build-benchkit"
 # subwg2-benchmarks for how each piece was measured/root-caused.
 if [[ "${system}" == "RIKYU" ]]; then
   REPO_URL="https://github.com/william-dawson/SALMON2"
-  VERSION_TAG="FugakuNEXT-v1"
+  VERSION_TAG="FugakuNEXT-v2"
 fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
@@ -44,7 +44,12 @@ mkdir -p "${BUILD_LOG_DIR}"
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${VERSION_TAG}"
 
 cd "${REPO_DIR}"
-if git apply --check "${FJMPI_PATCH}"; then
+# RIKYU builds a pinned branch that already carries every fix it needs
+# (see VERSION_TAG above), so it is used as-is -- no patching. The patches
+# below exist for the systems that build stock v.2.2.2.
+if [[ "${system}" == "RIKYU" ]]; then
+  echo "RIKYU: building ${VERSION_TAG} unpatched (all fixes are in the branch)"
+elif git apply --check "${FJMPI_PATCH}"; then
   git apply "${FJMPI_PATCH}"
 elif git apply --reverse --check "${FJMPI_PATCH}" >/dev/null 2>&1; then
   echo "SALMON Fujitsu MPI topology patch is already applied"
@@ -60,10 +65,11 @@ apply_ewald_265_patch() {
   # Safe to apply on every OpenACC/GPU build regardless of nvhpc version:
   # the fix gates itself on __NVCOMPILER_MAJOR__/__NVCOMPILER_MINOR__ at
   # compile time, so it's a no-op on unaffected compilers (<26.5).
-  if git apply --check "${EWALD_265_PATCH}"; then
+  # (RIKYU does not call this -- its pinned branch already contains the fix.)
+  if grep -q "SALMON_EWALD_ACC" src/common/total_energy.f90; then
+    echo "SALMON nvhpc/26.5 Ewald-reduction workaround already present"
+  elif git apply --check "${EWALD_265_PATCH}"; then
     git apply "${EWALD_265_PATCH}"
-  elif git apply --reverse --check "${EWALD_265_PATCH}" >/dev/null 2>&1; then
-    echo "SALMON nvhpc/26.5 Ewald-reduction patch is already applied"
   else
     echo "SALMON nvhpc/26.5 Ewald-reduction patch does not apply to ${VERSION_TAG}" >&2
     exit 1
@@ -213,8 +219,7 @@ case "${system}" in
   #   ;;
   RIKYU)
     module purge
-    module load nvhpc/26.5
-    apply_ewald_265_patch
+    module load nvhpc-hpcx-cuda13/26.5
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -223,25 +228,25 @@ case "${system}" in
       -DUSE_OPENACC=ON
       -DUSE_MPI_DEFAULT=ON
       -DCMAKE_SYSTEM_PROCESSOR=openacc
-      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
-      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM"
-      # nvhpc/26.5, native MPI3 ON (no FORTRAN_COMPILER_HAS_MPI_VERSION3
-      # override needed): this used to hang 2+ node orbital decomposition
-      # -- died right after init_ps with a UCC inter-node protocol error
-      # (`cannot find remote protocol for: UCC_UCP_CONTEXT inter-node
-      # cfg#N | tag_send from cuda-managed/GPU0`), then spun at ~99% CPU
-      # producing zero further output -- but that's now fixed at the
-      # source (FugakuNEXT-v1's 4th commit: acc_init(acc_device_nvidia)
-      # before MPI_Init_thread, so UCC's CUDA-aware protocol probe during
-      # MPI_Init's team bootstrap doesn't run with no CUDA context and
-      # cache a broken config). Root-caused via a live gdb backtrace on
-      # the hung process and compute-sanitizer on the real binary -- see
-      # subwg2-benchmarks' salmon-gpu-optimization-ideas skill, Open item
-      # 5, for the full trail, and don't reintroduce the old
-      # nvhpc/26.3 + FORTRAN_COMPILER_HAS_MPI_VERSION3=OFF workaround this
-      # replaces: native 26.5 MPI3 is faster and this pin is what's
-      # actually been verified end-to-end (orbital 1-8 nodes, domain 1-2
-      # nodes, all bit-exact, on the real build.sh + real artifact).
+      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver,nccl -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM -DUSE_NCCL"
+      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver,nccl -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM -DUSE_NCCL"
+      # Module is nvhpc-hpcx-cuda13/26.5 (HPC-X 2.50 / OpenMPI 5), not
+      # plain nvhpc/26.5: that is the stack the domain-decomposition and
+      # NCCL numbers were measured on. MPI3 is left at its auto-detected
+      # ON -- no FORTRAN_COMPILER_HAS_MPI_VERSION3 override -- because the
+      # GEMM path skips calc_uVpsi_rdivided entirely, so the HPC-X libnbc
+      # bug that motivated the old 26.3 + MPI3=OFF workaround is
+      # unreachable. Do not reintroduce that workaround.
+      #
+      # -DUSE_NCCL routes the pseudo-pt domain-decomposition reduce through
+      # ncclAllReduce instead of MPI_Allreduce. MPI_Allreduce performs the
+      # reduction arithmetic on the host even when handed a device pointer,
+      # so it leaves NVLink: measured 5.6 GB/s vs NCCL's 196-521 GB/s on the
+      # same 222 MB device buffer. In SALMON that is pseudo-pt comm 18.2s ->
+      # 1.7s at 4 GPUs (rt iterations 99.1 -> 80.5), energies bit-exact.
+      # It needs nccl in -cudalib. If the MPI stack ever grows a working
+      # GPU-side allreduce (UCC ships a TL_NCCL that currently never
+      # registers), drop -DUSE_NCCL and this becomes plain MPI again.
       #
       # NOT -DUSE_CUDA -- that flag controls a completely different, OLDER
       # optimization path (src/common/{zpseudo,stencil_current}.cu, hand-

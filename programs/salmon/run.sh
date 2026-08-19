@@ -184,14 +184,31 @@ case "${system}" in
     ;;
   RIKYU)
     module purge
-    module load nvhpc/26.5
+    module load nvhpc-hpcx-cuda13/26.5
     export OMP_NUM_THREADS="${nthreads}"
-    awk -v nproc_ob="${n_ranks}" '
-      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = 1, 1, 1"; in_parallel=1; next }
+    # Mixed decomposition: split the real-space grid 2x2x1 *within* a node
+    # (4 GPUs, NVLink) and distribute orbitals across nodes. Only the grid
+    # split reduces calculating-curr, which does not scale under orbital
+    # decomposition at all (109.5 -> 44.2 ms/iter at 4 GPUs); with the NCCL
+    # reduce the pseudo-pt cost of splitting is down to ~5 ms/iter.
+    # Measured on 3x3x3 SiO2, rt iterations vs pure orbital: 8 GPUs
+    # 56.2 -> 48.0 s, 16 GPUs 44.6 -> 31.0 s, all bit-exact.
+    #
+    # process_allocation='grid_sequential' is REQUIRED: it orders ranks
+    # grid-fastest so each icomm_r is one node's 4 ranks. The default
+    # 'orbital_sequential' strides icomm_r across nodes, which puts the
+    # halo exchange on InfiniBand instead of NVLink.
+    if [[ "${numproc_node}" -eq 4 ]]; then
+      salmon_nproc_ob="${nodes}"; salmon_rgrid="2, 2, 1"; salmon_alloc="grid_sequential"
+    else
+      salmon_nproc_ob="${n_ranks}"; salmon_rgrid="1, 1, 1"; salmon_alloc="orbital_sequential"
+    fi
+    awk -v nproc_ob="${salmon_nproc_ob}" -v rgrid="${salmon_rgrid}" -v alloc="${salmon_alloc}" '
+      /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = " rgrid; print "  process_allocation = " q alloc q; in_parallel=1; next }
       in_parallel && /^\// { in_parallel=0; print; next }
       in_parallel { next }
       { print }
-    ' "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
+    ' q="'" "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
     if [[ "${n_ranks}" -gt 1 ]]; then
       cat > wrapper.sh <<'WRAPPER'
 #!/bin/bash
@@ -206,8 +223,10 @@ export CUDA_VISIBLE_DEVICES=$((${OMPI_COMM_WORLD_LOCAL_RANK} % ${NCUDA_GPUS}))
 exec "$@"
 WRAPPER
       chmod +x wrapper.sh
-      export UCX_IB_GPU_DIRECT_RDMA=no
     fi
+    # UCX_IB_GPU_DIRECT_RDMA=no was needed on 26.3 to stop a multi-node
+    # hang. Ablation-tested on 26.5 (4-GPU domain, 8-GPU mixed across 2
+    # nodes, and 16/32 GPUs): not needed, and neither is UCX_TLS=^cma.
     ;;
   # RC_FX700)
   #   FX700 currently fails during GS initialization even with the Fujitsu
@@ -224,10 +243,15 @@ run_salmon() {
   shift
   case "${system}" in
     RIKYU)
+      # --mca fcoll individual is REQUIRED. MPI_File_read_all reads the
+      # restart straight into managed memory and OMPIO's default two-phase
+      # collective I/O redistributes it through cuMemcpyAsync: that
+      # deadlocks whenever the nproc_rgrid product exceeds 2, and even when
+      # it does not it costs 66.9s vs 41.7s on the restart read.
       if [[ "${n_ranks}" -gt 1 ]]; then
-        mpirun -n "${n_ranks}" ./wrapper.sh "$@" > "${logfile}" 2>&1
+        mpirun -n "${n_ranks}" --mca fcoll individual ./wrapper.sh "$@" > "${logfile}" 2>&1
       else
-        mpirun -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+        mpirun -n "${n_ranks}" --mca fcoll individual "$@" > "${logfile}" 2>&1
       fi
       ;;
     RC_GENOA)
