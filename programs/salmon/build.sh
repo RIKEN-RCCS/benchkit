@@ -12,7 +12,7 @@ BUILD_DIR="build-benchkit"
 # GPU-decomposition numbers on this repo were never actually run against it --
 # they came from a much newer, hand-patched checkout (~100 commits ahead,
 # including PR #1276's OpenACC tuning). Rather than let RIKYU silently build
-# something nobody has benchmarked, pin it to FugakuNEXT-v1 on
+# something nobody has benchmarked, pin it to FugakuNEXT-v3 on
 # william-dawson/SALMON2 (also open as SALMON-TDDFT/SALMON2#1276) --
 # develop-2.0.0@9b93a8c4 (2026-08-16) plus four commits, one per concern:
 #   1. PR #1276's stencil/current/pseudo-pt OpenACC tuning (batched cuBLAS
@@ -28,7 +28,7 @@ BUILD_DIR="build-benchkit"
 # subwg2-benchmarks for how each piece was measured/root-caused.
 if [[ "${system}" == "RIKYU" ]]; then
   REPO_URL="https://github.com/william-dawson/SALMON2"
-  VERSION_TAG="FugakuNEXT-v2"
+  VERSION_TAG="FugakuNEXT-v3"
 fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
@@ -237,6 +237,10 @@ case "${system}" in
       # GEMM path skips calc_uVpsi_rdivided entirely, so the HPC-X libnbc
       # bug that motivated the old 26.3 + MPI3=OFF workaround is
       # unreachable. Do not reintroduce that workaround.
+      #
+      # FugakuNEXT-v3 also computes the nonlocal current density with a
+      # batched GEMM (it was 82% of calculating-curr): current density
+      # 29.5 -> 3.6 s and rt iterations 44.6 -> 18.7 s at 16 GPUs orbital.
       #
       # -DUSE_NCCL routes the pseudo-pt domain-decomposition reduce through
       # ncclAllReduce instead of MPI_Allreduce. MPI_Allreduce performs the
