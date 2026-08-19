@@ -1,8 +1,13 @@
+import os
+import re
+
+from flask import url_for
+
 from utils.result_records import build_labeled_value_rows, format_numeric_value
 from utils.trigger_display import summarize_execution_trigger
 
 
-def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None):
+def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None, padata_filenames=None):
     profile_data = result.get("profile_data") or {}
     build_data = result.get("build") or {}
     vector_metrics = (result.get("metrics") or {}).get("vector")
@@ -12,6 +17,7 @@ def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None):
         "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": _build_quality_rows(quality),
+        "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
         "environment_rows": _build_environment_rows(result.get("environment_snapshot")),
         "environment_snapshot_hash": _environment_snapshot_hash(result.get("environment_snapshot")),
         "vector_metrics": vector_metrics,
@@ -95,6 +101,47 @@ def _build_tool_specific_detail(profile_data):
         "detailed": "fapp event set: pa1..pa17",
     }
     return mapping.get(level, "fapp tool-specific event set")
+
+
+def _build_profile_artifact_rows(result, padata_filenames):
+    result_uuid = result.get("_server_uuid")
+    timestamp = result.get("_server_timestamp")
+    if not result_uuid or not timestamp:
+        return []
+
+    rows = []
+    for section in (result.get("fom_breakdown") or {}).get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        section_name = section.get("name") or "-"
+        for artifact in section.get("artifacts") or []:
+            if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
+                continue
+            artifact_path = artifact.get("path") or ""
+            artifact_slug = _padata_artifact_slug(artifact_path)
+            if not artifact_slug:
+                continue
+            filename = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
+            rows.append({
+                "section": section_name,
+                "artifact_path": artifact_path,
+                "filename": filename,
+                "link": url_for("results.show_result", filename=filename) if filename in padata_filenames else None,
+            })
+    return rows
+
+
+def _padata_artifact_slug(artifact_path):
+    if not isinstance(artifact_path, str):
+        return ""
+    if not artifact_path.startswith("results/"):
+        return ""
+    basename = os.path.basename(artifact_path)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
+        return ""
+    if basename.endswith(".tar.gz"):
+        return basename[:-7]
+    return basename[:-4]
 
 
 def _build_quality_rows(quality):

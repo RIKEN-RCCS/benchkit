@@ -113,6 +113,7 @@ def test_results_template_renders_ncu_options_tooltip():
                         "has_profile_data": True,
                         "headline": "ncu / single",
                         "subline": "text, 1 run",
+                        "archive_count": 3,
                         "events": [],
                         "ncu_options": ["--target-processes", "all", "--set", "basic", "--launch-count", "1"],
                         "report_kinds": ["ncu_report", "summary_text"],
@@ -146,6 +147,8 @@ def test_results_template_renders_ncu_options_tooltip():
         )
 
     assert "ncu / single" in html
+    assert "padata x3" in html
+    assert "archive: available (3)" in html
     assert "ncu options: --target-processes all --set basic --launch-count 1" in html
     assert "ncu_report" in html
 

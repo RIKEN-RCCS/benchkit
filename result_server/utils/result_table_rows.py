@@ -104,7 +104,15 @@ def _find_matching_padata_archive(json_filename, result_data, padata_filenames):
     result_uuid = extract_result_uuid(json_filename) or result_data.get("_server_uuid")
     if not result_uuid:
         return None
-    return next((filename for filename in padata_filenames if result_uuid in filename), None)
+    matches = sorted(filename for filename in padata_filenames if result_uuid in filename)
+    legacy_name = next(
+        (
+            filename for filename in matches
+            if filename.endswith(f"_{result_uuid}.tgz")
+        ),
+        None,
+    )
+    return legacy_name or (matches[0] if matches else None)
 
 
 def _format_source_hash(source_info):
@@ -188,6 +196,7 @@ def _build_profile_summary_meta(profile_data):
         "has_profile_data": True,
         "headline": _format_profile_summary(profile_data),
         "subline": ", ".join(subline_parts),
+        "archive_count": profile_data.get("archive_count") if isinstance(profile_data.get("archive_count"), int) else None,
         "events": profile_data.get("events") if isinstance(profile_data.get("events"), list) else [],
         "ncu_options": profile_data.get("ncu_options") if isinstance(profile_data.get("ncu_options"), list) else [],
         "report_kinds": profile_data.get("report_kinds") if isinstance(profile_data.get("report_kinds"), list) else [],

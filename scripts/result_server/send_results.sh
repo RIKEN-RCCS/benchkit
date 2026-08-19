@@ -62,45 +62,110 @@ build_profile_data_summary() {
   ' 2>/dev/null || true
 }
 
-list_section_padata_archives() {
-  local json_file="$1"
+build_profile_data_summary_for_archives() {
+  local summaries_file
+  summaries_file=$(mktemp)
+  local summary
+  local archive_count=0
 
-  if ! command -v jq >/dev/null 2>&1; then
+  for tgz_file in "$@"; do
+    summary=$(build_profile_data_summary "$tgz_file")
+    if [[ -n "$summary" ]]; then
+      printf '%s\n' "$summary" >> "$summaries_file"
+      archive_count=$((archive_count + 1))
+    fi
+  done
+
+  if [[ "$archive_count" -eq 0 ]]; then
+    rm -f "$summaries_file"
+    printf '%s' ""
     return 0
   fi
 
-  jq -r '
-    .fom_breakdown.sections[]?.artifacts[]?.path? // empty
-    | select(test("(^|/)padata.*[.]tgz$"))
-  ' "$json_file" 2>/dev/null || true
+  if [[ "$archive_count" -eq 1 ]]; then
+    cat "$summaries_file"
+    rm -f "$summaries_file"
+    return 0
+  fi
+
+  jq -s -c '
+    {
+      tool: ((map(.tool) | map(select(. != null and . != "")) | unique) as $tools |
+        if ($tools | length) == 1 then $tools[0] else "multiple" end),
+      level: ((map(.level) | map(select(. != null and . != "")) | unique) as $levels |
+        if ($levels | length) == 1 then $levels[0] else "multiple" end),
+      report_format: ((map(.report_format) | map(select(. != null and . != "")) | unique) as $formats |
+        if ($formats | length) == 1 then $formats[0] else "multiple" end),
+      raw_dir: "multiple",
+      run_count: (map(.run_count // 0) | add),
+      events: (map(.events // []) | add | unique),
+      ncu_options: (map(.ncu_options // []) | add | unique),
+      report_kinds: (map(.report_kinds // []) | add | unique),
+      archive_count: length
+    }
+  ' "$summaries_file" 2>/dev/null || true
+  rm -f "$summaries_file"
 }
 
-padata_archive_already_uploaded() {
-  local tgz_file="$1"
-  local uploaded_file
-  shift
+is_safe_local_padata_path() {
+  local artifact_path="$1"
 
-  for uploaded_file in "$@"; do
-    if [[ "$uploaded_file" == "$tgz_file" ]]; then
-      return 0
+  case "$artifact_path" in
+    results/*.tgz|results/*.tar.gz) ;;
+    *) return 1 ;;
+  esac
+
+  case "$artifact_path" in
+    /*|*"/../"*|../*|*"/.."|*\\*) return 1 ;;
+  esac
+
+  [[ -f "$artifact_path" ]]
+}
+
+collect_padata_archives_for_result() {
+  local json_file="$1"
+  local legacy_tgz_file="$2"
+  declare -A seen_archives=()
+
+  if [[ -f "$legacy_tgz_file" ]]; then
+    seen_archives["$legacy_tgz_file"]=1
+    printf '%s\t%s\n' "$legacy_tgz_file" ""
+  fi
+
+  while IFS= read -r artifact_path; do
+    [[ -n "$artifact_path" ]] || continue
+    if is_safe_local_padata_path "$artifact_path" && [[ -z "${seen_archives[$artifact_path]:-}" ]]; then
+      seen_archives["$artifact_path"]=1
+      printf '%s\t%s\n' "$artifact_path" "$artifact_path"
     fi
-  done
-  return 1
+  done < <(jq -r '
+    (.fom_breakdown.sections // [])[]?
+    | (.artifacts // [])[]?
+    | select(.type == "file_reference")
+    | .path // empty
+  ' "$json_file" 2>/dev/null || true)
 }
 
 upload_padata_archive() {
   local tgz_file="$1"
   local uuid="$2"
   local timestamp="$3"
+  local artifact_path="${4:-}"
   local response
 
   echo "Uploading $tgz_file with UUID $uuid"
   local curl_auth_args=()
+  local curl_form_args=(
+    -F "id=${uuid}"
+    -F "timestamp=${timestamp}"
+    -F "file=@${tgz_file}"
+  )
+  if [[ -n "$artifact_path" ]]; then
+    curl_form_args+=(-F "artifact_path=${artifact_path}")
+  fi
   bk_result_server_set_curl_args
   if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/padata" \
-    -F "id=${uuid}" \
-    -F "timestamp=${timestamp}" \
-    -F "file=@${tgz_file}" 2>&1); then
+    "${curl_form_args[@]}" 2>&1); then
     if [[ -n "$response" ]]; then
       echo "$response"
     fi
@@ -134,9 +199,16 @@ for json_file in results/result*.json; do
   fi
 
   echo tgz_file $tgz_file
-  uploaded_tgz_files=()
 
-  profile_data_summary=$(build_profile_data_summary "$tgz_file")
+  padata_archive_paths=()
+  padata_archive_specs=()
+  while IFS=$'\t' read -r archive_path artifact_path; do
+    [[ -n "$archive_path" ]] || continue
+    padata_archive_paths+=("$archive_path")
+    padata_archive_specs+=("${archive_path}"$'\t'"${artifact_path}")
+  done < <(collect_padata_archives_for_result "$json_file" "$tgz_file")
+
+  profile_data_summary=$(build_profile_data_summary_for_archives "${padata_archive_paths[@]}")
   if [[ -n "$profile_data_summary" ]]; then
     tmp_file="${json_file}.tmp"
     jq --argjson profile_data "$profile_data_summary" \
@@ -197,26 +269,17 @@ for json_file in results/result*.json; do
   echo "Updated result metadata manifest: $meta_file"
 
   
-  # Upload TGZ if it exists
-  if [[ -f "$tgz_file" ]]; then
-    upload_padata_archive "$tgz_file" "$uuid" "$timestamp"
-    uploaded_tgz_files+=("$tgz_file")
+  # Upload matching profiler archives. Legacy resultN.json/padataN.tgz pairs are
+  # kept, and section artifact archives are sent with artifact_path so the server
+  # can keep multiple archives for the same result UUID.
+  if [[ "${#padata_archive_specs[@]}" -gt 0 ]]; then
+    for archive_spec in "${padata_archive_specs[@]}"; do
+      IFS=$'\t' read -r archive_path artifact_path <<< "$archive_spec"
+      upload_padata_archive "$archive_path" "$uuid" "$timestamp" "$artifact_path"
+    done
   else
-    echo "No matching TGZ found for $json_file (expected: $tgz_file). Skipping upload."
+    echo "No profiler TGZ found for $json_file (expected: $tgz_file or section artifact padata archives). Skipping upload."
   fi
-
-  while IFS= read -r section_tgz_file; do
-    [[ -n "$section_tgz_file" ]] || continue
-    if padata_archive_already_uploaded "$section_tgz_file" "${uploaded_tgz_files[@]}"; then
-      continue
-    fi
-    if [[ -f "$section_tgz_file" ]]; then
-      upload_padata_archive "$section_tgz_file" "$uuid" "$timestamp"
-      uploaded_tgz_files+=("$section_tgz_file")
-    else
-      echo "No matching section TGZ found for $json_file (expected: $section_tgz_file). Skipping upload."
-    fi
-  done < <(list_section_padata_archives "$json_file")
 
 done
 

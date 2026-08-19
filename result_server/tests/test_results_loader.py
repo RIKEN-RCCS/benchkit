@@ -614,3 +614,23 @@ class TestPadataLinkResolution:
 
         assert len(rows) == 1
         assert rows[0]["data_link"] == f"/results/{tgz_name}"
+
+    def test_data_link_prefers_legacy_padata_when_section_archives_exist(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        legacy_name = f"padata_20250101_120000_{uid}.tgz"
+        section_name = f"padata_20250101_120000_{uid}_padata_pairlist.tgz"
+
+        _write_json(tmp_dir, filename, {
+            "code": "genesis",
+            "system": "RIKYU",
+            "FOM": 1.0,
+        })
+        open(os.path.join(tmp_dir, section_name), "wb").close()
+        open(os.path.join(tmp_dir, legacy_name), "wb").close()
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(tmp_dir, public_only=True)
+
+        assert len(rows) == 1
+        assert rows[0]["data_link"] == f"/results/{legacy_name}"

@@ -27,6 +27,7 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
     "sections": [
       {
         "name": "pme_real_inter",
+        "time": 1.0,
         "artifacts": [
           {
             "type": "file_reference",
@@ -36,6 +37,7 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
       },
       {
         "name": "pme_real_intra",
+        "time": 1.0,
         "artifacts": [
           {
             "type": "file_reference",
@@ -45,6 +47,7 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
       },
       {
         "name": "pairlist",
+        "time": 1.0,
         "artifacts": [
           {
             "type": "file_reference",
@@ -52,7 +55,8 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
           }
         ]
       }
-    ]
+    ],
+    "overlaps": []
   }
 }
 EOF
@@ -88,6 +92,7 @@ tar -czf "${TMP_DIR}/results/padata_k003.tgz" -C "${TMP_DIR}" bk_profiler_artifa
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
 set -euo pipefail
+printf '%s\n' "$*" >> "${TMP_DIR}/curl_calls.log"
 if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
   printf '%s\n' '{"id":"11111111-2222-3333-4444-555555555555","timestamp":"20260413_230000"}'
   exit 0
@@ -163,6 +168,41 @@ raise SystemExit(1)
 PY
 fi
 
+if [ "$1" = "-s" ] && [ "$2" = "-c" ]; then
+  summaries_file="$4"
+  "$python_exe" - "$summaries_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    items = [json.loads(line) for line in fh if line.strip()]
+
+def uniq(values):
+    result = []
+    for value in values:
+        if value not in result:
+            result.append(value)
+    return result
+
+tools = uniq([item.get("tool") for item in items if item.get("tool")])
+levels = uniq([item.get("level") for item in items if item.get("level")])
+formats = uniq([item.get("report_format") for item in items if item.get("report_format")])
+summary = {
+    "tool": tools[0] if len(tools) == 1 else "multiple",
+    "level": levels[0] if len(levels) == 1 else "multiple",
+    "report_format": formats[0] if len(formats) == 1 else "multiple",
+    "raw_dir": "multiple",
+    "run_count": sum(item.get("run_count", 0) for item in items),
+    "events": uniq([event for item in items for event in item.get("events", [])]),
+    "ncu_options": uniq([option for item in items for option in item.get("ncu_options", [])]),
+    "report_kinds": uniq([kind for item in items for kind in item.get("report_kinds", [])]),
+    "archive_count": len(items),
+}
+print(json.dumps(summary))
+PY
+  exit 0
+fi
+
 if [ "$1" = "-r" ]; then
   shift
   expr="$1"
@@ -174,7 +214,7 @@ import sys
 path, expr = sys.argv[1:3]
 with open(path, "r", encoding="utf-8") as fh:
     data = json.load(fh)
-if "fom_breakdown.sections" in expr and "padata" in expr:
+if "fom_breakdown.sections" in expr:
     for section in data.get("fom_breakdown", {}).get("sections", []):
         for artifact in section.get("artifacts", []):
             artifact_path = artifact.get("path")
@@ -283,7 +323,8 @@ popd >/dev/null
 grep -q '"profile_data"' "${TMP_DIR}/results/result0.json"
 grep -Eq '"tool":[[:space:]]*"ncu"' "${TMP_DIR}/results/result0.json"
 grep -Eq '"level":[[:space:]]*"single"' "${TMP_DIR}/results/result0.json"
-grep -Eq '"run_count":[[:space:]]*1' "${TMP_DIR}/results/result0.json"
+grep -Eq '"run_count":[[:space:]]*4' "${TMP_DIR}/results/result0.json"
+grep -Eq '"archive_count":[[:space:]]*4' "${TMP_DIR}/results/result0.json"
 grep -Eq '"events":[[:space:]]*\[[[:space:]]*\]' "${TMP_DIR}/results/result0.json"
 grep -Eq '"ncu_options":[[:space:]]*\[' "${TMP_DIR}/results/result0.json"
 grep -Eq '"ncu_report"' "${TMP_DIR}/results/result0.json"
@@ -293,6 +334,9 @@ grep -q 'padata0.tgz' "${TMP_DIR}/padata_uploads.log"
 grep -q 'padata_k001.tgz' "${TMP_DIR}/padata_uploads.log"
 grep -q 'padata_k002.tgz' "${TMP_DIR}/padata_uploads.log"
 grep -q 'padata_k003.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'artifact_path=results/padata_k001.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'artifact_path=results/padata_k002.tgz' "${TMP_DIR}/padata_uploads.log"
+grep -q 'artifact_path=results/padata_k003.tgz' "${TMP_DIR}/padata_uploads.log"
 test "$(grep -c '/api/ingest/padata' "${TMP_DIR}/padata_uploads.log")" = "4"
 
 mkdir -p "${TMP_DIR}/case413/results"

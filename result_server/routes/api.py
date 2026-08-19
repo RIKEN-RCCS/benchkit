@@ -211,6 +211,33 @@ def _safe_basename(name):
     return name
 
 
+def _normalize_padata_artifact_slug(value):
+    """Return a filename-safe padata artifact slug, or None for legacy uploads."""
+    if value is None:
+        return None
+
+    artifact_path = str(value).strip()
+    if artifact_path == "":
+        return None
+    if (
+        os.path.isabs(artifact_path)
+        or "\\" in artifact_path
+        or artifact_path.startswith("../")
+        or "/../" in artifact_path
+        or artifact_path.endswith("/..")
+    ):
+        abort(400, description="Invalid padata artifact path")
+    if not artifact_path.startswith("results/"):
+        abort(400, description="Invalid padata artifact path")
+
+    basename = os.path.basename(artifact_path)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
+        abort(400, description="Invalid padata artifact path")
+    if basename.endswith(".tar.gz"):
+        return basename[:-7]
+    return basename[:-4]
+
+
 def _load_json_by_uuid(directory, field_path, uuid_value):
     """Return the first JSON payload whose target field matches the UUID."""
     json_files = sorted(
@@ -426,11 +453,17 @@ def ingest_padata():
         abort(400, description="No file uploaded")
 
     received_dir = current_app.config["RECEIVED_PADATA_DIR"]
+    artifact_slug = _normalize_padata_artifact_slug(request.form.get("artifact_path"))
 
-    matched_files = [
-        f for f in os.listdir(received_dir)
-        if f.endswith(".tgz") and uuid_str in f
-    ]
+    if artifact_slug:
+        filename = _safe_basename(f"padata_{timestamp}_{uuid_str}_{artifact_slug}.tgz")
+        matched_files = [filename] if os.path.exists(os.path.join(received_dir, filename)) else []
+    else:
+        legacy_pattern = re.compile(rf"^padata_\d{{8}}_\d{{6}}_{re.escape(uuid_str)}\.tgz$")
+        matched_files = [
+            f for f in os.listdir(received_dir)
+            if legacy_pattern.fullmatch(f)
+        ]
 
     if matched_files:
         old_file_path = os.path.join(received_dir, _safe_basename(matched_files[0]))
@@ -438,7 +471,8 @@ def ingest_padata():
         shutil.move(old_file_path, backup_path)
         save_path = old_file_path
     else:
-        filename = _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
+        if not artifact_slug:
+            filename = _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
         save_path = os.path.join(received_dir, filename)
 
     tmp_path = save_path + ".tmp"
@@ -454,6 +488,7 @@ def ingest_padata():
         "id": uuid_str,
         "timestamp": timestamp,
         "file": os.path.basename(save_path),
+        "artifact_path": request.form.get("artifact_path") or "",
         "replaced": bool(matched_files),
     }
     audit_event(
