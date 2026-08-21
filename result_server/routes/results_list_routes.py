@@ -15,6 +15,7 @@ from utils.table_query_params import parse_table_query_params
 
 def _render_results_list(public_only, template_name, redirect_endpoint):
     params = parse_table_query_params(request.args)
+    public_surface = public_only and current_app.config.get("PUBLIC_PORTAL_MODE", False)
 
     received_dir = current_app.config["RECEIVED_DIR"]
     received_padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", received_dir)
@@ -29,6 +30,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         filter_exp=params["filter_exp"],
         padata_directory=received_padata_dir,
         execution_profile_db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
+        public_surface=public_surface,
     )
     filter_kwargs = dict(public_only=public_only)
     template_extra = {}

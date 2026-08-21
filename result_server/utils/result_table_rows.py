@@ -16,13 +16,19 @@ def build_result_table_row(
     result_data,
     padata_filenames,
     trigger_runs_by_pipeline=None,
+    *,
+    public_surface=False,
 ):
     """Build a single row for the public/confidential results index table."""
     timestamp = format_result_timestamp(json_filename)
-    matched_padata = _find_matching_padata_archive(json_filename, result_data, padata_filenames)
+    matched_padata = (
+        None
+        if public_surface
+        else _find_matching_padata_archive(json_filename, result_data, padata_filenames)
+    )
     pipeline_timing = result_data.get("pipeline_timing", {})
     source_info = result_data.get("source_info")
-    source_link = _build_source_link(source_info)
+    source_link = None if public_surface else _build_source_link(source_info)
     profile_data = result_data.get("profile_data")
 
     ci_trigger = result_data.get("ci_trigger", "-") or "-"
@@ -51,7 +57,7 @@ def build_result_table_row(
         "nodes": result_data.get("node_count", "N/A"),
         "numproc_node": _normalize_optional_field(result_data.get("numproc_node")),
         "nthreads": _normalize_optional_field(result_data.get("nthreads")),
-        "json_link": url_for("results.show_result", filename=json_filename),
+        "json_link": None if public_surface else url_for("results.show_result", filename=json_filename),
         "data_link": url_for("results.show_result", filename=matched_padata) if matched_padata else None,
         "has_vector": _has_vector_metrics(result_data),
         "detail_link": url_for("results.result_detail", filename=json_filename),

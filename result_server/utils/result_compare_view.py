@@ -41,10 +41,35 @@ def build_result_compare_context(results):
     }
 
 
-def load_result_compare_context(filenames, directory):
+def load_result_compare_context(filenames, directory, *, public_surface=False):
     for filename in filenames:
         check_file_permission(filename, directory)
     results = load_result_json_batch(filenames, directory)
     if len(results) != len(filenames):
         abort(404, "Result file not found")
+    if public_surface:
+        results = [_project_public_compare_result(row) for row in results]
     return build_result_compare_context(results)
+
+
+def _project_public_compare_result(row):
+    data = row.get("data") or {}
+    metrics = data.get("metrics") if isinstance(data.get("metrics"), dict) else {}
+    public_metrics = {}
+    if isinstance(metrics.get("vector"), dict):
+        public_metrics["vector"] = metrics["vector"]
+
+    public_data = {
+        "code": data.get("code"),
+        "system": data.get("system"),
+        "Exp": data.get("Exp"),
+        "FOM": data.get("FOM"),
+        "FOM_unit": data.get("FOM_unit") or "",
+    }
+    if public_metrics:
+        public_data["metrics"] = public_metrics
+
+    return {
+        "timestamp": row.get("timestamp"),
+        "data": public_data,
+    }

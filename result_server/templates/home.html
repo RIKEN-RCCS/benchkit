@@ -2,9 +2,21 @@
 
 {% block title %}CX Portal{% endblock %}
 {% block page_title %}CX Data Flow, Connected Systems, and Portal Access{% endblock %}
-{% block page_subtitle %}This portal is part of the CX Framework, supporting continuous benchmarking, estimation, and feedback for integrated HPC applications.{% endblock %}
+{% block page_subtitle %}
+{% if config.get('PUBLIC_PORTAL_MODE', False) %}
+This portal publishes public CX benchmark results and connected system information for integrated HPC applications.
+{% else %}
+This portal is part of the CX Framework, supporting continuous benchmarking, estimation, and feedback for integrated HPC applications.
+{% endif %}
+{% endblock %}
 
 {% block content %}
+{% set public_portal_mode = config.get('PUBLIC_PORTAL_MODE', False) %}
+{% set is_authenticated = session.get('authenticated') %}
+{% set show_restricted_entries = is_authenticated and not public_portal_mode %}
+{% set is_operator = show_restricted_entries and 'admin' in session.get('user_affiliations', []) %}
+{% set public_surface = public_portal_mode %}
+{% set entry_point_count = 4 if is_operator else (2 if public_surface else 3) %}
 <style>
     .home-overview-grid {
         display: grid;
@@ -198,14 +210,18 @@
     <section class="page-card">
         <h2 class="section-title">Start Here</h2>
         <p class="section-intro">
+            {% if public_surface %}
+            Browse public measured results, inspect connected systems, and open onboarding guides for applications and sites.
+            {% else %}
             Browse measured and estimated results, inspect connected systems, and jump directly into onboarding guides for applications and sites.
+            {% endif %}
         </p>
         <div class="home-actions">
             <a class="home-action-link home-action-link-primary" href="{{ url_for('results.results') }}">Browse Results</a>
             <a class="home-action-link home-action-link-secondary" href="{{ url_for('systemlist') }}">View All Systems</a>
-            {% if session.get('authenticated') %}
+            {% if show_restricted_entries %}
             <a class="home-action-link home-action-link-secondary" href="{{ url_for('estimated.estimated_results') }}">Open Estimated Results</a>
-            {% else %}
+            {% elif not public_portal_mode %}
             <a class="home-action-link home-action-link-locked" href="{{ url_for('auth.login') }}">Estimated Results (login required)</a>
             {% endif %}
         </div>
@@ -222,12 +238,12 @@
                 <span class="home-summary-label">Connected systems</span>
             </div>
             <div class="home-summary-card">
-                <span class="home-summary-value">{% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}4{% else %}3{% endif %}</span>
+                <span class="home-summary-value">{{ entry_point_count }}</span>
                 <span class="home-summary-label">Primary entry points</span>
             </div>
             <div class="home-summary-card">
                 <span class="home-summary-value">Results</span>
-                <span class="home-summary-label">Measured and projected views</span>
+                <span class="home-summary-label">{% if public_surface %}Public measured views{% else %}Measured and projected views{% endif %}</span>
             </div>
             <div class="home-summary-card">
                 <span class="home-summary-value">Guides</span>
@@ -237,19 +253,24 @@
     </aside>
 </section>
 
-<section class="home-content-grid {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}home-content-grid-three{% endif %}">
+<section class="home-content-grid {% if is_operator %}home-content-grid-three{% endif %}">
     <section class="page-card">
         <h2 class="section-title">Main Entry Points</h2>
         <p class="section-intro">
+            {% if public_surface %}
+            Start here for the public portal pages used to browse measured results and connected systems.
+            {% else %}
             Start here for the main portal pages used to browse measured results, projected outputs, and connected systems.
+            {% endif %}
         </p>
         <div class="home-link-list">
             <a class="home-link-card" href="{{ url_for('results.results') }}">
                 <strong>Results</strong>
                 <span>Browse measured benchmark results, compare runs, and inspect result-quality detail pages.</span>
             </a>
-            <a class="home-link-card" href="{% if session.get('authenticated') %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
-                {% if session.get('authenticated') %}
+            {% if show_restricted_entries or not public_portal_mode %}
+            <a class="home-link-card" href="{% if show_restricted_entries %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
+                {% if show_restricted_entries %}
                 <strong>Estimated Results</strong>
                 <span>Review system projections, current/future breakdowns, and estimation detail derived from benchmark inputs.</span>
                 {% else %}
@@ -258,6 +279,7 @@
                 <span class="home-access-note">Login required</span>
                 {% endif %}
             </a>
+            {% endif %}
             <a class="home-link-card" href="{{ url_for('systemlist') }}">
                 <strong>Systems</strong>
                 <span>See connected systems, quick hardware summaries, and onboarding-facing system metadata.</span>
@@ -292,7 +314,7 @@
         </div>
     </section>
 
-    {% if session.get('authenticated') and 'admin' in session.get('user_affiliations', []) %}
+    {% if is_operator %}
     <section class="page-card">
         <h2 class="section-title">Operations Views</h2>
         <p class="section-intro">

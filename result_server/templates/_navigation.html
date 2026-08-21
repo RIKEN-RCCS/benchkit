@@ -97,13 +97,15 @@
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
 </style>
 
+{% set public_portal_mode = config.get('PUBLIC_PORTAL_MODE', False) %}
+
 <nav class="nav-bar">
     <div class="nav-left">
         <a href="{{ url_for('home') }}" class="nav-brand">CX Portal</a>
         <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">Home</a>
         <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">Systems</a>
 
-        {% if session.get('authenticated') %}
+        {% if session.get('authenticated') and not public_portal_mode %}
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">Public</a>
         <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">All Results</a>
         <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">Estimated</a>
@@ -116,7 +118,7 @@
     </div>
 
     <div class="nav-right">
-        {% if session.get('authenticated') %}
+        {% if session.get('authenticated') and not public_portal_mode %}
         <div class="nav-dropdown">
             <button class="nav-dropdown-btn">{{ session.get('user_email') }} ▾</button>
             <div class="nav-dropdown-menu right">
@@ -134,7 +136,7 @@
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
             </div>
         </div>
-        {% else %}
+        {% elif not public_portal_mode %}
         <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
         {% endif %}
     </div>
