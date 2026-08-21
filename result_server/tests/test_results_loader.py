@@ -285,6 +285,48 @@ class TestLoadResultsTableExtension:
         ]
         assert columns == expected_columns
 
+    def test_public_surface_columns_and_links_are_reduced(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        padata_dir = os.path.join(tmp_dir, "padata")
+        os.mkdir(padata_dir)
+        _write_json(tmp_dir, filename, {
+            "code": "genesis",
+            "system": "RIKYU",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "pipeline_id": 17026,
+            "ci_trigger": "schedule",
+            "profile_data": {
+                "tool": "ncu",
+                "level": "single",
+                "report_format": "text",
+                "run_count": 1,
+                "ncu_options": ["--set", "basic"],
+            },
+        })
+        with open(os.path.join(padata_dir, f"padata_20250101_120000_{uid}.tgz"), "wb") as f:
+            f.write(b"padata")
+
+        with flask_app.test_request_context():
+            rows, columns, _ = load_results_table(
+                tmp_dir,
+                public_only=True,
+                padata_directory=padata_dir,
+                public_surface=True,
+            )
+
+        column_keys = [column["key"] for column in columns]
+        assert "json_link" not in column_keys
+        assert "ci_summary" not in column_keys
+        assert "execution_trigger_summary" not in column_keys
+        assert "profile_summary" in column_keys
+        assert rows[0]["json_link"] is None
+        assert rows[0]["data_link"] is None
+        assert rows[0]["source_link"] is None
+        assert rows[0]["profile_summary"] == "ncu / single"
+        assert rows[0]["profile_summary_meta"]["ncu_options"] == ["--set", "basic"]
+
     def test_existing_row_fields_preserved(self, flask_app, tmp_dir):
         """Test case."""
         uid = str(uuid.uuid4())

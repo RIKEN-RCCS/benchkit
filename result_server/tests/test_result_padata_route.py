@@ -52,6 +52,41 @@ def test_results_route_serves_padata_from_received_padata_dir(client, tmp_dirs):
     assert resp.data == b"fake tgz content"
 
 
+def test_public_portal_mode_blocks_anonymous_raw_result_files(client, app, tmp_dirs):
+    received, received_padata = tmp_dirs
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    uid = "12345678-1234-1234-1234-123456789abc"
+    json_name = f"result_20250101_120000_{uid}.json"
+    tgz_name = f"padata_20250101_120000_{uid}.tgz"
+
+    with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "system": "Fugaku", "FOM": 1.0}, f)
+    with open(os.path.join(received_padata, tgz_name), "wb") as f:
+        f.write(b"fake tgz content")
+
+    assert client.get(f"/results/{json_name}").status_code == 404
+    assert client.get(f"/results/{tgz_name}").status_code == 404
+
+
+def test_public_portal_mode_blocks_authenticated_raw_result_files(client, app, tmp_dirs):
+    received, received_padata = tmp_dirs
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    uid = "12345678-1234-1234-1234-123456789abc"
+    json_name = f"result_20250101_120000_{uid}.json"
+    tgz_name = f"padata_20250101_120000_{uid}.tgz"
+
+    with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "system": "Fugaku", "FOM": 1.0}, f)
+    with open(os.path.join(received_padata, tgz_name), "wb") as f:
+        f.write(b"fake tgz content")
+
+    with client.session_transaction() as sess:
+        sess["authenticated"] = True
+
+    assert client.get(f"/results/{json_name}").status_code == 404
+    assert client.get(f"/results/{tgz_name}").status_code == 404
+
+
 def test_results_route_blocks_confidential_padata_matched_by_server_uuid(client, tmp_dirs):
     received, received_padata = tmp_dirs
     uid = "12345678-1234-1234-1234-123456789abc"

@@ -97,6 +97,29 @@ def test_environment_snapshot_results_route_lists_linked_results(tmp_path):
     assert "0.03" in html
 
 
+def test_public_portal_mode_blocks_anonymous_environment_snapshot_results(tmp_path):
+    received_dir = tmp_path / "received"
+    received_dir.mkdir()
+    db_path = tmp_path / "cx_portal.sqlite3"
+    filename = "result_20260810_160604_11111111-2222-3333-4444-555555555555.json"
+    payload = _payload("11111111-2222-3333-4444-555555555555")
+    _write_json(received_dir / filename, payload)
+    assert index_environment_snapshot(
+        db_path=str(db_path),
+        payload=payload,
+        json_file=filename,
+    )
+
+    app = build_results_route_app(received_dir=str(received_dir))
+    _add_navigation_routes(app)
+    app.config["EXECUTION_PROFILE_DB_PATH"] = str(db_path)
+    app.config["PUBLIC_PORTAL_MODE"] = True
+
+    response = app.test_client().get("/results/environment-snapshots/sha256:routeabc")
+
+    assert response.status_code == 404
+
+
 def test_result_detail_links_to_environment_snapshot_results(tmp_path):
     received_dir = tmp_path / "received"
     received_dir.mkdir()
@@ -112,3 +135,24 @@ def test_result_detail_links_to_environment_snapshot_results(tmp_path):
     html = response.get_data(as_text=True)
     assert "View results with this snapshot" in html
     assert "/results/environment-snapshots/sha256:routeabc" in html
+
+
+def test_public_portal_mode_result_detail_omits_environment_snapshot_link(tmp_path):
+    received_dir = tmp_path / "received"
+    received_dir.mkdir()
+    filename = "result_20260810_160604_11111111-2222-3333-4444-555555555555.json"
+    _write_json(received_dir / filename, _payload("11111111-2222-3333-4444-555555555555"))
+
+    app = build_results_route_app(received_dir=str(received_dir))
+    _add_navigation_routes(app)
+    app.config["EXECUTION_PROFILE_DB_PATH"] = str(tmp_path / "cx_portal.sqlite3")
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    response = app.test_client().get(f"/results/detail/{filename}")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "View results with this snapshot" not in html
+    assert "/results/environment-snapshots/sha256:routeabc" not in html
+    assert "Pipeline ID" not in html
+    assert "Allocation Project ID" not in html
+    assert "Runner" not in html

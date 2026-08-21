@@ -100,10 +100,15 @@ FULL_QUALITY = {
 }
 
 
-def _render_result_detail(result, quality, padata_filenames=None):
+def _render_result_detail(result, quality, padata_filenames=None, *, public_surface=False):
     from flask import render_template
 
-    detail_context = build_result_detail_context(result, quality, padata_filenames=padata_filenames)
+    detail_context = build_result_detail_context(
+        result,
+        quality,
+        padata_filenames=padata_filenames,
+        public_surface=public_surface,
+    )
     return render_template("result_detail.html", result=result, quality=quality, **detail_context)
 
 
@@ -128,6 +133,25 @@ class TestResultDetailTemplate:
         assert "slurm" in html
         assert "Back to Results" in html
         assert "Results" in html
+
+    def test_public_surface_meta_omits_operator_fields(self, app):
+        with app.test_request_context():
+            html = _render_result_detail(FULL_RESULT, FULL_QUALITY, public_surface=True)
+
+        assert "benchpark-osu-micro-benchmarks" in html
+        assert "RC_GH200" in html
+        assert "6.470" in html
+        assert "Pipeline ID" not in html
+        assert "Parent Pipeline ID" not in html
+        assert "Run Cause" not in html
+        assert "<h2>Quality</h2>" not in html
+        assert "Suggested Actions" not in html
+        assert "Improvement Candidates" not in html
+        assert "Environment Snapshot" not in html
+        assert "Allocation Project ID" not in html
+        assert "Runner" not in html
+        assert "rccs-cloud" not in html
+        assert "gh200-runner" not in html
 
     def test_vector_chart_section(self, app):
         with app.test_request_context():
@@ -207,6 +231,43 @@ class TestResultDetailTemplate:
         assert "pairlist" in html
         assert "results/padata_k003_void_kern_build_pairlist.tgz" in html
         assert f'href="/results/{filename}"' in html
+
+    def test_public_surface_omits_padata_archive_links(self, app):
+        result = {
+            **FULL_RESULT,
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20260819_161329",
+            "fom_breakdown": {
+                "sections": [
+                    {
+                        "name": "pairlist",
+                        "time": 1.0,
+                        "artifacts": [
+                            {
+                                "type": "file_reference",
+                                "path": "results/padata_k003_void_kern_build_pairlist.tgz",
+                            }
+                        ],
+                    }
+                ],
+                "overlaps": [],
+            },
+        }
+        filename = (
+            "padata_20260819_161329_12345678-1234-1234-1234-123456789abc_"
+            "padata_k003_void_kern_build_pairlist.tgz"
+        )
+
+        with app.test_request_context():
+            html = _render_result_detail(
+                result,
+                FULL_QUALITY,
+                [filename],
+                public_surface=True,
+            )
+
+        assert "PA Data Archives" not in html
+        assert f'href="/results/{filename}"' not in html
 
     def test_vector_data_table(self, app):
         with app.test_request_context():

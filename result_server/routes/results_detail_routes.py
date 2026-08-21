@@ -23,6 +23,9 @@ from utils.trigger_display import load_trigger_run_lookup, summarize_execution_t
 
 
 def register_results_detail_routes(results_bp):
+    def public_surface():
+        return current_app.config.get("PUBLIC_PORTAL_MODE", False)
+
     @results_bp.route("/compare", methods=["GET"])
     def result_compare():
         files_param = request.args.get("files", "")
@@ -31,11 +34,16 @@ def register_results_detail_routes(results_bp):
         if len(filenames) < 2:
             abort(400, "Select 2 or more results to compare")
 
-        compare_context = load_result_compare_context(filenames, current_app.config["RECEIVED_DIR"])
+        compare_context = load_result_compare_context(
+            filenames,
+            current_app.config["RECEIVED_DIR"],
+            public_surface=public_surface(),
+        )
         return render_template("result_compare.html", **compare_context)
 
     @results_bp.route("/detail/<filename>")
     def result_detail(filename):
+        is_public_surface = public_surface()
         result = load_permitted_result_json(
             filename,
             current_app.config["RECEIVED_DIR"],
@@ -49,8 +57,9 @@ def register_results_detail_routes(results_bp):
             quality,
             load_trigger_run_lookup(current_app.config.get("EXECUTION_PROFILE_DB_PATH")),
             padata_filenames,
+            public_surface=is_public_surface,
         )
-        if detail_context.get("environment_snapshot_hash"):
+        if detail_context.get("environment_snapshot_hash") and not is_public_surface:
             detail_context["environment_snapshot_results_url"] = url_for(
                 "results.environment_snapshot_results",
                 snapshot_hash=detail_context["environment_snapshot_hash"],
@@ -59,6 +68,9 @@ def register_results_detail_routes(results_bp):
 
     @results_bp.route("/environment-snapshots/<path:snapshot_hash>")
     def environment_snapshot_results(snapshot_hash):
+        if public_surface():
+            abort(404)
+
         db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
         snapshot = get_environment_snapshot(db_path, snapshot_hash)
         if snapshot is None:
@@ -108,6 +120,9 @@ def register_results_detail_routes(results_bp):
 
     @results_bp.route("/<filename>")
     def show_result(filename):
+        if public_surface():
+            abort(404)
+
         if filename.endswith(".tgz"):
             return serve_permitted_result_file(
                 filename,

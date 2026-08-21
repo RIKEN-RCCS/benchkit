@@ -7,51 +7,69 @@ from utils.result_records import build_labeled_value_rows, format_numeric_value
 from utils.trigger_display import summarize_execution_trigger
 
 
-def build_result_detail_context(result, quality, trigger_runs_by_pipeline=None, padata_filenames=None):
+def build_result_detail_context(
+    result,
+    quality,
+    trigger_runs_by_pipeline=None,
+    padata_filenames=None,
+    *,
+    public_surface=False,
+):
     profile_data = result.get("profile_data") or {}
     build_data = result.get("build") or {}
     vector_metrics = (result.get("metrics") or {}).get("vector")
     scalar_metrics = (result.get("metrics") or {}).get("scalar") or {}
 
     return {
-        "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline),
+        "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline, public_surface=public_surface),
         "profile_rows": _build_profile_rows(profile_data),
-        "quality_rows": _build_quality_rows(quality),
-        "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
-        "environment_rows": _build_environment_rows(result.get("environment_snapshot")),
-        "environment_snapshot_hash": _environment_snapshot_hash(result.get("environment_snapshot")),
+        "quality_rows": [] if public_surface else _build_quality_rows(quality),
+        "profile_artifact_rows": (
+            [] if public_surface else _build_profile_artifact_rows(result, padata_filenames or [])
+        ),
+        "environment_rows": (
+            [] if public_surface else _build_environment_rows(result.get("environment_snapshot"))
+        ),
+        "environment_snapshot_hash": (
+            "" if public_surface else _environment_snapshot_hash(result.get("environment_snapshot"))
+        ),
         "vector_metrics": vector_metrics,
         "scalar_rows": _build_scalar_rows(scalar_metrics),
         "build_rows": _build_build_rows(build_data),
     }
 
 
-def _build_meta_rows(result, trigger_runs_by_pipeline=None):
+def _build_meta_rows(result, trigger_runs_by_pipeline=None, *, public_surface=False):
     trigger_summary = summarize_execution_trigger(result, trigger_runs_by_pipeline)
-    rows = build_labeled_value_rows([
+    base_items = [
         ("Code", result.get("code", "N/A")),
         ("System", result.get("system", "N/A")),
         ("Exp", result.get("Exp", "N/A")),
         ("FOM", format_numeric_value(result.get("FOM", "N/A"))),
         ("FOM Unit", result.get("FOM_unit") or "not specified"),
         ("Node Count", result.get("node_count", "N/A")),
-        ("Pipeline ID", result.get("pipeline_id", "N/A")),
-        (
-            "Run Cause",
+    ]
+    if not public_surface:
+        base_items.extend([
+            ("Pipeline ID", result.get("pipeline_id", "N/A")),
             (
-                f"{trigger_summary['headline']} ({trigger_summary['subline']})"
-                if trigger_summary.get("subline")
-                else trigger_summary["headline"]
+                "Run Cause",
+                (
+                    f"{trigger_summary['headline']} ({trigger_summary['subline']})"
+                    if trigger_summary.get("subline")
+                    else trigger_summary["headline"]
+                ),
             ),
-        ),
-    ])
+        ])
+    rows = build_labeled_value_rows(base_items)
 
     optional_rows = [
         ("Processes per Node", result.get("numproc_node")),
         ("Threads per Process", result.get("nthreads")),
         ("CPUs per Node", result.get("cpus_per_node")),
-        ("Parent Pipeline ID", result.get("parent_pipeline_id")),
     ]
+    if not public_surface:
+        optional_rows.append(("Parent Pipeline ID", result.get("parent_pipeline_id")))
     for label, value in optional_rows:
         if value not in (None, "", "N/A", "null"):
             rows.append({"label": label, "value": value})

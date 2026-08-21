@@ -15,6 +15,7 @@ from utils.admin_policy import parse_allowed_affiliations
 from utils.audit_logging import configure_audit_logging
 from utils.auth import parse_ingest_keys
 from utils.csrf import init_csrf
+from utils.portal_access import is_public_portal_mode, register_public_portal_guard
 from utils.preflight import validate_production_config
 
 
@@ -135,6 +136,13 @@ def _configure_api_auth(app):
     ).strip()
 
 
+def _configure_public_portal_mode(app):
+    """Configure whether browser routes expose only the public surface."""
+    app.config["PUBLIC_PORTAL_MODE"] = is_public_portal_mode(
+        os.environ.get("RESULT_SERVER_PUBLIC_PORTAL_MODE")
+    )
+
+
 def _configure_execution_profiles(app, base_dir):
     """Configure the site-local execution profile database path."""
     app.config["EXECUTION_PROFILE_DB_PATH"] = os.environ.get(
@@ -184,7 +192,9 @@ def create_app(prefix="", base_dir=None):
     _configure_upload_limits(app)
     _configure_admin_policy(app)
     _configure_api_auth(app)
+    _configure_public_portal_mode(app)
     _configure_execution_profiles(app, base_dir)
+    register_public_portal_guard(app)
     init_csrf(app, exempt_blueprints=(api_bp,))
 
     register_home_routes(app, prefix=prefix)

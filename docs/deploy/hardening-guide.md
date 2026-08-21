@@ -46,6 +46,11 @@ loopback traffic to the app. Keep `/admin/` and `/auth/` protected by portal
 authentication; `robots.txt` only reduces crawler noise and is not an access
 control mechanism.
 
+For public portal deployments, split the browser-facing surface from restricted
+viewer, operator, and runner/API surfaces. The public route allowlist and the
+nginx/Flask responsibility split are described in
+[`public-portal-access-control.md`](public-portal-access-control.md).
+
 `app.py` trusts one reverse proxy hop with Werkzeug `ProxyFix`, so the frontend
 proxy must set `X-Forwarded-For` and `X-Forwarded-Proto`. The configured hop
 count assumes nginx is the only trusted proxy directly in front of Gunicorn. If

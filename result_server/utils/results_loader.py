@@ -33,6 +33,12 @@ RESULT_TABLE_COLUMNS = [
     {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
 ]
 
+PUBLIC_RESULT_TABLE_COLUMNS = [
+    column
+    for column in RESULT_TABLE_COLUMNS
+    if column["key"] not in {"execution_trigger_summary", "json_link", "ci_summary"}
+]
+
 
 def load_results_table(
     directory,
@@ -46,6 +52,7 @@ def load_results_table(
     filter_exp=None,
     padata_directory=None,
     execution_profile_db_path=None,
+    public_surface=False,
 ):
     per_page = normalize_per_page(per_page)
 
@@ -55,7 +62,7 @@ def load_results_table(
     padata_dir = padata_directory or directory
     padata_filenames = [filename for filename in os.listdir(padata_dir) if filename.endswith(".tgz")]
 
-    columns = RESULT_TABLE_COLUMNS
+    columns = PUBLIC_RESULT_TABLE_COLUMNS if public_surface else RESULT_TABLE_COLUMNS
     trigger_runs_by_pipeline = load_trigger_run_lookup(execution_profile_db_path)
 
     has_filters = filters_are_active(filter_system, filter_code, filter_exp)
@@ -88,6 +95,7 @@ def load_results_table(
                     result_data,
                     padata_filenames,
                     trigger_runs_by_pipeline,
+                    public_surface=public_surface,
                 )
             )
 
@@ -118,6 +126,7 @@ def load_results_table(
                 result_data,
                 padata_filenames,
                 trigger_runs_by_pipeline,
+                public_surface=public_surface,
             )
         )
 
