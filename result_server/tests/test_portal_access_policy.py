@@ -61,7 +61,7 @@ def test_representative_route_access_classes():
     assert classify_endpoint("results.results_confidential") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("estimated.estimated_results") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("auth.login") == ACCESS_RESTRICTED_VIEWER
-    assert classify_endpoint("profile_requests.my_profile_requests") == ACCESS_AUTHENTICATED_CONSOLE
+    assert classify_endpoint("profile_requests.profile_requests") == ACCESS_AUTHENTICATED_CONSOLE
     assert classify_endpoint("results.usage_report") == ACCESS_OPERATOR
     assert classify_endpoint("admin.users") == ACCESS_OPERATOR
     assert classify_endpoint("api.ingest_result") == ACCESS_RUNNER_API
@@ -129,6 +129,24 @@ def test_public_portal_mode_hides_authenticated_restricted_navigation():
     assert "Estimated" not in html
     assert "Confidential" not in html
     assert "Profile" not in html
+
+
+def test_console_prefixed_navigation_uses_prefixed_profile_request_url():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        prefix="/console",
+    )
+
+    with app.test_request_context("/console/admin/users"):
+        from flask import render_template, session
+
+        session["authenticated"] = True
+        session["user_email"] = "admin@example.test"
+        session["user_affiliations"] = ["admin"]
+        html = render_template("_navigation.html")
+
+    assert 'href="/console/execution-profile-requests/"' in html
+    assert 'href="/execution-profile-requests/"' not in html
 
 
 def test_public_portal_mode_hides_home_restricted_entry_points(monkeypatch):
