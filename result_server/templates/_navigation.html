@@ -126,11 +126,11 @@
                 <a href="{{ url_for('admin.users') }}">Admin</a>
                 <a href="{{ url_for('admin.execution_profiles') }}">Execution Profiles</a>
                 <a href="{{ url_for('admin.execution_profile_requests') }}">Profile Request Review</a>
-                {% set portal_prefix = '/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '') %}
+                {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
                 <a href="{{ portal_prefix }}/execution-profile-requests/">Profile Requests</a>
                 <hr>
                 {% else %}
-                {% set portal_prefix = '/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '') %}
+                {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
                 <a href="{{ portal_prefix }}/execution-profile-requests/">Profile Requests</a>
                 {% endif %}
                 <a href="{{ url_for('auth.logout') }}">Logout</a>

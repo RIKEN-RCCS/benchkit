@@ -229,7 +229,7 @@
 </section>
 {% else %}
 <div class="request-review-link">
-    {% set portal_prefix = '/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '') %}
+    {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
     <a class="btn btn-secondary" href="{{ portal_prefix }}/execution-profile-requests/">Open Applicant Request View</a>
 </div>
 {% endif %}

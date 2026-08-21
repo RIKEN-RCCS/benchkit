@@ -26,7 +26,13 @@ def install_portal_test_stubs(*, include_redis=True, include_otp=True):
     sys.modules["utils.otp_redis_manager"] = otp_redis_mod
 
 
-def build_portal_shell_app(*, templates_dir, include_home_route=True, include_systemlist_route=True):
+def build_portal_shell_app(
+    *,
+    templates_dir,
+    include_home_route=True,
+    include_systemlist_route=True,
+    prefix="",
+):
     """Build a lightweight Flask app with common portal shell routes for template tests."""
     app = Flask(__name__, template_folder=templates_dir)
     app.config["TESTING"] = True
@@ -36,9 +42,14 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     estimated_bp = Blueprint("estimated", __name__)
     auth_bp = Blueprint("auth", __name__)
     admin_bp = Blueprint("admin", __name__)
+    profile_requests_bp = Blueprint("profile_requests", __name__)
 
     @results_bp.route("/")
     def results():
+        return ""
+
+    @results_bp.route("/confidential")
+    def results_confidential():
         return ""
 
     @results_bp.route("/compare")
@@ -81,6 +92,10 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def setup(token):
         return token
 
+    @auth_bp.route("/logout")
+    def logout():
+        return ""
+
     @admin_bp.route("/users")
     def users():
         return ""
@@ -109,18 +124,23 @@ def build_portal_shell_app(*, templates_dir, include_home_route=True, include_sy
     def delete_user(email):
         return email
 
-    app.register_blueprint(results_bp, url_prefix="/results")
-    app.register_blueprint(estimated_bp, url_prefix="/estimated")
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
+    @profile_requests_bp.route("/")
+    def profile_requests():
+        return ""
+
+    app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
+    app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
+    app.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
+    app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
+    app.register_blueprint(profile_requests_bp, url_prefix=f"{prefix}/execution-profile-requests")
 
     if include_home_route:
-        @app.route("/")
+        @app.route(f"{prefix}/")
         def home():
             return ""
 
     if include_systemlist_route:
-        @app.route("/systemlist")
+        @app.route(f"{prefix}/systemlist")
         def systemlist():
             return ""
 
