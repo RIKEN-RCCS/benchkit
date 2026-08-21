@@ -278,7 +278,7 @@ class TestLoadResultsTableExtension:
             {"label": "Nodes", "key": "nodes"},
             {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
             {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
-            {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+            {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool/level and PA data download access when archive is available"},
             {"label": "Run Cause", "key": "execution_trigger_summary", "tooltip": "Portal trigger metadata explaining why this benchmark run was launched"},
             {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
             {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
@@ -322,7 +322,7 @@ class TestLoadResultsTableExtension:
         assert "execution_trigger_summary" not in column_keys
         assert "profile_summary" in column_keys
         assert rows[0]["json_link"] is None
-        assert rows[0]["data_link"] is None
+        assert rows[0]["data_link"] == f"/results/padata_20250101_120000_{uid}.tgz"
         assert rows[0]["source_link"] is None
         assert rows[0]["profile_summary"] == "ncu / single"
         assert rows[0]["profile_summary_meta"]["ncu_options"] == ["--set", "basic"]

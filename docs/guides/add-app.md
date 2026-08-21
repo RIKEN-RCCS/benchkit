@@ -105,7 +105,7 @@ BenchKit では、実行条件とシステム運用設定を明確に分けま�
   - `mode`、Runner tag、`queue`、`queue_group` など、そのシステムで共通な運用設定を書く
   - 全アプリで共有される条件を書く
 - `config/system_info.csv`
-  - Result Server や `/systemlist` に出すシステム表示情報を書く
+  - Result Server や `/systems` に出すシステム表示情報を書く
   - アプリ開発者が、その system が portal 上でどう見えるかを確認するときの正本になる
 
 新しい system を `list.csv` に追加する前に、`config/system.csv` と `config/system_info.csv` の両方に対象 system があるかを確認しておくと、実行条件と portal 表示のずれを減らせる。

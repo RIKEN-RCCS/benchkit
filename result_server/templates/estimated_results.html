@@ -14,6 +14,7 @@
 
 {% block content %}
 {% if authenticated %}
+{% set estimation_page_links = estimation_links | default({}) %}
 <section class="page-card table-card">
 {% include "_filter_dropdowns.html" %}
 
@@ -25,6 +26,14 @@
     color: #52606d;
     line-height: 1.55;
     font-size: 14px;
+  }
+  .estimated-guide-link {
+    color: #0f766e;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .estimated-guide-link:hover {
+    text-decoration: underline;
   }
   .estimated-table-wrap {
     overflow-x: auto;
@@ -56,7 +65,14 @@
   }
 </style>
 
-<p class="estimated-table-note">Scan system pairs, applied packages, and ratio here, then open <code>detail</code> for breakdown or fallback context.</p>
+<p class="estimated-table-note">
+  Scan system pairs, applied packages, and ratio here, then open <code>detail</code> for breakdown or fallback context.
+  {% if estimation_page_links.perftools %}
+  GPU kernel-level estimates use
+  <a class="estimated-guide-link" href="{{ estimation_page_links.perftools }}" target="_blank" rel="noopener noreferrer">PerfTools</a>
+  models when an applicable package is selected.
+  {% endif %}
+</p>
 
 {% include "_estimated_results_table.html" %}
 

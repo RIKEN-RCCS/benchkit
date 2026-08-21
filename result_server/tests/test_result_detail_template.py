@@ -232,7 +232,7 @@ class TestResultDetailTemplate:
         assert "results/padata_k003_void_kern_build_pairlist.tgz" in html
         assert f'href="/results/{filename}"' in html
 
-    def test_public_surface_omits_padata_archive_links(self, app):
+    def test_public_surface_keeps_padata_archive_links(self, app):
         result = {
             **FULL_RESULT,
             "_server_uuid": "12345678-1234-1234-1234-123456789abc",
@@ -266,8 +266,8 @@ class TestResultDetailTemplate:
                 public_surface=True,
             )
 
-        assert "PA Data Archives" not in html
-        assert f'href="/results/{filename}"' not in html
+        assert "PA Data Archives" in html
+        assert f'href="/results/{filename}"' in html
 
     def test_vector_data_table(self, app):
         with app.test_request_context():

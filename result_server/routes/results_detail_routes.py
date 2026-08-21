@@ -13,6 +13,7 @@ from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
     load_permitted_result_json,
     serve_permitted_result_file,
+    serve_public_padata_file,
 )
 from utils.result_records import (
     format_numeric_value,
@@ -121,6 +122,12 @@ def register_results_detail_routes(results_bp):
     @results_bp.route("/<filename>")
     def show_result(filename):
         if public_surface():
+            if filename.endswith(".tgz"):
+                return serve_public_padata_file(
+                    filename,
+                    current_app.config["RECEIVED_DIR"],
+                    current_app.config["RECEIVED_PADATA_DIR"],
+                )
             abort(404)
 
         if filename.endswith(".tgz"):

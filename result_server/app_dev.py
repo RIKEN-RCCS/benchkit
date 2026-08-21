@@ -265,7 +265,6 @@ def create_dev_app(base_dir):
     app.register_blueprint(profile_requests_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
-    @app.route("/systemlist")
     def systemlist():
         systems_info = get_all_systems_info()
         return render_template(
@@ -273,6 +272,8 @@ def create_dev_app(base_dir):
             systems_info=systems_info,
             systems_summary=summarize_systems_info(systems_info),
         )
+
+    app.add_url_rule("/systems", endpoint="systemlist", view_func=systemlist)
 
     return app
 
@@ -584,7 +585,7 @@ def main():
 
     print(f"\nStarting dev server on http://{args.host}:{args.port}")
     print(f"  Results: http://{args.host}:{args.port}/results")
-    print(f"  Systems: http://{args.host}:{args.port}/systemlist")
+    print(f"  Systems: http://{args.host}:{args.port}/systems")
     print(f"  Data dir: {base_dir}")
     print()
 

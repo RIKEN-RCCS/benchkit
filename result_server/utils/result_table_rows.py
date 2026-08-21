@@ -21,11 +21,7 @@ def build_result_table_row(
 ):
     """Build a single row for the public/confidential results index table."""
     timestamp = format_result_timestamp(json_filename)
-    matched_padata = (
-        None
-        if public_surface
-        else _find_matching_padata_archive(json_filename, result_data, padata_filenames)
-    )
+    matched_padata = _find_matching_padata_archive(json_filename, result_data, padata_filenames)
     pipeline_timing = result_data.get("pipeline_timing", {})
     source_info = result_data.get("source_info")
     source_link = None if public_surface else _build_source_link(source_info)

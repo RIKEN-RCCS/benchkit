@@ -22,7 +22,7 @@ def test_results_template_renders_table_note():
                     {"label": "CODE", "key": "code"},
                     {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
                     {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
-                    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+                    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool/level and PA data download access when archive is available"},
                     {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
                     {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
                 ],
@@ -80,7 +80,7 @@ def test_results_template_renders_table_note():
             },
         )
 
-    assert "check the profiler and PA summary when available" in html
+    assert "inspect profiler context when a PA archive is available" in html
     assert "results-table-wrap" in html
     assert "Compare" in html
     assert "fapp / detailed" in html
@@ -91,7 +91,7 @@ def test_results_template_renders_table_note():
     assert "1.234 s" in html
 
 
-def test_results_template_renders_ncu_options_tooltip():
+def test_results_template_renders_profile_summary_when_padata_link_is_available():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
@@ -151,6 +151,64 @@ def test_results_template_renders_ncu_options_tooltip():
     assert "archive: available (3)" in html
     assert "ncu options: --target-processes all --set basic --launch-count 1" in html
     assert "ncu_report" in html
+
+
+def test_results_template_hides_profile_summary_without_padata_link():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results"):
+        from flask import render_template
+
+        html = render_template(
+            "results.html",
+            columns=[
+                {"label": "Timestamp", "key": "timestamp"},
+                {"label": "Profiler / PA", "key": "profile_summary"},
+            ],
+            rows=[
+                {
+                    "timestamp": "2026-04-13 12:00:00",
+                    "profile_summary": "ncu / single",
+                    "profile_summary_meta": {
+                        "has_profile_data": True,
+                        "headline": "ncu / single",
+                        "subline": "text, 1 run",
+                        "archive_count": None,
+                        "events": [],
+                        "ncu_options": ["--set", "basic"],
+                        "report_kinds": ["ncu_report"],
+                    },
+                    "data_link": None,
+                    "detail_link": "/results/detail/result0.json",
+                    "filename": "result0.json",
+                    "source_info": None,
+                    "quality": {"level": "ready", "label": "Ready", "summary": "Breakdown is present."},
+                    "system": "RC_GH200",
+                    "code": "genesis",
+                    "fom": 1.0,
+                    "exp": "CASE0",
+                    "fom_version": "test",
+                    "nodes": "1",
+                    "numproc_node": "8",
+                    "nthreads": "9",
+                    "ci_trigger": "push",
+                    "pipeline_id": "10",
+                    "source_hash": "-",
+                }
+            ],
+            pagination={"total": 1, "page": 1, "total_pages": 1},
+            current_per_page=50,
+            current_system="",
+            current_code="",
+            current_exp="",
+            filter_options={"systems": ["RC_GH200"], "codes": ["genesis"], "exps": ["CASE0"]},
+            systems_info={},
+        )
+
+    assert "ncu / single" not in html
+    assert "padata" not in html
+    assert "ncu_report" not in html
 
 
 def test_pagination_template_urlencodes_filters_without_inline_javascript():
@@ -295,9 +353,12 @@ def test_estimated_results_template_renders_table_note():
             current_code="",
             current_exp="",
             filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
+            estimation_links={"perftools": "https://github.com/masaaki-kondo/PerfTools"},
         )
 
     assert "Scan system pairs, applied packages, and ratio here" in html
+    assert "PerfTools" in html
+    assert "https://github.com/masaaki-kondo/PerfTools" in html
     assert "estimated-table-wrap" in html
     assert "detail" in html
     assert "fallback -&gt; weakscaling" in html

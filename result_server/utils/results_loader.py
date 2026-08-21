@@ -27,7 +27,7 @@ RESULT_TABLE_COLUMNS = [
     {"label": "Nodes", "key": "nodes"},
     {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
     {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
-    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool, level, report summary, and PA data download access"},
+    {"label": "Profiler / PA", "key": "profile_summary", "tooltip": "Profiler tool/level and PA data download access when archive is available"},
     {"label": "Run Cause", "key": "execution_trigger_summary", "tooltip": "Portal trigger metadata explaining why this benchmark run was launched"},
     {"label": "JSON", "key": "json_link", "tooltip": "Detailed benchmark results in JSON format", "tooltip_class": "tooltip-right"},
     {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},

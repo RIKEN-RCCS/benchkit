@@ -57,7 +57,7 @@ def test_representative_route_access_classes():
     assert classify_endpoint("systemlist") == ACCESS_PUBLIC
     assert classify_endpoint("results.results") == ACCESS_PUBLIC
     assert classify_endpoint("results.result_detail") == ACCESS_PUBLIC_CONDITIONAL
-    assert classify_endpoint("results.show_result") == ACCESS_RESTRICTED_VIEWER
+    assert classify_endpoint("results.show_result") == ACCESS_PUBLIC_CONDITIONAL
     assert classify_endpoint("results.results_confidential") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("estimated.estimated_results") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("auth.login") == ACCESS_RESTRICTED_VIEWER
@@ -104,6 +104,20 @@ def test_public_portal_mode_hides_anonymous_restricted_navigation():
     assert "Estimated" not in html
     assert "Confidential" not in html
     assert "Profile" not in html
+
+
+def test_systems_route_is_canonical():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+
+    with app.test_request_context("/"):
+        from flask import url_for
+
+        assert url_for("systemlist") == "/systems"
+
+    with app.test_client() as client:
+        assert client.get("/systems").status_code == 200
 
 
 def test_public_portal_mode_hides_authenticated_restricted_navigation():

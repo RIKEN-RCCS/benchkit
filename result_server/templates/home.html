@@ -16,71 +16,12 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
 {% set show_restricted_entries = is_authenticated and not public_portal_mode %}
 {% set is_operator = show_restricted_entries and 'admin' in session.get('user_affiliations', []) %}
 {% set public_surface = public_portal_mode %}
-{% set entry_point_count = 4 if is_operator else (2 if public_surface else 3) %}
 <style>
-    .home-overview-grid {
-        display: grid;
-        grid-template-columns: 1.45fr 1fr;
-        gap: 24px;
-        margin-bottom: 24px;
-    }
-    .home-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 20px;
-    }
-    .home-action-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 11px 16px;
-        border-radius: 999px;
-        text-decoration: none;
-        font-weight: 600;
-        transition: transform 120ms ease, box-shadow 120ms ease;
-    }
-    .home-action-link:hover {
-        transform: translateY(-1px);
-    }
-    .home-action-link-primary {
-        background: #0f766e;
-        color: #fff;
-        box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);
-    }
-    .home-action-link-secondary {
-        background: #eff6ff;
-        color: #1d4ed8;
-    }
-    .home-action-link-locked {
-        background: #f4f4f5;
-        color: #52525b;
-    }
-    .home-summary-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 16px;
-    }
-    .home-summary-card,
-    .home-link-card,
-    .home-system-card {
+    .home-link-card {
         padding: 16px;
         border-radius: 14px;
         border: 1px solid #dce8ee;
         background: #f7fbfc;
-    }
-    .home-summary-value {
-        display: block;
-        font-size: 28px;
-        font-weight: 700;
-        color: #0f172a;
-    }
-    .home-summary-label {
-        display: block;
-        margin-top: 6px;
-        font-size: 13px;
-        color: #52606d;
     }
     .home-content-grid {
         display: grid;
@@ -124,134 +65,13 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
         font-weight: 600;
         letter-spacing: 0.01em;
     }
-    .home-systems-section {
-        margin-top: 24px;
-    }
-    .home-systems-header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 14px;
-    }
-    .home-systems-header h2 {
-        margin: 0;
-        font-size: 28px;
-        letter-spacing: -0.02em;
-    }
-    .home-systems-header p {
-        margin: 0;
-        color: #52606d;
-    }
-    .home-system-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 16px;
-    }
-    .home-system-card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 12px;
-    }
-    .home-system-card h3 {
-        margin: 0;
-        font-size: 18px;
-    }
-    .home-system-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 4px 8px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-    .home-system-badge-gpu {
-        background: #eef6ff;
-        color: #1d4ed8;
-    }
-    .home-system-badge-cpu {
-        background: #f3f4f6;
-        color: #4b5563;
-    }
-    .home-system-meta {
-        display: grid;
-        gap: 7px;
-        font-size: 14px;
-        color: #52606d;
-    }
-    .home-system-meta strong {
-        color: #1f2933;
-    }
-    .home-section-footer {
-        margin-top: 16px;
-    }
-    .home-section-footer a {
-        color: #0f766e;
-        font-weight: 600;
-        text-decoration: none;
-    }
-    .home-section-footer a:hover {
-        text-decoration: underline;
-    }
     @media (max-width: 900px) {
-        .home-overview-grid,
         .home-content-grid,
         .home-content-grid-three {
             grid-template-columns: 1fr;
         }
     }
 </style>
-
-<section class="home-overview-grid">
-    <section class="page-card">
-        <h2 class="section-title">Start Here</h2>
-        <p class="section-intro">
-            {% if public_surface %}
-            Browse public measured results, inspect connected systems, and open onboarding guides for applications and sites.
-            {% else %}
-            Browse measured and estimated results, inspect connected systems, and jump directly into onboarding guides for applications and sites.
-            {% endif %}
-        </p>
-        <div class="home-actions">
-            <a class="home-action-link home-action-link-primary" href="{{ url_for('results.results') }}">Browse Results</a>
-            <a class="home-action-link home-action-link-secondary" href="{{ url_for('systemlist') }}">View All Systems</a>
-            {% if show_restricted_entries %}
-            <a class="home-action-link home-action-link-secondary" href="{{ url_for('estimated.estimated_results') }}">Open Estimated Results</a>
-            {% elif not public_portal_mode %}
-            <a class="home-action-link home-action-link-locked" href="{{ url_for('auth.login') }}">Estimated Results (login required)</a>
-            {% endif %}
-        </div>
-    </section>
-
-    <aside class="page-card">
-        <h2 class="section-title">At a Glance</h2>
-        <p class="section-intro">
-            Use this portal to understand how CX connects to real systems, browse portal pages, and find the right onboarding guide for applications or sites.
-        </p>
-        <div class="home-summary-grid">
-            <div class="home-summary-card">
-                <span class="home-summary-value">{{ system_count }}</span>
-                <span class="home-summary-label">Connected systems</span>
-            </div>
-            <div class="home-summary-card">
-                <span class="home-summary-value">{{ entry_point_count }}</span>
-                <span class="home-summary-label">Primary entry points</span>
-            </div>
-            <div class="home-summary-card">
-                <span class="home-summary-value">Results</span>
-                <span class="home-summary-label">{% if public_surface %}Public measured views{% else %}Measured and projected views{% endif %}</span>
-            </div>
-            <div class="home-summary-card">
-                <span class="home-summary-value">Guides</span>
-                <span class="home-summary-label">Guides for apps and sites</span>
-            </div>
-        </div>
-    </aside>
-</section>
 
 <section class="home-content-grid {% if is_operator %}home-content-grid-three{% endif %}">
     <section class="page-card">
@@ -265,7 +85,7 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
         </p>
         <div class="home-link-list">
             <a class="home-link-card" href="{{ url_for('results.results') }}">
-                <strong>Results</strong>
+                <strong>Browse Results</strong>
                 <span>Browse measured benchmark results, compare runs, and inspect result-quality detail pages.</span>
             </a>
             {% if show_restricted_entries or not public_portal_mode %}
@@ -281,16 +101,16 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
             </a>
             {% endif %}
             <a class="home-link-card" href="{{ url_for('systemlist') }}">
-                <strong>Systems</strong>
+                <strong>View All Systems</strong>
                 <span>See connected systems, quick hardware summaries, and onboarding-facing system metadata.</span>
             </a>
         </div>
     </section>
 
     <section class="page-card">
-        <h2 class="section-title">For Application Developers</h2>
+        <h2 class="section-title">User Guide</h2>
         <p class="section-intro">
-            These guides explain how to add a new benchmark application, enable a new site, and attach estimation support.
+            These guides explain how to add a new benchmark application, enable a new site, attach estimation support, and relate BenchKit work to BenchPark.
         </p>
         <div class="home-link-list">
             <a class="home-link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
@@ -304,6 +124,14 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
             <a class="home-link-card" href="{{ guide_links.add_estimation }}" target="_blank" rel="noopener noreferrer">
                 <strong>Add Estimation Support</strong>
                 <span>Connect application-side result emission to estimation inputs and estimation workflows.</span>
+            </a>
+            <a class="home-link-card" href="{{ guide_links.benchpark_fn_apps }}" target="_blank" rel="noopener noreferrer">
+                <strong>Application Onboarding</strong>
+                <span>Use the RIKEN-RCCS BenchPark FN_apps branch for FugakuNEXT/CX application bring-up and local validation.</span>
+            </a>
+            <a class="home-link-card" href="{{ guide_links.benchpark_upstream }}" target="_blank" rel="noopener noreferrer">
+                <strong>Upstream BenchPark</strong>
+                <span>The RIKEN-RCCS fork is an integration window; upstream BenchPark remains the main upstream project.</span>
             </a>
             {% if guide_links.discord %}
             <a class="home-link-card" href="{{ guide_links.discord }}" target="_blank" rel="noopener noreferrer">
@@ -332,61 +160,5 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
         </div>
     </section>
     {% endif %}
-</section>
-
-<section class="page-card home-systems-section">
-    <h2 class="section-title">GPU Performance Estimation</h2>
-    <p class="section-intro">
-        CX Portal stores GPU kernel-level estimation artifacts together with benchmark results, including prepared inputs, prediction outputs, logs, and package comparison data.
-    </p>
-    <div class="home-link-list home-content-grid-three">
-        <a class="home-link-card" href="{{ guide_links.perftools }}" target="_blank" rel="noopener noreferrer">
-            <strong>PerfTools</strong>
-            <span>GPU performance estimation models used by the current experimental integration.</span>
-        </a>
-        <a class="home-link-card" href="{{ guide_links.benchpark_fn_apps }}" target="_blank" rel="noopener noreferrer">
-            <strong>Application Onboarding</strong>
-            <span>Use the RIKEN-RCCS BenchPark FN_apps branch for FugakuNEXT/CX application bring-up and local validation.</span>
-        </a>
-        <a class="home-link-card" href="{{ guide_links.benchpark_upstream }}" target="_blank" rel="noopener noreferrer">
-            <strong>Upstream BenchPark</strong>
-            <span>The RIKEN-RCCS fork is an integration window; upstream BenchPark remains the main upstream project.</span>
-        </a>
-    </div>
-    <p class="section-intro home-section-footer">
-        GPU kernel estimates are interpreted as source/target scaling factors. Application-level FOM reconstruction also needs application-side section timing for CPU, GPU, communication, and overlap regions.
-    </p>
-</section>
-
-<section class="home-systems-section page-card">
-    <div class="home-systems-header">
-        <div>
-            <h2>Available Systems</h2>
-            <p>Connected systems are sourced from `config/system_info.csv` and shown here for quick orientation.</p>
-        </div>
-    </div>
-    <div class="home-system-grid">
-        {% for system in systems %}
-        <article class="home-system-card">
-            <div class="home-system-card-header">
-                <h3>{{ system.name }}</h3>
-                {% if system.gpu_name != '-' %}
-                <span class="home-system-badge home-system-badge-gpu">GPU-enabled</span>
-                {% else %}
-                <span class="home-system-badge home-system-badge-cpu">CPU-only</span>
-                {% endif %}
-            </div>
-            <div class="home-system-meta">
-                <div><strong>CPU</strong> {{ system.cpu_name }}</div>
-                <div><strong>CPU/node</strong> {{ system.cpu_per_node }} | <strong>Cores</strong> {{ system.cpu_cores }}</div>
-                <div><strong>GPU</strong> {{ system.gpu_name }}{% if system.gpu_per_node != '-' %} ({{ system.gpu_per_node }}/node){% endif %}</div>
-                <div><strong>Memory</strong> {{ system.memory }}</div>
-            </div>
-        </article>
-        {% endfor %}
-    </div>
-    <div class="home-section-footer">
-        <a href="{{ url_for('systemlist') }}">Open the full system list</a>
-    </div>
 </section>
 {% endblock %}

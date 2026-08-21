@@ -10,6 +10,18 @@ from flask import Response, abort, send_from_directory, session
 from utils.session_user_context import get_session_user_context
 
 
+UUID_PATTERN = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
+PUBLIC_PADATA_FILENAME_RE = re.compile(
+    r"^padata_\d{8}_\d{6}_"
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"(?:_[A-Za-z0-9][A-Za-z0-9_.-]{0,127})?\.tgz$",
+    re.IGNORECASE,
+)
+
+
 def load_result_file(filename: str, save_dir: str):
     filepath = resolve_safe_child_path(filename, save_dir)
     if filepath is None or not os.path.exists(filepath):
@@ -60,30 +72,18 @@ def get_file_confidential_tags(filename: str, save_dir: str):
         return _read_confidential_from_json(filename, save_dir)
 
     # For TGZ files, find the matching JSON by UUID and reuse its tags.
-    uuid_match = re.search(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        filename,
-        re.IGNORECASE,
-    )
-    if not uuid_match:
-        return []
-
-    uuid = uuid_match.group(0).lower()
     tags = []
-    for json_filename in os.listdir(save_dir):
-        if not json_filename.endswith(".json"):
-            continue
-        if uuid in json_filename.lower():
-            tags.extend(_read_confidential_from_json(json_filename, save_dir))
-            continue
-
-        data = _read_json(json_filename, save_dir)
-        if not isinstance(data, dict):
-            continue
-        server_uuid = data.get("_server_uuid")
-        if server_uuid is not None and str(server_uuid).lower() == uuid:
-            tags.extend(_extract_confidential_tags(data))
+    for _json_filename, data in _matching_result_json_for_padata(filename, save_dir):
+        tags.extend(_extract_confidential_tags(data))
     return _unique_tags(tags)
+
+
+def padata_matches_public_result(filename: str, save_dir: str) -> bool:
+    """Return whether a PA archive belongs only to public result metadata."""
+    matches = list(_matching_result_json_for_padata(filename, save_dir))
+    if not matches:
+        return False
+    return all(not _extract_confidential_tags(data) for _json_filename, data in matches)
 
 
 def check_file_permission(filename: str, dir_path: str) -> None:
@@ -109,6 +109,16 @@ def serve_permitted_result_file(filename: str, permission_dir: str, data_dir: Op
     """Check permission tags and then serve the requested file."""
     check_file_permission(filename, permission_dir)
     return load_result_file(filename, data_dir or permission_dir)
+
+
+def serve_public_padata_file(filename: str, permission_dir: str, data_dir: str):
+    """Serve a PA archive only when it belongs to public result metadata."""
+    if (
+        not PUBLIC_PADATA_FILENAME_RE.fullmatch(filename)
+        or not padata_matches_public_result(filename, permission_dir)
+    ):
+        abort(404)
+    return load_result_file(filename, data_dir)
 
 
 def serve_authenticated_result_file(filename: str, data_dir: str, *, message: str):
@@ -167,6 +177,26 @@ def _read_json(json_file: str, save_dir: str):
             return json.load(f)
     except Exception:
         return None
+
+
+def _matching_result_json_for_padata(filename: str, save_dir: str):
+    uuid_match = UUID_PATTERN.search(filename)
+    if not uuid_match:
+        return
+
+    uuid = uuid_match.group(0).lower()
+    for json_filename in os.listdir(save_dir):
+        if not json_filename.endswith(".json"):
+            continue
+        data = _read_json(json_filename, save_dir)
+        if not isinstance(data, dict):
+            continue
+        if uuid in json_filename.lower():
+            yield json_filename, data
+            continue
+        server_uuid = data.get("_server_uuid")
+        if server_uuid is not None and str(server_uuid).lower() == uuid:
+            yield json_filename, data
 
 
 def _extract_confidential_tags(data):
