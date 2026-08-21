@@ -200,7 +200,6 @@ def create_app(prefix="", base_dir=None):
     register_home_routes(app, prefix=prefix)
     _register_portal_blueprints(app, prefix)
 
-    @app.route(f"{prefix}/systemlist")
     def systemlist():
         from utils.system_info import get_all_systems_info, summarize_systems_info
 
@@ -210,6 +209,8 @@ def create_app(prefix="", base_dir=None):
             systems_info=systems_info,
             systems_summary=summarize_systems_info(systems_info),
         )
+
+    app.add_url_rule(f"{prefix}/systems", endpoint="systemlist", view_func=systemlist)
 
     return app
 

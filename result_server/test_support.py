@@ -140,9 +140,9 @@ def build_portal_shell_app(
             return ""
 
     if include_systemlist_route:
-        @app.route(f"{prefix}/systemlist")
         def systemlist():
             return ""
+        app.add_url_rule(f"{prefix}/systems", endpoint="systemlist", view_func=systemlist)
 
     return app
 
@@ -260,8 +260,8 @@ def build_portal_route_app(
         app.register_blueprint(profile_requests_bp)
         app.register_blueprint(admin_bp, url_prefix="/admin")
 
-    @app.route("/systemlist")
     def systemlist():
         return ""
+    app.add_url_rule("/systems", endpoint="systemlist", view_func=systemlist)
 
     return app

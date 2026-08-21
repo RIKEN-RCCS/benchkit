@@ -12,7 +12,7 @@ def test_systemlist_page_renders_summary_and_table():
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
 
-    with app.test_request_context("/systemlist"):
+    with app.test_request_context("/systems"):
         from flask import render_template
 
         html = render_template(

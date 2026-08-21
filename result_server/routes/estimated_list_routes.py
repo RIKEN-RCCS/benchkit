@@ -15,6 +15,12 @@ from utils.table_page_utils import (
 )
 from utils.table_query_params import parse_table_query_params
 
+
+ESTIMATION_LINKS = {
+    "perftools": "https://github.com/masaaki-kondo/PerfTools",
+}
+
+
 def register_estimated_list_routes(estimated_bp):
     @estimated_bp.route("/", methods=["GET"], strict_slashes=False)
     def estimated_results():
@@ -25,6 +31,7 @@ def register_estimated_list_routes(estimated_bp):
                 per_page=DEFAULT_PER_PAGE,
                 authenticated=False,
                 systems_info=get_all_systems_info(),
+                estimation_links=ESTIMATION_LINKS,
             )
 
         params = parse_table_query_params(request.args)
@@ -55,6 +62,7 @@ def register_estimated_list_routes(estimated_bp):
             params=params,
             authenticated=True,
             systems_info=get_all_systems_info(),
+            estimation_links=ESTIMATION_LINKS,
         )
 
         return render_table_page_response(

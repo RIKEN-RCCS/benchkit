@@ -34,6 +34,7 @@ PUBLIC_CONDITIONAL_ENDPOINTS = frozenset(
     {
         "results.result_compare",
         "results.result_detail",
+        "results.show_result",
     }
 )
 
@@ -47,7 +48,6 @@ RESTRICTED_VIEWER_ENDPOINTS = frozenset(
         "estimated.show_estimated_result",
         "results.environment_snapshot_results",
         "results.results_confidential",
-        "results.show_result",
     }
 )
 

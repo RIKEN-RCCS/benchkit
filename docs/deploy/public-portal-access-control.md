@@ -61,12 +61,12 @@ The initial public allowlist should be deliberately small.
 | Route | Public | Restricted viewer | Authenticated console | Operator | Runner/API | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `GET /` | yes | yes | yes | yes | no | Public home page. |
-| `GET /systemlist` | yes | yes | yes | yes | no | Public system catalog. |
+| `GET /systems` | yes | yes | yes | yes | no | Public system catalog. |
 | `GET /results/` | yes | yes | yes | yes | no | Public results list, rendered with public-safe columns only. |
 | `GET /results/detail/<filename>` | conditional | yes | yes | yes | no | Public only for public results and public-safe detail fields. |
 | `GET /results/compare` | conditional | yes | yes | yes | no | Public only when every selected result is public and the rendered fields are public-safe. |
 | `GET /static/*` | yes | yes | yes | yes | no | Static assets only. Keep secrets and generated private files out of static paths. |
-| `GET /results/<filename>` | no by default | conditional | conditional | yes | no | Raw JSON and archive downloads require a separate public-safe artifact policy before public exposure. |
+| `GET /results/<filename>` | conditional | conditional | conditional | yes | no | Public only for PA archive downloads that match public result metadata. Raw JSON remains restricted. |
 | `GET /results/environment-snapshots/*` | no by default | conditional | conditional | yes | no | Environment snapshots can contain operational context; expose only after redaction/public projection review. |
 | `GET /results/confidential` | no | yes | conditional | yes | no | Must be hidden from public navigation and blocked by reverse proxy for public clients. |
 | `GET /estimated/*` | no | yes | conditional | yes | no | Requires restricted network, TOTP, and affiliation/role checks. |
@@ -78,10 +78,11 @@ The initial public allowlist should be deliberately small.
 | `GET /api/query/*` | no | no | no | no | yes | CI/query clients only unless a separate public read API is intentionally designed. |
 | `/dev/*`, `/dev2/*` | no | no by default | no by default | yes | no | Development portals should not be public. |
 
-The public allowlist should prefer rendered pages over raw files. If public
-artifact downloads are added, they should use explicit public artifact metadata
-and public-safe filenames rather than inheriting access from the raw result
-file route.
+The public allowlist should prefer rendered pages over raw files. PA data
+archives may be public when they match public result metadata because they are
+reproducible current-system measurement artifacts. Confidential-result PA data,
+raw JSON, environment snapshots, and confidential/estimated artifacts remain
+outside the public browser surface.
 
 ## Reverse Proxy Responsibilities
 
@@ -107,7 +108,7 @@ Conceptual nginx layout:
 ```nginx
 # Public routes: allow all.
 location = / { proxy_pass http://portal_backend; }
-location = /systemlist { proxy_pass http://portal_backend; }
+location = /systems { proxy_pass http://portal_backend; }
 location = /results/ { proxy_pass http://portal_backend; }
 location /static/ { proxy_pass http://portal_backend; }
 
@@ -157,11 +158,11 @@ In the current codebase, public and confidential result lists are separate
 `RESULT_SERVER_PUBLIC_PORTAL_MODE=true` is enabled for the public portal
 deployment, public results list/detail/compare pages use a reduced public
 surface:
-raw JSON links, PA archive links, CI/pipeline columns, trigger internals, PA
-archive tables, quality/validator rows, and environment snapshot rows are
-hidden. Raw result file and environment snapshot routes return `404` in this
-mode. The same public-safe projection is used even if an old authenticated
-session cookie is present on the public host.
+raw JSON links, CI/pipeline columns, trigger internals, quality/validator rows,
+and environment snapshot rows are hidden. PA archive links are kept when the
+archive belongs to public result metadata. Raw result JSON and environment
+snapshot routes return `404` in this mode. The same public-safe projection is
+used even if an old authenticated session cookie is present on the public host.
 
 The public portal Flask guard allows runner/API endpoints to reach their own
 API authentication layer so that mTLS or runner-scoped API authentication can
@@ -206,8 +207,8 @@ Add lightweight tests as the design is implemented:
   allocation values, internal URLs, and profile attribution internals
 - unauthenticated access to confidential and estimated pages does not render
   protected data
-- restricted raw JSON and archive routes apply the same permission checks as
-  rendered pages
+- restricted raw JSON routes and non-public artifacts apply the same permission
+  checks as rendered pages
 - route classification tests cover every registered Flask route so new routes
   must be consciously classified as public, restricted viewer, operator, or
   runner/API

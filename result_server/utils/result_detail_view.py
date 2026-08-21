@@ -24,9 +24,7 @@ def build_result_detail_context(
         "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline, public_surface=public_surface),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": [] if public_surface else _build_quality_rows(quality),
-        "profile_artifact_rows": (
-            [] if public_surface else _build_profile_artifact_rows(result, padata_filenames or [])
-        ),
+        "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
         "environment_rows": (
             [] if public_surface else _build_environment_rows(result.get("environment_snapshot"))
         ),

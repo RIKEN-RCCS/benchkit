@@ -217,7 +217,7 @@ def admin_app():
     app.config["RECEIVED_DIR"] = temp_dir
     app.config["ESTIMATED_DIR"] = temp_dir
 
-    @app.route("/systemlist")
+    @app.route("/systems", endpoint="systemlist")
     def systemlist():
         return "systems"
 
@@ -252,7 +252,7 @@ def auth_app():
     app.config["RECEIVED_DIR"] = temp_dir
     app.config["ESTIMATED_DIR"] = temp_dir
 
-    @app.route("/systemlist")
+    @app.route("/systems", endpoint="systemlist")
     def systemlist():
         return "systems"
 

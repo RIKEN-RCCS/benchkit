@@ -52,7 +52,7 @@ def test_results_route_serves_padata_from_received_padata_dir(client, tmp_dirs):
     assert resp.data == b"fake tgz content"
 
 
-def test_public_portal_mode_blocks_anonymous_raw_result_files(client, app, tmp_dirs):
+def test_public_portal_mode_serves_anonymous_public_padata(client, app, tmp_dirs):
     received, received_padata = tmp_dirs
     app.config["PUBLIC_PORTAL_MODE"] = True
     uid = "12345678-1234-1234-1234-123456789abc"
@@ -65,10 +65,12 @@ def test_public_portal_mode_blocks_anonymous_raw_result_files(client, app, tmp_d
         f.write(b"fake tgz content")
 
     assert client.get(f"/results/{json_name}").status_code == 404
-    assert client.get(f"/results/{tgz_name}").status_code == 404
+    resp = client.get(f"/results/{tgz_name}")
+    assert resp.status_code == 200
+    assert resp.data == b"fake tgz content"
 
 
-def test_public_portal_mode_blocks_authenticated_raw_result_files(client, app, tmp_dirs):
+def test_public_portal_mode_serves_authenticated_public_padata(client, app, tmp_dirs):
     received, received_padata = tmp_dirs
     app.config["PUBLIC_PORTAL_MODE"] = True
     uid = "12345678-1234-1234-1234-123456789abc"
@@ -84,6 +86,42 @@ def test_public_portal_mode_blocks_authenticated_raw_result_files(client, app, t
         sess["authenticated"] = True
 
     assert client.get(f"/results/{json_name}").status_code == 404
+    resp = client.get(f"/results/{tgz_name}")
+    assert resp.status_code == 200
+    assert resp.data == b"fake tgz content"
+
+
+def test_public_portal_mode_hides_padata_when_result_is_confidential(client, app, tmp_dirs):
+    received, received_padata = tmp_dirs
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    uid = "12345678-1234-1234-1234-123456789abc"
+    tgz_name = f"padata_20250101_120000_{uid}.tgz"
+
+    with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "FOM": 1.0,
+                "_server_uuid": uid,
+                "confidential": ["dev"],
+            },
+            f,
+        )
+    with open(os.path.join(received_padata, tgz_name), "wb") as f:
+        f.write(b"fake tgz content")
+
+    assert client.get(f"/results/{tgz_name}").status_code == 404
+
+
+def test_public_portal_mode_blocks_non_padata_tgz(client, app, tmp_dirs):
+    _received, received_padata = tmp_dirs
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    tgz_name = "debug_bundle.tgz"
+
+    with open(os.path.join(received_padata, tgz_name), "wb") as f:
+        f.write(b"not public padata")
+
     assert client.get(f"/results/{tgz_name}").status_code == 404
 
 

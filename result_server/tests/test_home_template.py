@@ -24,18 +24,20 @@ def test_home_page_renders_landing_content(monkeypatch):
     html = response.get_data(as_text=True)
     assert "CX Portal" in html
     assert "Main Entry Points" in html
-    assert "For Application Developers" in html
-    assert "GPU Performance Estimation" in html
-    assert "Available Systems" in html
+    assert "User Guide" in html
+    assert "GPU Performance Estimation" not in html
+    assert "Available Systems" not in html
+    assert "At a Glance" not in html
+    assert "Start Here" not in html
     assert "Add a New Site" in html
-    assert "PerfTools" in html
+    assert "PerfTools" not in html
     assert "RIKEN-RCCS BenchPark FN_apps branch" in html
     assert "Upstream BenchPark" in html
-    assert "https://github.com/masaaki-kondo/PerfTools" in html
+    assert "https://github.com/masaaki-kondo/PerfTools" not in html
     assert "https://github.com/RIKEN-RCCS/benchpark/blob/FN_apps/User_Guide.md" in html
     assert "https://github.com/llnl/benchpark" in html
     assert "Browse Results" in html
-    assert "Estimated Results (login required)" in html
+    assert "Estimated Results" in html
     assert "Login required" in html
     assert "Questions and Discussion" not in html
 
