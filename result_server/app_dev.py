@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BenchKit result server local development launcher.
+Benchkit result server local development launcher.
 
 This script starts the portal without Redis, OTP verification, or API key
 dependencies. It can also generate sample JSON data so the results pages can
@@ -80,9 +80,9 @@ def dev_debug_enabled():
 def _create_stub_totp_manager():
     """Return a stub TOTP module that always validates setup and login."""
     mod = types.ModuleType("utils.totp_manager")
-    mod.ISSUER_NAME = "BenchKit"
+    mod.ISSUER_NAME = "Benchkit"
     mod.generate_secret = lambda: "DEVDEVDEVDEVDEVDEV"
-    mod.generate_totp_uri = lambda s, e, **kw: f"otpauth://totp/BenchKit:{e}?secret={s}"
+    mod.generate_totp_uri = lambda s, e, **kw: f"otpauth://totp/Benchkit:{e}?secret={s}"
     mod.generate_qr_base64 = lambda s, e, **kw: ""
     mod.verify_code = lambda s, c: True
     mod.check_code_reuse = lambda *a, **kw: False
@@ -217,7 +217,7 @@ def create_dev_app(base_dir):
     stub_store = _StubUserStore()
     stub_store.create_user("admin@localhost", "DEVDEVDEVDEVDEVDEV", ["dev", "admin"])
     app.config["USER_STORE"] = stub_store
-    app.config["TOTP_ISSUER"] = f"{os.environ.get('TOTP_ISSUER', 'BenchKit')}-Local"
+    app.config["TOTP_ISSUER"] = f"{os.environ.get('TOTP_ISSUER', 'Benchkit')}-Local"
 
     received_dir = os.path.join(base_dir, "main", "received")
     received_padata_dir = os.path.join(base_dir, "main", "received_padata")
@@ -523,7 +523,7 @@ def generate_sample_data(received_dir):
     }
     samples.append(("gpcnet_72", gpcnet_72, now))
 
-    # 6. Legacy BenchKit-style scalar-only result.
+    # 6. Legacy Benchkit-style scalar-only result.
     benchkit_sample = {
         "code": "scale-letkf",
         "system": "Fugaku",
@@ -555,7 +555,7 @@ def generate_sample_data(received_dir):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BenchKit Result Server - Dev Mode")
+    parser = argparse.ArgumentParser(description="Benchkit Result Server - Dev Mode")
     parser.add_argument(
         "--host",
         default="127.0.0.1",

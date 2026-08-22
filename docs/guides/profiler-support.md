@@ -1,6 +1,6 @@
 # Profiler Support Guide
 
-このドキュメントは、BenchKit で profiler を使うときの共通 helper 設計をまとめたものです。
+このドキュメントは、Benchkit で profiler を使うときの共通 helper 設計をまとめたものです。
 
 ## Language Policy
 
@@ -8,7 +8,7 @@
 
 ## 1. 基本方針
 
-BenchKit では、アプリ側が
+Benchkit では、アプリ側が
 
 - profiler tool
 - profiler level
@@ -24,7 +24,7 @@ BenchKit では、アプリ側が
 
 を担当する。
 
-つまり、アプリ側は「何を使うか」を決め、BenchKit 共通層は「どうまとめるか」を担当する。
+つまり、アプリ側は「何を使うか」を決め、Benchkit 共通層は「どうまとめるか」を担当する。
 
 ## 2. 共通 API
 
@@ -60,7 +60,7 @@ bk_profiler <tool> [options] -- <command ...>
 
 ## 3. 共通語彙としての level
 
-`single/simple/standard/detailed` は BenchKit の共通語彙として扱う。
+`single/simple/standard/detailed` は Benchkit の共通語彙として扱う。
 ただし、その具体的意味は profiler tool ごとに adapter が定義する。
 
 このため、ある tool では複数の測定 run に対応し、別の tool では単一 run の profiler option や採取範囲に対応してよい。
@@ -82,7 +82,7 @@ bk_profiler <tool> [options] -- <command ...>
 - `detailed` → `both`
 
 ここでいう CSV は `fapp` 固有の CPU performance analysis report を指す。
-BenchKit は「CSV があること」を共通必須にはしない。
+Benchkit は「CSV があること」を共通必須にはしない。
 
 ## 5. `ncu` の level 定義
 
@@ -105,7 +105,7 @@ MPI launcher 経由の GPU application では、既定で `--target-processes al
 ### 5.1 GPU kernel discovery と NCU plan
 
 GPU 性能推定では、アプリ側が kernel 名、launch skip/count、NCU metric list を事前調査して手書きする運用を最終形にしない。
-BenchKit 共通層は、次の段階的 flow を目標にする。
+Benchkit 共通層は、次の段階的 flow を目標にする。
 
 1. profiler overhead のない通常実行で FOM と app section timing を取る。
 2. 軽量な discovery 実行で `nsys stats --report cuda_gpu_kern_sum --format csv` 相当の kernel summary を得る。
@@ -190,7 +190,7 @@ bk_profiler_artifact/
 
 ## 7. `meta.json` の役割
 
-`meta.json` は、archive の内容を BenchKit や推定 package が機械的に判断するための最小 metadata とする。
+`meta.json` は、archive の内容を Benchkit や推定 package が機械的に判断するための最小 metadata とする。
 
 例:
 
@@ -214,7 +214,7 @@ bk_profiler_artifact/
 }
 ```
 
-これにより、将来は BenchKit や estimation package が
+これにより、将来は Benchkit や estimation package が
 
 - `tool`
 - `level`
@@ -241,7 +241,7 @@ bk_profiler_artifact/
 だけを持つ。
 
 GPU アプリごとの kernel window、module、compiler wrapper、短縮 input、profile 回数、archive の分割方針はアプリ wrapper の責務です。
-BenchKit 共通層と推定 package 層は、これらのアプリ固有値を直接解釈しません。
+Benchkit 共通層と推定 package 層は、これらのアプリ固有値を直接解釈しません。
 共通層が扱うのは、app wrapper が生成した `padata*.tgz`、`SECTION:` metadata、`meta.json` などの共通 artifact だけです。
 
 アプリ固有の環境変数は `programs/<code>/build.sh`、`programs/<code>/run.sh`、`programs/<code>/estimate.sh` の内部で、同じアプリ内の重複を減らすために使います。

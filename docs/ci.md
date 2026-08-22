@@ -1,12 +1,12 @@
 # CI Execution Control / CI実行制御
 
-この文書は、BenchKit における GitHub Actions と GitLab CI の発火条件・運用方針を説明します。
+この文書は、Benchkit における GitHub Actions と GitLab CI の発火条件・運用方針を説明します。
 
-This document describes how BenchKit controls GitHub Actions and GitLab CI execution.
+This document describes how Benchkit controls GitHub Actions and GitLab CI execution.
 
-BenchKit では、GitHub を公開開発リポジトリとして使い、GitLab CI を重いベンチマーク実行に使います。基本方針は、pull request では重いCIを自動発火させず、必要な場合にmaintainerが明示的にGitLab CIを起動することです。
+Benchkit では、GitHub を公開開発リポジトリとして使い、GitLab CI を重いベンチマーク実行に使います。基本方針は、pull request では重いCIを自動発火させず、必要な場合にmaintainerが明示的にGitLab CIを起動することです。
 
-BenchKit uses GitHub as the public development repository and GitLab CI for benchmark execution. The default policy is to keep pull requests lightweight and run heavy benchmark CI only when a maintainer explicitly starts it.
+Benchkit uses GitHub as the public development repository and GitLab CI for benchmark execution. The default policy is to keep pull requests lightweight and run heavy benchmark CI only when a maintainer explicitly starts it.
 
 ## GitHub Workflows / GitHubワークフロー
 
@@ -70,13 +70,13 @@ The workflow accepts these inputs:
 | Input / 入力 | Description / 説明 | Example / 例 |
 |---|---|---|
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
-| `code` | BenchKit program filter / BenchKitプログラムのフィルタ | `qws,genesis` |
-| `system` | BenchKit system filter. Legacy BenchPark bridge jobs in this repo do not honor this as a general system selector. / BenchKit systemフィルタ。このrepo内のlegacy BenchPark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
-| `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID supplied by the Portal. BenchKit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU. / Portal が渡す任意の意味的な project/allocation ID。BenchKit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>` | `rkp00010` |
-| `app` | Legacy BenchPark bridge app filter. Active BenchPark CI/CD/CB result handling is maintained in a separate project. / legacy BenchPark bridge appフィルタ。現行BenchPark CI/CD/CB結果受け取りは別プロジェクト側で管理します | `osu-micro-benchmarks` |
-| `benchpark` | Enable the legacy BenchPark bridge path together with BenchKit / legacy BenchPark bridge pathも有効化 | `true` |
-| `park_only` | Run only the legacy BenchPark bridge path / legacy BenchPark bridgeのみ実行 | `true` |
-| `park_send` | Run the legacy BenchPark bridge send-only path / legacy BenchPark bridge送信系のみ実行 | `true` |
+| `code` | Benchkit program filter / Benchkitプログラムのフィルタ | `qws,genesis` |
+| `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo do not honor this as a general system selector. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
+| `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID supplied by the Portal. Benchkit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU. / Portal が渡す任意の意味的な project/allocation ID。Benchkit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>` | `rkp00010` |
+| `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling is maintained in a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側で管理します | `osu-micro-benchmarks` |
+| `benchpark` | Enable the legacy Benchpark bridge path together with Benchkit / legacy Benchpark bridge pathも有効化 | `true` |
+| `park_only` | Run only the legacy Benchpark bridge path / legacy Benchpark bridgeのみ実行 | `true` |
+| `park_send` | Run the legacy Benchpark bridge send-only path / legacy Benchpark bridge送信系のみ実行 | `true` |
 
 このworkflowは以下を行います。
 
@@ -154,29 +154,29 @@ The recommended mechanism is pipeline variables. `GitLab Manual CI` uses pipelin
 
 | Variable / 変数 | Description / 説明 | Example / 例 |
 |---|---|---|
-| `system` | BenchKit system filter. Legacy BenchPark bridge jobs in this repo are not a general multi-system BenchPark runner. / BenchKit systemフィルタ。このrepo内のlegacy BenchPark bridge jobは汎用multi-system BenchPark runnerではありません | `MiyabiG,MiyabiC,RC_GENOA` |
-| `code` | BenchKit program filter / BenchKit programフィルタ | `qws,genesis` |
-| `app` | Legacy BenchPark bridge app filter. Active BenchPark CI/CD/CB result handling has moved to a separate project. / legacy BenchPark bridge appフィルタ。現行BenchPark CI/CD/CB結果受け取りは別プロジェクト側へ移行済み | `osu-micro-benchmarks` |
-| `benchpark` | Enable the legacy BenchPark bridge path / legacy BenchPark bridge pathを有効化 | `true` |
-| `park_only` | Run the legacy BenchPark bridge and skip the normal BenchKit matrix / legacy BenchPark bridgeのみ実行し通常BenchKit matrixをスキップ | `true` |
-| `park_send` | Run the legacy BenchPark bridge result sending path and skip the normal BenchKit matrix / legacy BenchPark bridge送信系を実行し通常BenchKit matrixをスキップ | `true` |
+| `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo are not a general multi-system Benchpark runner. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用multi-system Benchpark runnerではありません | `MiyabiG,MiyabiC,RC_GENOA` |
+| `code` | Benchkit program filter / Benchkit programフィルタ | `qws,genesis` |
+| `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling has moved to a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側へ移行済み | `osu-micro-benchmarks` |
+| `benchpark` | Enable the legacy Benchpark bridge path / legacy Benchpark bridge pathを有効化 | `true` |
+| `park_only` | Run the legacy Benchpark bridge and skip the normal Benchkit matrix / legacy Benchpark bridgeのみ実行し通常Benchkit matrixをスキップ | `true` |
+| `park_send` | Run the legacy Benchpark bridge result sending path and skip the normal Benchkit matrix / legacy Benchpark bridge送信系を実行し通常Benchkit matrixをスキップ | `true` |
 
 ### Branching Behavior / 分岐パターン
 
-| Variables / 変数 | BenchKit | Legacy BenchPark bridge | Description / 説明 |
+| Variables / 変数 | Benchkit | Legacy Benchpark bridge | Description / 説明 |
 |---|---|---|---|
-| `code=scale-letkf` | `scale-letkf` only / `scale-letkf`のみ | Skip / スキップ | Run a selected BenchKit code / 指定BenchKit codeのみ実行 |
+| `code=scale-letkf` | `scale-letkf` only / `scale-letkf`のみ | Skip / スキップ | Run a selected Benchkit code / 指定Benchkit codeのみ実行 |
 | `park_only=true` | Skip / スキップ | Legacy bridge apps / legacy bridge app | Run the legacy bridge only / legacy bridgeのみ実行 |
 | `park_only=true app=osu-micro-benchmarks` | Skip / スキップ | OSU only / OSUのみ | Run one legacy bridge app / legacy bridgeの特定appのみ実行 |
 | `park_send=true` | Skip / スキップ | Legacy bridge send-only / legacy bridge送信のみ | Re-send legacy bridge results / legacy bridge結果を再送信 |
 | `park_send=true app=osu-micro-benchmarks` | Skip / スキップ | OSU send-only / OSU送信のみ | Re-send one legacy bridge app / legacy bridgeの特定app結果を再送信 |
-| `benchpark=true` | All / 全実行 | Legacy bridge apps / legacy bridge app | Run BenchKit and the legacy bridge / BenchKitとlegacy bridgeを実行 |
+| `benchpark=true` | All / 全実行 | Legacy bridge apps / legacy bridge app | Run Benchkit and the legacy bridge / Benchkitとlegacy bridgeを実行 |
 | `benchpark=true code=qws app=osu-micro-benchmarks` | `qws` only / `qws`のみ | OSU only / OSUのみ | Run both paths with filters / 両方をフィルタ付きで実行 |
-| No variables / 変数なし | All / 全実行 | Skip / スキップ | Normal BenchKit CI / 通常のBenchKit CI |
+| No variables / 変数なし | All / 全実行 | Skip / スキップ | Normal Benchkit CI / 通常のBenchkit CI |
 
-`code`はBenchKit用のフィルタです。`code`だけを指定してもBenchPark jobは有効化されません。このrepo内のBenchPark bridgeはlegacyで、実行側はQC-GH200系の固定workspaceに依存します。現行のBenchPark CI/CD/CB結果受け取りは別プロジェクト側で管理します。
+`code`はBenchkit用のフィルタです。`code`だけを指定してもBenchpark jobは有効化されません。このrepo内のBenchpark bridgeはlegacyで、実行側はQC-GH200系の固定workspaceに依存します。現行のBenchpark CI/CD/CB結果受け取りは別プロジェクト側で管理します。
 
-`code` is a BenchKit filter. Setting only `code` does not enable BenchPark jobs. The BenchPark bridge in this repository is legacy and its execution side depends on a QC-GH200-style fixed workspace. Active BenchPark CI/CD/CB result handling is maintained in a separate project.
+`code` is a Benchkit filter. Setting only `code` does not enable Benchpark jobs. The Benchpark bridge in this repository is legacy and its execution side depends on a QC-GH200-style fixed workspace. Active Benchpark CI/CD/CB result handling is maintained in a separate project.
 
 ### Legacy Commit Message Tags / 旧コミットメッセージタグ
 
@@ -184,14 +184,14 @@ commit message tagによる制御はlegacy扱いです。新しい運用では�
 
 Commit-message based controls are legacy. For new operation, use `GitLab Manual CI` inputs in the GitHub Actions UI or GitLab Pipeline API variables.
 
-| Tag / タグ | BenchKit | Legacy BenchPark bridge | Purpose / 用途 |
+| Tag / タグ | Benchkit | Legacy Benchpark bridge | Purpose / 用途 |
 |---|---|---|---|
-| No tag / タグなし | Run / 実行 | Skip / スキップ | Normal BenchKit benchmark execution / 通常のBenchKitベンチマーク実行 |
-| `[code:<code>]` | Run selected code / 指定codeのみ実行 | Skip / スキップ | Limit BenchKit jobs to one or more programs / BenchKit jobを特定programに限定 |
-| `[system:<system>]` | Run selected system / 指定systemのみ実行 | Skip / スキップ | Limit BenchKit jobs to one or more systems / BenchKit jobを特定systemに限定 |
+| No tag / タグなし | Run / 実行 | Skip / スキップ | Normal Benchkit benchmark execution / 通常のBenchkitベンチマーク実行 |
+| `[code:<code>]` | Run selected code / 指定codeのみ実行 | Skip / スキップ | Limit Benchkit jobs to one or more programs / Benchkit jobを特定programに限定 |
+| `[system:<system>]` | Run selected system / 指定systemのみ実行 | Skip / スキップ | Limit Benchkit jobs to one or more systems / Benchkit jobを特定systemに限定 |
 | `[park-only]` | Skip / スキップ | Run / 実行 | Legacy bridge development or testing / legacy bridge開発・テスト |
 | `[park-send]` | Skip / スキップ | Send only / 送信のみ | Legacy bridge result conversion and sending / legacy bridge結果変換・送信 |
-| `[benchpark]` | Run / 実行 | Run / 実行 | Run BenchKit and legacy bridge paths / BenchKitとlegacy bridgeの両方を実行 |
+| `[benchpark]` | Run / 実行 | Run / 実行 | Run Benchkit and legacy bridge paths / Benchkitとlegacy bridgeの両方を実行 |
 | `[skip ci]` or `[ci skip]` | Skip / スキップ | Skip / スキップ | Skip CI when supported by the CI service / CIサービスが対応する場合にCIをスキップ |
 
 Examples / 例:
@@ -206,10 +206,10 @@ git commit -m "Update qws [code:qws,genesis]"
 # Combine system and code filters / systemとcodeを組み合わせる
 git commit -m "Test qws on MiyabiG [system:MiyabiG] [code:qws]"
 
-# Run the legacy BenchPark bridge only / legacy BenchPark bridgeのみ実行
-git commit -m "Fix BenchPark runner [park-only]"
+# Run the legacy Benchpark bridge only / legacy Benchpark bridgeのみ実行
+git commit -m "Fix Benchpark runner [park-only]"
 
-# Run legacy BenchPark bridge result conversion and sending only / legacy BenchPark bridge結果変換・送信のみ実行
+# Run legacy Benchpark bridge result conversion and sending only / legacy Benchpark bridge結果変換・送信のみ実行
 git commit -m "Fix result converter [park-send]"
 
 # Skip CI when supported by the CI service / CIサービスが対応する場合にCIをスキップ
@@ -268,7 +268,7 @@ The periodic review should therefore focus on semantic checks that are hard to e
 | Public site config or portal metadata `config/system.csv`, `config/queue.csv`, `config/system_info.csv` / 公開site configまたはportal表示メタデータ`config/system.csv`、`config/queue.csv`、`config/system_info.csv` | `Result Server Tests`, including site config preflight / site config preflightを含む`Result Server Tests` | `config/system.csv` and `config/queue.csv` run by `.gitlab-ci.yml`; `config/system_info.csv` is skipped / `config/system.csv`と`config/queue.csv`は`.gitlab-ci.yml`で実行、`config/system_info.csv`はskip | Public systems listed in `system_info.csv` must also exist in `system.csv` and reference a queue defined in `queue.csv` / `system_info.csv`に載せる公開systemは`system.csv`にも存在し、`queue.csv`定義済みqueueを参照する必要がある |
 | Portal upload or profile-data helper `scripts/bk_functions.sh`, `scripts/result.sh`, `scripts/result_server/**` / portal uploadまたはprofile-data helper `scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**` | `Result Server Tests`; `Shellcheck` for `.sh` changes / `Result Server Tests`; `.sh`変更は`Shellcheck` | GitHub pull requests do not start GitLab by default; if a direct/manual GitLab pipeline is started, `scripts/**/*` is treated as benchmark-affecting and runs / GitHub pull requestでは既定でGitLabは起動しない。直接/手動GitLab pipelineを起動した場合、`scripts/**/*` はbenchmark影響ありとして実行される | These helpers shape result JSON / upload behavior. Use lightweight tests first, then start `GitLab Manual CI` when benchmark-side behavior needs validation / これらのhelperはResult JSONやupload挙動へ影響する。まずlightweight testで確認し、benchmark側挙動の検証が必要な場合は`GitLab Manual CI`を起動する |
 | Benchmark app entrypoints `programs/**/build.sh`, `programs/**/estimate.sh`, `programs/**/run.sh`, or app matrix `programs/**/list.csv` / benchmark app entrypoint `programs/**/build.sh`、`programs/**/estimate.sh`、`programs/**/run.sh`、またはapp matrix `programs/**/list.csv` | `Result Server Tests` for portal app-support visibility and diagnostics; `Shellcheck` for `.sh` changes / portal app-support表示とdiagnostics向けに`Result Server Tests`; `.sh`変更は`Shellcheck` | Run through `GitLab Manual CI` when maintainer starts it / maintainerが`GitLab Manual CI`を起動した場合に実行 | App support and diagnostics read list/build/estimate/run for `/results/usage`; these checks provide visibility, not a readiness gate / app supportとdiagnosticsは`/results/usage`用にlist/build/estimate/runを読む。これはvisibilityでありreadiness gateではない |
-| Other benchmark app files, legacy BenchPark bridge, or shared scripts / その他のbenchmark appファイル、legacy BenchPark bridge、または共通script | `Shellcheck` for `.sh` changes when covered; otherwise normal GitHub review checks / 対象`.sh`変更は`Shellcheck`; それ以外は通常のGitHub review check | Run through `GitLab Manual CI` when maintainer starts it / maintainerが`GitLab Manual CI`を起動した場合に実行 | Use `code` and `system` for BenchKit validation. Use `benchpark` or `park_only` only for the legacy bridge path when needed / BenchKit検証には`code`と`system`を使う。legacy bridge pathが必要な場合だけ`benchpark`または`park_only`を使う |
+| Other benchmark app files, legacy Benchpark bridge, or shared scripts / その他のbenchmark appファイル、legacy Benchpark bridge、または共通script | `Shellcheck` for `.sh` changes when covered; otherwise normal GitHub review checks / 対象`.sh`変更は`Shellcheck`; それ以外は通常のGitHub review check | Run through `GitLab Manual CI` when maintainer starts it / maintainerが`GitLab Manual CI`を起動した場合に実行 | Use `code` and `system` for Benchkit validation. Use `benchpark` or `park_only` only for the legacy bridge path when needed / Benchkit検証には`code`と`system`を使う。legacy bridge pathが必要な場合だけ`benchpark`または`park_only`を使う |
 | GitHub workflow/action `.github/**/*` / GitHub workflow/action `.github/**/*` | `Repository Policy`; workflow-specific checks when applicable / `Repository Policy`; 必要に応じてworkflow固有check | Skipped by `.gitlab-ci.yml` rules / `.gitlab-ci.yml` rulesでskip | GitHub workflow/action changes affect API-calling or sync control logic. Review workflow semantics carefully; protected-branch sync pushes them to GitLab with `ci.skip` / GitHub workflow/action変更はAPI呼び出しやsync制御に影響する。workflowの意味を慎重にreviewする。protected-branch syncでは`ci.skip`付きでGitLabへpushされる |
 | `.gitlab-ci.yml` / `.gitlab-ci.yml` | Normal GitHub review checks only / 通常のGitHub review checkのみ | Run through `GitLab Manual CI` when a maintainer needs to validate GitLab pipeline behavior / GitLab pipeline挙動の検証が必要な場合にmaintainerが`GitLab Manual CI`で実行 | This file defines GitLab benchmark pipeline behavior / このファイルはGitLab benchmark pipeline挙動を定義する |
 

@@ -1,4 +1,4 @@
-# BenchKit仕様 / BenchKit Specification
+# Benchkit仕様 / Benchkit Specification
 
 ## 言語方針 / Language Policy
 
@@ -15,7 +15,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 特に、本書では以下を区別して読むことが重要である。
 
 - 必須要件:
-  追跡しなければならない情報、満たさなければならない接続条件、BenchKit が責任を持つべき事項。
+  追跡しなければならない情報、満たさなければならない接続条件、Benchkit が責任を持つべき事項。
 - 原則:
   shell-first、ポータル中心、責務分離のような設計原則。
 - 将来拡張:
@@ -25,7 +25,7 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 In particular, it is important here to distinguish:
 
 - mandatory requirements:
-  information that must be tracked, connection conditions that must be satisfied, and responsibilities that BenchKit must own.
+  information that must be tracked, connection conditions that must be satisfied, and responsibilities that Benchkit must own.
 - principles:
   design principles such as shell-first, portal-centered interaction, and separation of responsibilities.
 - future extensions:
@@ -33,10 +33,10 @@ In particular, it is important here to distinguish:
 
 ## 1. 目的 / Purpose
 
-BenchKit は、CX基盤を構成する中核ソフトウェアであり、
+Benchkit は、CX基盤を構成する中核ソフトウェアであり、
 継続的ベンチマーク、継続的推定、継続的フィードバックを実用的に回すための基盤ソフトウェア兼ポータルである。
 
-BenchKit は特に以下を担う。
+Benchkit は特に以下を担う。
 
 - ベンチマーク実行定義を保持する
 - CI/CD による継続実行を生成する
@@ -44,9 +44,9 @@ BenchKit は特に以下を担う。
 - ベンチマーク結果・推定結果・使用量を表示する
 - 将来の申請、承認、最適化、AI 指示ワークフローへの接続点を提供する
 
-BenchKit is a core software component of the CX Platform and serves as both infrastructure and portal for practical continuous benchmarking, continuous estimation, and continuous feedback.
+Benchkit is a core software component of the CX Platform and serves as both infrastructure and portal for practical continuous benchmarking, continuous estimation, and continuous feedback.
 
-BenchKit is responsible in particular for:
+Benchkit is responsible in particular for:
 
 - holding benchmark execution definitions
 - generating continuous execution through CI/CD
@@ -56,38 +56,38 @@ BenchKit is responsible in particular for:
 
 ## 1.1 文書の位置づけ / Position of This Document
 
-本書は、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) および [`CX_PLATFORM.md`](./CX_PLATFORM.md) を受けて、BenchKit 自体の責務・構成・接続点を定義する下位仕様である。
+本書は、[`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) および [`CX_PLATFORM.md`](./CX_PLATFORM.md) を受けて、Benchkit 自体の責務・構成・接続点を定義する下位仕様である。
 
-本書は、BenchKit の外にある外部サービス、外部ツール、実システムを前提とするが、
-それらの内部仕様そのものではなく、BenchKit から見た責務境界と接続要件を記述する。
+本書は、Benchkit の外にある外部サービス、外部ツール、実システムを前提とするが、
+それらの内部仕様そのものではなく、Benchkit から見た責務境界と接続要件を記述する。
 主要用語は [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の用語集に従う。
 
-This document is a lower-level specification derived from [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) and [`CX_PLATFORM.md`](./CX_PLATFORM.md), defining BenchKit’s own responsibilities, structure, and integration points.
+This document is a lower-level specification derived from [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) and [`CX_PLATFORM.md`](./CX_PLATFORM.md), defining Benchkit’s own responsibilities, structure, and integration points.
 
-It assumes the existence of external services, external tools, and real systems outside BenchKit, but describes not their internal semantics themselves, rather the responsibility boundaries and integration requirements as seen from BenchKit.
+It assumes the existence of external services, external tools, and real systems outside Benchkit, but describes not their internal semantics themselves, rather the responsibility boundaries and integration requirements as seen from Benchkit.
 Core terminology follows the glossary in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 
 ## 2. CX基盤における位置づけ / Position Within the CX Platform
 
-BenchKit は CX基盤の中で、実行・結果管理・ポータルの中核を担う。
+Benchkit は CX基盤の中で、実行・結果管理・ポータルの中核を担う。
 
-BenchKit 自体の外側には、以下が存在しうる。
+Benchkit 自体の外側には、以下が存在しうる。
 
 - GitHub / GitLab などの外部サービス
 - GitLab Runner / Jacamar CI などの実行接続機構
 - 実システムおよびスケジューラ
-- BenchPark, Spack, Ramble などの外部ツール
+- Benchpark, Spack, Ramble などの外部ツール
 - 将来の推定モデルサービス
 - 将来の AI サービス
 
-Within the CX Platform, BenchKit is the core for execution, result management, and portal functions.
+Within the CX Platform, Benchkit is the core for execution, result management, and portal functions.
 
-Outside BenchKit itself may exist:
+Outside Benchkit itself may exist:
 
 - external services such as GitHub and GitLab
 - execution integration mechanisms such as GitLab Runner and Jacamar CI
 - real systems and schedulers
-- external tools such as BenchPark, Spack, and Ramble
+- external tools such as Benchpark, Spack, and Ramble
 - future estimation-model services
 - future AI services
 
@@ -95,59 +95,59 @@ Outside BenchKit itself may exist:
 
 ### 3.1 shell-first
 
-BenchKit の下層実行基盤は shell-first である。
+Benchkit の下層実行基盤は shell-first である。
 アプリ開発者や HPC 利用者が、普段の実行運用に近い形で `build.sh` や `run.sh` を記述・理解・保守できることを重視する。
 
 抽象化は必要であるが、Python による過度な隠蔽や依存の増加によって参入障壁を高めることは避ける。
 
-The lower execution layer of BenchKit is shell-first.
+The lower execution layer of Benchkit is shell-first.
 It prioritizes allowing application developers and HPC users to write, understand, and maintain `build.sh` and `run.sh` in a style close to their normal operational practice.
 
-Abstraction is necessary, but BenchKit avoids raising the barrier to entry through excessive Python-based concealment or dependency growth.
+Abstraction is necessary, but Benchkit avoids raising the barrier to entry through excessive Python-based concealment or dependency growth.
 
 ### 3.2 ポータル中心の利用体験（portal-first） / Portal-Centered Interaction
 
-BenchKit の上層利用体験は、ポータル中心の利用体験を基本とする。
+Benchkit の上層利用体験は、ポータル中心の利用体験を基本とする。
 利用者は可能な限りスパコンへ直接ログインすることなく、
 結果参照、推定確認、使用量確認、将来の条件変更申請や AI 指示を行えることを目指す。
 
-The upper user experience of BenchKit is based on portal-centered interaction.
+The upper user experience of Benchkit is based on portal-centered interaction.
 Users should, as much as possible, be able to inspect results, estimation outputs, usage, and future request or AI workflows without directly logging into supercomputers.
 
 ### 3.3 明示的な責務分離 / Explicit Separation of Responsibilities
 
-BenchKit は、アプリ固有差分、システム固有差分、CI 生成、結果正規化、可視化の責務を分離する。
+Benchkit は、アプリ固有差分、システム固有差分、CI 生成、結果正規化、可視化の責務を分離する。
 
-BenchKit separates responsibilities among application-specific differences, system-specific differences, CI generation, result normalization, and visualization.
+Benchkit separates responsibilities among application-specific differences, system-specific differences, CI generation, result normalization, and visualization.
 
 ### 3.4 ロックイン回避と差し替え可能な推定基盤 / Avoiding Lock-In and Preserving Replaceable Estimation
 
-BenchKit は、単一の計測ツールや単一の推定方式に固定されないことを基本とする。
-BenchKit 自身が担うべきなのは、特定手法を埋め込むことよりも、異なる計測方式や推定方式を受け入れ、保存し、表示し、比較できる共通ルールを提供することである。
+Benchkit は、単一の計測ツールや単一の推定方式に固定されないことを基本とする。
+Benchkit 自身が担うべきなのは、特定手法を埋め込むことよりも、異なる計測方式や推定方式を受け入れ、保存し、表示し、比較できる共通ルールを提供することである。
 
-したがって BenchKit は、推定アルゴリズムそのもの、区間分類の完全な体系、区間ごとの複合推定の内部構成、補助アーティファクトの内部フォーマットまでは固定しない。
-それらは推定パッケージ開発者または外部ツール側が定義し、BenchKit はその識別情報、入出力の取り決め、適用可能性、保存形式、表示に必要な共通面を扱う。
+したがって Benchkit は、推定アルゴリズムそのもの、区間分類の完全な体系、区間ごとの複合推定の内部構成、補助アーティファクトの内部フォーマットまでは固定しない。
+それらは推定パッケージ開発者または外部ツール側が定義し、Benchkit はその識別情報、入出力の取り決め、適用可能性、保存形式、表示に必要な共通面を扱う。
 
-そのため BenchKit は、少なくとも概念上、以下を分離して扱えることが望ましい。
+そのため Benchkit は、少なくとも概念上、以下を分離して扱えることが望ましい。
 
 - benchmark 結果そのもの
 - 推定入力となる追加計測情報
 - 推定モデル識別情報
 - 推定結果の標準形式
 
-BenchKit should avoid being fixed to any single measurement tool or estimation method.
+Benchkit should avoid being fixed to any single measurement tool or estimation method.
 Its role is not primarily to embed one specific method, but to provide common rules that can accept, store, present, and compare different measurement and estimation approaches.
 
-For that reason, BenchKit should preferably be able to separate at least:
+For that reason, Benchkit should preferably be able to separate at least:
 
 - benchmark results themselves
 - additional measurement data used as estimation input
 - estimation-model identification information
 - the standard form of estimation results
 
-## 4. BenchKit の主要責務 / Main Responsibilities
+## 4. Benchkit の主要責務 / Main Responsibilities
 
-BenchKit は以下を責務として持つ。
+Benchkit は以下を責務として持つ。
 
 - アプリごとのベンチマーク実行定義を保持すること
 - system ごとの実行条件と queue 情報を参照して CI ジョブを生成すること
@@ -157,7 +157,7 @@ BenchKit は以下を責務として持つ。
 - Web ポータルとして結果、推定、使用量を提示すること
 - 将来の申請・承認・自動 PR・AI 最適化との接続点を提供すること
 
-BenchKit is responsible for:
+Benchkit is responsible for:
 
 - holding per-application benchmark execution definitions
 - generating CI jobs using system-specific execution and queue information
@@ -169,7 +169,7 @@ BenchKit is responsible for:
 
 ## 5. 非責務 / Non-Responsibilities
 
-BenchKit は以下を単独では責務としない。
+Benchkit は以下を単独では責務としない。
 
 - 外部 CI サービス自身の管理
 - 実システムそのものの管理
@@ -177,10 +177,10 @@ BenchKit は以下を単独では責務としない。
 - 外部ツール自身の内部仕様
 - 人間の承認を要する重要判断の代替
 
-ただし、これらが BenchKit に無関係という意味ではない。
-BenchKit は接続条件、前提条件、入力出力条件を明示的に扱う必要がある。
+ただし、これらが Benchkit に無関係という意味ではない。
+Benchkit は接続条件、前提条件、入力出力条件を明示的に扱う必要がある。
 
-BenchKit is not solely responsible for:
+Benchkit is not solely responsible for:
 
 - administering external CI services themselves
 - administering real systems themselves
@@ -188,12 +188,12 @@ BenchKit is not solely responsible for:
 - the internal semantics of external tools
 - replacing critical human approvals
 
-However, this does not mean they are irrelevant to BenchKit.
-BenchKit must explicitly handle their integration conditions, assumptions, and input/output contracts.
+However, this does not mean they are irrelevant to Benchkit.
+Benchkit must explicitly handle their integration conditions, assumptions, and input/output contracts.
 
 ## 6. 構成 / Structure
 
-BenchKit は概ね以下の論理構成を持つ。
+Benchkit は概ね以下の論理構成を持つ。
 
 ### 6.1 アプリ実装層 / Application Implementation Layer
 
@@ -219,7 +219,7 @@ This layer defines application-specific behavior such as source acquisition, bui
 
 ### 6.2 共通実行基盤層 / Shared Execution Foundation
 
-BenchKit の共通実行基盤である。
+Benchkit の共通実行基盤である。
 ここでは主に以下を担う。
 
 - 共通関数
@@ -230,7 +230,7 @@ BenchKit の共通実行基盤である。
 
 `bk_functions.sh` のような共通関数は、shell-first を維持しながら定型処理を吸収する中核である。
 
-This is the shared execution foundation of BenchKit.
+This is the shared execution foundation of Benchkit.
 It mainly provides:
 
 - common functions
@@ -243,7 +243,7 @@ Common shell functions such as those in `bk_functions.sh` are central to absorbi
 
 ### 6.3 system・queue 定義層 / System and Queue Definition Layer
 
-BenchKit の system / queue 定義層である。
+Benchkit の system / queue 定義層である。
 
 主な役割:
 
@@ -267,7 +267,7 @@ Activity-specific project accounts, allocations, and budget owners are not stabl
 
 ### 6.4 ポータル層 / Portal Layer
 
-BenchKit のポータル層である。
+Benchkit のポータル層である。
 
 主な役割:
 
@@ -287,9 +287,9 @@ BenchKit のポータル層である。
 - 認証・権限制御
 - 将来の申請・承認ワークフローへの接続点
 
-Execution profile は、対象活動における実行 profile である。対象 app / exp / system、system 単位の allocation project ID、有効状態、承認状態、有効期間を site-local に管理する。account や project ID などの実値を OSS repo に載せず、CX Portal の admin 管理情報として SQLite registry に保持する。manual / scheduled / event trigger は profile とは別の trigger definition として管理し、必要な profile に紐づける。scheduler ごとの具体的な投入書式は、Portal ではなく BenchKit の CI 生成層で扱う。
+Execution profile は、対象活動における実行 profile である。対象 app / exp / system、system 単位の allocation project ID、有効状態、承認状態、有効期間を site-local に管理する。account や project ID などの実値を OSS repo に載せず、CX Portal の admin 管理情報として SQLite registry に保持する。manual / scheduled / event trigger は profile とは別の trigger definition として管理し、必要な profile に紐づける。scheduler ごとの具体的な投入書式は、Portal ではなく Benchkit の CI 生成層で扱う。
 
-This is the portal layer of BenchKit.
+This is the portal layer of Benchkit.
 
 Main roles:
 
@@ -309,11 +309,11 @@ Main roles:
 - authentication and authorization
 - future integration points for request and approval workflows
 
-Execution profiles are operational execution records for a target activity. They define the target app / exp / system scope, system-specific allocation project ID, enabled state, approval state, and validity period as site-local data. Concrete account or project ID values are stored in the CX Portal admin SQLite registry instead of being committed to the OSS repository. Manual, scheduled, and event triggers are managed as separate trigger definitions linked to the relevant profile. Scheduler-specific submit formatting belongs to the BenchKit CI generation layer, not to Portal profile records.
+Execution profiles are operational execution records for a target activity. They define the target app / exp / system scope, system-specific allocation project ID, enabled state, approval state, and validity period as site-local data. Concrete account or project ID values are stored in the CX Portal admin SQLite registry instead of being committed to the OSS repository. Manual, scheduled, and event triggers are managed as separate trigger definitions linked to the relevant profile. Scheduler-specific submit formatting belongs to the Benchkit CI generation layer, not to Portal profile records.
 
 ## 7. データモデルの基本 / Core Data Model
 
-BenchKit は少なくとも以下のデータを中心に扱う。
+Benchkit は少なくとも以下のデータを中心に扱う。
 
 - 実行条件
 - ベンチマーク結果
@@ -321,7 +321,7 @@ BenchKit は少なくとも以下のデータを中心に扱う。
 - 使用量情報
 - ソース出自情報
 
-BenchKit mainly handles at least the following data:
+Benchkit mainly handles at least the following data:
 
 - execution conditions
 - benchmark results
@@ -369,13 +369,13 @@ They may include at least:
 
 ### 7.3 ソース出自情報 / Source Provenance
 
-BenchKit は、少なくとも最上位アプリケーションのソース出自情報を追跡できなければならない。
+Benchkit は、少なくとも最上位アプリケーションのソース出自情報を追跡できなければならない。
 特に、最上位アプリケーションの commit hash は必須追跡項目とする。
 
 これは、AI 駆動の開発・最適化において、branch 上で細かく commit が進み、
 tag や公式 version が付与されない段階でも性能評価・推定・最適化ループが進行することを想定するためである。
 
-BenchKit が最低限追跡すべき項目は以下である。
+Benchkit が最低限追跡すべき項目は以下である。
 
 - 最上位アプリケーションの source repository
 - 最上位アプリケーションの branch
@@ -389,20 +389,20 @@ BenchKit が最低限追跡すべき項目は以下である。
 また、ポータル上では `/results/usage` を通じて、各 app / system の最新 result を基準に source tracking の current-state を確認できることが望ましい。
 ここでは `source_status`、`source_type`、`source_reference`、不足している source field を軽く見られる形が自然である。
 
-一方で、依存パッケージやビルド環境全体の完全な provenance 追跡は、現時点では BenchKit の必須責務とはしない。
-この領域は、BenchPark、Ramble、Spack などの外部ツールが本来強みを持つ領域であり、
+一方で、依存パッケージやビルド環境全体の完全な provenance 追跡は、現時点では Benchkit の必須責務とはしない。
+この領域は、Benchpark、Ramble、Spack などの外部ツールが本来強みを持つ領域であり、
 国際協力および役割分担の観点からも、それらに委ねることを基本方針とする。
 
 ただし、将来的に CX 基盤全体として依存関係 provenance をより広く扱う必要が生じた場合には、
-BenchKit はそれら外部ツールと接続する接続点として拡張されうる。
+Benchkit はそれら外部ツールと接続する接続点として拡張されうる。
 
-BenchKit must be able to track source provenance for at least the top-level application.
+Benchkit must be able to track source provenance for at least the top-level application.
 In particular, the commit hash of the top-level application is a mandatory tracked item.
 
 This is required because AI-driven development and optimization may advance through many commits on a branch,
 even before tags or official versions are created, while benchmarking, estimation, and optimization loops are already running.
 
-At minimum, BenchKit should track:
+At minimum, Benchkit should track:
 
 - the source repository of the top-level application
 - the branch of the top-level application
@@ -411,26 +411,26 @@ At minimum, BenchKit should track:
 - version or tag information as supporting metadata
 
 Example:
-If the top-level application is `qws` on GitHub, BenchKit must be able to trace which commit hash on the `main` branch produced the result.
+If the top-level application is `qws` on GitHub, Benchkit must be able to trace which commit hash on the `main` branch produced the result.
 
 It is also desirable for the portal to expose source-tracking current state through `/results/usage`, based on the latest result for each application/system pair.
 A lightweight view of `source_status`, `source_type`, `source_reference`, and missing source fields is a natural form for that visibility.
 
-By contrast, complete provenance tracking for dependency packages and the full build environment is not currently a mandatory responsibility of BenchKit.
-That area is a natural strength of external tools such as BenchPark, Ramble, and Spack, and from the perspective of international collaboration and role sharing, it should generally be delegated to them.
+By contrast, complete provenance tracking for dependency packages and the full build environment is not currently a mandatory responsibility of Benchkit.
+That area is a natural strength of external tools such as Benchpark, Ramble, and Spack, and from the perspective of international collaboration and role sharing, it should generally be delegated to them.
 
-However, if the broader CX Platform later requires wider dependency provenance support, BenchKit may be extended as an integration point for those external tools.
+However, if the broader CX Platform later requires wider dependency provenance support, Benchkit may be extended as an integration point for those external tools.
 
 ### 7.4 推定結果 / Estimation Results
 
 推定結果は、実測結果やモデルに基づいて生成される Estimate JSON である。
-BenchKit は、`weakscaling` を最小経路とする推定結果と、より詳細な推定結果の両方を扱えることが望ましい。
+Benchkit は、`weakscaling` を最小経路とする推定結果と、より詳細な推定結果の両方を扱えることが望ましい。
 また、推定方式や計測方式の違いを将来的に比較できるよう、推定結果には方式識別のための拡張余地を持たせるべきである。
 
 Estimation results are Estimate JSON records generated from measured results and estimation models.
-BenchKit should preferably be able to handle both `weakscaling`-based minimum estimation outputs and more detailed estimation outputs.
+Benchkit should preferably be able to handle both `weakscaling`-based minimum estimation outputs and more detailed estimation outputs.
 It should also preserve room for method-identification metadata so that different measurement and estimation approaches can be compared in the future.
-さらに、BenchKit は少なくとも次の 2 種類の出自情報を保持できることが望ましい。
+さらに、Benchkit は少なくとも次の 2 種類の出自情報を保持できることが望ましい。
 - 各推定側の参照ベンチマークの出自情報
 - 保存対象としての推定結果そのものの出自情報
 
@@ -439,13 +439,13 @@ It should also preserve both:
 - side-specific reference benchmark provenance
 - estimate-result provenance as a stored object
 
-さらに BenchKit は、`intra_system_scaling_model` と `cross_system_projection_model` の両方を扱え、各 system 側で必要に応じてそれらを使い分けられることが望ましい。
+さらに Benchkit は、`intra_system_scaling_model` と `cross_system_projection_model` の両方を扱え、各 system 側で必要に応じてそれらを使い分けられることが望ましい。
 
-In addition, BenchKit should preferably be able to handle both `intra_system_scaling_model` and `cross_system_projection_model`, and use them as needed on each system side.
+In addition, Benchkit should preferably be able to handle both `intra_system_scaling_model` and `cross_system_projection_model`, and use them as needed on each system side.
 
 ## 8. 実行モデル / Execution Model
 
-BenchKit の典型的な実行フローは以下である。
+Benchkit の典型的な実行フローは以下である。
 
 1. app ごとに `programs/<code>/list.csv` が実験条件を定義する
 2. `system.csv` と `queue.csv` が system 側条件を与える
@@ -455,7 +455,7 @@ BenchKit の典型的な実行フローは以下である。
 6. `result.sh` が Result JSON を生成する
 7. 結果が result_server へ送られ、一覧・current-state 表示・集計に使われ、将来の比較にも備えて保持される
 
-The typical execution flow in BenchKit is:
+The typical execution flow in Benchkit is:
 
 1. `programs/<code>/list.csv` defines execution conditions for each app
 2. `system.csv` and `queue.csv` provide system-side conditions
@@ -467,7 +467,7 @@ The typical execution flow in BenchKit is:
 
 ## 9. 拠点接続 / Site Integration
 
-BenchKit は実システムを直接管理しないが、
+Benchkit は実システムを直接管理しないが、
 runner、Jacamar CI、scheduler、module 環境、共有ストレージなどの実行条件を接続可能な形で定義しなければならない。
 
 そのため、拠点接続では少なくとも以下を扱う必要がある。
@@ -485,7 +485,7 @@ runner、Jacamar CI、scheduler、module 環境、共有ストレージなどの
 例:
 `RC_GH200`、`RC_DGXSP`、`RC_GENOA`、`RC_FX700` では、runner tag、queue、module load、MPI 実行方法、結果回収先が定義されていて、CI からその条件で実行できなければならない。
 
-BenchKit does not directly manage real systems, but it must define runners, Jacamar CI, scheduler behavior, module environments, shared storage, and similar execution conditions in an integrable form.
+Benchkit does not directly manage real systems, but it must define runners, Jacamar CI, scheduler behavior, module environments, shared storage, and similar execution conditions in an integrable form.
 
 Therefore, site integration must handle at least:
 
@@ -504,36 +504,36 @@ For `RC_GH200`, `RC_DGXSP`, `RC_GENOA`, and `RC_FX700`, the runner tag, queue, m
 
 ## 10. 将来拡張 / Future Extensions
 
-BenchKit は将来的に以下へ拡張されうる。
+Benchkit は将来的に以下へ拡張されうる。
 
 - app 追加申請フォーム
 - 実験条件変更申請フォーム
 - 承認付き自動 PR 生成
 - 推定条件変更ワークフロー
 - AI 駆動最適化ワークフロー
-- BenchKit から BenchPark 定義を生成する支援
+- Benchkit から Benchpark 定義を生成する支援
 - MCP サーバとしての公開
 
-これらは BenchKit を CX基盤の中核ポータルへ発展させる方向である。
+これらは Benchkit を CX基盤の中核ポータルへ発展させる方向である。
 
-BenchKit may be extended in the future with:
+Benchkit may be extended in the future with:
 
 - app onboarding request forms
 - execution-condition change request forms
 - approval-based automatic PR generation
 - estimation-condition update workflows
 - AI-driven optimization workflows
-- support for generating BenchPark definitions from BenchKit data
+- support for generating Benchpark definitions from Benchkit data
 - exposure as an MCP server
 
-These extensions move BenchKit toward the role of the central portal of the CX Platform.
+These extensions move Benchkit toward the role of the central portal of the CX Platform.
 
-## 11. 利用者視点での BenchKit / BenchKit from the User Perspective
+## 11. 利用者視点での Benchkit / Benchkit from the User Perspective
 
-利用者にとって BenchKit は、単なる実行スクリプト集ではなく、
+利用者にとって Benchkit は、単なる実行スクリプト集ではなく、
 スパコンへ逐一ログインすることなく性能データを扱うための窓口である。
 
-利用者は BenchKit を通じて、少なくとも以下を行えることが望ましい。
+利用者は Benchkit を通じて、少なくとも以下を行えることが望ましい。
 
 - ベンチマーク結果の確認
 - 推定結果の確認
@@ -542,10 +542,10 @@ These extensions move BenchKit toward the role of the central portal of the CX P
 - 小さな推定条件変更の要求
 - 将来的には AI への指示
 
-From the user perspective, BenchKit is not just a collection of execution scripts.
+From the user perspective, Benchkit is not just a collection of execution scripts.
 It is the main interface for working with performance data without repeatedly logging into supercomputers.
 
-Users should ideally be able to use BenchKit to:
+Users should ideally be able to use Benchkit to:
 
 - inspect benchmark results
 - inspect estimation results

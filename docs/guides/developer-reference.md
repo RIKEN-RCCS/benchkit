@@ -1,6 +1,6 @@
 # Developer Reference
 
-This document is intended for CX Framework and BenchKit developers. It collects structural and operational details that are too implementation-focused for the top-level README.
+This document is intended for CX Framework and Benchkit developers. It collects structural and operational details that are too implementation-focused for the top-level README.
 
 ## Project Structure
 
@@ -38,7 +38,7 @@ benchkit/
 - `programs/<code>/`
   App-specific build, run, and estimation entry points.
 - `benchpark-bridge/`
-  Legacy BenchPark bridge and conversion support. Active BenchPark CI/CD/CB
+  Legacy Benchpark bridge and conversion support. Active Benchpark CI/CD/CB
   result handling has moved to a separate project.
 - `result_server/`
   Flask-based result portal, ingest API, authentication, admin pages, and tests.
@@ -60,7 +60,7 @@ A future "requester" or "applicant" role belongs to the not-yet-implemented requ
 | App maintainer | App-specific build, run, result emission, app-side estimation declarations, and app-local test cases. | `programs/<code>/build.sh`, `programs/<code>/run.sh`, `programs/<code>/estimate.sh`, `programs/<code>/list.csv` |
 | Site maintainer | System registration, queue/scheduler settings, runner setup assumptions, and portal display metadata for systems. | `config/system.csv`, `config/queue.csv`, `config/system_info.csv`, [add-site.md](./add-site.md) |
 | Estimation package maintainer | Estimation algorithm, required inputs, metadata, applicability, fallback, and package-specific assumptions. | `scripts/estimation/packages/`, `scripts/estimation/section_packages/`, [add-estimation-package.md](./add-estimation-package.md) |
-| BenchKit common maintainer | Shared shell helpers, Result/Estimate JSON handoff, portal implementation, common CI checks, and repository-wide contracts. | `scripts/bk_functions.sh`, `scripts/result.sh`, `scripts/estimation/common.sh`, `scripts/result_server/`, `result_server/`, `.github/`, `.gitlab-ci.yml` |
+| Benchkit common maintainer | Shared shell helpers, Result/Estimate JSON handoff, portal implementation, common CI checks, and repository-wide contracts. | `scripts/bk_functions.sh`, `scripts/result.sh`, `scripts/estimation/common.sh`, `scripts/result_server/`, `result_server/`, `.github/`, `.gitlab-ci.yml` |
 | Admin / reviewer / approver | Review, manual CI judgment, PR acceptance, and portal admin operations. In the current workflow these are the same operational role. | GitHub PRs, GitLab manual CI, portal admin pages |
 
 Scaffolding or code generation may be added later as convenience tooling, but it is not required for contributors.
@@ -193,11 +193,11 @@ Data or `*.ncu-rep`.
 - Shared helpers live under `scripts/estimation/`.
 - Re-estimation uses result UUIDs as the main input contract.
 
-## 5. BenchPark Integration
+## 5. Benchpark Integration
 
-- Legacy BenchPark-specific conversion and bridge logic remains under
+- Legacy Benchpark-specific conversion and bridge logic remains under
   `benchpark-bridge/`.
-- Active BenchPark CI/CD/CB result handling is maintained in a separate project. Treat this repository's bridge as legacy and QC-GH200-oriented unless a
+- Active Benchpark CI/CD/CB result handling is maintained in a separate project. Treat this repository's bridge as legacy and QC-GH200-oriented unless a
   future PR explicitly reworks it.
 
 ## Configuration Files
@@ -213,7 +213,7 @@ Data or `*.ncu-rep`.
 
 ## CI Execution Control
 
-BenchKit uses GitHub for source hosting and GitLab CI for benchmark execution.
+Benchkit uses GitHub for source hosting and GitLab CI for benchmark execution.
 
 The current policy keeps pull requests lightweight. Heavy GitLab benchmark CI is not started automatically for pull requests or protected-branch synchronization; maintainers start it explicitly through GitHub Actions when needed.
 
@@ -270,7 +270,7 @@ For production portal deployments:
 
 ### Result Quality Visibility
 
-BenchKit keeps result-quality scoring inside the portal. Normal pull requests should not be blocked on quality scoring beyond producing valid result JSON with a FOM value.
+Benchkit keeps result-quality scoring inside the portal. Normal pull requests should not be blocked on quality scoring beyond producing valid result JSON with a FOM value.
 
 Portal quality visibility currently lives in:
 

@@ -54,7 +54,7 @@ It is a higher-level framework that organizes the roles of platforms, tools, ser
 下位には、少なくとも以下の仕様がぶら下がる。
 
 - [`CX_PLATFORM.md`](./CX_PLATFORM.md): CX フレームワークを実装する全体システムの仕様
-- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): BenchKit の責務・構成・接続点の仕様
+- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): Benchkit の責務・構成・接続点の仕様
 
 This document is the top-level conceptual specification for CX as a whole.
 It defines what should run continuously, and does not specify implementation details of individual software components or services.
@@ -62,7 +62,7 @@ It defines what should run continuously, and does not specify implementation det
 At least the following lower-level specifications are expected beneath it:
 
 - [`CX_PLATFORM.md`](./CX_PLATFORM.md): the specification of the overall system implementing the CX Framework
-- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): the specification of BenchKit responsibilities, structure, and integration points
+- [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md): the specification of Benchkit responsibilities, structure, and integration points
 
 ## 2. 適用範囲 / Scope
 
@@ -113,7 +113,7 @@ It applies to:
 - `CA`:
   継続的高度化。個別アプリケーションの最適化ではなく、CX 基盤全体、モデル、ワークフロー、ポータル、AI 連携、運用方式を継続的にエンハンスすること。
 - `拠点接続`:
-  実システム、runner、Jacamar CI、scheduler、module 環境、共有ストレージ、実行アカウント、結果回収条件などを、CX 基盤や BenchKit から接続可能な形で定義・管理すること。
+  実システム、runner、Jacamar CI、scheduler、module 環境、共有ストレージ、実行アカウント、結果回収条件などを、CX 基盤や Benchkit から接続可能な形で定義・管理すること。
 - `ソース出自情報`:
   実行結果や推定結果が、どのソースコード状態に由来するかを追跡するための情報。少なくとも最上位アプリケーションの source repository、branch、commit hash を含みうる。
 - `最上位アプリケーション`:
@@ -132,7 +132,7 @@ In this specification and its lower-level specifications, the following terms ar
 - `CA`:
   Continuous Advancement. Not the optimization of a single application, but the continuous enhancement of the CX Platform as a whole, including models, workflows, portal capabilities, AI integration, and operating methods.
 - `site integration`:
-  The definition and management of real systems, runners, Jacamar CI, scheduler behavior, module environments, shared storage, execution accounts, and result-collection conditions in a form that can be integrated with the CX Platform and BenchKit.
+  The definition and management of real systems, runners, Jacamar CI, scheduler behavior, module environments, shared storage, execution accounts, and result-collection conditions in a form that can be integrated with the CX Platform and Benchkit.
 - `source provenance`:
   Information used to trace which source-code state produced a benchmark or estimation result. At minimum, it may include the source repository, branch, and commit hash of the top-level application.
 - `top-level application`:
@@ -326,7 +326,7 @@ Outputs:
 目的:
 - CX基盤そのものの能力向上
 - 推定モデル、スケーリングモデル、最適化モデルの改良
-- BenchKit や周辺ポータル機能の高度化
+- Benchkit や周辺ポータル機能の高度化
 - AI・外部ツール・外部サービスとの連携方式の改善
 - 将来アーキテクチャ評価や調達支援の仕組み強化
 
@@ -354,7 +354,7 @@ In other words, CA is the loop that **continuously enhances the entire CX system
 Goals:
 - improve the capabilities of the CX Platform itself
 - refine estimation, scaling, and optimization models
-- enhance BenchKit and surrounding portal functionality
+- enhance Benchkit and surrounding portal functionality
 - improve integration with AI, external tools, and external services
 - strengthen support for future-architecture evaluation and procurement
 
@@ -494,12 +494,12 @@ The CX Framework does not require:
 - fully autonomous execution without human approval
 - a single mandatory measurement or estimation toolchain
 
-## 9. CX基盤およびBenchKitとの関係 / Relationship to CX Platform and BenchKit
+## 9. CX基盤およびBenchkitとの関係 / Relationship to CX Platform and Benchkit
 
 - CXフレームワークは上位の概念・機能モデルを定義する
 - CX基盤はそのモデルを実装する全体システムである
-- BenchKit は CX基盤を構成する中核ソフトウェアの1つである
+- Benchkit は CX基盤を構成する中核ソフトウェアの1つである
 
 - The CX Framework defines the conceptual and functional model.
 - The CX Platform is the overall system implementing that model.
-- BenchKit is one of the core software components within the CX Platform.
+- Benchkit is one of the core software components within the CX Platform.

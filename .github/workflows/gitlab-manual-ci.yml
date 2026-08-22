@@ -8,26 +8,26 @@ on:
         required: true
         default: "develop"
       code:
-        description: "BenchKit code filter, for example: qws,genesis"
+        description: "Benchkit code filter, for example: qws,genesis"
         required: false
       system:
         description: "System filter, for example: Fugaku,MiyabiG"
         required: false
       app:
-        description: "BenchPark app filter, for example: osu-micro-benchmarks"
+        description: "Benchpark app filter, for example: osu-micro-benchmarks"
         required: false
       benchpark:
-        description: "Run the BenchPark path together with BenchKit"
+        description: "Run the Benchpark path together with Benchkit"
         required: false
         type: boolean
         default: false
       park_only:
-        description: "Run only the BenchPark path"
+        description: "Run only the Benchpark path"
         required: false
         type: boolean
         default: false
       park_send:
-        description: "Run the BenchPark send-only path"
+        description: "Run the Benchpark send-only path"
         required: false
         type: boolean
         default: false

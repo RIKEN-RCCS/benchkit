@@ -1,7 +1,7 @@
 # 推定パッケージ追加手順（開発者向け）
 
-このドキュメントは、BenchKit に新しい推定 package を追加する開発者向けガイドです。
-現在の実装では、package は「推定ロジックと package 固有 metadata を持つ側」、BenchKit 共通層は「flow と JSON 受け渡しを持つ側」として考えると整理しやすいです。
+このドキュメントは、Benchkit に新しい推定 package を追加する開発者向けガイドです。
+現在の実装では、package は「推定ロジックと package 固有 metadata を持つ側」、Benchkit 共通層は「flow と JSON 受け渡しを持つ側」として考えると整理しやすいです。
 
 ## 1. 最初に決めること
 
@@ -31,7 +31,7 @@
   - `scripts/estimation/section_packages/`
 
 この配置は現時点の約束です。将来、推定 package が増えた場合にディレクトリ名や登録方法を見直す可能性があります。
-そのため、package 固有のロジック、metadata、applicability 判定はこの配下に閉じ、BenchKit 共通層へ app 固有・package 固有の処理を混ぜないようにしてください。
+そのため、package 固有のロジック、metadata、applicability 判定はこの配下に閉じ、Benchkit 共通層へ app 固有・package 固有の処理を混ぜないようにしてください。
 
 `qws` の詳細ダミー推定では、たとえば次のような分担です。
 
@@ -69,7 +69,7 @@ section package はもっと小さくてかまいません。
 - applicability
 - 1 区間の変換結果
 
-ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は BenchKit 共通層や top-level package 側へ寄せる方が自然です。
+ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は Benchkit 共通層や top-level package 側へ寄せる方が自然です。
 
 GPU kernel 単位の外部推定ツールは、通常は section package として扱います。
 たとえば次の package は、PerfTools の各モデルを「GPU 区間だけを変換する package」として接続します。
@@ -99,7 +99,7 @@ kernel selector が無く複数 kernel family が混在している場合、候�
 アプリ側 GPU section time が未取得の場合、GPU kernel estimator は FOM 合成には使えず、まずアプリログ、NVTX、または別のアプリ側計時で掛け先となる section time を用意する必要があります。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
 
-PerfTools 本体は BenchKit に vendoring せず、実行時に次の環境変数で渡します。
+PerfTools 本体は Benchkit に vendoring せず、実行時に次の環境変数で渡します。
 
 ```bash
 export BK_GPU_MLP_PERFTOOLS_ROOT=/path/to/PerfTools
@@ -110,7 +110,7 @@ export BK_GPU_LIGHTGBM_PYTHON=python3.11
 ```
 
 section artifact は PerfTools 側の static GPU spec sheet から作られた prepared CSV を想定します。
-BenchKit 実行時に GPU spec を動的採取しません。
+Benchkit 実行時に GPU spec を動的採取しません。
 テストやデバッグでは、既に作成済みの prediction CSV を使えます。
 
 ```bash
@@ -124,7 +124,7 @@ MLP package は `Execution Time [ns]`、LightGBM package は `O-Execution Time` 
 prepared input CSV から source-side の kernel 実測時間を読める場合は、Estimate JSON の metrics に `source_time_ns`, `predicted_time_ns`, `time_ratio_predicted_over_source`, `speedup_factor_source_over_predicted` を出します。
 `ncu` の採取 window はアプリ全体の GPU 区間時間ではなく限定された kernel sample なので、実運用ではこの source/target 比を、profiler overhead のないアプリ区間 timing に掛けて FOM を再構築する想定です。
 GPU kernel を手で事前調査して `kernel_regex` や launch window を固定することは最終形ではありません。
-BenchKit 共通層では `nsys stats` の CUDA kernel summary から `kernel_discovery.json` と `ncu_plan.json` を生成する helper を用意し、推定 package が必要とする NCU 深掘り対象を自動選定する方向に寄せます。
+Benchkit 共通層では `nsys stats` の CUDA kernel summary から `kernel_discovery.json` と `ncu_plan.json` を生成する helper を用意し、推定 package が必要とする NCU 深掘り対象を自動選定する方向に寄せます。
 最初の段階ではアプリ全体の上位 kernel を対象にし、NVTX や app section timing が使える場合は section-aware discovery に拡張します。
 
 CI 配管や app 固有の smoke test は、`programs/<code>/estimate.sh` や `scripts/tests/` 側で扱います。
@@ -169,7 +169,7 @@ MLP package には Python 3.11 以上と numpy/pandas/torch、LightGBM package �
 - `defaults.notes`
 - `defaults.assumptions`
 
-BenchKit 共通層は、これらを読んで Estimate JSON に写像する役割を主に持ちます。
+Benchkit 共通層は、これらを読んで Estimate JSON に写像する役割を主に持ちます。
 
 ## 6. package 側に持たせるべきもの
 
@@ -239,7 +239,7 @@ section 名そのものより、
 
 ## 10. いまの見方
 
-現状の BenchKit では、package を書き始める土台はかなり整っています。
+現状の Benchkit では、package を書き始める土台はかなり整っています。
 
 - package metadata を共通層へ写像する流れがある
 - current / future package を分けられる

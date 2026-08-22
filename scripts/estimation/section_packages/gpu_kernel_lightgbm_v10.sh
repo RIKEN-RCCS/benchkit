@@ -18,7 +18,7 @@ bk_section_package_metadata_gpu_kernel_lightgbm_v10() {
   "required_artifact_kinds": [
     "PerfTools LightGBM_model/1.0 compatible NCU CSV",
     "precomputed prediction CSV",
-    "or BenchKit padata archive with Nsight Compute raw CSV"
+    "or Benchkit padata archive with Nsight Compute raw CSV"
   ],
   "acquisition_mode": "external",
   "output_fields": [

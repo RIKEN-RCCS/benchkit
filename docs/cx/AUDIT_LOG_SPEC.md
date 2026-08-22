@@ -1,6 +1,6 @@
-# BenchKit Result Server Audit Log Specification
+# Benchkit Result Server Audit Log Specification
 
-This document defines the structured audit events emitted by the BenchKit
+This document defines the structured audit events emitted by the Benchkit
 result server. The audit log is intended for security monitoring and incident
 review, not for storing secrets or full request payloads.
 

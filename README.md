@@ -1,6 +1,6 @@
-# BenchKit
+# Benchkit
 
-BenchKit is a shell-first benchmarking framework for the CX Framework. It supports build and run workflows for multiple applications and systems, result collection, profiler data handling, estimation workflows, and result portal integration.
+Benchkit is a shell-first benchmarking framework for the CX Framework. It supports build and run workflows for multiple applications and systems, result collection, profiler data handling, estimation workflows, and result portal integration.
 
 ## Origin
 
@@ -32,8 +32,8 @@ Core specifications:
 
 - [CX framework](docs/cx/CX_FRAMEWORK.md): top-level concept and terminology.
 - [CX platform](docs/cx/CX_PLATFORM.md): system-level responsibilities and component boundaries.
-- [BenchKit specification](docs/cx/BENCHKIT_SPEC.md): BenchKit responsibilities, interfaces, and future extension points.
-- [BenchKit gap analysis](docs/cx/BENCHKIT_GAP_ANALYSIS.md): implementation-facing functional gaps against the BenchKit specification.
+- [Benchkit specification](docs/cx/BENCHKIT_SPEC.md): Benchkit responsibilities, interfaces, and future extension points.
+- [Benchkit gap analysis](docs/cx/BENCHKIT_GAP_ANALYSIS.md): implementation-facing functional gaps against the Benchkit specification.
 
 Estimation specifications:
 

@@ -1,10 +1,10 @@
 # アプリに性能推定を追加する
 
-このガイドは、BenchKit の既存アプリに性能推定を追加する開発者向けの実務メモです。
+このガイドは、Benchkit の既存アプリに性能推定を追加する開発者向けの実務メモです。
 
 最初に押さえるべき点は次の 2 つです。
 - app 側でまず決めるのは、FOM と section / overlap の名前、および各 section / overlap に使う `estimation_package`
-- 採取手順、保存形式、再推定時の復元方法は、共通化できるものから BenchKit 側へ寄せる
+- 採取手順、保存形式、再推定時の復元方法は、共通化できるものから Benchkit 側へ寄せる
 
 ## 目次
 
@@ -108,7 +108,7 @@ bk_estimation_write_output "results/estimate_${est_code}_0.json"
 - package 側
   - `identity` は補正なし
   - `logp` は node 数比較にもとづく補正
-- BenchKit 側
+- Benchkit 側
   - section package の呼び分け
   - current / future の合成
   - top-level applicability の整理
@@ -217,7 +217,7 @@ mpiexec ./a.out "$@"
 bk_run_estimation_data_collection mpiexec ./a.out "$@"
 ```
 
-`bk_run_estimation_data_collection` は BenchKit の共通入口です。内部では割り当てられた package や site 側の wrapper に応じて必要な採取を分岐します。PAPI や GPU profiler のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
+`bk_run_estimation_data_collection` は Benchkit の共通入口です。内部では割り当てられた package や site 側の wrapper に応じて必要な採取を分岐します。PAPI や GPU profiler のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
 
 ---
 
@@ -285,9 +285,9 @@ bk_estimation_write_output "results/estimate_${est_code}_0.json"
 
 ただし `weakscaling` の場合は、追加採取を前提にしません。app 側が通常実行の中で section / overlap 時間を書き、`identity` と `logp` だけで推定する前提です。
 
-app 側では、まず section 名と `estimation_package` を決めることを優先してください。採取手順、複数回実行の要否、保存先、再推定時の復元方法は、共通化できるものから BenchKit 側へ寄せるのがよいです。
+app 側では、まず section 名と `estimation_package` を決めることを優先してください。採取手順、複数回実行の要否、保存先、再推定時の復元方法は、共通化できるものから Benchkit 側へ寄せるのがよいです。
 
-特に PAPI のように複数回実行が必要になる採取は、app 側に細かく書かせすぎると重くなります。package 側は「`papi` が必要」と定義し、BenchKit 側が採取や保存の共通処理を引き受ける形が自然です。
+特に PAPI のように複数回実行が必要になる採取は、app 側に細かく書かせすぎると重くなります。package 側は「`papi` が必要」と定義し、Benchkit 側が採取や保存の共通処理を引き受ける形が自然です。
 
 現状の参照実装では `results/estimation_artifacts/` を使う例がありますが、これは将来も app 側が細かく書き続けるべきという意味ではありません。
 
@@ -330,5 +330,5 @@ app 側では、まず section 名と `estimation_package` を決めることを
 
 今後の改善:
 - app 側に書く採取手順をさらに減らすこと
-- 詳細推定の採取・保存・復元を BenchKit 側へより集約すること
+- 詳細推定の採取・保存・復元を Benchkit 側へより集約すること
 - 複数アプリへの横展開を進めること

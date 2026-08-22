@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare a PerfTools LightGBM_model/1.0 NCU input CSV.
 
-BenchKit's NCU profiler archive stores Nsight Compute raw CSV in the wide
+Benchkit's NCU profiler archive stores Nsight Compute raw CSV in the wide
 metric layout exported by ``ncu --page raw --csv``.  PerfTools LightGBM can read
 wide CSV directly, but it expects a few compatibility columns such as
 ``Duration [ns]`` to already exist.  This bridge normalizes the archive into
@@ -26,7 +26,7 @@ from prepare_gpu_mlp_ncu_input import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument("--padata", help="BenchKit padata*.tgz archive")
+    input_group.add_argument("--padata", help="Benchkit padata*.tgz archive")
     input_group.add_argument("--raw-csv", help="Nsight Compute raw wide CSV")
     parser.add_argument("--source-gpu", default="H100")
     parser.add_argument("--out-csv", required=True)

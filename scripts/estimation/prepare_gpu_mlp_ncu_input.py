@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare a PerfTools MLP_NN input CSV from an Nsight Compute archive.
 
-This is a small compatibility bridge for BenchKit.  It converts the wide
+This is a small compatibility bridge for Benchkit.  It converts the wide
 Nsight Compute raw CSV exported from ``profile.ncu-rep`` into the CSV layout
 expected by PerfTools' ``MLP_NN/examples/prepare_data.py``, then fills the
 current v1.5 spec-sheet gaps that otherwise leave required SRC/TGT columns as
@@ -62,7 +62,7 @@ ALLOWED_NAN_COLUMNS = {"Warp Cycles Per Executed Instruction [cycle/inst]"}
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument("--padata", help="BenchKit padata*.tgz archive")
+    input_group.add_argument("--padata", help="Benchkit padata*.tgz archive")
     input_group.add_argument("--raw-csv", help="Nsight Compute raw wide CSV")
     parser.add_argument("--perftools-root", required=True)
     parser.add_argument("--source-gpu", default="H100")

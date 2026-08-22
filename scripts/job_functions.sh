@@ -67,7 +67,7 @@ get_system_queue_group() {
 # Return optional site-local scheduler arguments.
 #
 # Explicit BK_SCHEDULER_EXTRA_ARGS values remain site-local overrides. When no
-# explicit override is set, BenchKit derives scheduler arguments only for
+# explicit override is set, Benchkit derives scheduler arguments only for
 # systems whose submit syntax is known to require the semantic allocation
 # project ID supplied by the Portal.
 get_scheduler_extra_args() {

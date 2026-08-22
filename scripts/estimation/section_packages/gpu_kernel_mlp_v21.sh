@@ -18,7 +18,7 @@ bk_section_package_metadata_gpu_kernel_mlp_v21() {
   "required_artifact_kinds": [
     "PerfTools MLP_NN/v2.1 prepared input CSV",
     "precomputed prediction CSV",
-    "or BenchKit padata archive with Nsight Compute raw CSV"
+    "or Benchkit padata archive with Nsight Compute raw CSV"
   ],
   "acquisition_mode": "external",
   "output_fields": [

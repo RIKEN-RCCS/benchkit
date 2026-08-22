@@ -1,14 +1,14 @@
-# QWS BenchKit Integration Notes
+# QWS Benchkit Integration Notes
 
 This directory owns QWS-specific build, run, and estimation settings. Shared
-BenchKit CI, top-level estimation packages, and section packages should not
+Benchkit CI, top-level estimation packages, and section packages should not
 depend on QWS-local variables or dummy section names.
 
 ## Estimation Sections
 
 `programs/qws/estimate.sh` is a reference lightweight app wrapper. It declares
 the section names and the section-package mapping locally, then passes measured
-or synthetic section timings to the common BenchKit estimation layer.
+or synthetic section timings to the common Benchkit estimation layer.
 
 Current reference sections are:
 
@@ -39,7 +39,7 @@ QWS-owned code should decide:
 - how section timings are obtained from QWS output or test fixtures
 - which section package each section should use
 
-Common BenchKit code should handle:
+Common Benchkit code should handle:
 
 - package loading and fallback
 - section and overlap composition

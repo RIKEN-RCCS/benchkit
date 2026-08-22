@@ -81,7 +81,7 @@ bk_estimation_package_metadata() {
       "score": 0.30
     },
     "notes": {
-      "summary": "Reference implementation for section-wise weak-scaling estimation in BenchKit."
+      "summary": "Reference implementation for section-wise weak-scaling estimation in Benchkit."
     },
     "assumptions": {
       "scaling_assumption": "weak-scaling",
