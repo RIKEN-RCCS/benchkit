@@ -97,9 +97,9 @@ The workflow:
 - 実行後、一時GitLabブランチを削除します。
 - Removes the temporary GitLab branch after the run.
 
-この経路は、`qws` / `MiyabiG` の最小実行で、GitLab pipeline 起動から推定まで動作確認済みです。
+この経路は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動まで動作確認済みです。QWS の合成推定 scaffold は本番向けに無効化されているため、現在この組み合わせは推定ジョブを生成しません。
 
-This path has been smoke-tested with a minimal `qws` / `MiyabiG` run through GitLab pipeline execution and estimation.
+This path has been smoke-tested with a minimal `qws` / `MiyabiG` run through GitLab pipeline execution. QWS synthetic estimation scaffolding is disabled for production, so this combination no longer generates estimate jobs.
 
 `target_ref`はupstreamリポジトリ内のbranch、tag、SHAを指定する想定です。forkからのpull requestをGitLab CIで試す場合は、maintainerがまずupstreamリポジトリ側に`ci/pr-123`のような信頼済み一時ブランチを作り、そのブランチに対して`GitLab Manual CI`を実行します。
 

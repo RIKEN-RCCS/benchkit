@@ -86,6 +86,7 @@ Benchkit 共通層は、app や package の内部意味を解釈せず、宣言�
 既存アプリに推定を載せたい場合は、こちらから始めてください。
 
 - [add-estimation-to-app.md](./add-estimation-to-app.md)
+- [GENESIS Benchkit Integration Notes](../../programs/genesis/README.md)
 
 主に次が分かります。
 
@@ -93,6 +94,15 @@ Benchkit 共通層は、app や package の内部意味を解釈せず、宣言�
 - `estimate.sh` をどこまで薄くできるか
 - `weakscaling` から詳細推定へどう広げるか
 - 今後の改善
+
+GENESIS は、現時点で一番実運用に近い推定の参照例です。特に次の分担を見ると、
+app 側に残す責務と Benchkit 共通層へ寄せる責務を追いやすくなります。
+
+- `programs/genesis/README.md`: profile / estimation 全体の意図と運用メモ
+- `programs/genesis/sections.sh`: section / overlap 宣言と Result JSON へ渡す timing metadata
+- `programs/genesis/profile.sh`: NCU 採取、artifact 登録、section との対応付け
+- `programs/genesis/parse_timing.sh`: GENESIS log から section timing を抽出する app-local parser
+- `programs/genesis/estimate.sh`: 共通推定 flow を呼ぶ薄い entrypoint
 
 ### 推定 package 開発者
 
@@ -112,7 +122,8 @@ Benchkit 共通層は、app や package の内部意味を解釈せず、宣言�
 現時点の Benchkit では、次の整理で見ると分かりやすいです。
 
 - 最小の導入経路は `weakscaling`
-- 詳細推定は `qws` が参照実装
+- 詳細推定の参照例は `genesis` を主に見る。まず [GENESIS Benchkit Integration Notes](../../programs/genesis/README.md) を確認する
+- 古い `qws` scaffold は本番では無効化済みで、実測 section timing / artifact を入れるまでは推定対象にしない
 - app 側は「何を測って何を渡すか」を主に担当
 - package 側は「どう推定して、入力不足をどう扱うか」を主に担当
 - model 名、model type、measurement / confidence / notes / assumptions の既定値は package metadata 側へ寄せる方向で整理が進んでいる

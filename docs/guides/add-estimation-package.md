@@ -33,7 +33,14 @@
 この配置は現時点の約束です。将来、推定 package が増えた場合にディレクトリ名や登録方法を見直す可能性があります。
 そのため、package 固有のロジック、metadata、applicability 判定はこの配下に閉じ、Benchkit 共通層へ app 固有・package 固有の処理を混ぜないようにしてください。
 
-`qws` の詳細ダミー推定では、たとえば次のような分担です。
+現時点の active な app 側参照例は `genesis` です。まず
+[GENESIS Benchkit Integration Notes](../../programs/genesis/README.md) を確認してください。
+GENESIS は app log 由来の section timing と NCU profile archive を section artifact
+として出し、共通 package に推定処理を委ねます。新しい app では、実測 section timing /
+artifact を用意してから同じ責務分担を適用してください。
+
+本番では無効化済みの旧 `qws` 詳細推定 scaffold でも、同じ package 分担を検証していました。
+現行の分担は次の形です。
 
 - top-level
   - `instrumented_app_sections_dummy.sh`

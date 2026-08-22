@@ -6,6 +6,12 @@
 - app 側でまず決めるのは、FOM と section / overlap の名前、および各 section / overlap に使う `estimation_package`
 - 採取手順、保存形式、再推定時の復元方法は、共通化できるものから Benchkit 側へ寄せる
 
+詳細推定の active な参照例は GENESIS です。まず
+[GENESIS Benchkit Integration Notes](../../programs/genesis/README.md) を読み、
+`programs/genesis/sections.sh`、`programs/genesis/profile.sh`、
+`programs/genesis/parse_timing.sh`、`programs/genesis/estimate.sh` の分担を見ると、
+`run.sh` / `build.sh` から profile / estimation 固有処理を分離する方向を追いやすいです。
+
 ## 目次
 
 1. [最初に決めること](#1-最初に決めること)
@@ -119,7 +125,8 @@ bk_estimation_write_output "results/estimate_${est_code}_0.json"
 - 各 section / overlap に割り当てる `estimation_package`
 - target system や target nodes の app 既定値
 
-イメージとしては次のようになります。
+イメージとしては次のようになります。ここでは、現在の active な参照例である
+GENESIS の section 名を使っています。
 
 ```bash
 myapp_declare_estimation_layout() {
@@ -128,15 +135,22 @@ myapp_declare_estimation_layout() {
   bk_define_current_estimation_package weakscaling
   bk_define_future_estimation_package instrumented_app_sections_dummy
   bk_define_baseline_system Fugaku
-  bk_define_baseline_exp CASE0
-  bk_define_future_system FutureSystemA
-  bk_define_current_target_nodes 1024
-  bk_define_future_target_nodes 256
+  bk_define_baseline_exp p8
+  bk_define_future_system FugakuNEXT
+  bk_define_current_target_nodes 1
+  bk_define_future_target_nodes 1
 
-  bk_declare_section --side future prepare_rhs half
-  bk_declare_section --side future compute_solver half
-  bk_declare_section --side future allreduce logp
-  bk_declare_overlap --side future compute_hopping,halo_exchange half
+  bk_declare_section --side future pairlist gpu_kernel_ensemble_average
+  bk_declare_section --side future bond identity
+  bk_declare_section --side future angle identity
+  bk_declare_section --side future dihedral identity
+  bk_declare_section --side future pme_real_wait identity
+  bk_declare_section --side future pme_real_inter gpu_kernel_ensemble_average
+  bk_declare_section --side future pme_real_intra gpu_kernel_ensemble_average
+  bk_declare_section --side future pme_recip identity
+  bk_declare_section --side future integrator identity
+  bk_declare_section --side future other identity
+  bk_declare_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip identity
 }
 ```
 
@@ -187,23 +201,24 @@ bk_emit_result \
 ```bash
 bk_emit_declared_section \
   --side future \
-  prepare_rhs 0.42 \
+  pairlist 0.42 \
   >> results/result
 
 bk_emit_declared_section \
   --side future \
-  compute_solver 1.03 \
-  results/estimation_artifacts/compute_solver_papi.tgz \
+  pme_real_inter 1.03 \
+  results/padata_inter.tgz \
   >> results/result
 
 bk_emit_declared_overlap \
   --side future \
-  compute_hopping,halo_exchange 0.23 \
-  results/estimation_artifacts/compute_halo_overlap.json \
+  pme_real_wait,pme_real_inter,pme_real_intra,pme_recip 0.23 \
   >> results/result
 ```
 
-さらに整理を進めるなら、section 時間の配分やダミー artifact 作成のような推定専用処理も `estimate.sh` 側の関数へ寄せ、`run.sh` ではその関数を 1 回呼ぶだけにしてよいです。
+さらに整理を進めるなら、GENESIS のように log から section timing を切り出す処理や
+profiler artifact と section の対応付けを app-local helper へ分離し、`run.sh` では
+その関数を 1 回呼ぶだけにしてよいです。
 
 ここで app 側の主責務は、section 名と `estimation_package` の割当てを明示することです。
 
@@ -239,18 +254,22 @@ myapp_declare_estimation_layout() {
   bk_define_current_estimation_package weakscaling
   bk_define_future_estimation_package instrumented_app_sections_dummy
   bk_define_baseline_system Fugaku
-  bk_define_baseline_exp CASE0
+  bk_define_baseline_exp p8
   bk_define_future_system FugakuNEXT
-  bk_define_current_target_nodes 1024
-  bk_define_future_target_nodes 256
+  bk_define_current_target_nodes 1
+  bk_define_future_target_nodes 1
 
-  bk_declare_section --side future prepare_rhs half
-  bk_declare_section --side future compute_hopping quarter
-  bk_declare_section --side future compute_solver half
-  bk_declare_section --side future halo_exchange quarter
-  bk_declare_section --side future allreduce logp
-  bk_declare_section --side future write_result half
-  bk_declare_overlap --side future compute_hopping,halo_exchange half
+  bk_declare_section --side future pairlist gpu_kernel_ensemble_average
+  bk_declare_section --side future bond identity
+  bk_declare_section --side future angle identity
+  bk_declare_section --side future dihedral identity
+  bk_declare_section --side future pme_real_wait identity
+  bk_declare_section --side future pme_real_inter gpu_kernel_ensemble_average
+  bk_declare_section --side future pme_real_intra gpu_kernel_ensemble_average
+  bk_declare_section --side future pme_recip identity
+  bk_declare_section --side future integrator identity
+  bk_declare_section --side future other identity
+  bk_declare_overlap --side future pme_real_wait,pme_real_inter,pme_real_intra,pme_recip identity
 }
 
 myapp_declare_estimation_layout

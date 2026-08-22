@@ -30,8 +30,24 @@ unset BK_SCHEDULER_EXTRA_ARGS_RIKYU
 export BK_SCHEDULER_EXTRA_ARGS="--account=global"
 test "$(get_scheduler_extra_args RIKYU)" = "--account=global"
 
+tmpdir=""
+estimate_tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir" "$estimate_tmpdir"' EXIT
+
+mkdir -p "$estimate_tmpdir/app"
+if has_estimate_script "$estimate_tmpdir/app"; then
+    echo "directory without estimate.sh must not be estimate-enabled" >&2
+    exit 1
+fi
+touch "$estimate_tmpdir/app/estimate.sh"
+has_estimate_script "$estimate_tmpdir/app"
+touch "$estimate_tmpdir/app/estimate.disabled"
+if has_estimate_script "$estimate_tmpdir/app"; then
+    echo "estimate.disabled must disable estimate.sh" >&2
+    exit 1
+fi
+
 tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
 
 cat >"$tmpdir/sbatch" <<'SCRIPT'
 #!/bin/bash

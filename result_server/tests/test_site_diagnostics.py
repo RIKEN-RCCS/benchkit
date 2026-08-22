@@ -174,3 +174,48 @@ def test_site_config_preflight_requires_public_systems_to_be_runnable(tmp_path):
         "system_info.csv exposes PUBLIC_MISSING_SYSTEM, but config/system.csv has no matching system.",
         "system_info.csv exposes PUBLIC_BAD_QUEUE, but config/system.csv references queue MISSING_QUEUE without a matching config/queue.csv definition.",
     ]
+
+
+def test_site_diagnostics_treats_disabled_estimate_as_inactive(tmp_path):
+    config_dir = tmp_path / "config"
+    programs_dir = tmp_path / "programs"
+    config_dir.mkdir()
+    programs_dir.mkdir()
+
+    _write_csv(
+        config_dir / "system.csv",
+        ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
+        [["Fugaku", "cross", "", "", "FJ", "small"]],
+    )
+    _write_csv(
+        config_dir / "queue.csv",
+        ["queue", "submit_cmd", "template"],
+        [["FJ", "pjsub", "template"]],
+    )
+    _write_csv(
+        config_dir / "system_info.csv",
+        ["system", "name", "cpu_name", "cpu_per_node", "cpu_cores", "gpu_name", "gpu_per_node", "memory", "display_order"],
+        [["Fugaku", "Fugaku", "A64FX", "1", "48", "-", "-", "32GB", "1"]],
+    )
+
+    qws_dir = programs_dir / "qws"
+    qws_dir.mkdir()
+    (qws_dir / "build.sh").write_text("case \"$system\" in\nFugaku)\n  echo build\n  ;;\nesac\n", encoding="utf-8")
+    (qws_dir / "run.sh").write_text("case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n", encoding="utf-8")
+    _write_csv(
+        qws_dir / "list.csv",
+        ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
+        [["Fugaku", "yes", "1", "4", "12", "0:10:00"]],
+    )
+    (qws_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (qws_dir / "estimate.disabled").write_text("disabled\n", encoding="utf-8")
+
+    diagnostics = build_site_diagnostics(
+        system_csv_path=str(config_dir / "system.csv"),
+        queue_csv_path=str(config_dir / "queue.csv"),
+        system_info_csv_path=str(config_dir / "system_info.csv"),
+        programs_dir=str(programs_dir),
+    )
+
+    assert diagnostics["apps_with_estimate_count"] == 0
+    assert diagnostics["apps_without_estimate"] == ["qws"]

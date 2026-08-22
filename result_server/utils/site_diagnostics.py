@@ -72,7 +72,8 @@ def _scan_program_diagnostics(programs_root, registered_systems):
             })
 
         estimate_path = os.path.join(entry.path, "estimate.sh")
-        if os.path.exists(estimate_path):
+        estimate_disabled_path = os.path.join(entry.path, "estimate.disabled")
+        if os.path.exists(estimate_path) and not os.path.exists(estimate_disabled_path):
             apps_with_estimate_count += 1
         else:
             apps_without_estimate.append(entry.name)
