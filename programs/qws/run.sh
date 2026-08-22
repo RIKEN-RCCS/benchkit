@@ -9,8 +9,10 @@ export OMP_NUM_THREADS=$nthreads
 source "${PWD}/scripts/bk_functions.sh"
 qws_profiler_tool=$(bk_resolve_profiler_tool fapp QWS_PROFILER_TOOL)
 qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
-# Load estimation helpers used when emitting section/overlap metadata.
-source "${PWD}/programs/qws/estimate.sh"
+# QWS synthetic estimation metadata is disabled for production runs. Keep
+# QWS result output limited to measured benchmark FOM until QWS emits real
+# app-side section timings and artifacts.
+# source "${PWD}/programs/qws/estimate.sh"
 
 mkdir -p results && > results/result
 
@@ -23,17 +25,21 @@ print_results() {
     local fom
     fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
     bk_emit_result --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
-    qws_emit_estimation_data_from_fom "$fom"
+    # Disabled: this emitted synthetic section timings and dummy estimation
+    # artifacts. Re-enable only after QWS provides real app-side timings.
+    # qws_emit_estimation_data_from_fom "$fom"
 }
 
-emit_qws_dummy_padata() {
-    mkdir -p pa
-    echo dummy > ./pa/padat.0
-    echo dummy > ./pa/padat.1
-    echo dummy > ./pa/padat.2
-    echo dummy > ./pa/padat.3
-    tar -czf "$1" ./pa
-}
+# Disabled: dummy PA archives are confusing on the production portal because
+# they look like downloadable measurement artifacts.
+# emit_qws_dummy_padata() {
+#     mkdir -p pa
+#     echo dummy > ./pa/padat.0
+#     echo dummy > ./pa/padat.1
+#     echo dummy > ./pa/padat.2
+#     echo dummy > ./pa/padat.3
+#     tar -czf "$1" ./pa
+# }
 
 [[ -d qws ]] || git clone https://github.com/RIKEN-LQCD/qws.git
 
@@ -56,8 +62,8 @@ case "$system" in
                 print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
                     bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main 32 6 4 3 1 1 1 1 -1 -1 6 50 > CASE0.profile
-                else
-                    emit_qws_dummy_padata ../results/padata0.tgz
+                # else
+                #     emit_qws_dummy_padata ../results/padata0.tgz
                 fi
                 ;;
             2)
@@ -65,8 +71,8 @@ case "$system" in
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
                     bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main 32 6 4 3 1 2 2 2 -1 -1 6 50 > CASE7.profile
-                else
-                    emit_qws_dummy_padata ../results/padata0.tgz
+                # else
+                #     emit_qws_dummy_padata ../results/padata0.tgz
                 fi
                 ;;
             *)

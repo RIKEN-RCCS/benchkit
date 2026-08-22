@@ -137,17 +137,17 @@ In addition, `target_nodes` represents the estimated node count on each system s
 
 ```json
 {
-  "code": "qws",
-  "exp": "CASE0",
+  "code": "genesis",
+  "exp": "p8",
   "current_system": {
     "system": "Fugaku",
     "fom": 123.456,
-    "target_nodes": "4",
+    "target_nodes": "1",
     "scaling_method": "measured",
     "benchmark": {
       "system": "Fugaku",
       "fom": 123.456,
-      "nodes": "4",
+      "nodes": "1",
       "numproc_node": "12",
       "timestamp": "2026-04-03 12:34:56",
       "uuid": "00000000-0000-0000-0000-000000000000"
@@ -156,12 +156,12 @@ In addition, `target_nodes` represents the estimated node count on each system s
   "future_system": {
     "system": "FugakuNEXT",
     "fom": 246.912,
-    "target_nodes": "4",
+    "target_nodes": "1",
     "scaling_method": "scale-mock",
     "benchmark": {
       "system": "MiyabiG",
       "fom": 123.456,
-      "nodes": "4",
+      "nodes": "1",
       "numproc_node": "1",
       "timestamp": "2026-04-03 12:34:56",
       "uuid": "11111111-1111-1111-1111-111111111111"
@@ -235,8 +235,8 @@ In addition, Benchkit may retain result-compatible CI provenance at the top leve
     "source_result": {
       "uuid": "00000000-0000-0000-0000-000000000000",
       "timestamp": "2026-04-03 12:34:56",
-      "code": "qws",
-      "exp": "CASE0",
+      "code": "genesis",
+      "exp": "p8",
       "system": "Fugaku",
       "node_count": "1",
       "numproc_node": "4"
@@ -244,8 +244,8 @@ In addition, Benchkit may retain result-compatible CI provenance at the top leve
     "current_source_result": {
       "uuid": "00000000-0000-0000-0000-000000000000",
       "timestamp": "2026-04-03 12:34:56",
-      "code": "qws",
-      "exp": "CASE0",
+      "code": "genesis",
+      "exp": "p8",
       "system": "Fugaku",
       "node_count": "1",
       "numproc_node": "4"
@@ -253,8 +253,8 @@ In addition, Benchkit may retain result-compatible CI provenance at the top leve
     "future_source_result": {
       "uuid": "11111111-1111-1111-1111-111111111111",
       "timestamp": "2026-04-03 12:34:56",
-      "code": "qws",
-      "exp": "CASE0",
+      "code": "genesis",
+      "exp": "p8",
       "system": "MiyabiG",
       "node_count": "1",
       "numproc_node": "1"
@@ -343,7 +343,7 @@ This field stores how the measurement inputs used for estimation were obtained.
     "type": "scaling",
     "name": "scale-mock",
     "version": "0.1",
-    "implementation": "programs/qws/estimate.sh"
+    "implementation": "programs/genesis/estimate.sh"
   }
 }
 ```

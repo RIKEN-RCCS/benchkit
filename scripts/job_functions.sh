@@ -298,12 +298,15 @@ is_estimate_target() {
     return 1
 }
 
-# Check if a program directory has an estimate script
-# Returns 0 if $1/estimate.sh exists, 1 otherwise
+# Check if a program directory has an active estimate script.
+# programs/<code>/estimate.disabled keeps reference estimate.sh scaffolding in
+# the tree without generating production estimate jobs for that application.
+# Returns 0 if $1/estimate.sh exists and is not disabled, 1 otherwise.
 # Usage: has_estimate_script "programs/qws" && echo "has estimate"
 has_estimate_script() {
     local program_dir="$1"
-    [[ -f "${program_dir}/estimate.sh" ]]
+    [[ -f "${program_dir}/estimate.sh" ]] || return 1
+    [[ ! -f "${program_dir}/estimate.disabled" ]]
 }
 
 # Emit estimate job YAML block

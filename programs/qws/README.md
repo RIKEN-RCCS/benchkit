@@ -7,8 +7,9 @@ depend on QWS-local variables or dummy section names.
 ## Estimation Sections
 
 `programs/qws/estimate.sh` is a reference lightweight app wrapper. It declares
-the section names and the section-package mapping locally, then passes measured
-or synthetic section timings to the common Benchkit estimation layer.
+the section names and the section-package mapping locally. QWS production runs
+do not emit section timing metadata until those timings are measured by QWS
+itself.
 
 Current reference sections are:
 
@@ -27,9 +28,11 @@ The reference overlap is:
 compute_hopping,halo_exchange
 ```
 
-The current QWS section timings are synthetic fractions of the benchmark FOM.
-They are useful for exercising the common estimation framework and portal
-display, but they are not a substitute for app-side timers from QWS itself.
+Previous test scaffolding emitted synthetic section timings and dummy artifacts
+as fractions of the benchmark FOM. That path is disabled for production because
+fake section data is easy to confuse with measured application data.
+The `estimate.disabled` marker also prevents CI matrix generation from adding
+QWS estimate jobs on estimate-target systems such as MiyabiG and RC_GH200.
 
 ## Responsibility Split
 

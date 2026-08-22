@@ -22,6 +22,13 @@ qws_results_dir() {
   fi
 }
 
+qws_estimation_enabled() {
+  local root
+
+  root=$(qws_repo_root)
+  [[ ! -f "${root}/programs/qws/estimate.disabled" ]]
+}
+
 qws_declare_estimation_layout() {
   bk_clear_estimation_defaults
   bk_clear_estimation_declarations
@@ -44,38 +51,49 @@ EOF
 )"
 }
 
-qws_create_dummy_estimation_artifact() {
-  local rel_path="$1"
-  local content="$2"
-  local full_path
+# Disabled for production: these helpers created synthetic section timings and
+# dummy estimation artifacts. Keep the scaffold here as a reminder of the old
+# test fixture, but do not emit fake values into QWS results.
+# qws_create_dummy_estimation_artifact() {
+#   local rel_path="$1"
+#   local content="$2"
+#   local full_path
+#
+#   full_path="$(qws_results_dir)/${rel_path}"
+#   mkdir -p "$(dirname "$full_path")"
+#   printf '%s\n' "$content" > "$full_path"
+# }
+#
+# qws_emit_estimation_data_from_fom() {
+#   local fom="$1"
+#
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
+#   qws_create_dummy_estimation_artifact "estimation_artifacts/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
+#
+#   bk_emit_declared_fractional_items --side future "$fom" "$(cat <<'EOF'
+# section|prepare_rhs|0.16|results/estimation_artifacts/prepare_rhs_interval.json
+# section|compute_hopping|0.28|results/estimation_artifacts/compute_hopping_papi.tgz
+# section|compute_solver|0.18|results/estimation_artifacts/compute_solver_papi.tgz
+# section|halo_exchange|0.18|results/estimation_artifacts/halo_exchange_trace.tgz
+# section|allreduce|0.16|results/estimation_artifacts/allreduce_trace.tgz
+# section|write_result|0.08|results/estimation_artifacts/write_result_interval.json
+# overlap|compute_hopping,halo_exchange|0.04|results/estimation_artifacts/compute_halo_overlap.json
+# EOF
+# )"
+# }
 
-  full_path="$(qws_results_dir)/${rel_path}"
-  mkdir -p "$(dirname "$full_path")"
-  printf '%s\n' "$content" > "$full_path"
-}
-
-qws_emit_estimation_data_from_fom() {
-  local fom="$1"
-
-  qws_create_dummy_estimation_artifact "estimation_artifacts/prepare_rhs_interval.json" "{\"section\":\"prepare_rhs\",\"kind\":\"interval_time\"}"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_hopping_papi.tgz" "dummy papi archive for compute_hopping"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_solver_papi.tgz" "dummy papi archive for compute_solver"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/halo_exchange_trace.tgz" "dummy mpi trace archive for halo_exchange"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/allreduce_trace.tgz" "dummy collective trace archive for allreduce"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/write_result_interval.json" "{\"section\":\"write_result\",\"kind\":\"interval_time\"}"
-  qws_create_dummy_estimation_artifact "estimation_artifacts/compute_halo_overlap.json" "{\"overlap\":[\"compute_hopping\",\"halo_exchange\"],\"kind\":\"overlap_time\"}"
-
-  bk_emit_declared_fractional_items --side future "$fom" "$(cat <<'EOF'
-section|prepare_rhs|0.16|results/estimation_artifacts/prepare_rhs_interval.json
-section|compute_hopping|0.28|results/estimation_artifacts/compute_hopping_papi.tgz
-section|compute_solver|0.18|results/estimation_artifacts/compute_solver_papi.tgz
-section|halo_exchange|0.18|results/estimation_artifacts/halo_exchange_trace.tgz
-section|allreduce|0.16|results/estimation_artifacts/allreduce_trace.tgz
-section|write_result|0.08|results/estimation_artifacts/write_result_interval.json
-overlap|compute_hopping,halo_exchange|0.04|results/estimation_artifacts/compute_halo_overlap.json
-EOF
-)"
-}
+if ! qws_estimation_enabled; then
+  echo "QWS estimation is disabled until real section timings and artifacts are available." >&2
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0 2>/dev/null || exit 0
+  fi
+  exit 0
+fi
 
 source scripts/bk_functions.sh
 source scripts/estimation/common.sh

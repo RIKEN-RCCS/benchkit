@@ -62,10 +62,10 @@ Benchkit already has a solid foundation for continuous benchmarking, especially 
 - portal presentation of benchmark, estimation, and usage data
 - basic source provenance tracking for the top-level application
 
-Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a `weakscaling` reference path, a detailed dummy package for `qws`, and result-provenance handoff have all been implemented.
+Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a `weakscaling` reference path, a detailed section-based package scaffold, and result-provenance handoff have all been implemented. The previous QWS synthetic detailed-estimation scaffold is disabled for production until QWS provides measured section timings and artifacts.
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
-As of the current repository survey, Benchkit has multiple benchmark applications with `build.sh`/`run.sh`; `qws` and `genesis` now provide `estimate.sh`, while the remaining applications still need estimation declarations before they can participate in the detailed estimation flow.
+As of the current repository survey, Benchkit has multiple benchmark applications with `build.sh`/`run.sh`; `genesis` provides an active `estimate.sh`, while `qws` keeps a disabled reference scaffold and the remaining applications still need estimation declarations before they can participate in the detailed estimation flow.
 The result portal also already has a meaningful pytest-based test suite under `result_server/tests`, and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
 The main GitLab pipeline still intentionally skips heavy benchmark execution when a direct or manually triggered GitLab pipeline sees changes limited to `result_server/**/*` or portal display metadata such as `config/system_info.csv`. Protected-branch synchronization itself uses `ci.skip`, so the dedicated lightweight GitHub Actions path should continue to be kept in sync as portal-side files evolve.
 
@@ -166,7 +166,7 @@ The following are not standalone gaps unless the SPEC explicitly requires them: 
 本質的な機能 GAP は、現時点では次の領域に集約される。
 
 1. 推定 package の metadata discovery、複数 package の選択・fallback・比較導線が未固定である。
-2. `qws` / `genesis` 以外の app へ推定を横展開するための `estimate.sh` 宣言 API と共通実行契約がまだ十分に固まっていない。
+2. `genesis` 以外の app へ推定を横展開するための `estimate.sh` 宣言 API と共通実行契約がまだ十分に固まっていない。`qws` の合成 scaffold は本番向けに無効化済みである。
 3. 再推定の portal 起動、履歴比較、差分表示が end-to-end の利用導線として未完成である。
 4. Result JSON / Estimate JSON / provenance の契約は実装が進んでいるが、app 横断で何を必須・任意・非 git source として扱うかの運用契約が未固定である。
 5. site onboarding と capability summary は docs と portal visibility が中心で、execution profile / trigger runner は導入済みだが、runner / scheduler / queue 条件を自動確認して運用判断に使う導線はまだ弱い。
@@ -180,7 +180,7 @@ The essential functional gaps currently concentrate in estimation-package discov
 | ベンチマーク実行定義 | アプリごとの build/run/list を保持し、継続実行可能であること | `programs/*` に `build.sh` `run.sh` `list.csv`、一部 `estimate.sh` がある。追加や修正は既存例を見ながら行う運用が中心である | 機能 GAP として残るのは、将来の申請・承認 workflow から app / run 条件変更へ接続する導線が未実装であること。責務境界や置き場所は既存 guide / spec で定義できる | 申請・承認・AI 連携の前提になる | 高 |
 | CI ジョブ生成 | system と queue 情報を使って CI 実行を生成すること | `matrix_generate.sh` と `job_functions.sh` が実装済み。`add-site.md` に `system.csv` / `queue.csv` / `system_info.csv` の責務分担、接続確認順序、障害切り分け、onboarding checklist も整理された。portal の `/results/usage` では queue 定義抜けや `system_info.csv` 未登録を軽く確認できる。さらに公開 `system_info.csv` が `system.csv` と `queue.csv` に対応することは `result_server/tests/check_site_config.py` で CI preflight 化済み。Portal execution profile は allocation project ID を解決し、manual / scheduled / repo-ref trigger は GitLab pipeline trigger に接続済みである | site ごとの capability summary と、runner / scheduler / queue 条件を運用判断へつなぐ自動 validation が未実装。profile と使用量・実行履歴を横断する運用 view はまだ弱い。app support matrix は visibility 扱いであり、SPEC が gate を求めるまでは GAP としない | 拠点追加、予算管理、申請フォームの自動化に影響 | 高 |
 | 結果正規化 | `run.sh` 出力を Result JSON に正規化すること | `bk_emit_result`、`bk_emit_section`、`bk_emit_overlap`、`result.sh` が実装済み。portal 側では一覧の quality badge と詳細の `Quality` セクションで `source_info`、`fom_breakdown`、推定入力参照の有無を軽く確認でき、`/results/usage` では最新 result ベースの current-state も見られる | app 横断で Result JSON の必須・任意 field、provenance、estimation input 参照をどう扱うかの契約と validation 導線が未固定 | 推定、可視化、AI 診断の入力契約に直結 | 高 |
-| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`qws` と `genesis` では `weakscaling` や詳細ダミー推定、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する | 横展開はまだ `qws` / `genesis` 中心。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
+| 性能推定 | Result JSON から Estimate JSON を生成し、可視化可能であること | `scripts/estimation/common.sh`、`scripts/estimation/run.sh`、`scripts/result_server/send_estimate.sh`、`estimated` 画面あり。`genesis` では `weakscaling`、section ごとの package 指定、補助データ参照、section-level fallback、requested/applied package 識別、top-level applicability end state、推定元 result と推定結果自体の UUID / timestamp 保持まで動作する。`qws` の合成詳細推定 scaffold は本番向けに無効化済みである | 横展開はまだ `genesis` 中心。QWS は実測 section timing / artifact が入るまで推定対象外。複数 detailed package の本実装、再推定比較運用、他 app への適用が未完成 | AI 駆動、将来機評価、継続的フィードバックの基盤になる | 最優先 |
 | 推定結果表示 | Estimate JSON を一覧・詳細で表示できること | `result_server/routes/estimated.py` とテンプレートが実装済み。requested/applied package、applicability、estimate UUID の基本表示に加えて、HTML detail で current / future breakdown、section / overlap 単位の fallback / package applicability まで表示できる。home からの導線も整理済みで、未認証時は login required であることも入口で分かる | compare UI、`not_applicable` の説明補助、複数 estimate 間の差分把握はまだ弱い | 推定運用を本格化すると重要度が上がる | 高 |
 | 使用量集計 | 実行使用量を集計し、運用判断に使えること | `node_hours.py` と `/results/usage` が実装済み。node-hour 集計に加えて、登録済み system と app の対応状況を `list.csv` および `build.sh` / `run.sh` の検出に基づく coverage matrix で確認できる。さらに `system.csv` / `queue.csv` / `system_info.csv` の軽い診断、partial support、最新 result ベースの quality / source tracking current-state も表示できる | profile の allocation project ID、実行要求、runner、使用量履歴の結び付きや、site capability を使用量判断へつなぐ導線が未実装 | 多拠点運用と予算管理の核になる | 高 |
 | ソース出自情報 | 最上位アプリケーションの commit hash を追跡すること | `bk_fetch_source` と `source_info` が実装済み。portal 側でも `/results/usage` に最新 result ベースの `source_status`、`source_type`、`source_reference`、不足 field が出せる | git source provenance の app 横断適用と、archive/file など非 git source の `source_reference` 契約・validation semantics が未固定 | 推定比較、AI 最適化、回帰分析の再現性に直結 | 高 |
@@ -283,15 +283,18 @@ Once the estimation specification is clarified, many other design decisions beco
 - 推定モデルの種別と識別方法
 - 再推定のトリガ、履歴、比較可能性と表示導線
 
-現状は `qws` と `genesis` が先行 app として、
+現状は `genesis` が active な先行 app として、
 
 - `weakscaling`
 - `instrumented_app_sections_dummy`
+- app log 由来の section timing
+- NCU profile archive と section artifact の紐付け
 - 推定元 result の UUID / timestamp 引き回し
 - side ごとの `model` 表現
 
 まで動作確認済みである。
-したがって、入口確認段階はすでに超えており、次はこの形をさらに他 app に横展開できるよう引き上げる必要がある。
+`qws` は合成 section timing / dummy artifact scaffold を残しているが、`estimate.disabled` により本番の推定対象から外している。
+したがって、入口確認段階はすでに超えており、次は GENESIS で進んだ責務分離と artifact 連携を他 app に横展開できるよう引き上げる必要がある。
 
 #### 5.1.1 推定機構の実装 GAP 再調査 / Re-Survey of Estimation Implementation Gaps
 
@@ -299,17 +302,17 @@ Once the estimation specification is clarified, many other design decisions beco
 
 | 項目 | 仕様上の期待 | 現状実装 | GAP | 優先度 |
 |---|---|---|---|---|
-| 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `qws/estimate.sh` / `genesis/estimate.sh` がある | 他 app への横展開が未着手。`estimate.sh` 内の宣言ブロックの共通 API も未固定 | 最優先 |
+| 共通推定エントリ | app 側 `estimate.sh` を薄くし、共通呼び出し順を持つこと | `scripts/estimation/common.sh` と package 呼び出し型の `genesis/estimate.sh` がある。`qws/estimate.sh` は合成データ scaffold として残すが `estimate.disabled` で本番無効化している | 他 app への横展開が未着手。`estimate.sh` 内の宣言ブロックの共通 API も未固定 | 最優先 |
 | `weakscaling` package | section ごとの時間を app 側が出し、`identity` と `logp` で weak scaling を構成できること | `weakscaling` を実装済み。`identity` / `logp` を current 側で適用し、unsupported な section package は fallback できる | 他 app への横展開と、より明示的な package discovery は未完 | 高 |
 | 適用可能性判定 | 不足入力を `applicable/fallback/not_applicable/needs_remeasurement` で扱うこと | `weakscaling` と `instrumented_app_sections_dummy` でこれらを扱える。Estimate JSON でも requested / applied package、fallback、`applicable` / `partially_applicable` / `fallback` / `not_applicable` を表現でき、estimated detail でも section / overlap 単位に表示できる | 複数 detailed package 間の分岐、より細かい fallback 選択、compare UI 側の見せ方は未実装 | 高 |
 | package metadata | package 名、版、required inputs、fallback policy を持つこと | `weakscaling` / 詳細ダミーとも最小 metadata を持つ。`weakscaling` の `method_class` は `minimum` に整理された | richer metadata を discovery や UI に活かす実装がまだ無い | 中 |
 | section ごとの package 指定 | 区間ごとに推定 package を割り当てられること | `bk_emit_section` / `bk_emit_overlap` から Result JSON に `estimation_package` を載せられ、`instrumented_app_sections_dummy` でも dispatch に利用している。`weakscaling` では unsupported package を fallback する | 他 app への横展開と package discovery の整理が未完 | 最優先 |
-| app 側推定宣言 | app 側が実行前に section / overlap と `estimation_package` をまとめて宣言できること | `qws/estimate.sh` と `genesis/estimate.sh` で current / future package、target system / nodes、future 側 section / overlap 宣言を持てる | 宣言 API の更なる標準化、既定値の与え方、他 app への横展開は未完 | 最優先 |
+| app 側推定宣言 | app 側が実行前に section / overlap と `estimation_package` をまとめて宣言できること | `genesis/estimate.sh` で current / future package、target system / nodes、future 側 section / overlap 宣言を持てる。`qws/estimate.sh` は無効化済み scaffold としてのみ残している | 宣言 API の更なる標準化、既定値の与え方、他 app への横展開は未完 | 最優先 |
 | 追加採取実行 | 通常実行と別に詳細推定入力の採取だけを共通入口から追加実行できること | `bk_run_estimation_data_collection` 方向は整理済み | shell API、分岐条件、保存処理との接続は未実装 | 最優先 |
-| section ごとの補助データ参照 | tgz 等の補助データを section ごとに紐付けられること | `qws` では section / overlap ごとに `artifacts` を Result JSON に保持し、詳細ダミー package でも利用している | 他 app への横展開と artifact 収集方式の一般化が未着手 | 高 |
+| section ごとの補助データ参照 | tgz 等の補助データを section ごとに紐付けられること | `genesis` では NCU profile archive を section artifact として Result JSON に保持する。`qws` の dummy artifact 生成は本番向けに無効化済み | 他 app への横展開と artifact 収集方式の一般化が未着手 | 高 |
 | overlap 推定 | overlap を独立した推定部品として扱えること | Result JSON で保持でき、詳細ダミー package でも overlap の `bench_time/time` は扱える | overlap 専用 package や複数方式切替は未実装 | 中 |
-| 詳細推定 package | `instrumented_app_sections` など取得方式別 package を持てること | `instrumented_app_sections_dummy` を `qws` 向け参照実装として実装済み | 実測区間時間や外部ツール区間時間を使う本格 package は未実装 | 最優先 |
-| 複合推定 | section ごとに異なる方式を合成できること | `qws` と `instrumented_app_sections_dummy` で section ごとの package 指定、artifact 参照、section package dispatch、section-level fallback を実装済み | 複数実アプリへの適用、本格 package 実装、より一般的な合成規則は未着手 | 高 |
+| 詳細推定 package | `instrumented_app_sections` など取得方式別 package を持てること | `instrumented_app_sections_dummy` は参照scaffoldとして実装済み。ただし QWS からの合成入力生成は本番向けに無効化済み | 実測区間時間や外部ツール区間時間を使う本格 package は未実装 | 最優先 |
+| 複合推定 | section ごとに異なる方式を合成できること | section ごとの package 指定、artifact 参照、section package dispatch、section-level fallback の基盤は実装済み。QWS dummy input は本番向けに無効化済みで、GENESISのprofile artifact連携が実運用寄りの先行例である | 複数実アプリへの適用、本格 package 実装、より一般的な合成規則は未着手 | 高 |
 | 推定 provenance | 推定元 result と推定結果自体の出自情報を保持すること | 推定元 result の UUID / timestamp、requested/applied package、推定結果自体の UUID / timestamp を Estimate JSON に保持できる。result JSON 側にも server UUID / timestamp を保持できる | compare UI や再推定導線での活用は未整理 | 中 |
 | 再推定 | `estimate_result_uuid` 起点で再推定し比較可能にすること | 再推定専用 trigger、child pipeline、result / estimate / estimation input の再取得、`reestimation` ブロック付与、CI 上での保存完了まで動作する | compare UI、portal からの起動導線、表示上の差分把握が未完 | 高 |
 | 推定結果表示 | model / assumptions / applicability を表示できること | estimated 画面で requested/applied package、applicability、estimate UUID などの基本表示に加えて、detail 画面で current / future breakdown と section / overlap 単位の fallback / applicability を表示できる | 比較表示、`not_applicable` の説明補助、再推定との横並び表示は未整備 | 中 |
@@ -318,7 +321,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 1. `scripts/estimation/common.sh` を中心とした共通呼び出しと Estimate JSON 出力
 2. `weakscaling` による `identity` / `logp` ベースの最小推定経路
-3. `instrumented_app_sections_dummy` による区間時間ベース詳細ダミー推定
+3. GENESIS による app log 由来の section timing と GPU profiler artifact を使った詳細推定経路
 4. 推定元 result UUID / timestamp の引き回し
 
 逆に、まだ核ではないが後で効くものは以下である。
@@ -333,7 +336,7 @@ Once the estimation specification is clarified, many other design decisions beco
 
 推定機構について、次の実装順を推奨する。
 
-1. `qws` / `genesis` で得た推定方式を他 app へ横展開する
+1. `genesis` で得た推定方式を他 app へ横展開する
 2. `not_applicable` と compare を含む推定差分 UI を portal で見やすくする
 3. 複数 detailed package 間の fallback と discovery を整理する
 4. その後に再推定比較 UI と portal 起動導線へ進む
@@ -375,7 +378,7 @@ CI 関連の残作業は、「仕組みを新規に置く」段階から「対�
 
 1. `result-server-tests.yml` の path filter は、`result_server/**/*`、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**`、profile-data shell tests、`programs/**/list.csv`、`programs/**/build.sh`、`programs/**/estimate.sh`、`programs/**/run.sh`、`config/system.csv`、`config/queue.csv`、`config/system_info.csv`、`requirements-result-server.txt` を対象にする形へ更新済みである。
 2. `.gitlab-ci.yml` の heavy benchmark skip rules と `docs/ci.md` の説明は、root Markdown、`docs/**/*`、`result_server/**/*`、`requirements-result-server.txt`、`config/system_info.csv` の skip 対象について同期済みである。一方、`scripts/bk_functions.sh`、`scripts/result.sh`、`scripts/result_server/**` は GitHub Actions の lightweight verification 対象でもあるが、直接または手動で GitLab pipeline を起動した場合は `.gitlab-ci.yml` の `scripts/**/*` rule により benchmark-affecting として実行される。
-3. 手動 GitLab CI は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動から推定まで確認済みである。Pipeline API variables は JSON payload で渡す。
+3. 手動 GitLab CI は、`qws` / `MiyabiG` の最小実行で GitLab pipeline 起動まで確認済みである。QWS の合成推定 scaffold は本番向けに無効化されており、この組み合わせでは推定ジョブを生成しない。Pipeline API variables は JSON payload で渡す。
 4. protected branch sync は、`ci.skip` により GitLab mirror 更新時に GitLab CI が自動起動しないことを運用上確認済みである。
 
 docs-only / portal-only / benchmark-code / CI-config の代表的な変更セットは、`docs/ci.md` の examples として整理済みである。
@@ -403,7 +406,7 @@ AI 駆動最適化連携は、PoC を含む試行錯誤を前提として早め�
 
 1. `estimate.sh` の宣言ブロックと共通補助を整える
 2. `bk_run_estimation_data_collection` の共通入口を整える
-3. `qws` 以外に 1 から 2 本の app へ推定を横展開する
+3. `genesis` 以外に 1 から 2 本の app へ推定を横展開する
 4. `result_server` 用の lightweight CI、標準 test entrypoint、依存 manifest を portal 周辺の変更に追従させる
 5. ローカル再現手順と CI path filter の対象範囲を定期的に見直す
 6. Estimate JSON と portal 表示を section / overlap 詳細まで整える

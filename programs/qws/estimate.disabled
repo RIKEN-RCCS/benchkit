@@ -1,0 +1,3 @@
+QWS estimation is disabled for production until QWS emits real app-side section
+timings and measured estimation artifacts. The old synthetic section timing and
+dummy artifact scaffold remains commented out in estimate.sh for reference.
