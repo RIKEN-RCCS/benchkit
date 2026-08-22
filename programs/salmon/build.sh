@@ -7,11 +7,35 @@ REPO_URL="https://github.com/SALMON-TDDFT/SALMON2"
 REPO_DIR="SALMON2"
 VERSION_TAG="v.2.2.2"
 BUILD_DIR="build-benchkit"
+
+# RIKYU pin: v.2.2.2 is over a year stale (2025-06-06) and measured
+# GPU-decomposition numbers on this repo were never actually run against it --
+# they came from a much newer, hand-patched checkout (~100 commits ahead,
+# including PR #1276's OpenACC tuning). Rather than let RIKYU silently build
+# something nobody has benchmarked, pin it to FugakuNEXT-v3 on
+# william-dawson/SALMON2 (also open as SALMON-TDDFT/SALMON2#1276) --
+# develop-2.0.0@9b93a8c4 (2026-08-16) plus four commits, one per concern:
+#   1. PR #1276's stencil/current/pseudo-pt OpenACC tuning (batched cuBLAS
+#      GEMM for pseudo-pt, not the old USE_CUDA hand-written kernels --
+#      see below)
+#   2. the nvhpc-openacc-gemm.cmake platform file that wires it up
+#   3. the nvhpc/26.5 Ewald-reduction compiler-bug workaround
+#   4. a fix for a real, 100%-reproducible 2+ node hang on native
+#      nvhpc/26.5 (forces CUDA context creation before MPI_Init_thread --
+#      see below, and salmon-gpu-optimization-ideas' Open item 5 in
+#      subwg2-benchmarks for the full root-cause trail)
+# See .claude/skills/salmon-gpu-optimization-ideas and salmon-build in
+# subwg2-benchmarks for how each piece was measured/root-caused.
+if [[ "${system}" == "RIKYU" ]]; then
+  REPO_URL="https://github.com/william-dawson/SALMON2"
+  VERSION_TAG="FugakuNEXT-v3"
+fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
 BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 FJMPI_PATCH="${PWD}/programs/salmon/patches/fjmpi-topology-guard.patch"
+EWALD_265_PATCH="${PWD}/programs/salmon/patches/nvhpc265-ewald-reduction.patch"
 
 source scripts/bk_functions.sh
 
@@ -20,7 +44,12 @@ mkdir -p "${BUILD_LOG_DIR}"
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${VERSION_TAG}"
 
 cd "${REPO_DIR}"
-if git apply --check "${FJMPI_PATCH}"; then
+# RIKYU builds a pinned branch that already carries every fix it needs
+# (see VERSION_TAG above), so it is used as-is -- no patching. The patches
+# below exist for the systems that build stock v.2.2.2.
+if [[ "${system}" == "RIKYU" ]]; then
+  echo "RIKYU: building ${VERSION_TAG} unpatched (all fixes are in the branch)"
+elif git apply --check "${FJMPI_PATCH}"; then
   git apply "${FJMPI_PATCH}"
 elif git apply --reverse --check "${FJMPI_PATCH}" >/dev/null 2>&1; then
   echo "SALMON Fujitsu MPI topology patch is already applied"
@@ -28,6 +57,25 @@ else
   echo "SALMON Fujitsu MPI topology patch does not apply to ${VERSION_TAG}" >&2
   exit 1
 fi
+
+apply_ewald_265_patch() {
+  # Works around a silent nvfortran 26.5 OpenACC reduction-codegen bug that
+  # gives a wrong (but plausible) total energy -- see the patch file itself
+  # and .claude/skills/salmon-build in subwg2-benchmarks for the full trail.
+  # Safe to apply on every OpenACC/GPU build regardless of nvhpc version:
+  # the fix gates itself on __NVCOMPILER_MAJOR__/__NVCOMPILER_MINOR__ at
+  # compile time, so it's a no-op on unaffected compilers (<26.5).
+  # (RIKYU does not call this -- its pinned branch already contains the fix.)
+  if grep -q "SALMON_EWALD_ACC" src/common/total_energy.f90; then
+    echo "SALMON nvhpc/26.5 Ewald-reduction workaround already present"
+  elif git apply --check "${EWALD_265_PATCH}"; then
+    git apply "${EWALD_265_PATCH}"
+  else
+    echo "SALMON nvhpc/26.5 Ewald-reduction patch does not apply to ${VERSION_TAG}" >&2
+    exit 1
+  fi
+}
+
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
@@ -83,6 +131,7 @@ case "${system}" in
   RC_GH200)
     module purge
     module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
+    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -102,6 +151,7 @@ case "${system}" in
     source /etc/profile.d/modules.sh
     module purge
     module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -167,6 +217,65 @@ case "${system}" in
   #     -DUSE_FJMPI=OFF
   #   )
   #   ;;
+  RIKYU)
+    module purge
+    module load nvhpc-hpcx-cuda13/26.5
+    cmake_args=(
+      "${common_cmake_args[@]}"
+      -DCMAKE_Fortran_COMPILER=mpif90
+      -DCMAKE_C_COMPILER=mpicc
+      -DOPENMP_FLAGS=-Mnoopenmp
+      -DUSE_OPENACC=ON
+      -DUSE_MPI_DEFAULT=ON
+      -DCMAKE_SYSTEM_PROCESSOR=openacc
+      -DCMAKE_Fortran_FLAGS="-O3 -Wall -fstrict-aliasing -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver,nccl -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM -DUSE_NCCL"
+      -DCMAKE_C_FLAGS="-O3 -Wall -alias=ansi -acc=strict -gpu=cc100,managed,ptxinfo -cudalib=cublas,cusolver,nccl -cuda -Minfo=accel -DUSE_OPENACC -DUSE_GEMM -DUSE_NCCL"
+      # Module is nvhpc-hpcx-cuda13/26.5 (HPC-X 2.50 / OpenMPI 5), not
+      # plain nvhpc/26.5: that is the stack the domain-decomposition and
+      # NCCL numbers were measured on. MPI3 is left at its auto-detected
+      # ON -- no FORTRAN_COMPILER_HAS_MPI_VERSION3 override -- because the
+      # GEMM path skips calc_uVpsi_rdivided entirely, so the HPC-X libnbc
+      # bug that motivated the old 26.3 + MPI3=OFF workaround is
+      # unreachable. Do not reintroduce that workaround.
+      #
+      # FugakuNEXT-v3 also computes the nonlocal current density with a
+      # batched GEMM (it was 82% of calculating-curr): current density
+      # 29.5 -> 3.6 s and rt iterations 44.6 -> 18.7 s at 16 GPUs orbital.
+      #
+      # -DUSE_NCCL routes the pseudo-pt domain-decomposition reduce through
+      # ncclAllReduce instead of MPI_Allreduce. MPI_Allreduce performs the
+      # reduction arithmetic on the host even when handed a device pointer,
+      # so it leaves NVLink: measured 5.6 GB/s vs NCCL's 196-521 GB/s on the
+      # same 222 MB device buffer. In SALMON that is pseudo-pt comm 18.2s ->
+      # 1.7s at 4 GPUs (rt iterations 99.1 -> 80.5), energies bit-exact.
+      # It needs nccl in -cudalib. If the MPI stack ever grows a working
+      # GPU-side allreduce (UCC ships a TL_NCCL that currently never
+      # registers), drop -DUSE_NCCL and this becomes plain MPI again.
+      #
+      # NOT -DUSE_CUDA -- that flag controls a completely different, OLDER
+      # optimization path (src/common/{zpseudo,stencil_current}.cu, hand-
+      # written CUDA kernels) that this pinned source (see VERSION_TAG
+      # above) replaces with PR #1276's tuned pure-OpenACC kernels instead:
+      # a batched cuBLAS GEMM rewrite of pseudo-pt (-DUSE_GEMM, needs
+      # cusolver linked in) and an inlined OpenACC current-density kernel.
+      # That's where the real speedup comes from, not USE_CUDA -- measured
+      # data only ever showed the OLD CUDA kernels net *losing* time
+      # (pseudo-pt 3.1-3.5x slower under USE_CUDA than plain OpenACC; the
+      # 1.4-3x win on current-density wasn't enough to make up for it).
+      # USE_CUDA also has a real, deterministic bug independent of any of
+      # this: stencil_current.cu's host wrapper sizes its device idx/idy/idz
+      # buffers by each rank's LOCAL grid extent but indexes them with the
+      # RAW/global grid coordinate, which only happens to fit when a rank's
+      # is()=1 on that axis (single GPU, or pure orbital decomposition,
+      # where every rank owns the full box). Any real-space (nproc_rgrid>1)
+      # decomposition puts a non-first rank at is()>1 on the split axis and
+      # overruns the buffer -- reproduced as a deterministic Accelerator
+      # Fatal Error / CUDA_ERROR_ILLEGAL_ADDRESS in calc_current
+      # (density_matrix.f90) on every axis and Po x Pg combination tried.
+      # See subwg2-benchmarks' salmon-gpu-optimization-ideas skill (Open
+      # item 5) and salmon-build skill for the full trail on both points.
+    )
+    ;;
   *)
     echo "Unknown system: ${system}" >&2
     exit 1
