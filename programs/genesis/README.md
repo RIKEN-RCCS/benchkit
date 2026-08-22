@@ -1,7 +1,7 @@
-# GENESIS BenchKit Integration Notes
+# GENESIS Benchkit Integration Notes
 
 This directory owns GENESIS-specific build, run, profiler, and estimation
-settings. Shared BenchKit CI and estimation packages should not depend on the
+settings. Shared Benchkit CI and estimation packages should not depend on the
 environment variables documented here. They are local conveniences for
 `programs/genesis/*.sh` only; the app wrapper passes information to the shared
 layers through common artifacts such as `results/result`, `SECTION:` metadata,
@@ -134,7 +134,7 @@ used from `run.sh`, `estimate.sh`, or local diagnostics.
 `estimate.sh` should stay limited to GENESIS-owned decisions: section names,
 how to extract section timings from the GENESIS log, and which section package
 each section should use. Package loading, fallback, FOM composition, and
-Estimate JSON construction are handled by the shared BenchKit estimation layer.
+Estimate JSON construction are handled by the shared Benchkit estimation layer.
 
 Current section names are:
 
@@ -190,7 +190,7 @@ which concrete GPU estimator packages to run. This keeps GENESIS-side ownership
 limited to app concepts: section names, timing extraction, artifact candidates,
 and kernel selectors.
 
-BenchKit operators can override the concrete GPU estimator package set with the
+Benchkit operators can override the concrete GPU estimator package set with the
 generic `BK_GPU_KERNEL_ENSEMBLE_PACKAGES` variable when needed. That knob is not
 GENESIS-specific and should not be required for normal GENESIS maintenance.
 

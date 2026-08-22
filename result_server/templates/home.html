@@ -108,35 +108,27 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
     </section>
 
     <section class="page-card">
-        <h2 class="section-title">User Guide</h2>
+        <h2 class="section-title">User Guide: Add a New Application</h2>
         <p class="section-intro">
-            These guides explain how to add a new benchmark application, enable a new site, attach estimation support, and relate BenchKit work to BenchPark.
+            These guides explain how to add benchmark applications with Benchkit and coordinate Benchpark-based application bring-up.
         </p>
         <div class="home-link-list">
             <a class="home-link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
-                <strong>Add a New Application</strong>
+                <strong>Benchkit Application Guide</strong>
                 <span>Define `build.sh`, `run.sh`, `list.csv`, and result emission for a supported benchmark application.</span>
             </a>
-            <a class="home-link-card" href="{{ guide_links.add_site }}" target="_blank" rel="noopener noreferrer">
-                <strong>Add a New Site</strong>
-                <span>Register new systems, queue templates, display metadata, and site-specific runner setup.</span>
-            </a>
-            <a class="home-link-card" href="{{ guide_links.add_estimation }}" target="_blank" rel="noopener noreferrer">
-                <strong>Add Estimation Support</strong>
-                <span>Connect application-side result emission to estimation inputs and estimation workflows.</span>
-            </a>
             <a class="home-link-card" href="{{ guide_links.benchpark_fn_apps }}" target="_blank" rel="noopener noreferrer">
-                <strong>Application Onboarding</strong>
-                <span>Use the RIKEN-RCCS BenchPark FN_apps branch for FugakuNEXT/CX application bring-up and local validation.</span>
+                <strong>Benchpark FN_apps Onboarding</strong>
+                <span>Use the RIKEN-RCCS Benchpark FN_apps branch for FugakuNEXT/CX application bring-up and local validation.</span>
             </a>
             <a class="home-link-card" href="{{ guide_links.benchpark_upstream }}" target="_blank" rel="noopener noreferrer">
-                <strong>Upstream BenchPark</strong>
-                <span>The RIKEN-RCCS fork is an integration window; upstream BenchPark remains the main upstream project.</span>
+                <strong>Benchpark Upstream Project</strong>
+                <span>The RIKEN-RCCS fork is an integration window; upstream Benchpark remains the main upstream project.</span>
             </a>
             {% if guide_links.discord %}
             <a class="home-link-card" href="{{ guide_links.discord }}" target="_blank" rel="noopener noreferrer">
                 <strong>Questions and Discussion</strong>
-                <span>Use the invitation-only Discord for lightweight questions, onboarding support, and early coordination before opening issues or pull requests.</span>
+                <span>Use the invitation-only Discord for lightweight questions and early application-onboarding coordination before opening issues or pull requests.</span>
             </a>
             {% endif %}
         </div>

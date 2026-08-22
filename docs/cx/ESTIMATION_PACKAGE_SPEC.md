@@ -22,13 +22,13 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) の下位仕様であり、BenchKit が推定方式をどのような単位で受け入れ、再利用し、差し替えるかを定義する。
-推定入力をどのように採取し BenchKit へ受け渡すかは、[`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md) を参照する。
+本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) の下位仕様であり、Benchkit が推定方式をどのような単位で受け入れ、再利用し、差し替えるかを定義する。
+推定入力をどのように採取し Benchkit へ受け渡すかは、[`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md) を参照する。
 
 本書でいう推定パッケージは、推定モデル単体ではなく、計測入力の前提、必要入力、前処理、適用可能性判定、フォールバック方針、Estimate JSON への写像までを含む再利用単位である。
 
-This document is a lower-level specification under [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md). It defines the unit by which BenchKit accepts, reuses, and replaces estimation methods.
-For how estimation inputs are acquired and handed into BenchKit, see [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md).
+This document is a lower-level specification under [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md). It defines the unit by which Benchkit accepts, reuses, and replaces estimation methods.
+For how estimation inputs are acquired and handed into Benchkit, see [`ESTIMATION_INPUT_ACQUISITION_SPEC.md`](./ESTIMATION_INPUT_ACQUISITION_SPEC.md).
 
 An estimation package in this document is not just an estimation model. It is a reusable unit that includes measurement prerequisites, required inputs, preprocessing, applicability evaluation, fallback policy, and mapping into Estimate JSON.
 
@@ -101,10 +101,10 @@ The target design is that the application side only needs to specify:
 ### 3.3 計測と推定の結合を明示する / Make Measurement-Estimation Coupling Explicit
 
 推定方式は、必要な計測情報の取り方と強く結び付いている。
-したがって BenchKit は、推定モデルだけでなく、どのような計測結果を前提にする方式かをパッケージとして明示できることが望ましい。
+したがって Benchkit は、推定モデルだけでなく、どのような計測結果を前提にする方式かをパッケージとして明示できることが望ましい。
 
 Estimation methods are strongly coupled with how the required measurement data is obtained.
-Therefore BenchKit should preferably be able to represent not only the estimation model, but also the measurement assumptions of the method as part of the package.
+Therefore Benchkit should preferably be able to represent not only the estimation model, but also the measurement assumptions of the method as part of the package.
 
 ### 3.3.1 取得方式ごとの詳細パッケージ / Detailed Packages by Acquisition Path
 
@@ -137,7 +137,7 @@ They should preferably be distinguishable at least by acquisition path, for exam
 - 別の区間はトレースベース
 - その他の区間は区間時間ベース
 
-この場合、BenchKit は最終 FOM が複数区間の推定結果の合成であることを受け入れられるべきである。
+この場合、Benchkit は最終 FOM が複数区間の推定結果の合成であることを受け入れられるべきである。
 
 An estimation package may be a composite package that combines different estimation methods for different sections, rather than a single method.
 In particular, the framework should allow cases such as:
@@ -146,7 +146,7 @@ In particular, the framework should allow cases such as:
 - other sections estimated with trace-based methods
 - other sections estimated from interval timings
 
-In such cases, BenchKit should be able to accept that the final FOM is composed from multiple section-wise estimation results.
+In such cases, Benchkit should be able to accept that the final FOM is composed from multiple section-wise estimation results.
 
 overlap 区間も、section ごとの複合推定の一部として扱ってよい。
 すなわち、overlap は単なる補正値に限らず、二つ以上の section が同時進行しうる区間として独立した推定部品で表現してよい。
@@ -214,26 +214,26 @@ This makes it possible, for example, for an `intra_system_scaling_model` to allo
 推定パッケージは、常に Git 管理下に置けるとは限らない。
 将来アーキテクチャの仕様、ベンダー提供のツールチェイン、契約上の制約、非公開管理の必要性などにより、推定パッケージが以下の形を取ることを許容しなければならない。
 
-- BenchKit と同じ公開リポジトリに同梱される package
+- Benchkit と同じ公開リポジトリに同梱される package
 - ローカルファイルとして配置される package
 - 別の公開もしくは非公開リポジトリで管理される package
 - ベンダー指定の配置や呼び出し方法に従う package
 - 外部ツールや外部サービスを経由して実行される package
 
-したがって BenchKit は、推定パッケージの内容そのものを常に Git に格納することを必須要件としてはならない。
-BenchKit に求められるのは、推定パッケージの所在、識別情報、呼び出し規約、必要入力、適用条件を扱えることである。
+したがって Benchkit は、推定パッケージの内容そのものを常に Git に格納することを必須要件としてはならない。
+Benchkit に求められるのは、推定パッケージの所在、識別情報、呼び出し規約、必要入力、適用条件を扱えることである。
 
 An estimation package cannot always be stored under Git control.
 Future-architecture specifications, vendor-provided toolchains, contractual restrictions, and private-management requirements may require packages to take forms such as:
 
-- a package bundled in the same public repository as BenchKit
+- a package bundled in the same public repository as Benchkit
 - a package stored as a local file
 - a package managed in a separate public or private repository
 - a package that follows vendor-specified placement or invocation rules
 - a package executed through an external tool or service
 
-Therefore BenchKit must not require that the package implementation itself always be stored in Git.
-What BenchKit needs is the ability to handle the package location, identity, invocation rules, required inputs, and applicability conditions.
+Therefore Benchkit must not require that the package implementation itself always be stored in Git.
+What Benchkit needs is the ability to handle the package location, identity, invocation rules, required inputs, and applicability conditions.
 
 ## 4. 推定パッケージの論理構成 / Logical Structure of an Estimation Package
 
@@ -356,7 +356,7 @@ At the final Estimate JSON level, a package-level fallback may appear either as 
 The package should preferably be able to define which lighter-weight method may be used as fallback when required inputs are missing, or whether execution must stop without fallback.
 When fallback is used, the requested package identity should remain visible separately from the actually applied package identity.
 When no acceptable fallback exists, the package may return `not_applicable`.
-In that case, BenchKit may still store and present the resulting record as a `not_applicable` estimate attempt rather than treating it as a pipeline failure.
+In that case, Benchkit may still store and present the resulting record as a `not_applicable` estimate attempt rather than treating it as a pipeline failure.
 
 ### 4.6 Estimate JSON への写像 / Mapping into Estimate JSON
 
@@ -406,11 +406,11 @@ The package should preferably be able to map its information into at least the f
 - `fom_breakdown.sections`
 - `fom_breakdown.overlaps`
 
-## 5. BenchKit における責務分担 / Responsibility Split in BenchKit
+## 5. Benchkit における責務分担 / Responsibility Split in Benchkit
 
 ### 5.1 フレームワーク側責務 / Framework-Side Responsibilities
 
-BenchKit 側は、原則として以下を提供することが望ましい。
+Benchkit 側は、原則として以下を提供することが望ましい。
 
 - 推定パッケージの登録機構
 - 推定パッケージの呼び出し機構
@@ -419,7 +419,7 @@ BenchKit 側は、原則として以下を提供することが望ましい。
 - Estimate JSON の標準化
 - パッケージ識別情報の保持
 
-BenchKit should preferably provide the following:
+Benchkit should preferably provide the following:
 
 - a registration mechanism for estimation packages
 - an invocation mechanism for estimation packages
@@ -456,7 +456,7 @@ The application side should preferably be limited to:
 - 補助アーティファクトの内部フォーマット
 - 必要に応じたフォールバック規則
 
-すなわち、BenchKit が共通ルールを提供し、app 側が package を選択し、package 開発者が推定方式の具体的意味を定める、という責務分離を基本とする。
+すなわち、Benchkit が共通ルールを提供し、app 側が package を選択し、package 開発者が推定方式の具体的意味を定める、という責務分離を基本とする。
 
 The estimation-package developer is primarily responsible for defining:
 
@@ -467,7 +467,7 @@ The estimation-package developer is primarily responsible for defining:
 - the internal format of auxiliary artifacts
 - fallback rules when needed
 
-In other words, the intended separation is that BenchKit provides the common rules, the application side selects the package, and the package developer defines the concrete meaning of the estimation method.
+In other words, the intended separation is that Benchkit provides the common rules, the application side selects the package, and the package developer defines the concrete meaning of the estimation method.
 
 ## 6. 推奨される導入形態 / Recommended Adoption Forms
 
@@ -509,7 +509,7 @@ These are suitable for deeper analysis and future-system evaluation.
 
 ## 7. 参照実装イメージ / Reference Implementation Direction
 
-BenchKit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、例えば以下のような形へ寄せることが望ましい。
+Benchkit においては、将来的に app 側の `estimate.sh` が毎回すべてを書くのではなく、例えば以下のような形へ寄せることが望ましい。
 
 ```sh
 BK_ESTIMATION_CURRENT_PACKAGE=weakscaling
@@ -522,7 +522,7 @@ bk_estimation_run_declared_future_package result.json
 
 この形では、app 側はパッケージ選択と最小限の app 固有設定を担い、推定方式の詳細はパッケージ側へ集約される。
 
-In BenchKit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead looks like:
+In Benchkit, a desirable future direction is that application-side `estimate.sh` no longer implements everything each time, but instead looks like:
 
 ```sh
 BK_ESTIMATION_CURRENT_PACKAGE=weakscaling

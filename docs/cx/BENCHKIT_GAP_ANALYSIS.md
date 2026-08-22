@@ -1,4 +1,4 @@
-# BenchKit ギャップ分析 / BenchKit Gap Analysis
+# Benchkit ギャップ分析 / Benchkit Gap Analysis
 
 ## 言語方針 / Language Policy
 
@@ -12,7 +12,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 ## 1. 文書の位置づけ / Position of This Document
 
 本書は [BENCHKIT_SPEC.md](./BENCHKIT_SPEC.md) を実装確認用の観点に落とし込んだ補助文書である。
-目的は、BenchKit の主要機能について、
+目的は、Benchkit の主要機能について、
 
 - 仕様上の要求
 - 現状実装
@@ -27,7 +27,7 @@ If any discrepancy exists, the Japanese version takes precedence.
 それらは現状把握や優先度判断の補助情報として扱う。
 
 This document is a companion to [BENCHKIT_SPEC.md](./BENCHKIT_SPEC.md), translating the specification into an implementation-facing checklist.
-Its purpose is to make visible, for each major BenchKit function:
+Its purpose is to make visible, for each major Benchkit function:
 
 - specification requirements
 - current implementation status
@@ -41,7 +41,7 @@ They are used only as supporting context for understanding the current state and
 
 ## 2. 現状の要約 / Current Summary
 
-BenchKit は現時点で、継続的ベンチマークの基盤部分はかなり整っている。
+Benchkit は現時点で、継続的ベンチマークの基盤部分はかなり整っている。
 特に、
 
 - shell-first の実行基盤
@@ -54,7 +54,7 @@ BenchKit は現時点で、継続的ベンチマークの基盤部分はかな�
 
 一方で、継続的推定は入口があるものの横展開が不足しており、AI 駆動最適化連携はまだ接続点の段階にある。
 
-BenchKit already has a solid foundation for continuous benchmarking, especially in:
+Benchkit already has a solid foundation for continuous benchmarking, especially in:
 
 - shell-first execution
 - system.csv-driven CI job generation
@@ -65,7 +65,7 @@ BenchKit already has a solid foundation for continuous benchmarking, especially 
 Continuous estimation has now moved beyond a mere entry point: a common estimation flow, a `weakscaling` reference path, a detailed dummy package for `qws`, and result-provenance handoff have all been implemented.
 However, estimation is still not yet broadly deployed across multiple applications, and AI-driven optimization integration remains mostly at the integration-point stage.
 
-As of the current repository survey, BenchKit has multiple benchmark applications with `build.sh`/`run.sh`; `qws` and `genesis` now provide `estimate.sh`, while the remaining applications still need estimation declarations before they can participate in the detailed estimation flow.
+As of the current repository survey, Benchkit has multiple benchmark applications with `build.sh`/`run.sh`; `qws` and `genesis` now provide `estimate.sh`, while the remaining applications still need estimation declarations before they can participate in the detailed estimation flow.
 The result portal also already has a meaningful pytest-based test suite under `result_server/tests`, and the repository now has a repo-local Python dependency manifest, a standard portal test entrypoint under `result_server/tests`, and a lightweight GitHub Actions verification path for portal-oriented changes.
 The main GitLab pipeline still intentionally skips heavy benchmark execution when a direct or manually triggered GitLab pipeline sees changes limited to `result_server/**/*` or portal display metadata such as `config/system_info.csv`. Protected-branch synchronization itself uses `ci.skip`, so the dedicated lightweight GitHub Actions path should continue to be kept in sync as portal-side files evolve.
 
@@ -75,7 +75,7 @@ The main GitLab pipeline still intentionally skips heavy benchmark execution whe
 この節は、それらを後で見失わないための明示的なメモである。
 
 - 推定 package / flow の境界:
-  BenchKit 共通層と package 側の責務分担はかなり整理されたが、metadata discovery、複数 detailed package 間の一般化、package 間 compare の扱いはまだ固定していない。
+  Benchkit 共通層と package 側の責務分担はかなり整理されたが、metadata discovery、複数 detailed package 間の一般化、package 間 compare の扱いはまだ固定していない。
 - app 側の推定宣言 API:
   `estimate.sh` に current / future package と section 宣言を書く流れは見えてきたが、他 app へ横展開する前提の最終 API はまだ固めていない。
 - 推定結果 compare UI:
@@ -93,7 +93,7 @@ At the current stage, several issues are not simply "missing implementations" bu
 This section keeps those visible so they are not forgotten later.
 
 - estimation package / flow boundary:
-  the separation between BenchKit common flow and package-owned behavior is much clearer now, but metadata discovery, generalization across multiple detailed packages, and package-level comparison are not yet fixed.
+  the separation between Benchkit common flow and package-owned behavior is much clearer now, but metadata discovery, generalization across multiple detailed packages, and package-level comparison are not yet fixed.
 - application-side estimation declaration API:
   the direction of declaring current / future packages and section bindings in `estimate.sh` is becoming clear, but the final cross-application API is not yet frozen.
 - estimation compare UI:
@@ -146,7 +146,7 @@ The following are not standalone gaps unless the SPEC explicitly requires them: 
 - 役割名:
   現時点の repo 変更・PR 確認・手動 CI 運用では、app 担当、拠点担当、推定担当、admin を基本ロールとし、admin が reviewer / approver を兼ねる運用でよい。申請者は将来の portal 申請・承認 workflow のロールであり、現時点の文書整理で解決する責務分担には含めない。将来 workflow を実装する場合にのみ、申請者を含む権限 enforcement を機能 GAP として扱う。
 - 責務分離:
-  app 担当は `programs/<code>/` 配下の build/run/list/estimate と app 固有の採取を主に持つ。拠点担当は `config/system.csv`、`config/queue.csv`、`config/system_info.csv` と runner / scheduler / queue 条件を持つ。推定担当は `scripts/estimation/packages/` と `scripts/estimation/section_packages/` 配下の推定ロジック、metadata、fallback / applicability を持つ。BenchKit 共通層は common flow、JSON 受け渡し、portal 表示、CI / helper を持つ。この分担は `docs/guides/developer-reference.md`、`add-app.md`、`add-site.md`、`add-estimation.md`、`add-estimation-package.md` で案内する。
+  app 担当は `programs/<code>/` 配下の build/run/list/estimate と app 固有の採取を主に持つ。拠点担当は `config/system.csv`、`config/queue.csv`、`config/system_info.csv` と runner / scheduler / queue 条件を持つ。推定担当は `scripts/estimation/packages/` と `scripts/estimation/section_packages/` 配下の推定ロジック、metadata、fallback / applicability を持つ。Benchkit 共通層は common flow、JSON 受け渡し、portal 表示、CI / helper を持つ。この分担は `docs/guides/developer-reference.md`、`add-app.md`、`add-site.md`、`add-estimation.md`、`add-estimation-package.md` で案内する。
 - scaffold:
   scaffold や自動生成は必須要件ではない。既存例と guide から追加できる状態を正とし、必要に応じて任意の支援機能として検討する。
 - coverage matrix:

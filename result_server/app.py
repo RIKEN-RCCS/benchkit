@@ -79,7 +79,7 @@ def _configure_user_store(app):
 
 def _configure_totp_issuer(app, prefix):
     """Set the issuer label shown by authenticator apps."""
-    base_issuer = os.environ.get("TOTP_ISSUER", "BenchKit")
+    base_issuer = os.environ.get("TOTP_ISSUER", "Benchkit")
     app.config["TOTP_ISSUER"] = f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
 
 

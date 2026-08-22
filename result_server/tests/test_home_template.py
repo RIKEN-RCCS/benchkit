@@ -24,15 +24,20 @@ def test_home_page_renders_landing_content(monkeypatch):
     html = response.get_data(as_text=True)
     assert "CX Portal" in html
     assert "Main Entry Points" in html
-    assert "User Guide" in html
+    assert "User Guide: Add a New Application" in html
     assert "GPU Performance Estimation" not in html
     assert "Available Systems" not in html
     assert "At a Glance" not in html
     assert "Start Here" not in html
-    assert "Add a New Site" in html
+    assert "Add a New Site" not in html
+    assert "Add Estimation Support" not in html
     assert "PerfTools" not in html
-    assert "RIKEN-RCCS BenchPark FN_apps branch" in html
-    assert "Upstream BenchPark" in html
+    assert "Benchkit Application Guide" in html
+    assert "Benchpark FN_apps Onboarding" in html
+    assert "Benchpark Upstream Project" in html
+    assert "RIKEN-RCCS Benchpark FN_apps branch" in html
+    assert "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-site.md" not in html
+    assert "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-estimation.md" not in html
     assert "https://github.com/masaaki-kondo/PerfTools" not in html
     assert "https://github.com/RIKEN-RCCS/benchpark/blob/FN_apps/User_Guide.md" in html
     assert "https://github.com/llnl/benchpark" in html
@@ -57,4 +62,5 @@ def test_home_page_renders_discord_link_when_configured(monkeypatch):
     html = response.get_data(as_text=True)
     assert "Questions and Discussion" in html
     assert "invitation-only Discord" in html
+    assert "application-onboarding coordination" in html
     assert "https://discord.gg/example" in html

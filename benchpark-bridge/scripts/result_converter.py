@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-BenchPark結果をBenchKit形式に変換するスクリプト
+Benchpark結果をBenchkit形式に変換するスクリプト
 
-BenchParkのRamble結果をBenchKitのJSON形式に変換し、
+BenchparkのRamble結果をBenchkitのJSON形式に変換し、
 既存の結果表示システムで表示できるようにします。
 """
 
@@ -18,7 +18,7 @@ def extract_node_count_from_experiment(workspace_path, experiment_name):
     """実験のexecute_experimentスクリプトからノード数を抽出
     
     Args:
-        workspace_path: BenchParkワークスペースのパス
+        workspace_path: Benchparkワークスペースのパス
         experiment_name: 実験名（例: osu-micro-benchmarks.osu_bibw.osu-micro-benchmarks_osu_bibw_test_mpi_2）
     
     Returns:
@@ -78,7 +78,7 @@ def extract_node_count_from_experiment(workspace_path, experiment_name):
 
 
 def find_benchpark_results(workspace_path, system, app):
-    """BenchPark結果ファイルを検索"""
+    """Benchpark結果ファイルを検索"""
     # results.latest.txtを優先的に使用
     latest_results = os.path.join(workspace_path, "results.latest.txt")
     
@@ -91,15 +91,15 @@ def find_benchpark_results(workspace_path, system, app):
     result_files = glob.glob(results_pattern)
     
     if not result_files:
-        print(f"No BenchPark results found in {workspace_path}")
+        print(f"No Benchpark results found in {workspace_path}")
         return []
     
-    print(f"Found {len(result_files)} BenchPark result files")
+    print(f"Found {len(result_files)} Benchpark result files")
     return result_files
 
 
 def parse_benchpark_result(result_file):
-    """BenchPark結果ファイルを解析"""
+    """Benchpark結果ファイルを解析"""
     # results.latest.txtの場合
     if result_file.endswith("results.latest.txt") or result_file.endswith(".txt"):
         return parse_ramble_results_txt(result_file)
@@ -288,13 +288,13 @@ def parse_ramble_results_txt(result_file):
 
 
 def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
-    """BenchKit形式のJSONに変換（ベクトル型メトリクス対応）
+    """Benchkit形式のJSONに変換（ベクトル型メトリクス対応）
     
     Args:
         parsed_result: 解析済みの実験結果
         system: システム名
         app: アプリケーション名
-        workspace_path: BenchParkワークスペースのパス（ノード数抽出用）
+        workspace_path: Benchparkワークスペースのパス（ノード数抽出用）
     """
     
     if not parsed_result:
@@ -404,7 +404,7 @@ def convert_to_benchkit_format(parsed_result, system, app, workspace_path):
     
     # タイムスタンプはサーバ側で自動追加されるため不要
     
-    # BenchKit形式のJSON構造（新形式）
+    # Benchkit形式のJSON構造（新形式）
     result = {
         "code": f"benchpark-{app}",
         "system": system,
@@ -476,10 +476,10 @@ def main():
         print(f"Error: Workspace not found: {workspace_path}")
         sys.exit(1)
     
-    print(f"Converting BenchPark results for {app} on {system}")
+    print(f"Converting Benchpark results for {app} on {system}")
     print(f"Workspace path: {workspace_path}")
     
-    # BenchPark結果を検索
+    # Benchpark結果を検索
     result_files = find_benchpark_results(workspace_path, system, app)
     
     if not result_files:
@@ -509,21 +509,21 @@ def main():
     # 各実験を個別のJSONファイルとして保存
     output_files = []
     for i, experiment in enumerate(all_experiments):
-        # BenchKit形式に変換
+        # Benchkit形式に変換
         benchkit_result = convert_to_benchkit_format(experiment, system, app, workspace_path)
         
         if not benchkit_result:
             print(f"Failed to convert experiment {i+1}")
             continue
         
-        # BenchKit互換のファイル名形式（result*.json）
+        # Benchkit互換のファイル名形式（result*.json）
         # 既存のsend_results.shがそのまま使える
-        # BenchKitはresult0.jsonから始まる
+        # Benchkitはresult0.jsonから始まる
         output_file = f"results/result{i}.json"
         
         with open(output_file, 'w') as f:
             json.dump(benchkit_result, f, indent=2)
-            f.write('\n')  # 末尾に改行を追加（BenchKit互換）
+            f.write('\n')  # 末尾に改行を追加（Benchkit互換）
         
         output_files.append(output_file)
         print(f"Experiment {i+1}/{len(all_experiments)}: {experiment.get('experiment', 'unknown')}")

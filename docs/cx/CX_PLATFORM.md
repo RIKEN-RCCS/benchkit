@@ -48,14 +48,14 @@ It integrates software components, external tools, external services, compute sy
 本書は、構成要素、責務境界、接続要件を定義する。
 個別ソフトウェアの詳細仕様は必要に応じて下位仕様で定義する。
 
-BenchKit に関する詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) を参照する。
+Benchkit に関する詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) を参照する。
 主要用語は [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md) の用語集に従う。
 
 This document defines the CX Platform as the overall system that implements [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 It defines components, responsibility boundaries, and connection requirements.
 Software-specific details may be defined in lower-level specifications where needed.
 
-For BenchKit-specific details, see [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
+For Benchkit-specific details, see [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
 Core terminology follows the glossary in [`CX_FRAMEWORK.md`](./CX_FRAMEWORK.md).
 
 ## 2. 適用範囲 / Scope
@@ -84,27 +84,27 @@ The CX Platform includes:
 - integration infrastructure for replaceable measurement and estimation methods
 - operational infrastructure that allows minimum and more detailed estimation paths to coexist
 
-## 3. BenchKit の位置づけ / Position of BenchKit
+## 3. Benchkit の位置づけ / Position of Benchkit
 
-BenchKit は CX基盤を構成する中核ソフトウェアの1つである。
-BenchKit は主として、CX 基盤におけるベンチマーク実行、結果正規化、結果表示、および関連ワークフローへの接続点を担う。
+Benchkit は CX基盤を構成する中核ソフトウェアの1つである。
+Benchkit は主として、CX 基盤におけるベンチマーク実行、結果正規化、結果表示、および関連ワークフローへの接続点を担う。
 詳細は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) を参照する。
 
-BenchKit is one of the core software components of the CX Platform.
-BenchKit is primarily responsible for benchmark execution, result normalization, result presentation, and integration points for related workflows within the CX Platform.
+Benchkit is one of the core software components of the CX Platform.
+Benchkit is primarily responsible for benchmark execution, result normalization, result presentation, and integration points for related workflows within the CX Platform.
 For details, see [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
 
 ## 4. CX基盤の構成要素 / Platform Components
 
 ### 4.1 内部中核コンポーネント / Core Internal Components
 
-#### BenchKit
+#### Benchkit
 
-BenchKit は CX 基盤における中核ソフトウェアである。
-本書では、BenchKit を CX 基盤の主要構成要素として位置づけるにとどめる。
+Benchkit は CX 基盤における中核ソフトウェアである。
+本書では、Benchkit を CX 基盤の主要構成要素として位置づけるにとどめる。
 
-BenchKit is a core software component within the CX Platform.
-This document only positions BenchKit as one of the major components of the CX Platform.
+Benchkit is a core software component within the CX Platform.
+This document only positions Benchkit as one of the major components of the CX Platform.
 
 #### 結果ポータル / Result Portal
 
@@ -159,31 +159,31 @@ It is currently an emerging layer.
 
 ### 4.2 外部ツール / External Tools
 
-外部ツールとは、CX基盤が利用するが BenchKit 自身の内部実装ではないツールを指す。
+外部ツールとは、CX基盤が利用するが Benchkit 自身の内部実装ではないツールを指す。
 
 例:
-- BenchPark
+- Benchpark
 - Spack
 - Ramble
 - コンパイラツールチェイン
 - スケジューラコマンド
 - 性能解析ツール
 
-ここでいう外部ツールには、BenchKit が直接規定しないが、実行結果や運用成立性に強く影響する実行時の細かな動作仕様も含まれる。
+ここでいう外部ツールには、Benchkit が直接規定しないが、実行結果や運用成立性に強く影響する実行時の細かな動作仕様も含まれる。
 例えば、ジョブ投入方法、ジョブ完了判定、MPI ランチャの使い方、module 環境、共有ストレージ配置、標準出力やログの扱いなどである。
 ただし、これらは CX 基盤にとって無関係なものではなく、拠点接続要件として明示的に把握・管理・接続されるべき対象である。
 
-External tools are tools used by the CX Platform but not owned as part of BenchKit itself.
+External tools are tools used by the CX Platform but not owned as part of Benchkit itself.
 
 Examples:
-- BenchPark
+- Benchpark
 - Spack
 - Ramble
 - compiler toolchains
 - scheduler commands
 - performance analysis tools
 
-External tools here also include detailed runtime behaviors that are not directly specified by BenchKit but strongly affect execution outcomes and operational viability.
+External tools here also include detailed runtime behaviors that are not directly specified by Benchkit but strongly affect execution outcomes and operational viability.
 Examples include job submission semantics, job completion semantics, MPI launcher behavior, module environments, shared storage layout, and stdout/log handling.
 These are not irrelevant to the CX Platform; they must be explicitly captured and managed as site integration requirements.
 
@@ -245,9 +245,9 @@ For each execution environment, the CX Platform must define site integration con
 
 ## 5. 責務境界 / Responsibility Boundaries
 
-### 5.1 BenchKit の責務 / BenchKit Responsibilities
+### 5.1 Benchkit の責務 / Benchkit Responsibilities
 
-BenchKit が責任を持つもの:
+Benchkit が責任を持つもの:
 - ベンチマーク実行定義
 - system / queue とベンチ実行の対応付け
 - runner / scheduler / 実システムの接続条件の整理
@@ -257,7 +257,7 @@ BenchKit が責任を持つもの:
 - 使用量集計表示と、それに関連する運用上の current-state 可視化
 - アプリ追加の受け皿
 
-BenchKit owns:
+Benchkit owns:
 - benchmark execution definitions
 - mapping between systems/queues and benchmark workflows
 - organization of runner / scheduler / real-system integration conditions
@@ -271,18 +271,18 @@ BenchKit owns:
 
 外部ツールが責任を持つもの:
 - パッケージビルドフレームワーク
-- BenchKit 外部のベンチマーク定義体系
+- Benchkit 外部のベンチマーク定義体系
 - システム固有パッケージ解決
-- BenchKit が直接規定しない実行時の細かな動作仕様
+- Benchkit が直接規定しない実行時の細かな動作仕様
 
 ただし、外部ツールに依存する実行時仕様であっても、CX 基盤側はそれを拠点接続要件として把握し、runner 登録、Jacamar 設定、ジョブ完了判定、結果回収条件などに落とし込まなければならない。
 したがって、ここでいう外部責務は「CX 基盤が考慮しなくてよい領域」を意味しない。
 
 External tools own:
 - package build frameworks
-- benchmark definition semantics outside BenchKit
+- benchmark definition semantics outside Benchkit
 - system-specific package resolution
-- detailed runtime behaviors not directly specified by BenchKit
+- detailed runtime behaviors not directly specified by Benchkit
 
 However, even when runtime behavior is governed by external tools, the CX Platform must still capture it as site integration requirements and translate it into runner registration, Jacamar configuration, job completion rules, and result collection conditions.
 External responsibility here does not mean the CX Platform may ignore the area.
@@ -450,7 +450,7 @@ The platform should support:
 - 外部ツール・外部サービスとの境界を明示する
 - 計測方式、推定方式、AI 連携方式は差し替え可能であることを基本とする
 - 申請・承認・自動PR・AI連携を段階的に追加する
-- BenchKit を CX基盤の中核ポータルへ発展させる
+- Benchkit を CX基盤の中核ポータルへ発展させる
 
 The long-term direction is:
 
@@ -459,13 +459,13 @@ The long-term direction is:
 - explicit boundaries with external tools and services
 - replaceability of measurement methods, estimation methods, and AI integration methods
 - gradual addition of request, approval, auto-PR, and AI integrations
-- evolution of BenchKit toward the core portal of the CX Platform
+- evolution of Benchkit toward the core portal of the CX Platform
 
 ## 10. 下位仕様との関係 / Relationship to Lower-Level Specifications
 
 CX基盤仕様は、以下の親仕様となる。
 
-- BenchKit 仕様
+- Benchkit 仕様
 - Result / Estimate データモデル仕様
 - 申請・承認ワークフロー仕様
 - 最適化ワークフロー仕様
@@ -473,7 +473,7 @@ CX基盤仕様は、以下の親仕様となる。
 
 The CX Platform specification is the parent specification for:
 
-- BenchKit specifications
+- Benchkit specifications
 - Result / Estimate data model specifications
 - request and approval workflow specifications
 - optimization workflow specifications

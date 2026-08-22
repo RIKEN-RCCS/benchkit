@@ -91,7 +91,7 @@ bk_estimation_package_metadata() {
       "score": 0.20
     },
     "notes": {
-      "summary": "Reference implementation for application-defined section timing based estimation in BenchKit."
+      "summary": "Reference implementation for application-defined section timing based estimation in Benchkit."
     },
     "assumptions": {
       "scaling_assumption": "weak-scaling",

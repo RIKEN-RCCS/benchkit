@@ -11,9 +11,9 @@ If any discrepancy exists, the Japanese version takes precedence.
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、BenchKit が保存・表示し、将来の比較や再推定にも使えるように保持する Estimate JSON の最小要件を定義する。
+本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) に対するデータ形式仕様であり、Benchkit が保存・表示し、将来の比較や再推定にも使えるように保持する Estimate JSON の最小要件を定義する。
 
-This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum requirements for Estimate JSON as stored, presented, and preserved by BenchKit so that future comparison and re-estimation remain possible.
+This document is the data-format specification corresponding to [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md), defining the minimum requirements for Estimate JSON as stored, presented, and preserved by Benchkit so that future comparison and re-estimation remain possible.
 
 ## 2. 目的 / Purpose
 
@@ -195,7 +195,7 @@ Estimate JSON may include the following extension fields:
 - `confidence`
 - `notes`
 
-In addition, BenchKit may retain result-compatible CI provenance at the top level, such as `execution_mode`, `ci_trigger`, `pipeline_id`, and `estimate_job`, so that the estimate can be traced back to the CI pipeline that produced it.
+In addition, Benchkit may retain result-compatible CI provenance at the top level, such as `execution_mode`, `ci_trigger`, `pipeline_id`, and `estimate_job`, so that the estimate can be traced back to the CI pipeline that produced it.
 
 ### 6.1 estimate_metadata
 
@@ -441,7 +441,7 @@ This field may include assumptions such as:
   - 推定は試みられたが、最終的に推定結果として成立しなかった
 
 `not_applicable` はパイプライン失敗を意味しない。
-BenchKit は、推定不成立であっても、その試行結果を Estimate JSON として保存・表示してよい。
+Benchkit は、推定不成立であっても、その試行結果を Estimate JSON として保存・表示してよい。
 
 When fallback occurs, `applicability` should preferably record why the requested package could not be applied.
 In such a case, `estimate_metadata.requested_estimation_package` identifies the originally requested package, while `estimate_metadata.estimation_package` identifies the package actually applied.
@@ -628,7 +628,7 @@ However, more detailed estimation methods may instead use traces, counters, or m
 
 ## 8. 将来拡張時の互換性 / Compatibility for Future Extensions
 
-BenchKit は、最小必須項目が満たされていれば、未知の任意項目を原則として破棄せず保持できることが望ましい。
+Benchkit は、最小必須項目が満たされていれば、未知の任意項目を原則として破棄せず保持できることが望ましい。
 
 これにより、
 
@@ -638,7 +638,7 @@ BenchKit は、最小必須項目が満たされていれば、未知の任意�
 
 を段階的に追加しやすくする。
 
-BenchKit should preferably preserve unknown optional fields as long as the minimum required fields are present.
+Benchkit should preferably preserve unknown optional fields as long as the minimum required fields are present.
 
 This makes it easier to introduce:
 

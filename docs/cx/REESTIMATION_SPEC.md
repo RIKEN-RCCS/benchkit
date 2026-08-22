@@ -54,11 +54,11 @@ Typical use cases include:
 
 再推定では、入力となる benchmark result を明示的に固定しなければならない。
 この識別には、少なくとも result の UUID を用いることを基本とする。
-再推定の利用者向け入口は `estimate_result_uuid` に統一する。BenchKit はその estimate が保持する `source_result_uuid` を内部的に解決し、元 result を辿る。
+再推定の利用者向け入口は `estimate_result_uuid` に統一する。Benchkit はその estimate が保持する `source_result_uuid` を内部的に解決し、元 result を辿る。
 
 In re-estimation, the input benchmark result must be explicitly fixed.
 The documented user-facing entrypoint is `estimate_result_uuid`.
-BenchKit internally resolves the original benchmark result through the `source_result_uuid` stored in that estimate.
+Benchkit internally resolves the original benchmark result through the `source_result_uuid` stored in that estimate.
 
 ### 3.2 比較可能性 / Comparability
 
@@ -98,20 +98,20 @@ It must not silently ignore missing inputs and still report a successful estimat
 
 ## 4. 再推定フロー / Re-Estimation Flow
 
-BenchKit における再推定の典型フローは以下である。
+Benchkit における再推定の典型フローは以下である。
 
 1. 利用者またはワークフローが `estimate_result_uuid` を指定する
-2. BenchKit は estimate JSON を取得し、そこから `source_result_uuid` を解決する
-3. BenchKit が対応する Result JSON を取得する
+2. Benchkit は estimate JSON を取得し、そこから `source_result_uuid` を解決する
+3. Benchkit が対応する Result JSON を取得する
 4. 対象 app の `estimate.sh` を起動する
 5. `Estimate JSON` を生成する
 6. 生成結果を保存し、ポータルで参照可能にする
 
-The typical re-estimation flow in BenchKit is:
+The typical re-estimation flow in Benchkit is:
 
 1. a user or workflow specifies an `estimate_result_uuid`
-2. BenchKit fetches the estimate JSON and resolves `source_result_uuid`
-3. BenchKit fetches the corresponding Result JSON
+2. Benchkit fetches the estimate JSON and resolves `source_result_uuid`
+3. Benchkit fetches the corresponding Result JSON
 4. the app-specific `estimate.sh` is invoked
 5. an `Estimate JSON` is generated
 6. the generated result is stored and made available through the portal
@@ -144,7 +144,7 @@ Optionally, the following may also be supplied:
 - baseline-selection conditions
 - fallback policy
 
-## 6. BenchKit における現行実装 / Current Implementation in BenchKit
+## 6. Benchkit における現行実装 / Current Implementation in Benchkit
 
 現行実装では、以下の要素が存在する。
 
@@ -290,7 +290,7 @@ At least the following need to be clarified:
 
 ## 8. 推奨要件 / Recommended Requirements
 
-BenchKit における再推定は、少なくとも以下を満たすことが望ましい。
+Benchkit における再推定は、少なくとも以下を満たすことが望ましい。
 
 1. `estimate_result_uuid` 指定で benchmark result を再取得できること
 2. app ごとの `estimate.sh` を同じ入力に対して繰り返し実行できること
@@ -299,7 +299,7 @@ BenchKit における再推定は、少なくとも以下を満たすことが�
 5. `weakscaling` を最小経路とする推定と詳細推定を同一の比較軸で扱えること
 6. 必要入力不足時に、不適用・フォールバック・再計測要求を明示できること
 
-Re-estimation in BenchKit should preferably satisfy at least:
+Re-estimation in Benchkit should preferably satisfy at least:
 
 1. the benchmark result can be re-fetched from `estimate_result_uuid`
 2. app-specific `estimate.sh` can be run repeatedly for the same input
@@ -343,7 +343,7 @@ Candidate next steps include:
 
 ## 10. 現在の実装状態の補遺 / Addendum on Current Status
 
-現時点の BenchKit では、再推定について次が成立している。
+現時点の Benchkit では、再推定について次が成立している。
 
 - 利用者向け入口として `estimate_result_uuid` を使える
 - `estimate_result_uuid` から stored estimate JSON を取得し、そこから `source_result_uuid` を解決できる

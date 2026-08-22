@@ -1,6 +1,6 @@
 # Profiler Level Reference
 
-This note complements `bk_profiler` and focuses on the shared level names used by BenchKit.
+This note complements `bk_profiler` and focuses on the shared level names used by Benchkit.
 
 ## Shared Levels
 
@@ -13,7 +13,7 @@ This note complements `bk_profiler` and focuses on the shared level names used b
 - `detailed`
   - detailed profile coverage
 
-These names are BenchKit-level presets. Each profiler adapter defines the concrete behavior behind them.
+These names are Benchkit-level presets. Each profiler adapter defines the concrete behavior behind them.
 For example, `fapp` maps these levels to multiple event-set runs, while `ncu` maps them to Nsight Compute options such as section set, launch count, and NVTX filtering.
 
 ## Current `fapp` Mapping
@@ -52,9 +52,9 @@ Here `both` means text summaries plus CSV reports.
   - `--set full --nvtx`
 
 Default report behavior for `ncu` is `text`.
-BenchKit stores the Nsight Compute raw report under `bk_profiler_artifact/raw/rep1/` and, when import succeeds, a text details page under `bk_profiler_artifact/reports/ncu_import_rep1.txt`.
+Benchkit stores the Nsight Compute raw report under `bk_profiler_artifact/raw/rep1/` and, when import succeeds, a text details page under `bk_profiler_artifact/reports/ncu_import_rep1.txt`.
 
-For GPU estimation bring-up, BenchKit also has an offline NCU plan generator:
+For GPU estimation bring-up, Benchkit also has an offline NCU plan generator:
 `scripts/profiling/generate_ncu_plan.py`.
 It reads an Nsight Systems CUDA kernel summary CSV and writes `kernel_discovery.json`
 plus `ncu_plan.json`.  This is intentionally separate from the `single/simple`
@@ -63,7 +63,7 @@ while `bk_profiler ncu` still owns the concrete Nsight Compute collection.
 
 ## Portal Summary
 
-BenchKit stores profiler metadata in `bk_profiler_artifact/meta.json` inside `padata.tgz`, and also copies a compact summary into `result.json` as `profile_data`.
+Benchkit stores profiler metadata in `bk_profiler_artifact/meta.json` inside `padata.tgz`, and also copies a compact summary into `result.json` as `profile_data`.
 
 This makes it possible to inspect profiler coverage without downloading the archive first.
 

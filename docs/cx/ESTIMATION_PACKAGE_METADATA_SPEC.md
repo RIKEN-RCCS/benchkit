@@ -28,7 +28,7 @@ This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`
 
 ## 2. 目的 / Purpose
 
-推定パッケージ metadata の目的は、BenchKit が推定パッケージを登録し、選択し、適用可能性や fallback を判断し、将来の比較や置き換えにも耐えられる形で扱えるようにすることである。
+推定パッケージ metadata の目的は、Benchkit が推定パッケージを登録し、選択し、適用可能性や fallback を判断し、将来の比較や置き換えにも耐えられる形で扱えるようにすることである。
 
 主な用途は以下である。
 
@@ -38,7 +38,7 @@ This document is a lower-level specification under [`ESTIMATION_PACKAGE_SPEC.md`
 - フォールバック方針の共有
 - Estimate JSON への写像の補助
 
-The purpose of estimation-package metadata is to allow BenchKit to register and select estimation packages, evaluate applicability and fallback, and preserve future comparison and replacement in a consistent way.
+The purpose of estimation-package metadata is to allow Benchkit to register and select estimation packages, evaluate applicability and fallback, and preserve future comparison and replacement in a consistent way.
 
 Typical uses include:
 
@@ -211,7 +211,7 @@ Estimation-package metadata may optionally contain:
 - `vendor_provided`
 - `external_service`
 
-これは、推定方式の実装本体が BenchKit と同じ公開リポジトリに同梱されるのか、別の公開または非公開リポジトリで管理されるのか、あるいはローカルやベンダー指定の形で扱われるのかを BenchKit から識別するための補助情報である。
+これは、推定方式の実装本体が Benchkit と同じ公開リポジトリに同梱されるのか、別の公開または非公開リポジトリで管理されるのか、あるいはローカルやベンダー指定の形で扱われるのかを Benchkit から識別するための補助情報である。
 
 Represents how the package is placed or provided.
 At the initial stage, it should preferably be able to express at least:
@@ -222,7 +222,7 @@ At the initial stage, it should preferably be able to express at least:
 - `vendor_provided`
 - `external_service`
 
-This helps BenchKit identify whether the package implementation is bundled in the same public repository as BenchKit, managed in a separate public or private repository, or handled locally or by vendor-specific means.
+This helps Benchkit identify whether the package implementation is bundled in the same public repository as Benchkit, managed in a separate public or private repository, or handled locally or by vendor-specific means.
 
 ### 5.2 package_location
 

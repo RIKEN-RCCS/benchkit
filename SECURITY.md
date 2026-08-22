@@ -1,6 +1,6 @@
 # Security Policy
 
-BenchKit is published as open source, so security fixes and reporting paths
+Benchkit is published as open source, so security fixes and reporting paths
 need to be clear for external users and researchers.
 
 ## Supported Versions

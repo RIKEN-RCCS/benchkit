@@ -17,10 +17,10 @@ __pycache__/
 .venv/
 .venv-*/
 
-# BenchPark repository (external reference)
+# Benchpark repository (external reference)
 benchpark/
 
-# BenchPark workspace (generated during CI)
+# Benchpark workspace (generated during CI)
 benchpark-workspace/
 
 # Estimator tool checkouts prepared during CI/local smoke tests

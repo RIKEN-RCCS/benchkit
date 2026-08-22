@@ -1,6 +1,6 @@
 #!/bin/bash
 # bk_functions.sh - Common functions for standardized benchmark result output.
-# Source this file from BenchKit bash run/build/estimate scripts.
+# Source this file from Benchkit bash run/build/estimate scripts.
 #
 # Bash is required for the estimation and profiler helpers below.
 
@@ -715,7 +715,7 @@ bk_section_package_requires_special_acquisition() {
 #   Execute the command as-is.
 #
 # Extension point:
-#   If bk_wrap_estimation_data_collection is defined, BenchKit calls it instead.
+#   If bk_wrap_estimation_data_collection is defined, Benchkit calls it instead.
 #   This allows package- or site-dependent wrappers such as ncu, profiler, or
 #   hardware-counter tools to be inserted without pushing that logic into app
 #   estimate.sh files.
@@ -753,7 +753,7 @@ bk_run_estimation_data_collection() {
 
 # Profiler helpers
 #
-# BenchKit keeps the common wrapper in bk_functions.sh, while each application
+# Benchkit keeps the common wrapper in bk_functions.sh, while each application
 # decides whether to use a profiler and which profiler tool / level to request.
 # A level is translated per tool: fapp levels expand to one or more counter
 # event runs, while ncu levels expand to a single Nsight Compute invocation with

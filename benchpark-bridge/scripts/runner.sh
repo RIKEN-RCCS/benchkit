@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# BenchPark実行管理スクリプト（QC-GH200専用）
+# Benchpark実行管理スクリプト（QC-GH200専用）
 
 source ./benchpark-bridge/scripts/common.sh
 
@@ -14,15 +14,15 @@ BENCHPARK_ROOT="/home/users/nakamura/src/benchpark/r-ccs-fork/benchpark"
 
 case "$ACTION" in
   "setup")
-    echo "Setting up BenchPark for $APP on $SYSTEM"
-    echo "Note: Setup is handled by BenchPark workspace initialization"
+    echo "Setting up Benchpark for $APP on $SYSTEM"
+    echo "Note: Setup is handled by Benchpark workspace initialization"
     ;;
     
   "run")
-    echo "Running BenchPark experiment: $APP on $SYSTEM"
+    echo "Running Benchpark experiment: $APP on $SYSTEM"
     
     # setup.shで環境変数を設定
-    echo "Loading BenchPark environment"
+    echo "Loading Benchpark environment"
     . "$BENCHPARK_ROOT/workspace/setup.sh"
     
     # Rambleワークスペースのパス
@@ -49,10 +49,10 @@ case "$ACTION" in
       echo "Extracted SLURM job IDs: $job_ids"
     fi
     
-    echo "BenchPark experiment submitted"
+    echo "Benchpark experiment submitted"
     
     # ジョブ完了を待機（ジョブIDを渡す）
-    echo "Waiting for BenchPark jobs to complete"
+    echo "Waiting for Benchpark jobs to complete"
     wait_for_ramble_jobs "$RAMBLE_WORKSPACE" "$job_ids"
     
     # ジョブ完了後、Rambleワークスペースを解析
@@ -64,13 +64,13 @@ case "$ACTION" in
     # 結果を解析
     ramble workspace analyze
     
-    echo "BenchPark jobs completed and analyzed"
+    echo "Benchpark jobs completed and analyzed"
     ;;
     
   *)
     echo "Usage: $0 {setup|run} <app>"
-    echo "  setup: Prepare BenchPark (QC-GH200)"
-    echo "  run:   Submit BenchPark experiment and wait for completion (QC-GH200)"
+    echo "  setup: Prepare Benchpark (QC-GH200)"
+    echo "  run:   Submit Benchpark experiment and wait for completion (QC-GH200)"
     exit 1
     ;;
 esac

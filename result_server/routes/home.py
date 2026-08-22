@@ -5,8 +5,6 @@ from flask import render_template
 
 HOME_GUIDE_LINKS = {
     "add_app": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-app.md",
-    "add_site": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-site.md",
-    "add_estimation": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-estimation.md",
     "benchpark_fn_apps": "https://github.com/RIKEN-RCCS/benchpark/blob/FN_apps/User_Guide.md",
     "benchpark_upstream": "https://github.com/llnl/benchpark",
 }

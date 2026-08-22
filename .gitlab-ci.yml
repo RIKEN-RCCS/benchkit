@@ -153,7 +153,7 @@ trigger_child_pipeline:
           - "config/system_info.csv"
       when: never
     - when: always
-# BenchPark Monitor Jobs
+# Benchpark Monitor Jobs
 generate_benchpark_matrix:
   stage: generate
   script:
@@ -166,9 +166,9 @@ generate_benchpark_matrix:
     expire_in: 1 hour
   rules:
     - if: '$estimate_result_uuid != ""'
-      when: never  # 推定モードではBenchParkパイプラインも無効化
+      when: never  # 推定モードではBenchparkパイプラインも無効化
     - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
-      when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
+      when: never  # Benchkit専用のcode指定時はBenchparkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
     - if: '$park_send == "true"'
@@ -205,9 +205,9 @@ trigger_benchpark_pipeline:
       optional: true
   rules:
     - if: '$estimate_result_uuid != ""'
-      when: never  # 推定モードではBenchParkパイプラインも無効化
+      when: never  # 推定モードではBenchparkパイプラインも無効化
     - if: '$code != "" && $benchpark != "true" && $park_only != "true" && $park_send != "true"'
-      when: never  # BenchKit専用のcode指定時はBenchParkを実行しない
+      when: never  # Benchkit専用のcode指定時はBenchparkを実行しない
     - if: '$park_only == "true"'
       when: always  # park_onlyモードでは常に実行
     - if: '$park_send == "true"'

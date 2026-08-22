@@ -40,7 +40,7 @@ def app(tmp_dirs):
                 "user@example.com": ["dev"],
             }
         ),
-        totp_issuer="BenchKit-Test",
+        totp_issuer="Benchkit-Test",
     )
 
 

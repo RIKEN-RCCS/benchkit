@@ -23,7 +23,7 @@ Usage:
 
 Options:
   --site SITE              Site suffix used for the systemd unit name.
-  --repo-dir DIR           BenchKit checkout. Default: current directory.
+  --repo-dir DIR           Benchkit checkout. Default: current directory.
   --venv DIR               Python venv. Default: $HOME/fugakunext/venv.
   --db PATH                cx_portal.sqlite3 path.
                            Default: $HOME/fugakunext/$SITE/cx_portal.sqlite3.
@@ -95,7 +95,7 @@ if [[ -z "$env_file" ]]; then
   env_file="$HOME/.config/fncx/$site.env"
 fi
 
-[[ -d "$repo_dir/.git" ]] || die "--repo-dir must point at a BenchKit checkout"
+[[ -d "$repo_dir/.git" ]] || die "--repo-dir must point at a Benchkit checkout"
 [[ -x "$venv_dir/bin/python" ]] || die "Python not found: $venv_dir/bin/python"
 [[ -f "$db_path" ]] || die "DB not found: $db_path"
 [[ -f "$env_file" ]] || die "EnvironmentFile not found: $env_file"
@@ -127,7 +127,7 @@ runner_args+=(--schedule-lookback-minutes "$schedule_lookback_minutes")
 info "Writing $service_path"
 {
   printf '[Unit]\n'
-  printf 'Description=BenchKit Portal trigger runner (%s)\n' "$site"
+  printf 'Description=Benchkit Portal trigger runner (%s)\n' "$site"
   printf 'After=network-online.target\n'
   if [[ -n "$service_host" ]]; then
     printf 'ConditionHost=%s\n' "$service_host"
@@ -146,7 +146,7 @@ info "Writing $service_path"
 info "Writing $timer_path"
 {
   printf '[Unit]\n'
-  printf 'Description=Run BenchKit Portal trigger runner (%s)\n' "$site"
+  printf 'Description=Run Benchkit Portal trigger runner (%s)\n' "$site"
   printf '\n[Timer]\n'
   printf 'OnCalendar=%s\n' "$on_calendar"
   printf 'Persistent=true\n'

@@ -1,6 +1,6 @@
-# Contributing to BenchKit
+# Contributing to Benchkit
 
-Thank you for contributing to BenchKit.
+Thank you for contributing to Benchkit.
 
 This project aims to support an open ecosystem around the CX Framework and CX Platform. Contributions from application developers, system operators, and related communities are welcome.
 

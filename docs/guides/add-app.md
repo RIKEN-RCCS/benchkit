@@ -1,6 +1,6 @@
 # アプリ追加手順（開発者向け）
 
-このドキュメントは、BenchKit に新しいアプリ（プログラム）を追加する手順を開発者向けにまとめたものです。
+このドキュメントは、Benchkit に新しいアプリ（プログラム）を追加する手順を開発者向けにまとめたものです。
 サンプルアプリ `qws` を参考に、新しいアプリ `<code>` を追加して PR を作成するまでを説明します。
 
 ## このガイドでの app 担当の責務
@@ -96,7 +96,7 @@ RC_FX700,yes,1,4,12,0:10:00
 
 ### `config/system.csv` との責務分担
 
-BenchKit では、実行条件とシステム運用設定を明確に分けます。
+Benchkit では、実行条件とシステム運用設定を明確に分けます。
 
 - `programs/<code>/list.csv`
   - そのアプリをどのシステム・どのノード数・どのMPI/OpenMP条件で流すか
@@ -114,7 +114,7 @@ BenchKit では、実行条件とシステム運用設定を明確に分けま�
 
 ### `source_info` の現時点の方針
 
-BenchKit では、まず **top-level application の source provenance** を追えることを優先します。
+Benchkit では、まず **top-level application の source provenance** を追えることを優先します。
 具体的には、Git 管理のアプリであれば `repo_url`、`branch`、`commit_hash` を `source_info` として入れられる形が望ましいです。
 
 一方で、ローカルファイルや依存ライブラリを含む完全な provenance を、現時点ですべての app に必須化する方針ではありません。
@@ -320,7 +320,7 @@ bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 
 ### 最低限必要な出力
 
-新しい app を BenchKit に接続する最低ラインは、`run.sh` が `results/result` に少なくとも `FOM:<数値>` 相当の結果を書けることです。
+新しい app を Benchkit に接続する最低ラインは、`run.sh` が `results/result` に少なくとも `FOM:<数値>` 相当の結果を書けることです。
 ただし FOM には単位が含まれないため、`FOM_unit:s` のように単位も出してください。
 多くのアプリでは経過時間の `s` で十分ですが、システムソフトウェアやライブラリでは `GB/s`、`GFLOPS`、`token/s` などになることがあります。
 `bk_emit_result --fom ... --fom-unit ...` を使うと、FOM、単位、実験名、ノード数、プロセス数、スレッド数を同じ形式で出力できます。
@@ -339,8 +339,8 @@ tar -czf ../results/padata0.tgz ./pa
 
 ### Fugaku で `fapp` を使う場合
 
-Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、BenchKit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
-`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。BenchKit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
+Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、Benchkit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
+`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。Benchkit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
 
 `fapp` では共通 level として次を扱います。
 

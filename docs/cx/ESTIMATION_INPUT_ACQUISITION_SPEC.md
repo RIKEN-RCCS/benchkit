@@ -22,13 +22,13 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 
 ## 1. 文書の位置づけ / Position of This Document
 
-本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) および [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) を補う下位仕様であり、推定に必要な入力をどのように採取し、どのように BenchKit へ受け渡すかを定義する。
+本書は [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) および [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md) を補う下位仕様であり、推定に必要な入力をどのように採取し、どのように Benchkit へ受け渡すかを定義する。
 
-本書の主眼は推定アルゴリズムそのものではなく、アプリ、BenchKit、推定パッケージの接続面を整理することである。
+本書の主眼は推定アルゴリズムそのものではなく、アプリ、Benchkit、推定パッケージの接続面を整理することである。
 
-This document is a lower-level specification that complements [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) and [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md), defining how inputs required for estimation are collected and handed off into BenchKit.
+This document is a lower-level specification that complements [`ESTIMATION_SPEC.md`](./ESTIMATION_SPEC.md) and [`ESTIMATION_PACKAGE_SPEC.md`](./ESTIMATION_PACKAGE_SPEC.md), defining how inputs required for estimation are collected and handed off into Benchkit.
 
-Its focus is not the estimation algorithm itself, but the interface boundary among the application, BenchKit, and estimation packages.
+Its focus is not the estimation algorithm itself, but the interface boundary among the application, Benchkit, and estimation packages.
 
 ## 2. 目的 / Purpose
 
@@ -38,7 +38,7 @@ Its focus is not the estimation algorithm itself, but the interface boundary amo
 
 - アプリ開発者がどこまで準備すればよいかを明確にする
 - 推定パッケージ開発者がどの入力を期待してよいかを明確にする
-- BenchKit がどの形式で入力を受け取り、保存し、引き渡すかを明確にする
+- Benchkit がどの形式で入力を受け取り、保存し、引き渡すかを明確にする
 - 入力採取失敗時の扱いを曖昧にしない
 - `weakscaling` を最小経路としつつ、より詳細な推定も同じ枠組みで扱えるようにする
 
@@ -48,7 +48,7 @@ It aims at least to:
 
 - clarify what application developers need to prepare
 - clarify what estimation-package developers may expect as inputs
-- clarify how BenchKit receives, stores, and passes those inputs
+- clarify how Benchkit receives, stores, and passes those inputs
 - avoid ambiguity when input acquisition fails
 - handle a `weakscaling`-based minimum path and more detailed estimation within the same framework
 
@@ -88,7 +88,7 @@ app 側は原則として、
 - section ごとの補助データ参照
 - 必要なら app 固有の補助メタデータ
 
-を BenchKit に渡せればよい形を目指す。
+を Benchkit に渡せればよい形を目指す。
 
 The application side should not be forced to own unnecessarily complex logic merely for estimation input acquisition.
 The target is that the application side only needs to provide:
@@ -100,7 +100,7 @@ The target is that the application side only needs to provide:
 
 ### 3.3 採取方式は差し替え可能である / Acquisition Methods Must Be Replaceable
 
-BenchKit は、単一の採取方式に固定されてはならない。
+Benchkit は、単一の採取方式に固定されてはならない。
 少なくとも以下を受け入れられることが望ましい。
 
 - アプリ自前の stdout 出力
@@ -108,7 +108,7 @@ BenchKit は、単一の採取方式に固定されてはならない。
 - 外部ツールによる trace / profile / counter dump
 - site 側 wrapper や vendor tool による採取
 
-BenchKit must not be fixed to a single acquisition method.
+Benchkit must not be fixed to a single acquisition method.
 It should preferably be able to accept at least:
 
 - application-emitted stdout
@@ -138,7 +138,7 @@ Estimation input acquisition consists conceptually of at least:
 
 ### 4.1 採取対象 / Acquisition Targets
 
-BenchKit は、少なくとも以下の入力種別を受け入れられることが望ましい。
+Benchkit は、少なくとも以下の入力種別を受け入れられることが望ましい。
 
 - FOM
 - section 時間
@@ -148,7 +148,7 @@ BenchKit は、少なくとも以下の入力種別を受け入れられるこ�
 - trace / profile
 - 推定入力に必要な補助メタデータ
 
-BenchKit should preferably be able to accept at least the following input kinds:
+Benchkit should preferably be able to accept at least the following input kinds:
 
 - FOM
 - section timings
@@ -163,7 +163,7 @@ BenchKit should preferably be able to accept at least the following input kinds:
 採取主体は少なくとも次を許容する。
 
 - アプリ自前
-- BenchKit の共通 shell
+- Benchkit の共通 shell
 - 外部ツール
 - site 側 wrapper
 - vendor 提供ツール
@@ -171,7 +171,7 @@ BenchKit should preferably be able to accept at least the following input kinds:
 The following acquisition actors should be allowed at minimum:
 
 - the application itself
-- BenchKit common shell
+- Benchkit common shell
 - external tools
 - site-side wrappers
 - vendor-provided tools
@@ -192,16 +192,16 @@ The following timings should be allowed at minimum:
 - extracted by postprocessing after execution
 - converted from external-tool output after execution
 
-## 5. BenchKit への受け渡し方法 / Handoff into BenchKit
+## 5. Benchkit への受け渡し方法 / Handoff into Benchkit
 
 ### 5.1 基本方針 / Basic Policy
 
-BenchKit への受け渡し方法は、少なくとも次の 2 層で考える。
+Benchkit への受け渡し方法は、少なくとも次の 2 層で考える。
 
 - Result JSON へ直接正規化される入力
 - 推定専用の補助入力として補助ファイル / artifact として参照される入力
 
-Handoff into BenchKit should be thought of in at least two layers:
+Handoff into Benchkit should be thought of in at least two layers:
 
 - inputs normalized directly into Result JSON
 - inputs referenced as estimation-specific auxiliary files or artifact data
@@ -293,7 +293,7 @@ Overlap should likewise preferably be registerable, at least conceptually, as a 
 - shell 関数 API にするか
 
 までは固定しない。
-ただし、最終的に BenchKit が受け取る意味要素は上記のように揃っていることが望ましい。
+ただし、最終的に Benchkit が受け取る意味要素は上記のように揃っていることが望ましい。
 
 At this stage, this document does not fix whether section / overlap registration is:
 
@@ -301,7 +301,7 @@ At this stage, this document does not fix whether section / overlap registration
 - auxiliary-JSON-based
 - exposed as a shell function API
 
-However, the semantic elements ultimately received by BenchKit should preferably be aligned as described above.
+However, the semantic elements ultimately received by Benchkit should preferably be aligned as described above.
 
 ### 6.4 app 側宣言ブロック / Application-Side Declaration Block
 
@@ -309,7 +309,7 @@ app 側の推定関連の記述は、原則として `estimate.sh` にまとめ�
 `estimate.sh` は次の 2 つの役割を兼ねてよい。
 
 - section / overlap と `estimation_package` の対応を宣言する
-- app ごとの推定入口として、BenchKit が読む既定値や補助関数を提供する
+- app ごとの推定入口として、Benchkit が読む既定値や補助関数を提供する
 
 `run.sh` は通常実行を担当し、必要であれば `estimate.sh` を読み込んで宣言を再利用する。
 `run.sh` が package 名や採取手順の詳細を個別に持つ必要はない。
@@ -318,13 +318,13 @@ app 側に求める最低限の責務は次のとおりである。
 
 - `estimate.sh` に section / overlap の package 割当てを書く
 - `run.sh` は通常実行と FOM 出力に集中する
-- 追加採取の実行は BenchKit の共通入口に委ねる
+- 追加採取の実行は Benchkit の共通入口に委ねる
 
 app 側の責務を最小化するためには、`estimate.sh` で section / overlap と `estimation_package` の対応を宣言し、`run.sh` では `bk_emit_declared_section` / `bk_emit_declared_overlap` によって値だけを出す形が望ましい。
 
 - `estimate.sh`: package の対応を宣言する
 - `run.sh`: 通常実行と実測値の出力を担う
-- BenchKit: 宣言された package 名の対応付けを共通関数で引き受ける
+- Benchkit: 宣言された package 名の対応付けを共通関数で引き受ける
 
 詳細推定では、app 側が `estimate.sh` の中に推定用の宣言ブロックを持てる形が望ましい。`run.sh` は必要に応じて `estimate.sh` を読み込み、`estimate.sh` 自身は CI や再推定の入口としても使える形にしてよい。
 
@@ -343,7 +343,7 @@ app 側の責務を最小化するためには、`estimate.sh` で section / ove
 この形により、少なくとも次の 3 通りが同居できる。
 - app 実行中に直接得られた section 時間を `bk_emit_section` で出す
 - 実行後のログ解析で得た値を `bk_emit_section` で出す
-- 追加採取実行の結果を BenchKit 側でまとめて反映する
+- 追加採取実行の結果を Benchkit 側でまとめて反映する
 
 ### 6.6 追加採取実行 / Additional Data-Collection Run
 
@@ -357,7 +357,7 @@ PAPI のように、通常実行とは別に追加採取実行が必要な入力
    - 例: `bk_run_estimation_data_collection mpiexec a.out ...`
    - package metadata を見て必要な counter / trace / 追加ログ採取を行う
 
-このとき、どの追加採取が必要か、複数回実行が必要か、保存先をどうするかは BenchKit 側で共通化して扱うのが望ましい。app 側は原則として、通常実行コマンドと section / overlap への package 割当てを示せばよい。
+このとき、どの追加採取が必要か、複数回実行が必要か、保存先をどうするかは Benchkit 側で共通化して扱うのが望ましい。app 側は原則として、通常実行コマンドと section / overlap への package 割当てを示せばよい。
 
 `bk_run_estimation_data_collection` は、app が宣言した package 一覧を見て、特殊採取が必要な package があればその package の実行規約に合わせてコマンドを組み立てる共通入口である。
 特殊採取が不要な package しか宣言されていない場合は、追加実行を行わずに戻ってよい。
@@ -432,9 +432,9 @@ The estimation-package developer is generally responsible for defining:
 - which acquisition failures are considered fallback-eligible
 - how sections / overlaps are interpreted
 
-### 8.3 BenchKit の責務 / BenchKit Responsibility
+### 8.3 Benchkit の責務 / Benchkit Responsibility
 
-BenchKit は、原則として次を担う。
+Benchkit は、原則として次を担う。
 
 - Result JSON への正規化
 - 補助アーティファクト参照の保持
@@ -442,7 +442,7 @@ BenchKit は、原則として次を担う。
 - 推定パッケージへの受け渡し
 - 保存形式と表示形式の統一
 
-BenchKit is generally responsible for:
+Benchkit is generally responsible for:
 
 - normalization into Result JSON
 - retention of auxiliary artifact references
@@ -450,12 +450,12 @@ BenchKit is generally responsible for:
 - handoff into estimation packages
 - unified storage and presentation formats
 
-詳細推定では、さらに次も BenchKit 側で扱うのが望ましい。
+詳細推定では、さらに次も Benchkit 側で扱うのが望ましい。
 - `estimate.sh` 内の宣言ブロックの読込み
 - package metadata を見た追加採取実行の組立て
 - `bk_emit_*` で与えられた値と追加採取結果の合流
 
-一方で `weakscaling` のような artifact 不要 package では、BenchKit 側は追加採取を組み立てるのではなく、app 側が出した section / overlap 時間に対して `identity` / `logp` を dispatch し、top-level FOM を合成する責務を持つ。
+一方で `weakscaling` のような artifact 不要 package では、Benchkit 側は追加採取を組み立てるのではなく、app 側が出した section / overlap 時間に対して `identity` / `logp` を dispatch し、top-level FOM を合成する責務を持つ。
 
 ## 9. 現時点で固定しないこと / Items Intentionally Left Open
 

@@ -23,14 +23,14 @@ This document follows the reading conventions defined in [`CX_FRAMEWORK.md`](./C
 ## 1. 文書の位置づけ / Position of This Document
 
 本書は [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md) のうち性能推定機能を詳細化する下位仕様である。
-本書は、推定手法の内部アルゴリズムそのものを固定する文書ではなく、BenchKit が推定機能を受け入れ、実行し、保存し、表示するための共通ルールを定義する。
+本書は、推定手法の内部アルゴリズムそのものを固定する文書ではなく、Benchkit が推定機能を受け入れ、実行し、保存し、表示するための共通ルールを定義する。
 
 This document is a lower-level specification that details the estimation function described in [`BENCHKIT_SPEC.md`](./BENCHKIT_SPEC.md).
-It does not fix a single estimation algorithm. Instead, it defines the common rules by which BenchKit accepts, runs, stores, and presents estimation functions.
+It does not fix a single estimation algorithm. Instead, it defines the common rules by which Benchkit accepts, runs, stores, and presents estimation functions.
 
 ## 2. 目的 / Purpose
 
-BenchKit の性能推定機能は、ベンチマーク結果から以下を推定できるようにすることを目的とする。
+Benchkit の性能推定機能は、ベンチマーク結果から以下を推定できるようにすることを目的とする。
 
 - 本番規模 FOM
 - 異なるノード数でのスケーリング挙動
@@ -45,7 +45,7 @@ BenchKit の性能推定機能は、ベンチマーク結果から以下を推�
 - 推定結果の前提、根拠、比較元が追跡可能であること
 - 推定に必要な入力が不足している場合の扱いを明示できること
 
-The purpose of BenchKit estimation is to make it possible to estimate:
+The purpose of Benchkit estimation is to make it possible to estimate:
 
 - production-scale FOM
 - scaling behavior at different node counts
@@ -64,7 +64,7 @@ At the same time, the estimation function must satisfy the following:
 
 ### 3.1 手法差し替え可能性 / Method Replaceability
 
-BenchKit は、単一の性能カウンター採取方法、単一のアノテーション方式、単一の推定ツール、単一の推定モデルにロックインしてはならない。
+Benchkit は、単一の性能カウンター採取方法、単一のアノテーション方式、単一の推定ツール、単一の推定モデルにロックインしてはならない。
 
 推定処理は、少なくとも概念上、以下を分離して扱えるべきである。
 
@@ -73,7 +73,7 @@ BenchKit は、単一の性能カウンター採取方法、単一のアノテ�
 - 推定モデル
 - 推定結果の出力形式
 
-BenchKit must not be locked into a single counter collection method, annotation scheme, estimation tool, or estimation model.
+Benchkit must not be locked into a single counter collection method, annotation scheme, estimation tool, or estimation model.
 
 At least conceptually, the estimation flow should separate:
 
@@ -141,9 +141,9 @@ An estimation result must be traceable at least to:
 ### 3.4 適用可能性判定 / Applicability Evaluation
 
 推定方式ごとに、必要な入力の集合を定義できなければならない。
-BenchKit は、指定された推定方式に対して入力が十分かどうかを判定できることを基本とする。
+Benchkit は、指定された推定方式に対して入力が十分かどうかを判定できることを基本とする。
 
-必要入力が不足する場合、BenchKit または推定方式は、少なくとも以下のいずれかを明示しなければならない。
+必要入力が不足する場合、Benchkit または推定方式は、少なくとも以下のいずれかを明示しなければならない。
 
 - 不適用として終了する
 - 軽量な別方式へフォールバックする
@@ -152,12 +152,12 @@ BenchKit は、指定された推定方式に対して入力が十分かどう�
 不足したまま成功扱いの推定結果を返してはならない。
 
 Each estimation method must be able to define its required input set.
-BenchKit should be able to judge whether the inputs are sufficient for a requested estimation method.
-フォールバックが用いられた場合、BenchKit は、最初に要求された推定パッケージと、実際に適用された推定パッケージを区別して扱えなければならない。
+Benchkit should be able to judge whether the inputs are sufficient for a requested estimation method.
+フォールバックが用いられた場合、Benchkit は、最初に要求された推定パッケージと、実際に適用された推定パッケージを区別して扱えなければならない。
 また、その切り替え理由を applicability の結果に保持できることが望ましい。
-When fallback is used, BenchKit should distinguish the originally requested estimation package from the actually applied package, and should preserve the reason for the switch in the applicability result.
+When fallback is used, Benchkit should distinguish the originally requested estimation package from the actually applied package, and should preserve the reason for the switch in the applicability result.
 
-When required inputs are missing, BenchKit or the estimation method must explicitly do at least one of the following:
+When required inputs are missing, Benchkit or the estimation method must explicitly do at least one of the following:
 
 - terminate as not applicable
 - fall back to a lighter-weight method
@@ -165,9 +165,9 @@ When required inputs are missing, BenchKit or the estimation method must explici
 
 It must not return a successful estimate while silently ignoring missing required inputs.
 
-### 3.5 BenchKit と推定パッケージ開発者の責務境界 / Boundary Between BenchKit and Package Developers
+### 3.5 Benchkit と推定パッケージ開発者の責務境界 / Boundary Between Benchkit and Package Developers
 
-BenchKit は、推定機構について共通ルール、識別情報、入出力、適用可能性判定結果、保存形式、比較可能性を扱う。
+Benchkit は、推定機構について共通ルール、識別情報、入出力、適用可能性判定結果、保存形式、比較可能性を扱う。
 一方で、各推定パッケージの開発者は、少なくとも以下を定義できるものとして扱う。
 
 - 具体的な推定アルゴリズム
@@ -179,7 +179,7 @@ BenchKit は、推定機構について共通ルール、識別情報、入出�
 
 したがって、本書で未定義のまま残す項目は、原則として package 開発者または外部ツール側へ委ねられる。
 
-BenchKit handles the common rules, identifiers, inputs/outputs, applicability results, storage format, and comparability of estimation.
+Benchkit handles the common rules, identifiers, inputs/outputs, applicability results, storage format, and comparability of estimation.
 By contrast, each estimation-package developer is expected to define at least:
 
 - the concrete estimation algorithm
@@ -267,12 +267,12 @@ For measurement inputs used by estimation, it should be possible to identify at 
 
 ### 4.3 推定モデル / Estimation Model
 
-推定モデルは、BenchKit に埋め込まれた単一モデルである必要はない。
+推定モデルは、Benchkit に埋め込まれた単一モデルである必要はない。
 アプリ固有スクリプト、共通 shell ライブラリ、外部ツール、外部サービスのいずれでもよい。
 
-BenchKit における実装単位としては、これらを単独のモデルとして扱うだけでなく、計測前提や適用可能性判定を含む推定パッケージとして束ねて扱ってもよい。
+Benchkit における実装単位としては、これらを単独のモデルとして扱うだけでなく、計測前提や適用可能性判定を含む推定パッケージとして束ねて扱ってもよい。
 
-ただし BenchKit から見て、少なくとも以下を識別可能にすべきである。
+ただし Benchkit から見て、少なくとも以下を識別可能にすべきである。
 
 - モデル種別
 - モデル名
@@ -280,12 +280,12 @@ BenchKit における実装単位としては、これらを単独のモデル�
 - スケーリング方式
 - 将来システム仮定
 
-The estimation model need not be a single built-in BenchKit model.
+The estimation model need not be a single built-in Benchkit model.
 It may be an application-specific script, a shared shell library, an external tool, or an external service.
 
-As an implementation unit in BenchKit, these may be handled not only as standalone models but also as estimation packages that bundle measurement assumptions and applicability evaluation.
+As an implementation unit in Benchkit, these may be handled not only as standalone models but also as estimation packages that bundle measurement assumptions and applicability evaluation.
 
-However, from the perspective of BenchKit, the following should be identifiable:
+However, from the perspective of Benchkit, the following should be identifiable:
 
 - model type
 - model name
@@ -301,7 +301,7 @@ The estimation model need not always be a single monolithic model.
 Composite estimation that combines different estimation methods for different sections should be allowed.
 In particular, it is desirable to apply different input types or estimation methods to compute, communication, and I/O sections.
 
-さらに、BenchKit は少なくとも次の二種類の推定モデルを区別して扱えることが望ましい。
+さらに、Benchkit は少なくとも次の二種類の推定モデルを区別して扱えることが望ましい。
 
 - `intra_system_scaling_model`
   - 少ノード benchmark result から、同種または同一系統のシステム上の target nodes へ伸長する推定モデル
@@ -313,7 +313,7 @@ In particular, it is desirable to apply different input types or estimation meth
 
 これらは同一の推定モデルであってもよいが、別個のモデル、別個の推定パッケージ、あるいは複合推定パッケージ内の別部品として扱ってよい。
 
-In addition, BenchKit should preferably be able to distinguish at least the following two kinds of estimation models:
+In addition, Benchkit should preferably be able to distinguish at least the following two kinds of estimation models:
 
 - `intra_system_scaling_model`
   - a model that scales a small-node benchmark result to target nodes on the same or closely related system line
@@ -409,12 +409,12 @@ However, the same scaling rule need not be forced on both the `current_system` s
 Also, the `current_system` side need not always be an intra-system scaling case.
 When using `intra_system_scaling_model`, a rule such as "FOM is constant by default, with selective corrections only for some sections" is natural, whereas when using `cross_system_projection_model`, a projection model that changes section timings themselves according to CPU/GPU performance, communication performance, or memory performance is natural.
 
-したがって、BenchKit は少なくとも次を検証できることが望ましい。
+したがって、Benchkit は少なくとも次を検証できることが望ましい。
 
 - `intra_system_scaling_model` が指定されたとき、入力 benchmark result の `system` と推定出力側の対象 `system` が一致または同一系統であること
 - `cross_system_projection_model` が指定されたとき、入力 benchmark result の `system` が推定元、推定出力側の対象 `system` が推定先として解釈できること
 
-Accordingly, BenchKit should preferably be able to validate at least the following:
+Accordingly, Benchkit should preferably be able to validate at least the following:
 
 - when `intra_system_scaling_model` is specified, the input benchmark-result `system` and the output-side target `system` are the same or from the same system line
 - when `cross_system_projection_model` is specified, the input benchmark-result `system` can be interpreted as the source system and the output-side target `system` as the destination system
@@ -463,7 +463,7 @@ More detailed methods may instead use an explicit model, trace, counters, or int
 - フォールバック
 - 不適用
 
-BenchKit should preferably be able to evaluate whether the required inputs for a chosen estimation method are present before execution.
+Benchkit should preferably be able to evaluate whether the required inputs for a chosen estimation method are present before execution.
 This evaluation should preferably be able to distinguish at least the following final states:
 
 - applicable
@@ -476,7 +476,7 @@ This evaluation should preferably be able to distinguish at least the following 
 `not_applicable` means that estimation was attempted but did not succeed as an estimate result.
 
 `not_applicable` does not necessarily imply pipeline failure.
-BenchKit may still preserve and present a `not_applicable` estimate result as a record of an estimation attempt.
+Benchkit may still preserve and present a `not_applicable` estimate result as a record of an estimation attempt.
 
 applicability 評価が fallback を返す場合、少なくとも次を識別できることが望ましい。
 
@@ -495,14 +495,14 @@ When only part of the section / overlap / component chain falls back while the o
 ### 4.6 履歴と再推定 / History and Re-Estimation
 
 推定は一度きりの計算ではなく、モデルや仮定の更新に応じて再推定できることが重要である。
-BenchKit は、少なくとも以下を扱えるべきである。
+Benchkit は、少なくとも以下を扱えるべきである。
 
 - benchmark result を再指定しての再推定
 - 推定結果の履歴保持
 - 異なる推定方式の比較可能性の保持
 
 Estimation is not a one-time calculation. Re-estimation in response to updated models or assumptions is important.
-BenchKit should be able to handle at least:
+Benchkit should be able to handle at least:
 
 - re-estimation from a specified benchmark result
 - history retention of estimation results
@@ -510,7 +510,7 @@ BenchKit should be able to handle at least:
 
 ## 5. 推定方式の分類 / Classes of Estimation Methods
 
-BenchKit は少なくとも、以下の推定方式を受け入れられることが望ましい。
+Benchkit は少なくとも、以下の推定方式を受け入れられることが望ましい。
 
 ### 5.1 最小構成の区間分割推定 / Minimum Section-Wise Estimation (`weakscaling`)
 
@@ -545,7 +545,7 @@ BenchKit は少なくとも、以下の推定方式を受け入れられるこ�
 - 将来機評価
 - AI 駆動最適化の高精度評価
 
-BenchKit should preferably support at least the following estimation classes:
+Benchkit should preferably support at least the following estimation classes:
 
 ### 5.1 Minimum Section-Wise Estimation (`weakscaling`)
 
@@ -586,9 +586,9 @@ Typical use:
 - future-system evaluation
 - higher-fidelity evaluation for AI-driven optimization
 
-## 6. BenchKit における推定実装要件 / BenchKit-Side Requirements
+## 6. Benchkit における推定実装要件 / Benchkit-Side Requirements
 
-BenchKit は、推定機能について少なくとも以下を満たすべきである。
+Benchkit は、推定機能について少なくとも以下を満たすべきである。
 
 1. app ごとの推定処理を呼び出せること
 2. Result JSON を推定入力として受け渡せること
@@ -597,7 +597,7 @@ BenchKit は、推定機能について少なくとも以下を満たすべき�
 5. 推定結果を一覧・詳細で表示できること
 6. 推定方式の違いを将来的に比較可能な形で保持できること
 
-BenchKit should satisfy at least the following:
+Benchkit should satisfy at least the following:
 
 1. it should be able to invoke per-application estimation logic
 2. it should pass Result JSON as estimation input

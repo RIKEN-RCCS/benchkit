@@ -1,6 +1,6 @@
 # Repository History
 
-BenchKit was originally developed in an internal GitLab repository.
+Benchkit was originally developed in an internal GitLab repository.
 
 It was later relocated to the active GitHub repository with its Git history preserved:
 

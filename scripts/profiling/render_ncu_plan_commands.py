@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a BenchKit NCU plan into concrete ``bk_profiler ncu`` commands.
+"""Render a Benchkit NCU plan into concrete ``bk_profiler ncu`` commands.
 
 This helper is deliberately dry-run friendly.  It does not run Nsight Compute;
 it translates ``ncu_plan.json`` profiles into the environment variables and

@@ -1,6 +1,6 @@
 # 拠点追加手順（拠点管理者向け）
 
-このドキュメントは、BenchKit に新しいベンチマーク実行拠点を追加する手順を拠点管理者向けにまとめたものです。
+このドキュメントは、Benchkit に新しいベンチマーク実行拠点を追加する手順を拠点管理者向けにまとめたものです。
 GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD パイプラインからバッチジョブを投入できるようにするまでを説明します。
 
 ## 目次
@@ -14,7 +14,7 @@ GitLab Runner と Jacamar-CI をユーザ権限でセットアップし、CI/CD 
 7. [ランナーの登録](#6-ランナーの登録)
 8. [Jacamar 用ランナーの設定](#7-jacamar-用ランナーの設定)
 9. [config.toml の設定](#8-configtoml-の設定)
-10. [BenchKit への拠点登録](#9-benchkit-への拠点登録)
+10. [Benchkit への拠点登録](#9-benchkit-への拠点登録)
 11. [ランナーの常駐化（systemd user mode）](#10-ランナーの常駐化systemd-user-mode)
 12. [トラブルシューティング](#11-トラブルシューティング)
 
@@ -540,9 +540,9 @@ command_delay = "30s"
 
 ---
 
-## 9. BenchKit への拠点登録
+## 9. Benchkit への拠点登録
 
-ランナーが動作したら、BenchKit リポジトリに拠点情報を追加します。
+ランナーが動作したら、Benchkit リポジトリに拠点情報を追加します。
 
 ### `config/system.csv` にシステムを追加
 
@@ -579,7 +579,7 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 
 GitLab CI では scheduler parameter は `matrix_generate.sh` 実行時に展開されるため、この値は対象 runner だけでなく matrix 生成 job からも見える必要があります。機密 token ではなく、scheduler に表示されてもよい project/account/group 引数だけに使ってください。
 
-定期実行や契機実行で app 条件と project budget / account の対応を管理する場合は、CX Portal の execution profile に寄せます。Portal は system 単位の allocation project ID を扱い、scheduler ごとの具体的な投入書式は BenchKit の CI 生成層で解釈します。`BK_SCHEDULER_EXTRA_ARGS*` は、profile 連携前の bring-up や、profile を使わない site の低レベル escape hatch として残します。
+定期実行や契機実行で app 条件と project budget / account の対応を管理する場合は、CX Portal の execution profile に寄せます。Portal は system 単位の allocation project ID を扱い、scheduler ごとの具体的な投入書式は Benchkit の CI 生成層で解釈します。`BK_SCHEDULER_EXTRA_ARGS*` は、profile 連携前の bring-up や、profile を使わない site の低レベル escape hatch として残します。
 
 Execution profile の正本は OSS repo ではなく、Portal の実行環境に置く site-local SQLite DB です。`RESULT_SERVER_DB_PATH` で指定できます。指定しない場合は Portal data directory 配下の `cx_portal.sqlite3` を使います。
 
@@ -662,9 +662,9 @@ NewSystem,NewSystem,Example CPU,2,64,Example GPU,4,512GB,10
 
 `system.csv` に追加したのに `system_info.csv` を追加しないと、実行自体は通っても UI 側で説明情報が欠けることがあります。
 
-### BenchKit 側の責務分担
+### Benchkit 側の責務分担
 
-拠点追加時に迷いやすい点ですが、BenchKit では設定の置き場所を次のように分けます。
+拠点追加時に迷いやすい点ですが、Benchkit では設定の置き場所を次のように分けます。
 
 - `config/system.csv`
   - システム固有の実行モード、Runner タグ、キュー種別、キューグループを持つ

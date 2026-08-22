@@ -27,7 +27,7 @@ The current repository state contains:
 
 ### Expected platform configuration
 
-BenchPark's GENOA definition uses:
+Benchpark's GENOA definition uses:
 
 - module: `system/genoa mpi/openmpi-x86_64`
 - MPI: OpenMPI, currently `/usr/lib64/openmpi`

@@ -226,7 +226,7 @@ def _build_environment_rows(environment_snapshot):
         ("Scheduler", summary.get("scheduler") or scheduler.get("kind") or "N/A"),
         ("Runner", summary.get("runner") or runner.get("description") or "N/A"),
         ("CI Job", ci.get("job_name") or "N/A"),
-        ("BenchKit Commit", summary.get("benchkit_commit") or benchkit.get("commit_hash") or "N/A"),
+        ("Benchkit Commit", summary.get("benchkit_commit") or benchkit.get("commit_hash") or "N/A"),
     ])
     modules = toolchain.get("modules") or []
     if modules:

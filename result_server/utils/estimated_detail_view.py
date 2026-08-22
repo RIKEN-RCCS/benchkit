@@ -354,7 +354,7 @@ def _build_applicability_summary(estimate_meta, applicability, breakdown_fallbac
             "tone": "warn",
             "headline": "Estimate succeeded after switching the top-level package.",
             "body": (
-                "The originally requested package did not apply cleanly, so BenchKit stored a successful estimate with "
+                "The originally requested package did not apply cleanly, so Benchkit stored a successful estimate with "
                 "a different top-level package. Compare requested versus applied packages before reusing this result."
             ),
             "highlights": highlights,
@@ -376,7 +376,7 @@ def _build_applicability_summary(estimate_meta, applicability, breakdown_fallbac
             "tone": "danger",
             "headline": "Estimate needs additional measurement data before it can be completed.",
             "body": (
-                "BenchKit stored the attempt, but more input data is required before the requested estimate can be "
+                "Benchkit stored the attempt, but more input data is required before the requested estimate can be "
                 "considered usable."
             ),
             "highlights": highlights,
