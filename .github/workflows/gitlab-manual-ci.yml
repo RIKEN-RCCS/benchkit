@@ -13,6 +13,9 @@ on:
       system:
         description: "System filter, for example: Fugaku,MiyabiG"
         required: false
+      allocation_project_id:
+        description: "Optional allocation/project ID passed as BK_ALLOCATION_PROJECT_ID"
+        required: false
       app:
         description: "Benchpark app filter, for example: osu-micro-benchmarks"
         required: false
@@ -95,6 +98,7 @@ jobs:
           GITLAB_PROJECT_PATH: ${{ steps.gitlab-repo.outputs.project-path }}
           CODE_FILTER: ${{ inputs.code }}
           SYSTEM_FILTER: ${{ inputs.system }}
+          ALLOCATION_PROJECT_ID: ${{ inputs.allocation_project_id }}
           BENCHPARK_APP: ${{ inputs.app }}
           BENCHPARK: ${{ inputs.benchpark }}
           PARK_ONLY: ${{ inputs.park_only }}
@@ -123,6 +127,7 @@ jobs:
 
           add_variable("code", os.environ.get("CODE_FILTER", ""))
           add_variable("system", os.environ.get("SYSTEM_FILTER", ""))
+          add_variable("BK_ALLOCATION_PROJECT_ID", os.environ.get("ALLOCATION_PROJECT_ID", ""))
           add_variable("app", os.environ.get("BENCHPARK_APP", ""))
 
           if os.environ.get("BENCHPARK") == "true":
