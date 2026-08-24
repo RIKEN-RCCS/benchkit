@@ -76,7 +76,16 @@ FULL_RESULT = {
         "payload": {
             "schema_version": 1,
             "ci": {"job_name": "qws_RC_GH200_run"},
-            "toolchain": {"modules": ["gcc/11.5.0", "openmpi/4.1.7"]},
+            "toolchain": {
+                "modules": ["gcc/11.5.0", "openmpi/4.1.7"],
+                "commands": {
+                    "gcc": {
+                        "path": "/usr/bin/gcc",
+                        "real_path": "/usr/bin/gcc",
+                        "version": "gcc (GCC) 11.5.0",
+                    }
+                },
+            },
         },
     },
 }
@@ -131,6 +140,8 @@ class TestResultDetailTemplate:
         assert "sha256:abcdef" in html
         assert "rccs-cloud" in html
         assert "slurm" in html
+        assert "Build Tools" in html
+        assert "gcc (GCC) 11.5.0" in html
         assert "Back to Results" in html
         assert "Results" in html
 

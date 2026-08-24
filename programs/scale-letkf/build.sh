@@ -4,25 +4,32 @@ system="$1"
 TOPDIR=`pwd`
 mkdir -p artifacts
 
+REPO_URL="https://github.com/SCALE-LETKF-RIKEN/scale-letkf-FugakuNEXT"
+REPO_DIR="scale-letkf-FugakuNEXT"
+BRANCH="${SCALE_LETKF_BRANCH:-master}"
+SOURCE_COMMIT="${SCALE_LETKF_SOURCE_COMMIT:-}"
+
 source scripts/bk_functions.sh
-bk_fetch_source https://github.com/SCALE-LETKF-RIKEN/scale-letkf-FugakuNEXT scale-letkf-FugakuNEXT
-cd scale-letkf-FugakuNEXT
+bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
+cd "${REPO_DIR}"
 
 case "$system" in
   Fugaku)
     source setup-env.Fugaku.sh
+    bk_capture_build_environment_snapshot
     cd scale/scale-rm/src
-    make -j
+    bk_make -j
     cd ../../scale-letkf/scale
-    make
+    bk_make
     cd $TOPDIR
   ;;
   RC_GH200)
     source setup-env.RC_GH200.sh
+    bk_capture_build_environment_snapshot
     cd scale/scale-rm/src
-    make -j
+    bk_make -j
     cd ../../scale-letkf/scale
-    make
+    bk_make
     cd $TOPDIR
   ;;
   *)

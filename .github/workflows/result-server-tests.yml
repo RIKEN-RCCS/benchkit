@@ -70,6 +70,8 @@ jobs:
       - name: Run profiler, profile-data, and estimation shell tests
         run: |
           bash scripts/tests/test_bk_profiler.sh
+          bash scripts/tests/test_bk_fetch_source.sh
+          bash scripts/tests/test_build_environment_snapshot.sh
           bash scripts/tests/test_ncu_plan_generation.sh
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_process_and_send_results.sh

@@ -55,20 +55,21 @@ Completed:
   `result_metadata_index` at ingest time. JSON/tgz artifacts remain the raw
   records and existing result pages remain file-backed.
 - Generated GitLab CI jobs collect lightweight environment snapshots in the
-  common build/run/build_run wrappers, without requiring application
-  `build.sh` or `run.sh` changes. Result submission combines those artifacts
-  into a Result JSON `environment_snapshot` reference block. The Portal indexes
-  the snapshot payload by hash in `environment_snapshots` and links received
-  results through `environment_snapshot_results`. Result detail pages show the
-  snapshot hash, allocation project ID, scheduler, runner, and Benchkit commit.
+  common build/run/build_run wrappers. Build scripts can additionally record
+  the post-module-load, pre-compile environment as
+  `results/environment_snapshot_build_actual.json`. Result submission combines
+  those artifacts into a Result JSON `environment_snapshot` reference block.
+  The Portal indexes the snapshot payload by hash in `environment_snapshots`
+  and links received results through `environment_snapshot_results`. Result
+  detail pages show the snapshot hash, allocation project ID, scheduler,
+  runner, and Benchkit commit.
 
 Remaining follow-up:
 
 1. Review which result and estimate views should move from file-backed scans to
    indexed lookup once the operational view requirements are stable.
-2. Expand environment snapshot collectors only when a specific site needs more
-   runtime detail. The v1 collector intentionally avoids full environment dumps
-   and secret-bearing CI variables.
+2. Keep environment snapshot collectors allowlist-based. They intentionally
+   avoid full environment dumps and secret-bearing CI variables.
 
 GitLab schedules should not be the primary governance point. The Portal should
 own periodic and event-triggered execution decisions, then trigger GitLab CI
@@ -96,6 +97,7 @@ describe the intended scope, allocation, approval state, and trigger bindings;
 snapshots describe what the CI job actually observed when it packaged the
 result. The v1 snapshot identity is the SHA-256 hash of the canonical snapshot
 payload assembled from `results/environment_snapshot_build.json`,
+`results/environment_snapshot_build_actual.json`,
 `results/environment_snapshot_run.json`, or
 `results/environment_snapshot_build_run.json`.
 

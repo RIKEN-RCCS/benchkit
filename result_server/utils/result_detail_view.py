@@ -213,6 +213,7 @@ def _build_environment_rows(environment_snapshot):
     ci = payload.get("ci") if isinstance(payload.get("ci"), dict) else {}
     benchkit = payload.get("benchkit") if isinstance(payload.get("benchkit"), dict) else {}
     toolchain = payload.get("toolchain") if isinstance(payload.get("toolchain"), dict) else {}
+    display_toolchain = _display_toolchain(toolchain)
 
     rows = build_labeled_value_rows([
         ("Snapshot Hash", environment_snapshot.get("hash", "N/A")),
@@ -228,10 +229,55 @@ def _build_environment_rows(environment_snapshot):
         ("CI Job", ci.get("job_name") or "N/A"),
         ("Benchkit Commit", summary.get("benchkit_commit") or benchkit.get("commit_hash") or "N/A"),
     ])
-    modules = toolchain.get("modules") or []
+    modules = display_toolchain.get("modules") or []
     if modules:
         rows.append({"label": "Modules", "list": modules[:20]})
+    commands = _build_toolchain_command_summary(display_toolchain.get("commands"))
+    if commands:
+        rows.append({"label": "Build Tools", "list": commands})
     return rows
+
+
+def _display_toolchain(toolchain):
+    if not isinstance(toolchain, dict):
+        return {}
+    if isinstance(toolchain.get("commands"), dict) or isinstance(toolchain.get("modules"), list):
+        return toolchain
+    for stage in ("build_actual", "build_run", "build", "run"):
+        stage_toolchain = toolchain.get(stage)
+        if isinstance(stage_toolchain, dict) and stage_toolchain:
+            return stage_toolchain
+    return {}
+
+
+def _build_toolchain_command_summary(commands):
+    if not isinstance(commands, dict):
+        return []
+
+    rows = []
+    for name in (
+        "cc",
+        "gcc",
+        "mpicc",
+        "mpicxx",
+        "mpif90",
+        "mpifort",
+        "nvcc",
+        "nvc",
+        "nvfortran",
+        "cmake",
+        "make",
+        "apptainer",
+    ):
+        command = commands.get(name)
+        if not isinstance(command, dict):
+            continue
+        version = str(command.get("version") or "").strip()
+        path = str(command.get("path") or "").strip()
+        value = version if version else path
+        if value:
+            rows.append(f"{name}: {value}")
+    return rows[:12]
 
 
 def _environment_snapshot_hash(environment_snapshot):

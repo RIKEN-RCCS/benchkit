@@ -26,8 +26,14 @@ md5sum_strategy = st.text(
     alphabet="0123456789abcdef", min_size=32, max_size=32
 )
 
+# Strategy for valid 64-digit hexadecimal SHA-256 hashes.
+sha256sum_strategy = st.text(
+    alphabet="0123456789abcdef", min_size=64, max_size=64
+)
+
 COMMIT_HASH_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 MD5SUM_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+SHA256SUM_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 class TestHashValueFormatProperty:
@@ -47,6 +53,13 @@ class TestHashValueFormatProperty:
         assert len(md5sum) == 32
         assert MD5SUM_PATTERN.match(md5sum) is not None
 
+    @given(sha256sum=sha256sum_strategy)
+    @settings(max_examples=100)
+    def test_sha256sum_is_exactly_64_hex_digits(self, sha256sum):
+        """Validate that SHA-256 hashes stay at 64 hexadecimal characters."""
+        assert len(sha256sum) == 64
+        assert SHA256SUM_PATTERN.match(sha256sum) is not None
+
     @given(commit_hash=commit_hash_strategy)
     @settings(max_examples=100)
     def test_git_source_info_structure_valid_with_commit_hash(self, commit_hash):
@@ -64,20 +77,23 @@ class TestHashValueFormatProperty:
         assert "commit_hash" in source_info
         assert COMMIT_HASH_PATTERN.match(source_info["commit_hash"]) is not None
 
-    @given(md5sum=md5sum_strategy)
+    @given(md5sum=md5sum_strategy, sha256sum=sha256sum_strategy)
     @settings(max_examples=100)
-    def test_file_source_info_structure_valid_with_md5sum(self, md5sum):
-        """Validate a file source_info payload with a formatted MD5 hash."""
+    def test_file_source_info_structure_valid_with_file_hashes(self, md5sum, sha256sum):
+        """Validate a file source_info payload with formatted file hashes."""
         source_info = {
             "source_type": "file",
             "file_path": "/path/to/archive.tar.gz",
             "md5sum": md5sum,
+            "sha256sum": sha256sum,
         }
 
         assert source_info["source_type"] == "file"
         assert "file_path" in source_info
         assert "md5sum" in source_info
+        assert "sha256sum" in source_info
         assert MD5SUM_PATTERN.match(source_info["md5sum"]) is not None
+        assert SHA256SUM_PATTERN.match(source_info["sha256sum"]) is not None
 
 
 def test_git_source_link_allows_http_urls_only():

@@ -4,7 +4,8 @@ system="$1"
 
 REPO_DIR="genesis-nonbonded-kernels"
 REPO_URL="https://github.com/genesis-release-r-ccs/${REPO_DIR}.git"
-BRANCH="main"
+BRANCH="${GENESIS_NONBONDED_KERNELS_BRANCH:-main}"
+SOURCE_COMMIT="${GENESIS_NONBONDED_KERNELS_SOURCE_COMMIT:-}"
 name_list=(Generic Oct Oct_mod1)
 dir_list=(Generic Intel Intel_mod1)
 
@@ -12,7 +13,7 @@ echo "[${REPO_DIR}] Building on system: $system"
 mkdir -p artifacts
 
 source scripts/bk_functions.sh
-bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}"
+bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 cd ${REPO_DIR} || {
     echo "Failed to enter ${REPO_DIR}"
@@ -43,8 +44,10 @@ case "$system" in
 	# dir="normal_${comp}_omp_dir"
 	# version="-v"
 	# archopt="MARCH=native"
-	# ;;
+    # ;;
 esac
+
+bk_capture_build_environment_snapshot
 
 for i in "${!name_list[@]}"; do
     name=${name_list[i]}
@@ -52,7 +55,7 @@ for i in "${!name_list[@]}"; do
 	index=$((i + 1))
 	echo "Looping over name='$name', dir='$dir_path'"
 	cd "$dir_path" || { echo "cd failed to '$dir_path'"; exit 1; }
-    make FC="${comp}" OMP=omp SIMD=dir KIND="${name}" ${archopt}
+    bk_make FC="${comp}" OMP=omp SIMD=dir KIND="${name}" ${archopt}
     cp "$dir/kernel" "../../artifacts/kernel_${name}"
 	cd - > /dev/null
 done

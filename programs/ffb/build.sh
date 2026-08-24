@@ -7,6 +7,8 @@ CPU_ARCHIVE="/vol0003/rccs-sdt/data/a01008/apps/ffb/ffb-frt_cpu.fugaku.tar.gz"
 GPU_ARCHIVE="/lvs0/rccs-sdt/kazuto.ando/apps/ffb/ffb-acc_gpu.gh.tar.gz"
 WORK_DIR="ffb_src"
 
+source scripts/bk_functions.sh
+
 mkdir -p artifacts
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}"
@@ -14,10 +16,12 @@ mkdir -p "${WORK_DIR}"
 case "$system" in
   FugakuCN)
     archive="${CPU_ARCHIVE}"
+    archive_sha256="${FFB_CPU_ARCHIVE_SHA256:-${BK_FFB_CPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin/les3x.mpi"
     ;;
   RC_GH200)
     archive="${GPU_ARCHIVE}"
+    archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
     ;;
   *)
@@ -31,10 +35,12 @@ if [[ ! -f "$archive" ]]; then
   exit 1
 fi
 
+bk_record_file_source_info "$archive" "$archive_sha256" "FFB source archive"
 tar -xzf "$archive" -C "${WORK_DIR}" --strip-components=1
 cd "${WORK_DIR}"
 
 chmod +x make.FP3.sh
+bk_capture_build_environment_snapshot
 bash ./make.FP3.sh
 
 if [[ ! -f "$exe_relpath" ]]; then

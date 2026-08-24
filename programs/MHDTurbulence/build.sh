@@ -6,15 +6,16 @@ system="$1"
 
 code=MHDTurbulence
 REPO=https://github.com/cfcanaoj/MHDTurbulence.git
+BRANCH="${MHDTURBULENCE_BRANCH:-main}"
+SOURCE_COMMIT="${MHDTURBULENCE_SOURCE_COMMIT:-}"
 artdir=artifacts
 
 echo "[${code}] Building on system: $system"
 
 mkdir -p ${artdir}
 
-if [ ! -d "$code" ]; then
-    git clone $REPO
-fi
+source scripts/bk_functions.sh
+bk_fetch_source "$REPO" "$code" "$BRANCH" "$SOURCE_COMMIT"
 
 DIR=$code
 
@@ -24,14 +25,14 @@ case "$system" in
     MiyabiC)
 	cd src_f90_omp_host
 	echo "Compile cods in "`pwd`
-	make
+	bk_make
 	echo "Executable is "${BIN}" and copied to "${artdir}
 	cp ../exe/$BIN ../../${artdir}
 	;;
     MiyabiG)
 	cd src_f90_acc_device
 	echo "Compile cods in "`pwd`
-	make
+	bk_make
 	echo "Executable is "${BIN}" and copied to "${artdir}
 	cp ../exe/$BIN ../../${artdir}
 	;;

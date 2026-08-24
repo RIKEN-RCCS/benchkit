@@ -35,7 +35,7 @@ def _nested_text(data: dict[str, Any], *keys: str) -> str:
 def _source_ref(source_info: dict[str, Any]) -> str:
     if not isinstance(source_info, dict):
         return ""
-    for key in ("commit_hash", "md5sum", "branch", "file_path", "repo_url"):
+    for key in ("commit_hash", "sha256sum", "md5sum", "branch", "file_path", "repo_url"):
         value = _as_text(source_info.get(key))
         if value:
             return value
@@ -54,7 +54,15 @@ def _metadata_for_result(payload: dict[str, Any]) -> dict[str, Any]:
         "nthreads": payload.get("nthreads"),
         "source_info": {
             key: source_info.get(key)
-            for key in ("source_type", "repo_url", "branch", "commit_hash", "file_path", "md5sum")
+            for key in (
+                "source_type",
+                "repo_url",
+                "branch",
+                "commit_hash",
+                "file_path",
+                "md5sum",
+                "sha256sum",
+            )
             if source_info.get(key)
         },
     }

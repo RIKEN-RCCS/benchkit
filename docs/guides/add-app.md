@@ -116,9 +116,24 @@ Benchkit では、実行条件とシステム運用設定を明確に分けま�
 
 Benchkit では、まず **top-level application の source provenance** を追えることを優先します。
 具体的には、Git 管理のアプリであれば `repo_url`、`branch`、`commit_hash` を `source_info` として入れられる形が望ましいです。
+通常のアプリ build は、対象 repo の対象 branch の最新 commit を使います。
+再現実行や監査で commit を固定したい場合だけ、`bk_fetch_source` の第4引数に expected commit を渡して、意図した commit を build してください。
+tar archive を使う場合も、必要に応じて第4引数に expected SHA-256 を渡せます。
 
 一方で、ローカルファイルや依存ライブラリを含む完全な provenance を、現時点ですべての app に必須化する方針ではありません。
 portal の `/results/usage` では、この source provenance が各 app / system の最新 result に対して current-state として見えるので、まずは top-level source tracked を目標に整備すると自然です。
+
+### build environment snapshot の方針
+
+CI の共通 wrapper は、`build.sh` 実行前に runner 側の軽量 snapshot を記録します。
+一方で、多くの app は `build.sh` 内で `module load` や compiler 設定を行うため、実際の build 環境は app build の直前で記録する必要があります。
+
+`scripts/bk_functions.sh` を source した build script では、`bk_capture_build_environment_snapshot` または `bk_make` を使ってください。
+`bk_make` は `make` 実行直前に `results/environment_snapshot_build_actual.json` を更新してから `make` を呼びます。
+この snapshot には、主要 compiler / MPI / CUDA / profiler / container command の path と version、loaded modules、allowlist された build 環境変数が含まれます。
+`TOKEN`、`SECRET`、`PASSWORD`、`AUTH`、`KEY`、`CERT` などを名前に含む環境変数は値を redacted として記録します。
+
+この actual build snapshot は、将来の build cache key や、同じ source から異なる binary が生じた場合の原因確認に使う前提の記録です。
 
 ---
 
@@ -135,14 +150,15 @@ source scripts/bk_functions.sh
 
 # ソースコード取得と source_info 生成
 REPO_DIR="your-app"
-bk_fetch_source "https://github.com/your-org/your-app.git" "${REPO_DIR}" "main"
+SOURCE_COMMIT="${YOUR_APP_SOURCE_COMMIT:-}"
+bk_fetch_source "https://github.com/your-org/your-app.git" "${REPO_DIR}" "main" "${SOURCE_COMMIT}"
 cd "${REPO_DIR}"
 
 # システム別ビルド設定
 case "$system" in
     Fugaku)
         # A64FX向けクロスコンパイル
-        make -j 8 compiler=fujitsu_cross mpi=1
+        bk_make -j 8 compiler=fujitsu_cross mpi=1
         ;;
     FugakuCN)
         # A64FX向けネイティブコンパイル
@@ -150,7 +166,7 @@ case "$system" in
         ;;
     MiyabiG)
         # Neoverse-N1向けビルド
-        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        bk_make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
         ;;
     MiyabiC)
         # Intel向けビルド
@@ -159,7 +175,7 @@ case "$system" in
     RC_GENOA)
         # AMD Genoa向けビルド
         module load system/genoa mpi/openmpi-x86_64
-        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        bk_make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
         ;;
     RC_DGXSP)
         # DGX Spark向けビルド
@@ -545,8 +561,10 @@ git push origin add-<code>
 - ビルド・実行ファイルの衝突は基本的に発生しない
 
 ### Git リポジトリの取り扱い
-- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch]` を使う
+- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch] [expected_commit_or_sha256]` を使う
 - `bk_fetch_source` は Git URL または tar archive を取得・展開し、`results/source_info.env` に source provenance を書く
+- Git source では expected commit を指定すると、その commit に checkout して一致しなければ失敗する
+- tar archive では expected SHA-256 を指定すると、一致しなければ失敗し、`source_info` に `sha256sum` も記録する
 - `build.sh` と `run.sh` の両方で同じ checkout が必要な場合も、直接 `git clone` せず `bk_fetch_source` に寄せる
 - `run.sh` が build artifact の実行ファイルだけで完結する場合は、実行時に再 clone しない
 - 取得元 URL を site ごとに変えたい場合は、app 固有環境変数で上書きできる形にしてもよい

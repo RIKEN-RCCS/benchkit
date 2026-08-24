@@ -132,7 +132,17 @@ build_source_info_block() {
       --arg repo_url "$(source_info_env_value BK_REPO_URL)" \
       --arg branch "$(source_info_env_value BK_BRANCH)" \
       --arg commit_hash "$(source_info_env_value BK_COMMIT_HASH)" \
-      '{source_type: $source_type, repo_url: $repo_url, branch: $branch, commit_hash: $commit_hash}'
+      --arg container_path "$(source_info_env_value BK_CONTAINER_IMAGE_PATH)" \
+      --arg container_sha256sum "$(source_info_env_value BK_CONTAINER_IMAGE_SHA256SUM)" \
+      '
+      {source_type: $source_type, repo_url: $repo_url, branch: $branch, commit_hash: $commit_hash}
+      + (if $container_path != "" or $container_sha256sum != "" then {
+          container_image: {
+            file_path: $container_path,
+            sha256sum: $container_sha256sum
+          }
+        } else {} end)
+      '
     return 0
   fi
 
@@ -141,7 +151,11 @@ build_source_info_block() {
       --arg source_type "file" \
       --arg file_path "$(source_info_env_value BK_FILE_PATH)" \
       --arg md5sum "$(source_info_env_value BK_MD5SUM)" \
-      '{source_type: $source_type, file_path: $file_path, md5sum: $md5sum}'
+      --arg sha256sum "$(source_info_env_value BK_SHA256SUM)" \
+      '
+      {source_type: $source_type, file_path: $file_path, md5sum: $md5sum}
+      + (if $sha256sum != "" then {sha256sum: $sha256sum} else {} end)
+      '
     return 0
   fi
 
@@ -167,18 +181,23 @@ sha256_text() {
 build_environment_snapshot_block() {
   local snapshot_file="results/environment_snapshot.json"
   local build_snapshot_file="results/environment_snapshot_build.json"
+  local build_actual_snapshot_file="results/environment_snapshot_build_actual.json"
   local run_snapshot_file="results/environment_snapshot_run.json"
   local native_snapshot_file="results/environment_snapshot_build_run.json"
   local snapshot_source
 
   if [ -f "$snapshot_file" ]; then
     snapshot_source=$(jq -cS . "$snapshot_file" 2>/dev/null || true)
-  elif [ -f "$build_snapshot_file" ] || [ -f "$run_snapshot_file" ] || [ -f "$native_snapshot_file" ]; then
+  elif [ -f "$build_snapshot_file" ] || [ -f "$build_actual_snapshot_file" ] || [ -f "$run_snapshot_file" ] || [ -f "$native_snapshot_file" ]; then
     local build_snapshot="{}"
+    local build_actual_snapshot="{}"
     local run_snapshot="{}"
     local build_run_snapshot="{}"
     if [ -f "$build_snapshot_file" ]; then
       build_snapshot=$(jq -cS . "$build_snapshot_file" 2>/dev/null || printf '{}')
+    fi
+    if [ -f "$build_actual_snapshot_file" ]; then
+      build_actual_snapshot=$(jq -cS . "$build_actual_snapshot_file" 2>/dev/null || printf '{}')
     fi
     if [ -f "$run_snapshot_file" ]; then
       run_snapshot=$(jq -cS . "$run_snapshot_file" 2>/dev/null || printf '{}')
@@ -188,10 +207,11 @@ build_environment_snapshot_block() {
     fi
     snapshot_source=$(jq -cS -n \
       --argjson build "$build_snapshot" \
+      --argjson build_actual "$build_actual_snapshot" \
       --argjson run "$run_snapshot" \
       --argjson build_run "$build_run_snapshot" \
       '
-      ($run | if . == {} then ($build_run | if . == {} then $build else . end) else . end) as $primary |
+      ($run | if . == {} then ($build_run | if . == {} then ($build_actual | if . == {} then $build else . end) else . end) else . end) as $primary |
       {
         schema_version: 1,
         collected_at: ($primary.collected_at // ""),
@@ -207,11 +227,13 @@ build_environment_snapshot_block() {
         ),
         toolchain: {
           build: ($build.toolchain // {}),
+          build_actual: ($build_actual.toolchain // {}),
           run: ($run.toolchain // {}),
           build_run: ($build_run.toolchain // {})
         },
         stages: {
           build: $build,
+          build_actual: $build_actual,
           run: $run,
           build_run: $build_run
         }
