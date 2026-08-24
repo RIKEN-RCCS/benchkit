@@ -20,8 +20,12 @@ def test_matrix_generator_collects_snapshots_in_common_wrappers():
     assert "export BK_BENCHKIT_ROOT=" in matrix_generate
     assert "scripts/build_tool_wrappers" in matrix_generate
     assert "bash scripts/build_with_cache.sh $program $system $program_path" in matrix_generate
-    assert ".benchkit_build_cache/${program}/${system}/" in matrix_generate
-    assert "policy: pull-push" in matrix_generate
+    assert ".benchkit_build_cache/${program}/${system}/" not in matrix_generate
+    assert "policy: pull-push" not in matrix_generate
+    build_cache = (REPO_ROOT / "scripts" / "build_with_cache.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'CUSTOM_DIR%/}/build_cache/${cache_project_slug}' in build_cache
 
 
 def test_send_results_process_does_not_collect_send_stage_snapshot():

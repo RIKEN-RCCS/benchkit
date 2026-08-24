@@ -140,6 +140,7 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 
 cross build job では、共通 wrapper `scripts/build_with_cache.sh` が `build.sh` の前後で build artifact cache を扱います。
 app の `build.sh` から cache 用の関数を呼ぶ必要はありません。
+`BK_BUILD_CACHE_DIR` が設定されていればそれを cache root として使います。未設定の場合、custom runner が `CUSTOM_DIR` を渡していれば `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG` を使います。どちらもなければ build cache は無効です。
 cache miss の場合は通常どおり `build.sh` が実行され、`artifacts/`、`results/source_info.env`、`results/environment_snapshot_build_actual.json` が cache に保存されます。
 cache hit の場合は保存済みの `artifacts/` と build provenance が復元され、`build.sh` は実行されません。
 

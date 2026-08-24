@@ -84,6 +84,62 @@ run_build_without_host_restore_opt_in() {
   run_build_without_host_restore_opt_in_for_root "${TMP_DIR}/project"
 }
 
+pushd "${TMP_DIR}/project" >/dev/null
+BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+  BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+  BK_TEST_BUILD_COUNT="${TMP_DIR}/build-count" \
+  bash scripts/build_with_cache.sh app TestSystem programs/app
+popd >/dev/null
+test "$(cat "${TMP_DIR}/build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STATUS=disabled$' "${TMP_DIR}/project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_STORED=false$' "${TMP_DIR}/project/results/build_cache.env"
+test ! -d "${TMP_DIR}/project/.benchkit_build_cache"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+rm -f "${TMP_DIR}/build-count"
+
+pushd "${TMP_DIR}/project" >/dev/null
+BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+  CUSTOM_DIR="${TMP_DIR}/custom-runner" \
+  CUSTOM_RUNNER_PROJECT_SLUG="benchkit-test" \
+  BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true \
+  BK_BUILD_CACHE_ENV_KEY=test-toolchain-v1 \
+  BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+  BK_TEST_BUILD_COUNT="${TMP_DIR}/build-count" \
+  bash scripts/build_with_cache.sh app TestSystem programs/app
+popd >/dev/null
+test "$(cat "${TMP_DIR}/build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+test -f "${TMP_DIR}/custom-runner/build_cache/benchkit-test/app/TestSystem/manifest.env"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+
+pushd "${TMP_DIR}/project" >/dev/null
+BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+  CUSTOM_DIR="${TMP_DIR}/custom-runner" \
+  CUSTOM_RUNNER_PROJECT_SLUG="benchkit-test" \
+  BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true \
+  BK_BUILD_CACHE_ENV_KEY=test-toolchain-v1 \
+  BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+  BK_TEST_BUILD_COUNT="${TMP_DIR}/build-count" \
+  bash scripts/build_with_cache.sh app TestSystem programs/app
+popd >/dev/null
+test "$(cat "${TMP_DIR}/build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+rm -f "${TMP_DIR}/build-count"
+
+pushd "${TMP_DIR}/project" >/dev/null
+BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+  BK_BUILD_CACHE_DIR="relative-cache" \
+  BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+  BK_TEST_BUILD_COUNT="${TMP_DIR}/build-count" \
+  bash scripts/build_with_cache.sh app TestSystem programs/app
+popd >/dev/null
+test "$(cat "${TMP_DIR}/build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STATUS=disabled$' "${TMP_DIR}/project/results/build_cache.env"
+test ! -d "${TMP_DIR}/project/relative-cache"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+rm -f "${TMP_DIR}/build-count"
+
 run_build_with_cache
 test "$(cat "${TMP_DIR}/build-count")" = "1"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"

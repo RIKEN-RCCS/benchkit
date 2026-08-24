@@ -132,11 +132,6 @@ ${build_key}_build:
     - bash scripts/build_with_cache.sh $program $system $program_path
     - bash scripts/record_timestamp.sh results/build_end
     - chmod -R a+rX artifacts results 2>/dev/null || true
-  cache:
-    key: \"benchkit-build-${program}-${system}\"
-    paths:
-      - .benchkit_build_cache/${program}/${system}/
-    policy: pull-push
   artifacts:
     paths:
       - artifacts/

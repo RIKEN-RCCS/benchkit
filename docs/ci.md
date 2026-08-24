@@ -253,12 +253,16 @@ app support matrix、partial support、app entrypoint不足、`list.csv` 内の�
 ## GitLab Build Cache / GitLab build cache
 
 Generated GitLab CI uses `scripts/build_with_cache.sh` for `cross` build jobs.
-The cache key is broad (`code` + `system`), and the script decides whether the
-restored cache is safe to use by comparing the current build input hash and
-the cached `results/source_info.env`.
+If `BK_BUILD_CACHE_DIR` is set, it is used as the cache root. Otherwise, custom
+runners that expose `CUSTOM_DIR` use
+`$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG`. If neither is
+available, build cache is disabled. The script decides whether the restored
+cache is safe to use by comparing the current build input hash and the cached
+`results/source_info.env`.
 
 生成された GitLab CI の `cross` build job は `scripts/build_with_cache.sh` を使います。
-cache key は広めの `code` + `system` で、復元してよいかは script 側が現在の build input hash と cache 内の `results/source_info.env` を比較して判断します。
+`BK_BUILD_CACHE_DIR` が設定されていればそれを cache root として使います。未設定の場合、custom runner が `CUSTOM_DIR` を渡していれば `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG` を使います。どちらもなければ build cache は無効です。
+復元してよいかは script 側が現在の build input hash と cache 内の `results/source_info.env` を比較して判断します。
 
 Git sources are rechecked with `git ls-remote`; file/archive sources are
 rechecked by SHA-256. If a container image hash is recorded, that image hash is
@@ -267,12 +271,15 @@ also verified. Host-build cache restore is conservative: it requires
 `BK_BUILD_CACHE_ENV_KEY` so site operators can invalidate cache entries when
 compiler/module stacks change. Cache misses fall back to the normal
 `programs/<code>/build.sh` path and store a fresh cache after a successful
-build.
+build. The generated child pipeline does not declare a GitLab `cache:` stanza;
+the cache directory must be a site-managed persistent path such as the custom
+runner's `CUSTOM_DIR`, not a per-job cleanup directory.
 
 Git source は `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
 container image hash が記録されている場合は image hash も確認します。
 host build の cache restore は保守的に扱い、compiler/module stack 変更時に site 運用側が cache を無効化できるよう、`BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true` と非空の `BK_BUILD_CACHE_ENV_KEY` を要求します。
 cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、成功後に新しい cache を保存します。
+生成された child pipeline は GitLab の `cache:` stanza を出しません。cache directory は job ごとの cleanup 対象ではなく、custom runner の `CUSTOM_DIR` など site 側で管理する永続パスにしてください。
 
 ## Lightweight Repository Policy / 軽量repository policy
 
