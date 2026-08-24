@@ -130,7 +130,7 @@ CI の共通 wrapper は、`build.sh` 実行前に runner 側の軽量 snapshot 
 
 CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に入れ、`make` / `cmake` / `ninja` の同名 wrapper が `results/environment_snapshot_build_actual.json` を更新してから本物の command に委譲します。
 そのため、app の `build.sh` では通常どおり `make` / `cmake` / `ninja` を呼べば十分です。
-特殊な独自ビルド command でこれらを経由しない場合だけ、必要に応じて `bk_capture_build_environment_snapshot` を個別に使えます。
+特殊な独自ビルド command でこれらを経由しない場合は、その command 用の wrapper を共通層に追加してから使ってください。
 この snapshot には、主要 compiler / MPI / CUDA / profiler / container command の path と version、loaded modules、allowlist された build 環境変数が含まれます。
 `TOKEN`、`SECRET`、`PASSWORD`、`AUTH`、`KEY`、`CERT` などを名前に含む環境変数は値を redacted として記録します。
 
