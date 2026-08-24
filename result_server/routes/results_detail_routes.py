@@ -11,6 +11,7 @@ from utils.node_hours import compute_node_hours
 from utils.result_compare_view import load_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
+    load_public_result_json,
     load_permitted_result_json,
     serve_permitted_result_file,
     serve_public_padata_file,
@@ -45,11 +46,18 @@ def register_results_detail_routes(results_bp):
     @results_bp.route("/detail/<filename>")
     def result_detail(filename):
         is_public_surface = public_surface()
-        result = load_permitted_result_json(
-            filename,
-            current_app.config["RECEIVED_DIR"],
-            not_found_message="Result file not found",
-        )
+        if is_public_surface:
+            result = load_public_result_json(
+                filename,
+                current_app.config["RECEIVED_DIR"],
+                not_found_message="Result file not found",
+            )
+        else:
+            result = load_permitted_result_json(
+                filename,
+                current_app.config["RECEIVED_DIR"],
+                not_found_message="Result file not found",
+            )
         quality = summarize_result_quality(result)
         padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
         padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]

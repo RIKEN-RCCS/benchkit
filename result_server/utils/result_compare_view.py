@@ -1,7 +1,12 @@
 from flask import abort
 
-from utils.result_file import check_file_permission
-from utils.result_records import build_axis_label, build_compare_headline, load_result_json_batch
+from utils.result_file import check_file_permission, load_public_result_json
+from utils.result_records import (
+    build_axis_label,
+    build_compare_headline,
+    format_result_timestamp,
+    load_result_json_batch,
+)
 
 
 def build_result_compare_context(results):
@@ -42,14 +47,31 @@ def build_result_compare_context(results):
 
 
 def load_result_compare_context(filenames, directory, *, public_surface=False):
+    if public_surface:
+        results = _load_public_result_json_batch(filenames, directory)
+        return build_result_compare_context([
+            _project_public_compare_result(row) for row in results
+        ])
+
     for filename in filenames:
         check_file_permission(filename, directory)
     results = load_result_json_batch(filenames, directory)
     if len(results) != len(filenames):
         abort(404, "Result file not found")
-    if public_surface:
-        results = [_project_public_compare_result(row) for row in results]
     return build_result_compare_context(results)
+
+
+def _load_public_result_json_batch(filenames, directory):
+    results = []
+    for filename in filenames:
+        results.append({
+            "filename": filename,
+            "timestamp": format_result_timestamp(filename),
+            "data": load_public_result_json(filename, directory),
+        })
+
+    results.sort(key=lambda item: item["timestamp"])
+    return results
 
 
 def _project_public_compare_result(row):
