@@ -1918,47 +1918,6 @@ bk_record_file_source_info() {
   bk_write_source_info_env "file" "" "" "" "$BK_FILE_PATH" "$BK_MD5SUM" "$BK_SHA256SUM"
 }
 
-bk_capture_build_environment_snapshot() {
-  local snapshot_file="${1:-results/environment_snapshot_build_actual.json}"
-  local snapshot_stage="${2:-build_actual}"
-  local strict="${BK_STRICT_BUILD_ENVIRONMENT_SNAPSHOT:-false}"
-  local system_value="${BK_SYSTEM:-${system:-}}"
-  local repo_root="${BK_BENCHKIT_ROOT:-$PWD}"
-  local collector="${repo_root}/scripts/collect_environment_snapshot.sh"
-
-  if [ "${BK_CAPTURE_BUILD_ENVIRONMENT_SNAPSHOT:-true}" = "false" ]; then
-    return 0
-  fi
-  if [ ! -f "$collector" ]; then
-    echo "bk_capture_build_environment_snapshot: ${collector} not found; skipping" >&2
-    return 0
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "bk_capture_build_environment_snapshot: jq not found; skipping" >&2
-    return 0
-  fi
-
-  case "$snapshot_file" in
-    /*) ;;
-    *) snapshot_file="${repo_root}/${snapshot_file}" ;;
-  esac
-
-  mkdir -p "$(dirname "$snapshot_file")"
-  if (
-    cd "$repo_root" &&
-    BK_SYSTEM="$system_value" BK_SNAPSHOT_STAGE="$snapshot_stage" \
-      bash "$collector" "$snapshot_file"
-  ); then
-    return 0
-  fi
-
-  echo "bk_capture_build_environment_snapshot: failed to write ${snapshot_file}" >&2
-  if [ "$strict" = "true" ]; then
-    return 1
-  fi
-  return 0
-}
-
 # bk_fetch_source - Fetch source code and collect metadata.
 #
 # Usage:

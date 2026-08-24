@@ -44,13 +44,31 @@ if [ -z "$real_tool" ]; then
 fi
 
 if [ "${BK_BUILD_TOOL_WRAPPER_SNAPSHOT:-true}" != "false" ]; then
-  (
-    export PATH="$path_without_wrapper"
-    export BK_BENCHKIT_ROOT="$repo_root"
-    # shellcheck source=/dev/null
-    source "${repo_root}/scripts/bk_functions.sh"
-    bk_capture_build_environment_snapshot
-  )
+  snapshot_file="${BK_BUILD_ENVIRONMENT_SNAPSHOT_FILE:-${repo_root}/results/environment_snapshot_build_actual.json}"
+  case "$snapshot_file" in
+    /*) ;;
+    *) snapshot_file="${repo_root}/${snapshot_file}" ;;
+  esac
+
+  collector="${repo_root}/scripts/collect_environment_snapshot.sh"
+  if [ -f "$collector" ] && PATH="$path_without_wrapper" command -v jq >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$snapshot_file")"
+    if ! (
+      cd "$repo_root" &&
+      PATH="$path_without_wrapper" \
+        BK_SYSTEM="${BK_SYSTEM:-}" \
+        BK_SNAPSHOT_STAGE="${BK_SNAPSHOT_STAGE:-build_actual}" \
+        bash "$collector" "$snapshot_file"
+    ); then
+      echo "bk_build_tool_wrapper: failed to write ${snapshot_file}" >&2
+      if [ "${BK_STRICT_BUILD_ENVIRONMENT_SNAPSHOT:-false}" = "true" ]; then
+        exit 1
+      fi
+    fi
+  elif [ "${BK_STRICT_BUILD_ENVIRONMENT_SNAPSHOT:-false}" = "true" ]; then
+    echo "bk_build_tool_wrapper: cannot collect build environment snapshot" >&2
+    exit 1
+  fi
 fi
 
 exec "$real_tool" "$@"
