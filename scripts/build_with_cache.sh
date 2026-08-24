@@ -11,9 +11,23 @@ system="$2"
 program_path="$3"
 
 repo_root="${BK_BENCHKIT_ROOT:-$(pwd)}"
-cache_root="${BK_BUILD_CACHE_DIR:-${repo_root}/.benchkit_build_cache}"
-cache_dir="${cache_root}/${code}/${system}"
-cache_manifest="${cache_dir}/manifest.env"
+cache_project_slug="${CUSTOM_RUNNER_PROJECT_SLUG:-${CI_PROJECT_PATH_SLUG:-unknown}}"
+case "$cache_project_slug" in
+  ""|.|..|*/*|*../*|*..*) cache_project_slug="unknown" ;;
+esac
+if [ -n "${BK_BUILD_CACHE_DIR:-}" ]; then
+  cache_root="$BK_BUILD_CACHE_DIR"
+elif [ -n "${CUSTOM_DIR:-}" ]; then
+  cache_root="${CUSTOM_DIR%/}/build_cache/${cache_project_slug}"
+else
+  cache_root=""
+fi
+cache_dir=""
+cache_manifest=""
+if [ -n "$cache_root" ]; then
+  cache_dir="${cache_root}/${code}/${system}"
+  cache_manifest="${cache_dir}/manifest.env"
+fi
 status_file="${repo_root}/results/build_cache.env"
 
 source "${repo_root}/scripts/bk_functions.sh"
@@ -76,6 +90,27 @@ manifest_value() {
   local key="$1"
 
   awk -F= -v k="$key" '$1 == k {print substr($0, length(k) + 2); exit}' "$cache_manifest"
+}
+
+cache_dir_available() {
+  if [ -z "$cache_root" ]; then
+    return 1
+  fi
+  case "$cache_root" in
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+cache_dir_unavailable_reason() {
+  if [ -z "$cache_root" ]; then
+    printf '%s\n' "BK_BUILD_CACHE_DIR is not set and CUSTOM_DIR is unavailable"
+    return 0
+  fi
+  case "$cache_root" in
+    /*) printf '%s\n' "" ;;
+    *) printf '%s\n' "BK_BUILD_CACHE_DIR must be an absolute persistent path" ;;
+  esac
 }
 
 write_status() {
@@ -247,6 +282,10 @@ restore_cache() {
     write_status disabled "BK_BUILD_CACHE_ENABLED is not true"
     return 1
   fi
+  if ! cache_dir_available; then
+    write_status disabled "$(cache_dir_unavailable_reason)"
+    return 1
+  fi
   if [ ! -f "$cache_manifest" ]; then
     write_status miss "cache manifest is missing"
     return 1
@@ -287,6 +326,10 @@ store_cache() {
 
   if [ "${BK_BUILD_CACHE_ENABLED:-true}" != "true" ]; then
     write_status disabled "BK_BUILD_CACHE_ENABLED is not true"
+    return 0
+  fi
+  if ! cache_dir_available; then
+    write_status disabled "$(cache_dir_unavailable_reason)"
     return 0
   fi
   if [ ! -d "${repo_root}/artifacts" ] || [ ! -f "$source_info_file" ]; then
