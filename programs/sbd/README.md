@@ -10,9 +10,10 @@ build configuration validated in the SubWG2 benchmark study. 32 threads is
 Rikyu's site-enforced CPU cap per requested GPU on shared nodes; it also
 covers the pre-Davidson setup pass (`RemakeHelpers`/`TaskCostSize`), which
 runs on the host rather than the GPU and is slow to the point of resembling
-a hang on large inputs if starved of threads. The inputs are included under
-`programs/sbd/data/h2o/` and can be overridden with `BK_SBD_INPUT_DIR` when a
-project-storage copy is preferred.
+a hang on large inputs if starved of threads. The inputs are staged from the
+SBD source clone into `artifacts/` by `build.sh` (see
+`data/h2o/README.md` for provenance) and can be overridden with
+`BK_SBD_INPUT_DIR` when a project-storage copy is preferred.
 
 The DGX Spark route uses the H2O `1em5` input (about 30.4 million product
 determinants), the Thrust backend with `cc120`, NVHPC/HPC-X CUDA 13 `26.3`,
@@ -40,7 +41,8 @@ are intentional: adding the Fujitsu library directory with `-L` causes
 MPICH's trailing `-lmpi` to resolve to Fujitsu MPI instead, mixing two MPI
 implementations in one executable.
 
-The input files are copied unchanged from SBD's tracked `data/h2o` directory;
+The input files are not committed to this repository; `build.sh` stages them
+from its `bk_fetch_source` clone of SBD's `data/h2o` directory into `artifacts/`.
 `data/h2o/README.md` records the upstream revision, checksums, and Apache-2.0
 provenance.
 

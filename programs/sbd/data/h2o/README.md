@@ -1,7 +1,9 @@
 # SBD H₂O benchmark inputs
 
-These files are copied unchanged from the SBD repository's tracked
-`data/h2o/` directory:
+The SBD H₂O inputs are not committed to the BenchKit repository. `build.sh`
+stages them from the SBD repository's tracked `data/h2o/` directory into
+`artifacts/` during the build, and `run.sh` reads them from there. This file
+records their upstream provenance and checksums.
 
 - Repository: https://github.com/r-ccs-cms/sbd
 - Upstream revision: `02324eee32a49f3203522d230bcbc34ef032a6a6`
@@ -19,6 +21,7 @@ c36920e57507d27dd49d2b729662cbb5a92afce26d61fb0e044e2691599eb804  h2o-1em6-alpha
 ```
 
 The upstream SBD repository distributes these files under its Apache-2.0
-license (`LICENSE.txt`). They are retained here so the BenchKit application
-can run without private project storage. Set `BK_SBD_INPUT_DIR` to use an
-equivalent project-storage copy instead.
+license (`LICENSE.txt`). `build.sh` copies them from its `bk_fetch_source`
+clone of the repository, so the BenchKit application runs without committing
+the inputs or relying on private project storage. Set `BK_SBD_INPUT_DIR` to
+use an equivalent project-storage copy instead.

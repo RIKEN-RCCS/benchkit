@@ -92,3 +92,11 @@ if [[ ! -x "${binary}" ]]; then
   exit 1
 fi
 cp "${binary}" "${ARTIFACT_DIR}/diag"
+
+# Stage benchmark inputs from the source clone into artifacts so run.sh can
+# retrieve them on the compute node even when the source tree is absent
+# (cross-build mode). See programs/sbd/data/h2o/README.md for provenance.
+for input_file in fcidump.txt h2o-1em4-alpha.txt h2o-1em5-alpha.txt \
+                  h2o-1em6-alpha.txt h2o-1em7-alpha.txt; do
+  cp "data/h2o/${input_file}" "${ARTIFACT_DIR}/${input_file}"
+done

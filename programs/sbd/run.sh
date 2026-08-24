@@ -11,7 +11,7 @@ source scripts/bk_functions.sh
 
 RESULTS_DIR="${PWD}/results"
 RUN_DIR="${PWD}/sbd_run"
-INPUT_DIR="${BK_SBD_INPUT_DIR:-${PWD}/programs/sbd/data/h2o}"
+INPUT_DIR="${BK_SBD_INPUT_DIR:-${PWD}/artifacts}"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
