@@ -25,14 +25,14 @@ case "$system" in
     MiyabiC)
 	cd src_f90_omp_host
 	echo "Compile cods in "`pwd`
-	bk_make
+	make
 	echo "Executable is "${BIN}" and copied to "${artdir}
 	cp ../exe/$BIN ../../${artdir}
 	;;
     MiyabiG)
 	cd src_f90_acc_device
 	echo "Compile cods in "`pwd`
-	bk_make
+	make
 	echo "Executable is "${BIN}" and copied to "${artdir}
 	cp ../exe/$BIN ../../${artdir}
 	;;

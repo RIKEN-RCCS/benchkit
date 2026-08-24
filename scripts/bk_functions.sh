@@ -1959,11 +1959,6 @@ bk_capture_build_environment_snapshot() {
   return 0
 }
 
-bk_make() {
-  bk_capture_build_environment_snapshot
-  make "$@"
-}
-
 # bk_fetch_source - Fetch source code and collect metadata.
 #
 # Usage:

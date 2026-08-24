@@ -124,6 +124,9 @@ ${build_key}_build:
   script:
     - mkdir -p results
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build.json
+    - export BK_SYSTEM=\"$system\"
+    - export BK_BENCHKIT_ROOT=\"\$PWD\"
+    - export PATH=\"\$PWD/scripts/build_tool_wrappers:\$PATH\"
     - bash scripts/record_timestamp.sh results/build_start
     - echo \"[BUILD] $program for $system\"
     - bash $program_path/build.sh $system
@@ -202,6 +205,9 @@ ${job_prefix}_build_run:
   script:
     - echo \"Starting build and run\"
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build_run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build_run.json
+    - export BK_SYSTEM=\"$system\"
+    - export BK_BENCHKIT_ROOT=\"\$PWD\"
+    - export PATH=\"\$PWD/scripts/build_tool_wrappers:\$PATH\"
     - bash scripts/record_timestamp.sh results/build_start
     - bash $program_path/build.sh $system
     - bash scripts/record_timestamp.sh results/build_end

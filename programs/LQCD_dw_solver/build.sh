@@ -45,9 +45,9 @@ case "$system" in
       if [ ! -e Makefile_target.inc.keep ]; then
         cp Makefile_target.inc Makefile_target.inc.keep
       fi
-      bk_make -j 8 lib
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make -j 8
+      make -j 8
       cd -
       cp $BIN ../artifacts
       #fccpx --version
@@ -59,9 +59,9 @@ case "$system" in
         cp Makefile_target.inc Makefile_target.inc.keep
         sed -i "s/FCCpx/FCC/g" Makefile_target.inc
       fi
-      bk_make -j 12 lib
+      make -j 12 lib
       cd benchmark/domainwall/
-      bk_make -j 12
+      make -j 12
       cd -
       cp $BIN ../artifacts
       ;;
@@ -73,46 +73,46 @@ case "$system" in
     #   ;;
     MiyabiC|AVX512)
       cp Makefile_simd_avx512 Makefile
-      bk_make -j 8 lib
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make -j 8
+      make -j 8
       cd -
       cp $BIN ../artifacts
       ;;
     MiyabiG)
       # OpenACC
       cp Makefile_openacc Makefile
-      bk_make -j 8 lib
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make -j 8
+      make -j 8
       cd -
       mv $BIN $BIN_openacc
       cp $BIN_openacc ../artifacts
       # CUDA
       rm -r build
       cp Makefile_cuda Makefile
-      bk_make clean
-      bk_make -j 8 lib
+      make clean
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make clean
-      bk_make -j 8
+      make clean
+      make -j 8
       cd -
       mv $BIN $BIN_cuda
       cp $BIN_cuda ../artifacts
       ;;
     OpenACC)
       cp Makefile_openacc Makefile
-      bk_make -j 8 lib
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make -j 8
+      make -j 8
       cd -
       cp $BIN ../artifacts
       ;;
     CUDA)
       cp Makefile_cuda Makefile
-      bk_make -j 8 lib
+      make -j 8 lib
       cd benchmark/domainwall/
-      bk_make -j 8
+      make -j 8
       cd -
       cp $BIN ../artifacts
       ;;

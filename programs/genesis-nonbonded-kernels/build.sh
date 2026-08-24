@@ -47,15 +47,13 @@ case "$system" in
     # ;;
 esac
 
-bk_capture_build_environment_snapshot
-
 for i in "${!name_list[@]}"; do
     name=${name_list[i]}
 	dir_path=${dir_list[i]}
 	index=$((i + 1))
 	echo "Looping over name='$name', dir='$dir_path'"
 	cd "$dir_path" || { echo "cd failed to '$dir_path'"; exit 1; }
-    bk_make FC="${comp}" OMP=omp SIMD=dir KIND="${name}" ${archopt}
+    make FC="${comp}" OMP=omp SIMD=dir KIND="${name}" ${archopt}
     cp "$dir/kernel" "../../artifacts/kernel_${name}"
 	cd - > /dev/null
 done
