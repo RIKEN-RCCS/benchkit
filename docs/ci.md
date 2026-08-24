@@ -250,6 +250,30 @@ The app support matrix, partial support, missing app entrypoints, and unknown sy
 
 app support matrix、partial support、app entrypoint不足、`list.csv` 内の未知systemは、運用 visibility のため `/results/usage` に表示します。ただしアプリごとの準備状況や導入段階がばらばらなため、現時点では CI failure にはしません。
 
+## GitLab Build Cache / GitLab build cache
+
+Generated GitLab CI uses `scripts/build_with_cache.sh` for `cross` build jobs.
+The cache key is broad (`code` + `system`), and the script decides whether the
+restored cache is safe to use by comparing the current build input hash and
+the cached `results/source_info.env`.
+
+生成された GitLab CI の `cross` build job は `scripts/build_with_cache.sh` を使います。
+cache key は広めの `code` + `system` で、復元してよいかは script 側が現在の build input hash と cache 内の `results/source_info.env` を比較して判断します。
+
+Git sources are rechecked with `git ls-remote`; file/archive sources are
+rechecked by SHA-256. If a container image hash is recorded, that image hash is
+also verified. Host-build cache restore is conservative: it requires
+`BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true` and a non-empty
+`BK_BUILD_CACHE_ENV_KEY` so site operators can invalidate cache entries when
+compiler/module stacks change. Cache misses fall back to the normal
+`programs/<code>/build.sh` path and store a fresh cache after a successful
+build.
+
+Git source は `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
+container image hash が記録されている場合は image hash も確認します。
+host build の cache restore は保守的に扱い、compiler/module stack 変更時に site 運用側が cache を無効化できるよう、`BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true` と非空の `BK_BUILD_CACHE_ENV_KEY` を要求します。
+cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、成功後に新しい cache を保存します。
+
 ## Lightweight Repository Policy / 軽量repository policy
 
 `Repository Policy` runs on every pull request and on pushes to `develop` or `main`. It runs `scripts/tests/check_text_integrity.py` to ensure tracked text-like files decode as UTF-8 and do not contain the U+FFFD replacement character.

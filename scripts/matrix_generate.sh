@@ -129,9 +129,14 @@ ${build_key}_build:
     - export PATH=\"\$PWD/scripts/build_tool_wrappers:\$PATH\"
     - bash scripts/record_timestamp.sh results/build_start
     - echo \"[BUILD] $program for $system\"
-    - bash $program_path/build.sh $system
+    - bash scripts/build_with_cache.sh $program $system $program_path
     - bash scripts/record_timestamp.sh results/build_end
     - chmod -R a+rX artifacts results 2>/dev/null || true
+  cache:
+    key: \"benchkit-build-${program}-${system}\"
+    paths:
+      - .benchkit_build_cache/${program}/${system}/
+    policy: pull-push
   artifacts:
     paths:
       - artifacts/

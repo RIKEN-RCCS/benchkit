@@ -136,6 +136,19 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 
 この actual build snapshot は、将来の build cache key や、同じ source から異なる binary が生じた場合の原因確認に使う前提の記録です。
 
+### build cache の方針
+
+cross build job では、共通 wrapper `scripts/build_with_cache.sh` が `build.sh` の前後で build artifact cache を扱います。
+app の `build.sh` から cache 用の関数を呼ぶ必要はありません。
+cache miss の場合は通常どおり `build.sh` が実行され、`artifacts/`、`results/source_info.env`、`results/environment_snapshot_build_actual.json` が cache に保存されます。
+cache hit の場合は保存済みの `artifacts/` と build provenance が復元され、`build.sh` は実行されません。
+
+cache hit は、少なくとも現在の app build input hash と source provenance が一致するときだけ許可されます。
+Git source では cache 内の `repo_url` / `branch` / `commit_hash` に対し、現在の branch commit を `git ls-remote` で再解決します。
+file/archive source では SHA-256 を再計算します。
+container image SHA-256 が source_info に入っている場合は container image も再検証します。
+container ではない host build は toolchain 更新で stale になり得るため、restore には site 側で `BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true` と非空の `BK_BUILD_CACHE_ENV_KEY` を明示する必要があります。
+
 ---
 
 ## 4. ビルドスクリプトの作成
