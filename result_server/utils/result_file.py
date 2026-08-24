@@ -144,6 +144,23 @@ def load_permitted_result_json(
     return result
 
 
+def load_public_result_json(
+    filename: str,
+    result_dir: str,
+    *,
+    not_found_message: str = "Result file not found",
+):
+    """Load JSON content only when it has no confidential tags."""
+    from utils.result_records import load_result_json
+
+    result = load_result_json(filename, result_dir)
+    if result is None:
+        abort(404, not_found_message)
+    if _extract_confidential_tags(result):
+        abort(404, not_found_message)
+    return result
+
+
 def load_authenticated_result_json(
     filename: str,
     data_dir: str,
