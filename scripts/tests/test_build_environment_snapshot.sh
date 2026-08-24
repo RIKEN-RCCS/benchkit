@@ -87,4 +87,32 @@ jq -e '
   (.environment_snapshot.hash | startswith("sha256:"))
 ' "${TMP_DIR}/project/results/result0.json" >/dev/null
 
+rm -f "${TMP_DIR}/project/results/environment_snapshot_build_actual.json" "${TMP_DIR}/project/results/result0.json"
+pushd "${TMP_DIR}/project/src" >/dev/null
+export BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK=true
+export BK_TEST_FAKE_MAKE_ARGS="${TMP_DIR}/make_args_fallback"
+make fallback
+unset BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK
+popd >/dev/null
+
+test -f "$SNAPSHOT"
+test "$(cat "${TMP_DIR}/make_args_fallback")" = "fallback"
+jq -e --arg make_path "${TMP_DIR}/bin/make" '
+  .stage == "build_actual" and
+  .system.name == "TestSystem" and
+  .toolchain.commands.make.path == $make_path and
+  .toolchain.environment.CC == "mpicc" and
+  .toolchain.environment.SECRET_TOKEN == "[redacted]"
+' "$SNAPSHOT" >/dev/null
+
+pushd "${TMP_DIR}/project" >/dev/null
+bash scripts/result.sh app TestSystem native build run 123 >/dev/null
+popd >/dev/null
+
+jq -e '
+  .environment_snapshot.payload.stages.build_actual.stage == "build_actual" and
+  .environment_snapshot.payload.toolchain.build_actual.environment.CC == "mpicc" and
+  (.environment_snapshot.hash | startswith("sha256:"))
+' "${TMP_DIR}/project/results/result0.json" >/dev/null
+
 echo "build environment snapshot test passed"
