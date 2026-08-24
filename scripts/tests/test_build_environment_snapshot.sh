@@ -12,10 +12,11 @@ fi
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-mkdir -p "${TMP_DIR}/project/scripts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/src"
+mkdir -p "${TMP_DIR}/project/scripts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/src" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
+cp -R "${REPO_DIR}/scripts/build_tool_wrappers" "${TMP_DIR}/project/scripts/build_tool_wrappers"
 
 cat > "${TMP_DIR}/project/results/result" <<'EOF'
 FOM:1.0 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:1
@@ -44,24 +45,32 @@ cat > "${TMP_DIR}/project/results/environment_snapshot_build.json" <<'EOF'
 }
 EOF
 
-pushd "${TMP_DIR}/project" >/dev/null
-source scripts/bk_functions.sh
-popd >/dev/null
+cat > "${TMP_DIR}/bin/make" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" > "${BK_TEST_FAKE_MAKE_ARGS}"
+EOF
+chmod +x "${TMP_DIR}/bin/make"
 
 pushd "${TMP_DIR}/project/src" >/dev/null
 export BK_SYSTEM=TestSystem
-export BK_SNAPSHOT_TOOL_COMMANDS="bash"
+export BK_BENCHKIT_ROOT="${TMP_DIR}/project"
+export BK_SNAPSHOT_TOOL_COMMANDS="make bash"
 export BK_SNAPSHOT_ENV_VARS="CC SECRET_TOKEN"
+export PATH="${TMP_DIR}/project/scripts/build_tool_wrappers:${TMP_DIR}/bin:${PATH}"
 export CC=mpicc
 export SECRET_TOKEN=should_not_be_recorded
-bk_capture_build_environment_snapshot
+export BK_TEST_FAKE_MAKE_ARGS="${TMP_DIR}/make_args"
+make -j2 target
 popd >/dev/null
 
 SNAPSHOT="${TMP_DIR}/project/results/environment_snapshot_build_actual.json"
 test -f "$SNAPSHOT"
-jq -e '
+test "$(cat "${TMP_DIR}/make_args")" = "-j2 target"
+jq -e --arg make_path "${TMP_DIR}/bin/make" '
   .stage == "build_actual" and
   .system.name == "TestSystem" and
+  .toolchain.commands.make.path == $make_path and
   (.toolchain.commands.bash.path | length) > 0 and
   .toolchain.environment.CC == "mpicc" and
   .toolchain.environment.SECRET_TOKEN == "[redacted]"

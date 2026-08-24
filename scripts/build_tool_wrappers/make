@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+exec "${script_dir}/bk_build_tool_wrapper.sh" make "$@"

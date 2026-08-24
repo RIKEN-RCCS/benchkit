@@ -40,7 +40,6 @@ tar -xzf "$archive" -C "${WORK_DIR}" --strip-components=1
 cd "${WORK_DIR}"
 
 chmod +x make.FP3.sh
-bk_capture_build_environment_snapshot
 bash ./make.FP3.sh
 
 if [[ ! -f "$exe_relpath" ]]; then

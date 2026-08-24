@@ -128,8 +128,9 @@ portal の `/results/usage` では、この source provenance が各 app / syste
 CI の共通 wrapper は、`build.sh` 実行前に runner 側の軽量 snapshot を記録します。
 一方で、多くの app は `build.sh` 内で `module load` や compiler 設定を行うため、実際の build 環境は app build の直前で記録する必要があります。
 
-`scripts/bk_functions.sh` を source した build script では、`bk_capture_build_environment_snapshot` または `bk_make` を使ってください。
-`bk_make` は `make` 実行直前に `results/environment_snapshot_build_actual.json` を更新してから `make` を呼びます。
+CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に入れ、`make` / `cmake` / `ninja` の同名 wrapper が `results/environment_snapshot_build_actual.json` を更新してから本物の command に委譲します。
+そのため、app の `build.sh` では通常どおり `make` / `cmake` / `ninja` を呼べば十分です。
+特殊な独自ビルド command でこれらを経由しない場合だけ、必要に応じて `bk_capture_build_environment_snapshot` を個別に使えます。
 この snapshot には、主要 compiler / MPI / CUDA / profiler / container command の path と version、loaded modules、allowlist された build 環境変数が含まれます。
 `TOKEN`、`SECRET`、`PASSWORD`、`AUTH`、`KEY`、`CERT` などを名前に含む環境変数は値を redacted として記録します。
 
@@ -158,7 +159,7 @@ cd "${REPO_DIR}"
 case "$system" in
     Fugaku)
         # A64FX向けクロスコンパイル
-        bk_make -j 8 compiler=fujitsu_cross mpi=1
+        make -j 8 compiler=fujitsu_cross mpi=1
         ;;
     FugakuCN)
         # A64FX向けネイティブコンパイル
@@ -166,7 +167,7 @@ case "$system" in
         ;;
     MiyabiG)
         # Neoverse-N1向けビルド
-        bk_make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
         ;;
     MiyabiC)
         # Intel向けビルド
@@ -175,7 +176,7 @@ case "$system" in
     RC_GENOA)
         # AMD Genoa向けビルド
         module load system/genoa mpi/openmpi-x86_64
-        bk_make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
+        make -j 8 compiler=openmpi-gnu arch=skylake mpi=1
         ;;
     RC_DGXSP)
         # DGX Spark向けビルド

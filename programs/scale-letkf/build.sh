@@ -16,20 +16,18 @@ cd "${REPO_DIR}"
 case "$system" in
   Fugaku)
     source setup-env.Fugaku.sh
-    bk_capture_build_environment_snapshot
     cd scale/scale-rm/src
-    bk_make -j
+    make -j
     cd ../../scale-letkf/scale
-    bk_make
+    make
     cd $TOPDIR
   ;;
   RC_GH200)
     source setup-env.RC_GH200.sh
-    bk_capture_build_environment_snapshot
     cd scale/scale-rm/src
-    bk_make -j
+    make -j
     cd ../../scale-letkf/scale
-    bk_make
+    make
     cd $TOPDIR
   ;;
   *)

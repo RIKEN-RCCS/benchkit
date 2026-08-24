@@ -55,14 +55,15 @@ Completed:
   `result_metadata_index` at ingest time. JSON/tgz artifacts remain the raw
   records and existing result pages remain file-backed.
 - Generated GitLab CI jobs collect lightweight environment snapshots in the
-  common build/run/build_run wrappers. Build scripts can additionally record
-  the post-module-load, pre-compile environment as
-  `results/environment_snapshot_build_actual.json`. Result submission combines
-  those artifacts into a Result JSON `environment_snapshot` reference block.
-  The Portal indexes the snapshot payload by hash in `environment_snapshots`
-  and links received results through `environment_snapshot_results`. Result
-  detail pages show the snapshot hash, allocation project ID, scheduler,
-  runner, and Benchkit commit.
+  common build/run/build_run wrappers. Build jobs put
+  `scripts/build_tool_wrappers/` at the front of `PATH`, so `make` / `cmake` /
+  `ninja` record the post-module-load, pre-compile environment as
+  `results/environment_snapshot_build_actual.json` before delegating to the real
+  command. Result submission combines those artifacts into a Result JSON
+  `environment_snapshot` reference block. The Portal indexes the snapshot
+  payload by hash in `environment_snapshots` and links received results through
+  `environment_snapshot_results`. Result detail pages show the snapshot hash,
+  allocation project ID, scheduler, runner, and Benchkit commit.
 
 Remaining follow-up:
 

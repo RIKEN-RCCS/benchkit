@@ -173,7 +173,6 @@ case "${system}" in
     ;;
 esac
 
-bk_capture_build_environment_snapshot
 run_logged "Configuring SALMON" "${BUILD_LOG_DIR}/${system}_configure.log" \
   cmake -Wno-dev -S . -B "${BUILD_DIR}" "${cmake_args[@]}"
 run_logged "Building SALMON" "${BUILD_LOG_DIR}/${system}_build.log" \

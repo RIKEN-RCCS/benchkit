@@ -17,6 +17,8 @@ def test_matrix_generator_collects_snapshots_in_common_wrappers():
         "BK_SNAPSHOT_STAGE=build_run bash scripts/collect_environment_snapshot.sh"
         in matrix_generate
     )
+    assert "export BK_BENCHKIT_ROOT=" in matrix_generate
+    assert "scripts/build_tool_wrappers" in matrix_generate
 
 
 def test_send_results_process_does_not_collect_send_stage_snapshot():
