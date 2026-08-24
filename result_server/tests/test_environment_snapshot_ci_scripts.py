@@ -27,3 +27,17 @@ def test_send_results_process_does_not_collect_send_stage_snapshot():
     ).read_text(encoding="utf-8")
 
     assert "collect_environment_snapshot.sh" not in process_script
+
+
+def test_genesis_rikyu_container_build_preserves_wrapper_path():
+    build_script = (REPO_ROOT / "programs" / "genesis" / "build.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert '--env "BK_BENCHKIT_ROOT=$PWD"' in build_script
+    assert '--env "BK_SYSTEM=${BK_SYSTEM:-$system}"' in build_script
+    assert (
+        'export PATH="${BK_BENCHKIT_ROOT}/scripts/build_tool_wrappers:${PATH}"'
+        in build_script
+    )
+    assert 'exec bash "$@"' in build_script

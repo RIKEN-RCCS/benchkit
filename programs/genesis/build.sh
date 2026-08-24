@@ -39,9 +39,14 @@ run_genesis_rikyu_in_container() {
     echo "Running GENESIS RIKYU build in Apptainer image: $image"
     "$apptainer_bin" exec --nv --bind "$binds" --pwd "$PWD" \
         --env GENESIS_RIKYU_IN_CONTAINER=true \
+        --env "BK_BENCHKIT_ROOT=$PWD" \
+        --env "BK_SYSTEM=${BK_SYSTEM:-$system}" \
         --env "BK_SOURCE_CONTAINER_PATH=$image" \
         --env "BK_SOURCE_CONTAINER_SHA256=$image_sha256" \
-        "$image" bash "$0" "$@"
+        "$image" bash -c '
+            export PATH="${BK_BENCHKIT_ROOT}/scripts/build_tool_wrappers:${PATH}"
+            exec bash "$@"
+        ' _ "$0" "$@"
     exit $?
 }
 
