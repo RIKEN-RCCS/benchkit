@@ -82,7 +82,9 @@ def summarize_result_quality(data):
             source_missing_fields = [key for key in ("repo_url", "branch", "commit_hash") if not source_info.get(key)]
             source_info_complete = not source_missing_fields
         elif source_type == "file":
-            source_missing_fields = [key for key in ("file_path", "md5sum") if not source_info.get(key)]
+            source_missing_fields = [key for key in ("file_path",) if not source_info.get(key)]
+            if not source_info.get("sha256sum") and not source_info.get("md5sum"):
+                source_missing_fields.append("sha256sum")
             source_info_complete = not source_missing_fields
         else:
             warnings.append("source_info has unknown source_type")

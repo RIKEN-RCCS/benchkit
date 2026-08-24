@@ -41,21 +41,26 @@ def _summarize_source_info(data: Dict[str, Any]) -> Dict[str, Any]:
             else branch or short_hash or "git metadata incomplete"
         )
     elif source_type == "file":
-        required_fields = ("file_path", "md5sum")
+        required_fields = ("file_path",)
         file_path = source_info.get("file_path") or ""
+        sha256sum = source_info.get("sha256sum") or ""
         md5sum = source_info.get("md5sum") or ""
+        short_sha256 = sha256sum[:12] if sha256sum else ""
         short_md5 = md5sum[:8] if md5sum else ""
         basename = os.path.basename(file_path) if file_path else ""
+        source_hash = short_sha256 or short_md5
         reference = (
-            f"{basename}@{short_md5}"
-            if basename and short_md5
-            else basename or short_md5 or "file metadata incomplete"
+            f"{basename}@{source_hash}"
+            if basename and source_hash
+            else basename or source_hash or "file metadata incomplete"
         )
     else:
         required_fields = ()
         reference = "unknown source type"
 
     missing_fields = [field for field in required_fields if not source_info.get(field)]
+    if source_type == "file" and not source_info.get("sha256sum") and not source_info.get("md5sum"):
+        missing_fields.append("sha256sum")
     if source_type == "unknown":
         missing_fields = ["source_type"]
 

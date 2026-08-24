@@ -6,6 +6,8 @@ echo "[LQCD_dw_solver] Building on system: $system"
 mkdir -p artifacts
 #git clone https://github.com/RIKEN-LQCD/qws.git
 
+source scripts/bk_functions.sh
+
 TARDIR=./
 case "$system" in
   Fugaku*)
@@ -20,10 +22,12 @@ esac
 echo "soruce location " $TARDIR
 
 TARBALL=LQCD_dw_solver_20251209_773762.tar.gz
+TARBALL_SHA256="${LQCD_DW_SOLVER_ARCHIVE_SHA256:-${BK_LQCD_DW_SOLVER_ARCHIVE_SHA256:-}}"
 SRC=`echo $TARBALL|sed -e "s/\.tar\.gz//"`
 DIR=LQCD_dw_solver
 if [ ! -d LQCD_dw_solver ]; then
-  cp $TARDIR/$TARBALL .
+  bk_record_file_source_info "$TARDIR/$TARBALL" "$TARBALL_SHA256" "LQCD_dw_solver source archive"
+  cp "$TARDIR/$TARBALL" .
   tar -zxf $TARBALL
   ln -s $SRC $DIR
 fi
@@ -41,9 +45,9 @@ case "$system" in
       if [ ! -e Makefile_target.inc.keep ]; then
         cp Makefile_target.inc Makefile_target.inc.keep
       fi
-      make -j 8 lib
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make -j 8
+      bk_make -j 8
       cd -
       cp $BIN ../artifacts
       #fccpx --version
@@ -55,9 +59,9 @@ case "$system" in
         cp Makefile_target.inc Makefile_target.inc.keep
         sed -i "s/FCCpx/FCC/g" Makefile_target.inc
       fi
-      make -j 12 lib
+      bk_make -j 12 lib
       cd benchmark/domainwall/
-      make -j 12
+      bk_make -j 12
       cd -
       cp $BIN ../artifacts
       ;;
@@ -69,46 +73,46 @@ case "$system" in
     #   ;;
     MiyabiC|AVX512)
       cp Makefile_simd_avx512 Makefile
-      make -j 8 lib
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make -j 8
+      bk_make -j 8
       cd -
       cp $BIN ../artifacts
       ;;
     MiyabiG)
       # OpenACC
       cp Makefile_openacc Makefile
-      make -j 8 lib
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make -j 8
+      bk_make -j 8
       cd -
       mv $BIN $BIN_openacc
       cp $BIN_openacc ../artifacts
       # CUDA
       rm -r build
       cp Makefile_cuda Makefile
-      make clean
-      make -j 8 lib
+      bk_make clean
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make clean
-      make -j 8
+      bk_make clean
+      bk_make -j 8
       cd -
       mv $BIN $BIN_cuda
       cp $BIN_cuda ../artifacts
       ;;
     OpenACC)
       cp Makefile_openacc Makefile
-      make -j 8 lib
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make -j 8
+      bk_make -j 8
       cd -
       cp $BIN ../artifacts
       ;;
     CUDA)
       cp Makefile_cuda Makefile
-      make -j 8 lib
+      bk_make -j 8 lib
       cd benchmark/domainwall/
-      make -j 8
+      bk_make -j 8
       cd -
       cp $BIN ../artifacts
       ;;

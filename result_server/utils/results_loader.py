@@ -19,7 +19,7 @@ ESTIMATED_FIELD_MAP = {"system": "current_system.system", "code": "code", "exp":
 RESULT_TABLE_COLUMNS = [
     {"label": "Timestamp", "key": "timestamp", "tooltip": "Date and time when benchmark execution completed and results were automatically submitted to server", "tooltip_class": "tooltip-left"},
     {"label": "CODE", "key": "code"},
-    {"label": "Branch/Hash", "key": "source_hash", "tooltip": "Source code branch name and short commit hash (git) or short md5sum (file archive)"},
+    {"label": "Branch/Hash", "key": "source_hash", "tooltip": "Source code branch name and short commit hash (git) or short sha256/md5 hash (file archive)"},
     {"label": "Exp", "key": "exp", "tooltip": "Experimental conditions (filtered by CODE)"},
     {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
     {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},

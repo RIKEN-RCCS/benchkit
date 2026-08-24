@@ -6,11 +6,16 @@ system="$1"
 REPO_DIR="genesis"
 REPO_URL="${GENESIS_REPO_URL:-https://github.com/genesis-release-r-ccs/${REPO_DIR}.git}"
 BRANCH="${GENESIS_BRANCH:-main}"
+SOURCE_COMMIT="${GENESIS_SOURCE_COMMIT:-}"
+
+source scripts/bk_functions.sh
 
 run_genesis_rikyu_in_container() {
     local image="${GENESIS_RIKYU_SIF:-/shared/software/hpc-dev-container/hpc_dev.sif}"
     local apptainer_bin="${GENESIS_RIKYU_APPTAINER:-apptainer}"
     local binds="${PWD}:${PWD}"
+    local expected_image_sha256="${GENESIS_RIKYU_SIF_SHA256:-${BK_GENESIS_RIKYU_SIF_SHA256:-}}"
+    local image_sha256=""
 
     if [ "${GENESIS_RIKYU_IN_CONTAINER:-false}" = "true" ]; then
         return 0
@@ -23,6 +28,9 @@ run_genesis_rikyu_in_container() {
         echo "Apptainer command not found for GENESIS RIKYU container: $apptainer_bin" >&2
         exit 1
     fi
+    if ! image_sha256=$(bk_verify_file_sha256 "$image" "$expected_image_sha256" "GENESIS RIKYU container image"); then
+        exit 1
+    fi
 
     if [ -n "${GENESIS_RIKYU_APPTAINER_BINDS:-}" ]; then
         binds="${binds},${GENESIS_RIKYU_APPTAINER_BINDS}"
@@ -31,6 +39,8 @@ run_genesis_rikyu_in_container() {
     echo "Running GENESIS RIKYU build in Apptainer image: $image"
     "$apptainer_bin" exec --nv --bind "$binds" --pwd "$PWD" \
         --env GENESIS_RIKYU_IN_CONTAINER=true \
+        --env "BK_SOURCE_CONTAINER_PATH=$image" \
+        --env "BK_SOURCE_CONTAINER_SHA256=$image_sha256" \
         "$image" bash "$0" "$@"
     exit $?
 }
@@ -42,8 +52,7 @@ fi
 echo "[${REPO_DIR}] Building on system: $system"
 mkdir -p artifacts
 
-source scripts/bk_functions.sh
-bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}"
+bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 cd ${REPO_DIR} || {
     echo "Failed to enter ${REPO_DIR}"
@@ -341,6 +350,7 @@ echo "CXX=${CXX:-}"
 echo "F77=${F77:-}"
 echo "configure args: ${CONFIG_ARGS[*]}"
 
+bk_capture_build_environment_snapshot
 bootstrap_genesis
 configure_env=(CC="$CC" FC="$FC")
 if [ -n "${CXX:-}" ]; then

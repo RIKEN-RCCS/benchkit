@@ -29,5 +29,7 @@ def test_bk_fetch_source_writes_encoded_source_info_values():
     assert "BK_SOURCE_INFO_FORMAT=base64-v1" in bk_functions
     assert "BK_REPO_URL_B64" in bk_functions
     assert "BK_FILE_PATH_B64" in bk_functions
+    assert "BK_SHA256SUM_B64" in bk_functions
+    assert "BK_CONTAINER_IMAGE_SHA256SUM_B64" in bk_functions
     assert 'export BK_REPO_URL="$BK_REPO_URL"' not in bk_functions
     assert 'export BK_FILE_PATH="$BK_FILE_PATH"' not in bk_functions

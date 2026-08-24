@@ -129,6 +129,9 @@ def _format_source_hash(source_info):
         return f"{branch}@{short_hash}" if branch and short_hash else short_hash or branch or "-"
 
     if source_type == "file":
+        sha256sum = source_info.get("sha256sum", "")
+        if sha256sum:
+            return sha256sum[:12]
         md5sum = source_info.get("md5sum", "")
         return md5sum[:8] if md5sum else "-"
 
