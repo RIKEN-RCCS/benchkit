@@ -52,10 +52,43 @@ printf '%s\n' "$*" > "${BK_TEST_FAKE_MAKE_ARGS}"
 EOF
 chmod +x "${TMP_DIR}/bin/make"
 
+cat > "${TMP_DIR}/bin/nvcc" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+if [ "${1:-}" != "-V" ]; then
+  echo "unexpected nvcc version argument: ${1:-}" >&2
+  exit 2
+fi
+cat <<'OUT'
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2025 NVIDIA Corporation
+Built on Tue_Dec_16_07:27:17_PM_PST_2025
+Cuda compilation tools, release 13.1, V13.1.115
+Build cuda_13.1.r13.1/compiler.37061995_0
+OUT
+EOF
+chmod +x "${TMP_DIR}/bin/nvcc"
+
+cat > "${TMP_DIR}/bin/nvc" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+if [ "${1:-}" != "-V" ]; then
+  echo "unexpected nvc version argument: ${1:-}" >&2
+  exit 2
+fi
+cat <<'OUT'
+
+nvc 26.3-0 linuxarm64 target on aarch64 Linux -tp neoverse-v2
+NVIDIA Compilers and Tools
+Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+OUT
+EOF
+chmod +x "${TMP_DIR}/bin/nvc"
+
 pushd "${TMP_DIR}/project/src" >/dev/null
 export BK_SYSTEM=TestSystem
 export BK_BENCHKIT_ROOT="${TMP_DIR}/project"
-export BK_SNAPSHOT_TOOL_COMMANDS="make bash"
+export BK_SNAPSHOT_TOOL_COMMANDS="make bash nvcc nvc"
 export BK_SNAPSHOT_ENV_VARS="CC SECRET_TOKEN"
 export PATH="${TMP_DIR}/project/scripts/build_tool_wrappers:${TMP_DIR}/bin:${PATH}"
 export CC=mpicc
@@ -67,11 +100,20 @@ popd >/dev/null
 SNAPSHOT="${TMP_DIR}/project/results/environment_snapshot_build_actual.json"
 test -f "$SNAPSHOT"
 test "$(cat "${TMP_DIR}/make_args")" = "-j2 target"
-jq -e --arg make_path "${TMP_DIR}/bin/make" '
+jq -e \
+  --arg make_path "${TMP_DIR}/bin/make" \
+  --arg nvcc_path "${TMP_DIR}/bin/nvcc" \
+  --arg nvc_path "${TMP_DIR}/bin/nvc" \
+  '
   .stage == "build_actual" and
   .system.name == "TestSystem" and
   .toolchain.commands.make.path == $make_path and
   (.toolchain.commands.bash.path | length) > 0 and
+  .toolchain.nvcc == "Cuda compilation tools, release 13.1, V13.1.115" and
+  .toolchain.commands.nvcc.path == $nvcc_path and
+  .toolchain.commands.nvcc.version == "Cuda compilation tools, release 13.1, V13.1.115" and
+  .toolchain.commands.nvc.path == $nvc_path and
+  .toolchain.commands.nvc.version == "nvc 26.3-0 linuxarm64 target on aarch64 Linux -tp neoverse-v2" and
   .toolchain.environment.CC == "mpicc" and
   .toolchain.environment.SECRET_TOKEN == "[redacted]"
 ' "$SNAPSHOT" >/dev/null
@@ -97,10 +139,19 @@ popd >/dev/null
 
 test -f "$SNAPSHOT"
 test "$(cat "${TMP_DIR}/make_args_fallback")" = "fallback"
-jq -e --arg make_path "${TMP_DIR}/bin/make" '
+jq -e \
+  --arg make_path "${TMP_DIR}/bin/make" \
+  --arg nvcc_path "${TMP_DIR}/bin/nvcc" \
+  --arg nvc_path "${TMP_DIR}/bin/nvc" \
+  '
   .stage == "build_actual" and
   .system.name == "TestSystem" and
   .toolchain.commands.make.path == $make_path and
+  .toolchain.nvcc == "Cuda compilation tools, release 13.1, V13.1.115" and
+  .toolchain.commands.nvcc.path == $nvcc_path and
+  .toolchain.commands.nvcc.version == "Cuda compilation tools, release 13.1, V13.1.115" and
+  .toolchain.commands.nvc.path == $nvc_path and
+  .toolchain.commands.nvc.version == "nvc 26.3-0 linuxarm64 target on aarch64 Linux -tp neoverse-v2" and
   .toolchain.environment.CC == "mpicc" and
   .toolchain.environment.SECRET_TOKEN == "[redacted]"
 ' "$SNAPSHOT" >/dev/null
