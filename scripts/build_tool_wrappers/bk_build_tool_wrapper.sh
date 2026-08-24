@@ -74,12 +74,43 @@ fallback_resolved_path() {
 
 fallback_command_version() {
   local cmd="$1"
+  local version_args=("--version")
 
   if ! PATH="$path_without_wrapper" command -v "$cmd" >/dev/null 2>&1; then
     printf '%s' ""
     return 0
   fi
-  PATH="$path_without_wrapper" "$cmd" --version 2>/dev/null | sed -n '1p' || true
+  case "$cmd" in
+    nvcc|nvc|nvc++|nvfortran)
+      version_args=("-V")
+      ;;
+  esac
+  PATH="$path_without_wrapper" "$cmd" "${version_args[@]}" 2>&1 | extract_command_version_line "$cmd" || true
+}
+
+extract_command_version_line() {
+  local cmd="$1"
+
+  case "$cmd" in
+    nvcc)
+      awk '
+        /Cuda compilation tools/ {print; found=1; exit}
+        /release [0-9][0-9.]*/ {print; found=1; exit}
+        NF && first == "" {first=$0}
+        END {if (!found && first != "") print first}
+      '
+      ;;
+    nvc|nvc++|nvfortran)
+      awk '
+        /^[[:space:]]*(nvc|nvc\+\+|nvfortran)[[:space:]]+[0-9]/ {print; found=1; exit}
+        NF && first == "" {first=$0}
+        END {if (!found && first != "") print first}
+      '
+      ;;
+    *)
+      sed -n '/[^[:space:]]/ { p; q; }'
+      ;;
+  esac
 }
 
 fallback_commands_json() {

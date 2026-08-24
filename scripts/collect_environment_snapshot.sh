@@ -38,13 +38,41 @@ command_version() {
   local cmd="$1"
   shift
   if command -v "$cmd" >/dev/null 2>&1; then
-    "$cmd" "$@" 2>/dev/null | head -n 1 || true
+    "$cmd" "$@" 2>&1 | extract_command_version_line "$cmd" || true
   fi
+}
+
+extract_command_version_line() {
+  local cmd="$1"
+
+  case "$cmd" in
+    nvcc)
+      awk '
+        /Cuda compilation tools/ {print; found=1; exit}
+        /release [0-9][0-9.]*/ {print; found=1; exit}
+        NF && first == "" {first=$0}
+        END {if (!found && first != "") print first}
+      '
+      ;;
+    nvc|nvc++|nvfortran)
+      awk '
+        /^[[:space:]]*(nvc|nvc\+\+|nvfortran)[[:space:]]+[0-9]/ {print; found=1; exit}
+        NF && first == "" {first=$0}
+        END {if (!found && first != "") print first}
+      '
+      ;;
+    *)
+      sed -n '/[^[:space:]]/ { p; q; }'
+      ;;
+  esac
 }
 
 snapshot_command_version() {
   local cmd="$1"
   case "$cmd" in
+    nvcc|nvc|nvc++|nvfortran)
+      command_version "$cmd" -V
+      ;;
     python|python3|python3.*)
       command_version "$cmd" --version
       ;;
@@ -184,10 +212,10 @@ jq -n \
   --arg benchkit_commit "$git_commit" \
   --arg benchkit_branch "$git_branch" \
   --arg benchkit_dirty "$git_dirty" \
-  --arg gcc_version "$(command_version gcc --version)" \
-  --arg mpicc_version "$(command_version mpicc --version)" \
-  --arg nvcc_version "$(command_version nvcc --version)" \
-  --arg python_version "$(command_version python3 --version)" \
+  --arg gcc_version "$(snapshot_command_version gcc)" \
+  --arg mpicc_version "$(snapshot_command_version mpicc)" \
+  --arg nvcc_version "$(snapshot_command_version nvcc)" \
+  --arg python_version "$(snapshot_command_version python3)" \
   --arg container_image_path "${BK_SOURCE_CONTAINER_PATH:-}" \
   --arg container_image_sha256sum "${BK_SOURCE_CONTAINER_SHA256:-}" \
   --argjson modules "$module_list_json" \
