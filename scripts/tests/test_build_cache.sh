@@ -9,9 +9,11 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p \
   "${TMP_DIR}/project/programs/app" \
+  "${TMP_DIR}/project/programs/toolapp" \
   "${TMP_DIR}/project/scripts" \
   "${TMP_DIR}/project/scripts/build_tool_wrappers" \
-  "${TMP_DIR}/source"
+  "${TMP_DIR}/source" \
+  "${TMP_DIR}/tools"
 
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
 cp "${REPO_DIR}/scripts/build_with_cache.sh" "${TMP_DIR}/project/scripts/build_with_cache.sh"
@@ -48,6 +50,38 @@ printf 'artifact %s %s\n' "$system" "$BK_COMMIT_HASH" > artifacts/app.bin
 EOF
 chmod +x "${TMP_DIR}/project/programs/app/build.sh"
 
+cat > "${TMP_DIR}/project/programs/toolapp/build.sh" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+system="$1"
+source scripts/bk_functions.sh
+mkdir -p artifacts
+bk_fetch_source "${BK_TEST_SOURCE_REPO}" toolsrc main
+cd toolsrc
+make "$system"
+EOF
+chmod +x "${TMP_DIR}/project/programs/toolapp/build.sh"
+
+cat > "${TMP_DIR}/tools/make" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+if [ "${1:-}" = "--version" ]; then
+  echo "GNU Make fake-test"
+  exit 0
+fi
+
+count=0
+if [ -f "${BK_TEST_TOOL_BUILD_COUNT}" ]; then
+  count=$(cat "${BK_TEST_TOOL_BUILD_COUNT}")
+fi
+count=$((count + 1))
+printf '%s\n' "$count" > "${BK_TEST_TOOL_BUILD_COUNT}"
+printf 'tool artifact %s %s\n' "$*" "${BK_COMMIT_HASH:-missing}" > ../artifacts/toolapp.bin
+EOF
+chmod +x "${TMP_DIR}/tools/make"
+
 app_build_hash=$(sha256sum "${TMP_DIR}/project/programs/app/build.sh" | awk '{print $1}')
 
 run_build_with_cache_for_root() {
@@ -82,6 +116,23 @@ run_build_without_host_restore_opt_in_for_root() {
 
 run_build_without_host_restore_opt_in() {
   run_build_without_host_restore_opt_in_for_root "${TMP_DIR}/project"
+}
+
+run_tool_build_with_cache_for_root() {
+  local project_root="$1"
+
+  pushd "$project_root" >/dev/null
+  PATH="${TMP_DIR}/tools:${PATH}" \
+    BK_BENCHKIT_ROOT="$project_root" \
+    BK_BUILD_CACHE_DIR="${TMP_DIR}/tool-cache" \
+    BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+    BK_TEST_TOOL_BUILD_COUNT="${TMP_DIR}/tool-build-count" \
+    bash scripts/build_with_cache.sh toolapp TestSystem programs/toolapp
+  popd >/dev/null
+}
+
+run_tool_build_with_cache() {
+  run_tool_build_with_cache_for_root "${TMP_DIR}/project"
 }
 
 pushd "${TMP_DIR}/project" >/dev/null
@@ -168,6 +219,24 @@ rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/p
 run_build_with_cache
 test "$(cat "${TMP_DIR}/build-count")" = "2"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/toolsrc"
+rm -f "${TMP_DIR}/tool-build-count"
+run_tool_build_with_cache
+test "$(cat "${TMP_DIR}/tool-build-count")" = "1"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/toolapp.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+test -f "${TMP_DIR}/tool-cache/toolapp/TestSystem/manifest.env"
+awk -F= '$1 == "BK_CACHE_HOST_ENV_FINGERPRINT" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
+  "${TMP_DIR}/tool-cache/toolapp/TestSystem/manifest.env"
+jq -e '.toolchain.commands.make.sha256 | length == 64' \
+  "${TMP_DIR}/project/results/environment_snapshot_build_actual.json" >/dev/null
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/toolsrc"
+run_tool_build_with_cache
+test "$(cat "${TMP_DIR}/tool-build-count")" = "1"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/toolapp.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
 
 pushd "${TMP_DIR}/source" >/dev/null

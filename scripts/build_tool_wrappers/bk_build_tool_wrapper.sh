@@ -72,6 +72,24 @@ fallback_resolved_path() {
   printf '%s' "$path"
 }
 
+fallback_command_sha256() {
+  local path="$1"
+
+  if [ -z "$path" ] || [ ! -f "$path" ] || [ ! -r "$path" ]; then
+    printf '%s' ""
+    return 0
+  fi
+  if PATH="$path_without_wrapper" command -v sha256sum >/dev/null 2>&1; then
+    PATH="$path_without_wrapper" sha256sum "$path" | awk '{print $1}'
+    return 0
+  fi
+  if PATH="$path_without_wrapper" command -v openssl >/dev/null 2>&1; then
+    PATH="$path_without_wrapper" openssl dgst -sha256 -r "$path" | awk '{print $1}'
+    return 0
+  fi
+  printf '%s' ""
+}
+
 fallback_command_version() {
   local cmd="$1"
   local version_args=("--version")
@@ -122,7 +140,7 @@ fallback_commands_json() {
 
   local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
   local first=true
-  local cmd path real_path version
+  local cmd path real_path version sha256
 
   printf '{'
   for cmd in $commands; do
@@ -132,16 +150,18 @@ fallback_commands_json() {
     fi
     real_path=$(fallback_resolved_path "$path")
     version=$(fallback_command_version "$cmd")
+    sha256=$(fallback_command_sha256 "$real_path")
     if [ "$first" = true ]; then
       first=false
     else
       printf ','
     fi
-    printf '%s:{"path":%s,"real_path":%s,"version":%s}' \
+    printf '%s:{"path":%s,"real_path":%s,"version":%s,"sha256":%s}' \
       "$(json_string "$cmd")" \
       "$(json_string "$path")" \
       "$(json_string "$real_path")" \
-      "$(json_string "$version")"
+      "$(json_string "$version")" \
+      "$(json_string "$sha256")"
   done
   printf '}'
 }
@@ -334,6 +354,15 @@ if [ "${BK_BUILD_TOOL_WRAPPER_SNAPSHOT:-true}" != "false" ]; then
   if [ "$snapshot_written" != true ] && [ "${BK_STRICT_BUILD_ENVIRONMENT_SNAPSHOT:-false}" = "true" ]; then
     echo "bk_build_tool_wrapper: cannot collect build environment snapshot" >&2
     exit 1
+  fi
+  if [ "$snapshot_written" = true ] && [ "${BK_BUILD_CACHE_LATE_RESTORE_PROBE:-false}" = "true" ]; then
+    late_restore_status_file="${BK_BUILD_CACHE_LATE_RESTORE_STATUS_FILE:-${repo_root}/results/build_cache_late_restore.env}"
+    mkdir -p "$(dirname "$late_restore_status_file")"
+    {
+      printf 'BK_BUILD_CACHE_LATE_RESTORE_TOOL=%s\n' "$tool_name"
+      printf 'BK_BUILD_CACHE_LATE_RESTORE_SNAPSHOT=%s\n' "$snapshot_file"
+    } > "$late_restore_status_file"
+    exit "${BK_BUILD_CACHE_LATE_RESTORE_EXIT_CODE:-86}"
   fi
 fi
 

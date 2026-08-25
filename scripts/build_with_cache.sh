@@ -29,6 +29,8 @@ if [ -n "$cache_root" ]; then
   cache_manifest="${cache_dir}/manifest.env"
 fi
 status_file="${repo_root}/results/build_cache.env"
+late_restore_exit_code=86
+late_restore_status_file="${repo_root}/results/build_cache_late_restore.env"
 
 source "${repo_root}/scripts/bk_functions.sh"
 
@@ -178,6 +180,50 @@ build_inputs_hash() {
   rm -f "$file_list" "$hash_list"
 }
 
+host_environment_fingerprint() {
+  local snapshot_file="${repo_root}/results/environment_snapshot_build_actual.json"
+  local fingerprint_input
+  local fingerprint_hash
+
+  if [ ! -f "$snapshot_file" ]; then
+    return 1
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    return 1
+  fi
+
+  fingerprint_input=$(mktemp)
+  if ! jq -S -c \
+    --arg code "$code" \
+    --arg system "$system" \
+    '{
+      schema: "benchkit-host-build-env-v1",
+      code: $code,
+      system: $system,
+      toolchain: {
+        modules: (.toolchain.modules // []),
+        commands: (
+          .toolchain.commands // {}
+          | with_entries(
+              .value |= {
+                real_path: (.real_path // ""),
+                version: (.version // ""),
+                sha256: (.sha256 // "")
+              }
+            )
+        ),
+        environment: (.toolchain.environment // {})
+      }
+    }' "$snapshot_file" > "$fingerprint_input"; then
+    rm -f "$fingerprint_input"
+    return 1
+  fi
+  fingerprint_hash=$(bk_sha256_file "$fingerprint_input")
+  rm -f "$fingerprint_input"
+  [ -n "$fingerprint_hash" ] || return 1
+  printf '%s\n' "$fingerprint_hash"
+}
+
 resolve_git_branch_commit() {
   local repo_url="$1"
   local branch="$2"
@@ -208,6 +254,8 @@ validate_cached_source() {
   local container_path
   local cached_container_sha256
   local current_container_sha256
+  local cached_host_fingerprint
+  local current_host_fingerprint
 
   source_type=$(env_file_value "$source_info_file" BK_SOURCE_TYPE)
   case "$source_type" in
@@ -254,6 +302,25 @@ validate_cached_source() {
     if [ "$current_container_sha256" != "$cached_container_sha256" ]; then
       echo "container image sha256 changed"
       return 1
+    fi
+    return 0
+  fi
+
+  cached_host_fingerprint=$(manifest_value BK_CACHE_HOST_ENV_FINGERPRINT)
+  if [ -n "$cached_host_fingerprint" ]; then
+    if ! current_host_fingerprint=$(host_environment_fingerprint); then
+      echo "host build cache restore requires actual environment fingerprint"
+      return 1
+    fi
+    if [ "$current_host_fingerprint" != "$cached_host_fingerprint" ]; then
+      echo "host build environment fingerprint changed"
+      return 1
+    fi
+    if [ -n "$(manifest_value BK_CACHE_ENV_KEY_B64)" ] || [ -n "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
+      if [ "$(manifest_value BK_CACHE_ENV_KEY_B64 | decode_base64_value 2>/dev/null || true)" != "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
+        echo "host build cache environment key changed"
+        return 1
+      fi
     fi
     return 0
   fi
@@ -323,6 +390,7 @@ store_cache() {
   local source_info_sha256=""
   local source_info_file="${repo_root}/results/source_info.env"
   local container_sha256=""
+  local host_fingerprint=""
 
   if [ "${BK_BUILD_CACHE_ENABLED:-true}" != "true" ]; then
     write_status disabled "BK_BUILD_CACHE_ENABLED is not true"
@@ -337,9 +405,12 @@ store_cache() {
     return 0
   fi
   container_sha256=$(env_file_value "$source_info_file" BK_CONTAINER_IMAGE_SHA256SUM)
-  if [ -z "$container_sha256" ] && [ -z "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
-    write_status miss "host build cache store requires non-empty BK_BUILD_CACHE_ENV_KEY"
-    return 0
+  if [ -z "$container_sha256" ]; then
+    host_fingerprint=$(host_environment_fingerprint || true)
+    if [ -z "$host_fingerprint" ] && [ -z "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
+      write_status miss "host build cache store requires environment fingerprint or non-empty BK_BUILD_CACHE_ENV_KEY"
+      return 0
+    fi
   fi
 
   inputs_hash=$(build_inputs_hash)
@@ -359,6 +430,7 @@ store_cache() {
     printf 'BK_CACHE_SYSTEM_B64=%s\n' "$(bk_base64_encode_value "$system")"
     printf 'BK_CACHE_BUILD_INPUTS_SHA256=%s\n' "$inputs_hash"
     printf 'BK_CACHE_SOURCE_INFO_SHA256=%s\n' "$source_info_sha256"
+    printf 'BK_CACHE_HOST_ENV_FINGERPRINT=%s\n' "$host_fingerprint"
     printf 'BK_CACHE_ENV_KEY_B64=%s\n' "$(bk_base64_encode_value "${BK_BUILD_CACHE_ENV_KEY:-}")"
     printf 'BK_CACHE_CREATED_AT=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "${tmp_dir}/manifest.env"
@@ -368,6 +440,56 @@ store_cache() {
   mv "$tmp_dir" "$cache_dir"
   write_status miss "stored cache after build" true
   echo "build cache: stored ${code}/${system}"
+}
+
+should_attempt_late_host_restore() {
+  if [ "${BK_BUILD_CACHE_LATE_HOST_RESTORE:-true}" != "true" ]; then
+    return 1
+  fi
+  if [ "${BK_BUILD_CACHE_ENABLED:-true}" != "true" ]; then
+    return 1
+  fi
+  cache_dir_available || return 1
+  [ -f "$cache_manifest" ] || return 1
+  [ -d "${cache_dir}/artifacts" ] || return 1
+  [ -f "${cache_dir}/results/source_info.env" ] || return 1
+  [ -n "$(manifest_value BK_CACHE_HOST_ENV_FINGERPRINT)" ] || return 1
+}
+
+late_restore_hit=false
+run_build_with_optional_late_host_restore() {
+  local build_status=0
+
+  if ! should_attempt_late_host_restore; then
+    bash "${program_path}/build.sh" "$system"
+    return $?
+  fi
+
+  echo "build cache: probing host build environment for ${code}/${system}"
+  rm -f "$late_restore_status_file"
+  set +e
+  BK_BUILD_CACHE_LATE_RESTORE_PROBE=true \
+    BK_BUILD_CACHE_LATE_RESTORE_EXIT_CODE="$late_restore_exit_code" \
+    BK_BUILD_CACHE_LATE_RESTORE_STATUS_FILE="$late_restore_status_file" \
+    bash "${program_path}/build.sh" "$system"
+  build_status=$?
+  set -e
+
+  if [ "$build_status" -eq "$late_restore_exit_code" ] && [ -f "$late_restore_status_file" ]; then
+    if restore_cache; then
+      late_restore_hit=true
+      return 0
+    fi
+    echo "build cache: late host restore miss for ${code}/${system}; running build.sh"
+    rm -f "$late_restore_status_file"
+    bash "${program_path}/build.sh" "$system"
+    return $?
+  fi
+
+  if [ "$build_status" -ne 0 ]; then
+    return "$build_status"
+  fi
+  return 0
 }
 
 validate_path_component "$code" code
@@ -392,5 +514,8 @@ if restore_cache; then
 fi
 
 echo "build cache: miss for ${code}/${system}; running build.sh"
-bash "${program_path}/build.sh" "$system"
+run_build_with_optional_late_host_restore
+if [ "$late_restore_hit" = true ]; then
+  exit 0
+fi
 store_cache
