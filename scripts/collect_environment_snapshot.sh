@@ -34,6 +34,24 @@ resolved_command_path() {
   printf '%s' "$path"
 }
 
+command_sha256() {
+  local path="$1"
+
+  if [ -z "$path" ] || [ ! -f "$path" ] || [ ! -r "$path" ]; then
+    printf '%s' ""
+    return 0
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+    return 0
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 -r "$path" | awk '{print $1}'
+    return 0
+  fi
+  printf '%s' ""
+}
+
 command_version() {
   local cmd="$1"
   shift
@@ -90,7 +108,7 @@ snapshot_tool_commands_json() {
   default_commands+="cmake make ninja ld ar pkg-config python3 apptainer singularity ncu nsys"
 
   local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
-  local cmd path real_path version
+  local cmd path real_path version sha256
 
   for cmd in $commands; do
     path=$(command_path "$cmd")
@@ -99,12 +117,14 @@ snapshot_tool_commands_json() {
     fi
     real_path=$(resolved_command_path "$path")
     version=$(snapshot_command_version "$cmd")
+    sha256=$(command_sha256 "$real_path")
     jq -n -c \
       --arg name "$cmd" \
       --arg path "$path" \
       --arg real_path "$real_path" \
       --arg version "$version" \
-      '{key: $name, value: {path: $path, real_path: $real_path, version: $version}}'
+      --arg sha256 "$sha256" \
+      '{key: $name, value: {path: $path, real_path: $real_path, version: $version, sha256: $sha256}}'
   done | jq -s -c 'from_entries'
 }
 

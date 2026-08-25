@@ -148,7 +148,9 @@ cache hit は、少なくとも現在の app build input hash と source provena
 Git source では cache 内の `repo_url` / `branch` / `commit_hash` に対し、現在の branch commit を `git ls-remote` で再解決します。
 file/archive source では SHA-256 を再計算します。
 container image SHA-256 が source_info に入っている場合は container image も再検証します。
-container ではない host build は toolchain 更新で stale になり得るため、restore には site 側で `BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true` と非空の `BK_BUILD_CACHE_ENV_KEY` を明示する必要があります。
+container ではない host build でも、common の `make` / `cmake` / `ninja` wrapper を通る場合は build tool 実行直前の build environment fingerprint で照合します。
+この fingerprint には loaded modules、選択された build 環境変数、tool の real path、version、binary SHA-256 hash が含まれます。
+app 側で cache API を呼ぶ必要はありません。通常どおり `module load` して `make` / `cmake` / `ninja` を呼ぶだけで、common wrapper が fingerprint を記録します。
 
 ---
 
