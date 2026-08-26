@@ -475,7 +475,7 @@ run_build_with_optional_late_host_restore() {
   build_status=$?
   set -e
 
-  if [ "$build_status" -eq "$late_restore_exit_code" ] && [ -f "$late_restore_status_file" ]; then
+  if [ -f "$late_restore_status_file" ]; then
     if restore_cache; then
       late_restore_hit=true
       return 0
