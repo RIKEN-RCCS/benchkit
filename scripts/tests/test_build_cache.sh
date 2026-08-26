@@ -85,7 +85,9 @@ mkdir -p artifacts
 bk_fetch_source "${BK_TEST_SOURCE_REPO}" autosrc main
 cd autosrc
 ./configure
-make "$system"
+if ! make "$system" > make.log 2>&1; then
+  exit 1
+fi
 EOF
 chmod +x "${TMP_DIR}/project/programs/autotoolapp/build.sh"
 
