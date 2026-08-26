@@ -180,6 +180,93 @@ build_inputs_hash() {
   rm -f "$file_list" "$hash_list"
 }
 
+artifact_tree_hash() {
+  local artifact_root="$1"
+  local file_list
+  local hash_input
+  local rel
+  local path
+  local target
+
+  [ -d "$artifact_root" ] || return 1
+  file_list=$(mktemp)
+  hash_input=$(mktemp)
+
+  if ! (cd "$artifact_root" && find . -mindepth 1 -print | LC_ALL=C sort) > "$file_list"; then
+    rm -f "$file_list" "$hash_input"
+    return 1
+  fi
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    path="${artifact_root}/${rel#./}"
+    if [ -d "$path" ] && [ ! -L "$path" ]; then
+      printf 'D %s\n' "$(bk_base64_encode_value "$rel")" >> "$hash_input"
+    elif [ -f "$path" ] && [ ! -L "$path" ]; then
+      printf 'F %s %s\n' "$(bk_sha256_file "$path")" "$(bk_base64_encode_value "$rel")" >> "$hash_input"
+    elif [ -L "$path" ]; then
+      if ! target=$(readlink "$path"); then
+        rm -f "$file_list" "$hash_input"
+        return 1
+      fi
+      printf 'L %s %s\n' "$(bk_base64_encode_value "$target")" "$(bk_base64_encode_value "$rel")" >> "$hash_input"
+    else
+      echo "unsupported artifact entry type: ${rel}" >&2
+      rm -f "$file_list" "$hash_input"
+      return 1
+    fi
+  done < "$file_list"
+
+  bk_sha256_file "$hash_input"
+  rm -f "$file_list" "$hash_input"
+}
+
+validate_payload_integrity() {
+  local artifacts_dir="$1"
+  local source_info_file="$2"
+  local label="$3"
+  local expected_source_info_sha256
+  local current_source_info_sha256
+  local expected_artifacts_sha256
+  local current_artifacts_sha256
+
+  expected_source_info_sha256=$(manifest_value BK_CACHE_SOURCE_INFO_SHA256)
+  if [ -z "$expected_source_info_sha256" ]; then
+    echo "cache manifest is missing source_info.env digest"
+    return 1
+  fi
+  if [ ! -f "$source_info_file" ]; then
+    echo "${label} source_info.env is missing"
+    return 1
+  fi
+  if ! current_source_info_sha256=$(bk_sha256_file "$source_info_file"); then
+    echo "cannot hash ${label} source_info.env"
+    return 1
+  fi
+  if [ "$current_source_info_sha256" != "$expected_source_info_sha256" ]; then
+    echo "${label} source_info.env digest changed"
+    return 1
+  fi
+
+  expected_artifacts_sha256=$(manifest_value BK_CACHE_ARTIFACTS_SHA256)
+  if [ -z "$expected_artifacts_sha256" ]; then
+    echo "cache manifest is missing artifact digest"
+    return 1
+  fi
+  if [ ! -d "$artifacts_dir" ]; then
+    echo "${label} artifacts are missing"
+    return 1
+  fi
+  if ! current_artifacts_sha256=$(artifact_tree_hash "$artifacts_dir"); then
+    echo "cannot hash ${label} artifacts"
+    return 1
+  fi
+  if [ "$current_artifacts_sha256" != "$expected_artifacts_sha256" ]; then
+    echo "${label} artifact digest changed"
+    return 1
+  fi
+}
+
 host_environment_fingerprint() {
   local snapshot_file="${repo_root}/results/environment_snapshot_build_actual.json"
   local fingerprint_input
@@ -369,6 +456,11 @@ restore_cache() {
     return 1
   fi
 
+  if ! reason=$(validate_payload_integrity "${cache_dir}/artifacts" "$cached_source_info" "cached"); then
+    write_status miss "$reason"
+    return 1
+  fi
+
   if ! reason=$(validate_cached_source "$cached_source_info"); then
     write_status miss "$reason"
     return 1
@@ -380,6 +472,12 @@ restore_cache() {
   if [ -d "${cache_dir}/results" ]; then
     cp -a "${cache_dir}/results/." "${repo_root}/results/"
   fi
+  if ! reason=$(validate_payload_integrity "${repo_root}/artifacts" "${repo_root}/results/source_info.env" "restored"); then
+    rm -rf "${repo_root}/artifacts"
+    rm -f "${repo_root}/results/source_info.env"
+    write_status miss "$reason"
+    return 1
+  fi
   write_status hit "restored cached build artifacts"
   echo "build cache: hit for ${code}/${system}"
 }
@@ -389,6 +487,7 @@ store_cache() {
   local inputs_hash
   local source_info_sha256=""
   local source_info_file="${repo_root}/results/source_info.env"
+  local artifacts_sha256=""
   local container_sha256=""
   local host_fingerprint=""
 
@@ -414,7 +513,6 @@ store_cache() {
   fi
 
   inputs_hash=$(build_inputs_hash)
-  source_info_sha256=$(bk_sha256_file "$source_info_file")
   tmp_dir="${cache_dir}.tmp.$$"
   rm -rf "$tmp_dir"
   mkdir -p "${tmp_dir}/artifacts" "${tmp_dir}/results"
@@ -424,12 +522,23 @@ store_cache() {
     cp "${repo_root}/results/environment_snapshot_build_actual.json" \
       "${tmp_dir}/results/environment_snapshot_build_actual.json"
   fi
+  if ! source_info_sha256=$(bk_sha256_file "${tmp_dir}/results/source_info.env"); then
+    rm -rf "$tmp_dir"
+    write_status miss "build completed but source_info.env cannot be hashed"
+    return 0
+  fi
+  if ! artifacts_sha256=$(artifact_tree_hash "${tmp_dir}/artifacts"); then
+    rm -rf "$tmp_dir"
+    write_status miss "build completed but artifacts cannot be hashed"
+    return 0
+  fi
   {
     printf 'BK_BUILD_CACHE_FORMAT=base64-v1\n'
     printf 'BK_CACHE_CODE_B64=%s\n' "$(bk_base64_encode_value "$code")"
     printf 'BK_CACHE_SYSTEM_B64=%s\n' "$(bk_base64_encode_value "$system")"
     printf 'BK_CACHE_BUILD_INPUTS_SHA256=%s\n' "$inputs_hash"
     printf 'BK_CACHE_SOURCE_INFO_SHA256=%s\n' "$source_info_sha256"
+    printf 'BK_CACHE_ARTIFACTS_SHA256=%s\n' "$artifacts_sha256"
     printf 'BK_CACHE_HOST_ENV_FINGERPRINT=%s\n' "$host_fingerprint"
     printf 'BK_CACHE_ENV_KEY_B64=%s\n' "$(bk_base64_encode_value "${BK_BUILD_CACHE_ENV_KEY:-}")"
     printf 'BK_CACHE_CREATED_AT=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
