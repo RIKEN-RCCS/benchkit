@@ -20,12 +20,9 @@ BUILD_DIR="build-benchkit"
 #      see below)
 #   2. the nvhpc-openacc-gemm.cmake platform file that wires it up
 #   3. the nvhpc/26.5 Ewald-reduction compiler-bug workaround
-#   4. a fix for a real, 100%-reproducible 2+ node hang on native
-#      nvhpc/26.5 (forces CUDA context creation before MPI_Init_thread --
-#      see below, and salmon-gpu-optimization-ideas' Open item 5 in
-#      subwg2-benchmarks for the full root-cause trail)
-# See .claude/skills/salmon-gpu-optimization-ideas and salmon-build in
-# subwg2-benchmarks for how each piece was measured/root-caused.
+#   4. a fix for a 2+ node hang on nvhpc/26.5: the CUDA context is created
+#      before MPI_Init_thread, so the MPI layer's CUDA-awareness probe does
+#      not cache a transfer protocol that deadlocks on device buffers
 if [[ "${system}" == "RIKYU" ]]; then
   REPO_URL="https://github.com/william-dawson/SALMON2"
   VERSION_TAG="FugakuNEXT-v3"
@@ -60,9 +57,8 @@ fi
 
 apply_ewald_265_patch() {
   # Works around a silent nvfortran 26.5 OpenACC reduction-codegen bug that
-  # gives a wrong (but plausible) total energy -- see the patch file itself
-  # and .claude/skills/salmon-build in subwg2-benchmarks for the full trail.
-  # Safe to apply on every OpenACC/GPU build regardless of nvhpc version:
+  # gives a wrong (but plausible) total energy -- see the patch file for
+  # details. Safe to apply on any OpenACC/GPU build regardless of version:
   # the fix gates itself on __NVCOMPILER_MAJOR__/__NVCOMPILER_MINOR__ at
   # compile time, so it's a no-op on unaffected compilers (<26.5).
   # (RIKYU does not call this -- its pinned branch already contains the fix.)
@@ -272,8 +268,6 @@ case "${system}" in
       # overruns the buffer -- reproduced as a deterministic Accelerator
       # Fatal Error / CUDA_ERROR_ILLEGAL_ADDRESS in calc_current
       # (density_matrix.f90) on every axis and Po x Pg combination tried.
-      # See subwg2-benchmarks' salmon-gpu-optimization-ideas skill (Open
-      # item 5) and salmon-build skill for the full trail on both points.
     )
     ;;
   *)
