@@ -12,27 +12,28 @@ BUILD_DIR="build-benchkit"
 # GPU-decomposition numbers on this repo were never actually run against it --
 # they came from a much newer, hand-patched checkout (~100 commits ahead,
 # including PR #1276's OpenACC tuning). Rather than let RIKYU silently build
-# something nobody has benchmarked, pin it to FugakuNEXT-v3 on
+# something nobody has benchmarked, pin it to FugakuNEXT-v4 on
 # william-dawson/SALMON2 (also open as SALMON-TDDFT/SALMON2#1276) --
 # develop-2.0.0@9b93a8c4 (2026-08-16) plus four commits, one per concern:
 #   1. PR #1276's stencil/current/pseudo-pt OpenACC tuning (batched cuBLAS
 #      GEMM for pseudo-pt, not the old USE_CUDA hand-written kernels --
 #      see below)
 #   2. the nvhpc-openacc-gemm.cmake platform file that wires it up
-#   3. the nvhpc/26.5 Ewald-reduction compiler-bug workaround
+#   3. a fix for the Ewald loop tripcounts: nvfortran >= 26.5 evaluates
+#      an OpenACC tripcount on the device, where the derived-type member
+#      the bound came from is not resident, so the loops ran zero times
 #   4. a fix for a 2+ node hang on nvhpc/26.5: the CUDA context is created
 #      before MPI_Init_thread, so the MPI layer's CUDA-awareness probe does
 #      not cache a transfer protocol that deadlocks on device buffers
 if [[ "${system}" == "RIKYU" ]]; then
   REPO_URL="https://github.com/william-dawson/SALMON2"
-  VERSION_TAG="FugakuNEXT-v3"
+  VERSION_TAG="FugakuNEXT-v4"
 fi
 ARTIFACT_DIR="${PWD}/artifacts"
 RESULTS_DIR="${PWD}/results"
 BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 FJMPI_PATCH="${PWD}/programs/salmon/patches/fjmpi-topology-guard.patch"
-EWALD_265_PATCH="${PWD}/programs/salmon/patches/nvhpc265-ewald-reduction.patch"
 
 source scripts/bk_functions.sh
 
@@ -54,23 +55,6 @@ else
   echo "SALMON Fujitsu MPI topology patch does not apply to ${VERSION_TAG}" >&2
   exit 1
 fi
-
-apply_ewald_265_patch() {
-  # Works around a silent nvfortran 26.5 OpenACC reduction-codegen bug that
-  # gives a wrong (but plausible) total energy -- see the patch file for
-  # details. Safe to apply on any OpenACC/GPU build regardless of version:
-  # the fix gates itself on __NVCOMPILER_MAJOR__/__NVCOMPILER_MINOR__ at
-  # compile time, so it's a no-op on unaffected compilers (<26.5).
-  # (RIKYU does not call this -- its pinned branch already contains the fix.)
-  if grep -q "SALMON_EWALD_ACC" src/common/total_energy.f90; then
-    echo "SALMON nvhpc/26.5 Ewald-reduction workaround already present"
-  elif git apply --check "${EWALD_265_PATCH}"; then
-    git apply "${EWALD_265_PATCH}"
-  else
-    echo "SALMON nvhpc/26.5 Ewald-reduction patch does not apply to ${VERSION_TAG}" >&2
-    exit 1
-  fi
-}
 
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
@@ -127,7 +111,6 @@ case "${system}" in
   RC_GH200)
     module purge
     module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
-    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -147,7 +130,6 @@ case "${system}" in
     source /etc/profile.d/modules.sh
     module purge
     module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
-    apply_ewald_265_patch
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
