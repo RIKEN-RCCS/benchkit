@@ -216,6 +216,59 @@ fallback_environment_json() {
   printf '}'
 }
 
+ancestor_command_line() {
+  local pid="$1"
+  local cmdline=""
+
+  if [ -r "/proc/${pid}/cmdline" ]; then
+    cmdline=$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null || true)
+  fi
+  if [ -z "$cmdline" ] && [ -r "/proc/${pid}/comm" ]; then
+    cmdline=$(cat "/proc/${pid}/comm" 2>/dev/null || true)
+  fi
+  printf '%s' "$cmdline"
+}
+
+ancestor_parent_pid() {
+  local pid="$1"
+
+  if [ -r "/proc/${pid}/stat" ]; then
+    awk '{print $4}' "/proc/${pid}/stat" 2>/dev/null || true
+  fi
+}
+
+called_from_configure_probe() {
+  local pid="${PPID:-}"
+  local depth=0
+  local cmdline
+
+  while [ -n "$pid" ] && [ "$pid" != "0" ] && [ "$depth" -lt 8 ]; do
+    cmdline=$(ancestor_command_line "$pid")
+    case " $cmdline " in
+      *" ./configure "*|*"/configure "*|*" config.status "*|*"/config.status "*|*" missing "*|*"/missing "*)
+        return 0
+        ;;
+    esac
+    pid=$(ancestor_parent_pid "$pid")
+    depth=$((depth + 1))
+  done
+  return 1
+}
+
+should_exit_for_late_restore_probe() {
+  if [ "${BK_BUILD_CACHE_LATE_RESTORE_PROBE:-false}" != "true" ]; then
+    return 1
+  fi
+  case "$tool_name" in
+    make|ninja)
+      if called_from_configure_probe; then
+        return 1
+      fi
+      ;;
+  esac
+  return 0
+}
+
 write_fallback_snapshot() {
   local snapshot_file="$1"
   local stage="${BK_SNAPSHOT_STAGE:-build_actual}"
@@ -355,7 +408,7 @@ if [ "${BK_BUILD_TOOL_WRAPPER_SNAPSHOT:-true}" != "false" ]; then
     echo "bk_build_tool_wrapper: cannot collect build environment snapshot" >&2
     exit 1
   fi
-  if [ "$snapshot_written" = true ] && [ "${BK_BUILD_CACHE_LATE_RESTORE_PROBE:-false}" = "true" ]; then
+  if [ "$snapshot_written" = true ] && should_exit_for_late_restore_probe; then
     late_restore_status_file="${BK_BUILD_CACHE_LATE_RESTORE_STATUS_FILE:-${repo_root}/results/build_cache_late_restore.env}"
     mkdir -p "$(dirname "$late_restore_status_file")"
     {
