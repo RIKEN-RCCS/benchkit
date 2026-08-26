@@ -14,11 +14,10 @@ WORK_DIR="${PWD}/salmon_run"
 INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 
-# Pre-staged, python-folded restarts: GS(k) -> Python fold -> complex Gamma
-# TDDFT restart, prepared once offline via `benchgen salmon create
-# --python-fold` (see README.md / salmon-benchmarking in
-# subwg2-benchmarks) and stored on each machine so the benchmark itself
-# never pays for a from-scratch ground state. Add a new case here (and a
+# Pre-staged folded restarts. The ground state is computed once offline and
+# folded to a complex Gamma-point TDDFT restart (see README.md), then stored
+# on each machine, so the benchmark runs TDDFT only and never pays for a
+# from-scratch ground state. Add a new case here (and a
 # matching directory on that system) to move another system onto this
 # path -- see the RIKYU or RC_DGXSP entries for the shape a new one needs
 # (restart/, *.psp8, and one TDDFT .nml, all siblings in one directory).
@@ -297,10 +296,8 @@ print_salmon_output_diagnostics() {
 }
 
 if uses_prestaged_restart "${system}"; then
-  # GS is offline prep, done once when the restart was staged -- see
-  # salmon-benchmarking in subwg2-benchmarks for how/when to regenerate
-  # it. The benchmark itself is TDDFT-only.
-  # Rewrite the &parallel block in place.
+  # The ground state was computed offline when the restart was staged; the
+  # benchmark is TDDFT-only. Rewrite the &parallel block in place.
   salmon_set_parallel () {
     awk -v nproc_ob="$1" -v rgrid="$2" -v alloc="$3" '
       /^&parallel$/ { print; print "  nproc_ob = " nproc_ob; print "  nproc_k = 1"; print "  nproc_rgrid = " rgrid; print "  process_allocation = " q alloc q; in_parallel=1; next }
