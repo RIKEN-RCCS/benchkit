@@ -136,6 +136,18 @@ run_build_with_cache() {
   run_build_with_cache_for_root "${TMP_DIR}/project"
 }
 
+run_integrity_build_with_cache() {
+  pushd "${TMP_DIR}/project" >/dev/null
+  BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+    BK_BUILD_CACHE_DIR="${TMP_DIR}/integrity-cache" \
+    BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true \
+    BK_BUILD_CACHE_ENV_KEY=test-toolchain-v1 \
+    BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+    BK_TEST_BUILD_COUNT="${TMP_DIR}/integrity-build-count" \
+    bash scripts/build_with_cache.sh app IntegritySystem programs/app
+  popd >/dev/null
+}
+
 run_build_without_host_restore_opt_in_for_root() {
   local project_root="$1"
 
@@ -253,6 +265,30 @@ grep -q "$app_build_hash" "${TMP_DIR}/cache/app/TestSystem/manifest.env" && {
   exit 1
 }
 
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_integrity_build_with_cache
+test "$(cat "${TMP_DIR}/integrity-build-count")" = "1"
+integrity_cache_dir="${TMP_DIR}/integrity-cache/app/IntegritySystem"
+awk -F= '$1 == "BK_CACHE_SOURCE_INFO_SHA256" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
+  "${integrity_cache_dir}/manifest.env"
+awk -F= '$1 == "BK_CACHE_ARTIFACTS_SHA256" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
+  "${integrity_cache_dir}/manifest.env"
+
+printf 'tampered artifact\n' > "${integrity_cache_dir}/artifacts/app.bin"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_integrity_build_with_cache
+test "$(cat "${TMP_DIR}/integrity-build-count")" = "2"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+printf '\n# tampered source info\n' >> "${integrity_cache_dir}/results/source_info.env"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_integrity_build_with_cache
+test "$(cat "${TMP_DIR}/integrity-build-count")" = "3"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
 cp -a "${TMP_DIR}/project" "${TMP_DIR}/project-copy"
 rm -rf "${TMP_DIR}/project-copy/artifacts" "${TMP_DIR}/project-copy/results" "${TMP_DIR}/project-copy/appsrc"
 run_build_with_cache_for_root "${TMP_DIR}/project-copy"
