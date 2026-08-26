@@ -9,6 +9,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p \
   "${TMP_DIR}/project/programs/app" \
+  "${TMP_DIR}/project/programs/autotoolapp" \
   "${TMP_DIR}/project/programs/toolapp" \
   "${TMP_DIR}/project/scripts" \
   "${TMP_DIR}/project/scripts/build_tool_wrappers" \
@@ -26,7 +27,18 @@ git init --initial-branch=main >/dev/null
 git config user.email "benchkit@example.invalid"
 git config user.name "Benchkit Test"
 printf 'one\n' > source.txt
-git add source.txt
+cat > configure <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+if ! make configure-probe; then
+  echo "configure probe failed" >&2
+  exit 1
+fi
+test -f configure.probe
+EOF
+chmod +x configure
+git add source.txt configure
 git commit -m "first" >/dev/null
 first_commit=$(git rev-parse HEAD)
 popd >/dev/null
@@ -63,6 +75,20 @@ make "$system"
 EOF
 chmod +x "${TMP_DIR}/project/programs/toolapp/build.sh"
 
+cat > "${TMP_DIR}/project/programs/autotoolapp/build.sh" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+system="$1"
+source scripts/bk_functions.sh
+mkdir -p artifacts
+bk_fetch_source "${BK_TEST_SOURCE_REPO}" autosrc main
+cd autosrc
+./configure
+make "$system"
+EOF
+chmod +x "${TMP_DIR}/project/programs/autotoolapp/build.sh"
+
 cat > "${TMP_DIR}/tools/make" <<'EOF'
 #!/bin/bash
 set -euo pipefail
@@ -78,7 +104,13 @@ if [ -f "${BK_TEST_TOOL_BUILD_COUNT}" ]; then
 fi
 count=$((count + 1))
 printf '%s\n' "$count" > "${BK_TEST_TOOL_BUILD_COUNT}"
-printf 'tool artifact %s %s\n' "$*" "${BK_COMMIT_HASH:-missing}" > ../artifacts/toolapp.bin
+if [ "${1:-}" = "configure-probe" ]; then
+  printf 'ok\n' > configure.probe
+  exit 0
+fi
+artifact="${BK_TEST_TOOL_ARTIFACT:-../artifacts/toolapp.bin}"
+mkdir -p "$(dirname "$artifact")"
+printf 'tool artifact %s %s\n' "$*" "${BK_COMMIT_HASH:-missing}" > "$artifact"
 EOF
 chmod +x "${TMP_DIR}/tools/make"
 
@@ -133,6 +165,24 @@ run_tool_build_with_cache_for_root() {
 
 run_tool_build_with_cache() {
   run_tool_build_with_cache_for_root "${TMP_DIR}/project"
+}
+
+run_autotool_build_with_cache_for_root() {
+  local project_root="$1"
+
+  pushd "$project_root" >/dev/null
+  PATH="${TMP_DIR}/tools:${PATH}" \
+    BK_BENCHKIT_ROOT="$project_root" \
+    BK_BUILD_CACHE_DIR="${TMP_DIR}/autotool-cache" \
+    BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+    BK_TEST_TOOL_BUILD_COUNT="${TMP_DIR}/autotool-build-count" \
+    BK_TEST_TOOL_ARTIFACT="../artifacts/autotoolapp.bin" \
+    bash scripts/build_with_cache.sh autotoolapp TestSystem programs/autotoolapp
+  popd >/dev/null
+}
+
+run_autotool_build_with_cache() {
+  run_autotool_build_with_cache_for_root "${TMP_DIR}/project"
 }
 
 pushd "${TMP_DIR}/project" >/dev/null
@@ -237,6 +287,19 @@ rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/p
 run_tool_build_with_cache
 test "$(cat "${TMP_DIR}/tool-build-count")" = "1"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/toolapp.bin"
+grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/autosrc"
+rm -f "${TMP_DIR}/autotool-build-count"
+run_autotool_build_with_cache
+test "$(cat "${TMP_DIR}/autotool-build-count")" = "2"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/autotoolapp.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/autosrc"
+run_autotool_build_with_cache
+test "$(cat "${TMP_DIR}/autotool-build-count")" = "3"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/autotoolapp.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
 
 pushd "${TMP_DIR}/source" >/dev/null
