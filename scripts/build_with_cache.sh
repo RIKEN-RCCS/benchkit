@@ -186,6 +186,7 @@ artifact_tree_hash() {
   local hash_input
   local rel
   local path
+  local mode
   local target
 
   [ -d "$artifact_root" ] || return 1
@@ -201,9 +202,17 @@ artifact_tree_hash() {
     [ -n "$rel" ] || continue
     path="${artifact_root}/${rel#./}"
     if [ -d "$path" ] && [ ! -L "$path" ]; then
-      printf 'D %s\n' "$(bk_base64_encode_value "$rel")" >> "$hash_input"
+      if ! mode=$(stat -c '%a' "$path"); then
+        rm -f "$file_list" "$hash_input"
+        return 1
+      fi
+      printf 'D %s %s\n' "$mode" "$(bk_base64_encode_value "$rel")" >> "$hash_input"
     elif [ -f "$path" ] && [ ! -L "$path" ]; then
-      printf 'F %s %s\n' "$(bk_sha256_file "$path")" "$(bk_base64_encode_value "$rel")" >> "$hash_input"
+      if ! mode=$(stat -c '%a' "$path"); then
+        rm -f "$file_list" "$hash_input"
+        return 1
+      fi
+      printf 'F %s %s %s\n' "$mode" "$(bk_sha256_file "$path")" "$(bk_base64_encode_value "$rel")" >> "$hash_input"
     elif [ -L "$path" ]; then
       if ! target=$(readlink "$path"); then
         rm -f "$file_list" "$hash_input"
