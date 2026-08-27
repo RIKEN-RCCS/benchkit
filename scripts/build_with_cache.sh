@@ -311,19 +311,40 @@ host_environment_fingerprint() {
   printf '%s\n' "$fingerprint_hash"
 }
 
-resolve_git_branch_commit() {
+resolve_git_ref_commit() {
   local repo_url="$1"
-  local branch="$2"
+  local ref="$2"
+  local refs=""
+  local refname=""
   local commit=""
 
-  if [ -z "$repo_url" ] || [ -z "$branch" ] || [ "$branch" = "HEAD" ] || [ "$branch" = "detached" ]; then
+  if [ -z "$repo_url" ] || [ -z "$ref" ] || [ "$ref" = "HEAD" ] || [ "$ref" = "detached" ]; then
     return 1
   fi
 
-  commit=$(git ls-remote "$repo_url" "refs/heads/${branch}" 2>/dev/null | awk 'NR == 1 {print $1}')
+  refs=$(git ls-remote "$repo_url" \
+    "refs/heads/${ref}" \
+    "refs/tags/${ref}" \
+    "refs/tags/${ref}^{}" \
+    "$ref" 2>/dev/null || true)
+
+  refname="refs/heads/${ref}"
+  commit=$(printf '%s\n' "$refs" | awk -v ref="$refname" '$2 == ref {print $1; exit}')
   if [ -z "$commit" ]; then
-    commit=$(git ls-remote "$repo_url" "$branch" 2>/dev/null | awk 'NR == 1 {print $1}')
+    refname="refs/tags/${ref}^{}"
+    commit=$(printf '%s\n' "$refs" | awk -v ref="$refname" '$2 == ref {print $1; exit}')
   fi
+  if [ -z "$commit" ]; then
+    refname="refs/tags/${ref}"
+    commit=$(printf '%s\n' "$refs" | awk -v ref="$refname" '$2 == ref {print $1; exit}')
+  fi
+  if [ -z "$commit" ]; then
+    commit=$(printf '%s\n' "$refs" | awk '$2 ~ /\^\{\}$/ {print $1; exit}')
+  fi
+  if [ -z "$commit" ]; then
+    commit=$(printf '%s\n' "$refs" | awk 'NF >= 2 {print $1; exit}')
+  fi
+
   [ -n "$commit" ] || return 1
   printf '%s\n' "$commit"
 }
@@ -350,7 +371,7 @@ validate_cached_source() {
       repo_url=$(env_file_value "$source_info_file" BK_REPO_URL)
       branch=$(env_file_value "$source_info_file" BK_BRANCH)
       cached_commit=$(env_file_value "$source_info_file" BK_COMMIT_HASH)
-      if ! current_commit=$(resolve_git_branch_commit "$repo_url" "$branch"); then
+      if ! current_commit=$(resolve_git_ref_commit "$repo_url" "$branch"); then
         echo "cannot verify current git ref for ${repo_url} ${branch}"
         return 1
       fi
