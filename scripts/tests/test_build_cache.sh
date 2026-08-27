@@ -10,6 +10,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 mkdir -p \
   "${TMP_DIR}/project/programs/app" \
   "${TMP_DIR}/project/programs/autotoolapp" \
+  "${TMP_DIR}/project/programs/tagapp" \
   "${TMP_DIR}/project/programs/toolapp" \
   "${TMP_DIR}/project/scripts" \
   "${TMP_DIR}/project/scripts/build_tool_wrappers" \
@@ -41,6 +42,7 @@ chmod +x configure
 git add source.txt configure
 git commit -m "first" >/dev/null
 first_commit=$(git rev-parse HEAD)
+git tag -a v1.0 -m "version one" "$first_commit"
 popd >/dev/null
 
 cat > "${TMP_DIR}/project/programs/app/build.sh" <<'EOF'
@@ -61,6 +63,25 @@ printf '%s\n' "$count" > "${BK_TEST_BUILD_COUNT}"
 printf 'artifact %s %s\n' "$system" "$BK_COMMIT_HASH" > artifacts/app.bin
 EOF
 chmod +x "${TMP_DIR}/project/programs/app/build.sh"
+
+cat > "${TMP_DIR}/project/programs/tagapp/build.sh" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+system="$1"
+source scripts/bk_functions.sh
+mkdir -p artifacts
+bk_fetch_source "${BK_TEST_SOURCE_REPO}" tagsrc v1.0
+
+count=0
+if [ -f "${BK_TEST_TAG_BUILD_COUNT}" ]; then
+  count=$(cat "${BK_TEST_TAG_BUILD_COUNT}")
+fi
+count=$((count + 1))
+printf '%s\n' "$count" > "${BK_TEST_TAG_BUILD_COUNT}"
+printf 'tag artifact %s %s\n' "$system" "$BK_COMMIT_HASH" > artifacts/tagapp.bin
+EOF
+chmod +x "${TMP_DIR}/project/programs/tagapp/build.sh"
 
 cat > "${TMP_DIR}/project/programs/toolapp/build.sh" <<'EOF'
 #!/bin/bash
@@ -134,6 +155,18 @@ run_build_with_cache_for_root() {
 
 run_build_with_cache() {
   run_build_with_cache_for_root "${TMP_DIR}/project"
+}
+
+run_tag_build_with_cache() {
+  pushd "${TMP_DIR}/project" >/dev/null
+  BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
+    BK_BUILD_CACHE_DIR="${TMP_DIR}/tag-cache" \
+    BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true \
+    BK_BUILD_CACHE_ENV_KEY=test-toolchain-v1 \
+    BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+    BK_TEST_TAG_BUILD_COUNT="${TMP_DIR}/tag-build-count" \
+    bash scripts/build_with_cache.sh tagapp TestSystem programs/tagapp
+  popd >/dev/null
 }
 
 run_integrity_build_with_cache() {
@@ -307,6 +340,19 @@ rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/p
 run_build_with_cache
 test "$(cat "${TMP_DIR}/build-count")" = "2"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/tagsrc"
+rm -f "${TMP_DIR}/tag-build-count"
+run_tag_build_with_cache
+test "$(cat "${TMP_DIR}/tag-build-count")" = "1"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/tagapp.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/tagsrc"
+run_tag_build_with_cache
+test "$(cat "${TMP_DIR}/tag-build-count")" = "1"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/tagapp.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
 
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/toolsrc"
