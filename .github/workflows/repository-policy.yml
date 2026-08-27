@@ -19,3 +19,7 @@ jobs:
 
       - name: Check tracked text file integrity
         run: python3 scripts/tests/check_text_integrity.py
+
+      - name: Check PR base is current
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/tests/check_pr_base_current.py
