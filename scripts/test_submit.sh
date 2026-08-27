@@ -96,7 +96,7 @@ echo "Parsed values:"
 echo "  system=$system, enable=$enable, mode=$mode (from system.csv), queue_group=$queue_group (from system.csv)"
 echo "  nodes=$nodes, numproc_node=$numproc_node, nthreads=$nthreads, elapse=$elapse"
 if [[ -n "$scheduler_extra_args" ]]; then
-    echo "  scheduler_extra_args=$scheduler_extra_args (from BK_SCHEDULER_EXTRA_ARGS or BK_SCHEDULER_EXTRA_ARGS_${system})"
+    echo "  scheduler_extra_args=$scheduler_extra_args (from BK_SCHEDULER_EXTRA_ARGS*, or BK_ALLOCATION_PROJECT_ID for supported systems)"
 fi
 
 # --- 投入用スクリプト作成 ---
@@ -106,12 +106,12 @@ echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script
 # --- システム別ジョブ投入 ---
 case "$system" in
   Fugaku|FugakuCN)
-    echo pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+    echo pjsub "${scheduler_extra_args_array[@]}" -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
           --mpi max-proc-per-node=$numproc_node \
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh
 
-    pjsub -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
+    pjsub "${scheduler_extra_args_array[@]}" -L rscunit=rscunit_ft01,rscgrp=$queue_group,node=$nodes,elapse=$elapse \
           --mpi max-proc-per-node=$numproc_node \
           -S -x PJM_LLIO_GFSCACHE=/vol0002:/vol0003:/vol0004:/vol0005 \
           script.sh

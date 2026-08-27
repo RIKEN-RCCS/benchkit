@@ -56,3 +56,21 @@ jobs:
           echo "Checking ${#files[@]} shell files at -S error level"
           shellcheck -S error -f gcc "${files[@]}"
           echo "shellcheck error-level: 0"
+
+      - name: Run warning-level shellcheck on changed app scripts
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMRT "origin/${GITHUB_BASE_REF}...HEAD" -- ':(glob)programs/**/*.sh' |
+              sort
+          )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed app shell files found; warning-level shellcheck skipped."
+            exit 0
+          fi
+          echo "Checking ${#files[@]} changed app shell files at -S warning level"
+          shellcheck -S warning -f gcc "${files[@]}"
+          echo "changed app shellcheck warning-level: 0"

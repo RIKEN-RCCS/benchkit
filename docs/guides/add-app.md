@@ -472,6 +472,9 @@ cat programs/<code>/list.csv
 
 # 1行目の設定でテスト実行
 bash scripts/test_submit.sh <code> 1
+
+# Fugakuでdefault group以外を使う場合
+BK_ALLOCATION_PROJECT_ID=ra000009 bash scripts/test_submit.sh <code> 1
 ```
 
 ### test_submit.sh の機能

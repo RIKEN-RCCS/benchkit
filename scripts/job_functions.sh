@@ -99,6 +99,9 @@ scheduler_args_from_allocation_project() {
       RIKYU)
         printf '%s\n' "--account=${allocation_project_id}"
         ;;
+      Fugaku|FugakuCN)
+        printf '%s\n' "-g ${allocation_project_id}"
+        ;;
     esac
     return 0
 }

@@ -13,8 +13,9 @@ unset BK_SCHEDULER_EXTRA_ARGS_RIKYU
 unset BK_SCHEDULER_EXTRA_ARGS_RC_GH200
 
 test "$(get_scheduler_extra_args RIKYU)" = "--account=rkp00010"
+test "$(get_scheduler_extra_args Fugaku)" = "-g rkp00010"
+test "$(get_scheduler_extra_args FugakuCN)" = "-g rkp00010"
 test "$(get_scheduler_extra_args RC_GH200)" = ""
-test "$(get_scheduler_extra_args Fugaku)" = ""
 
 export BK_ALLOCATION_PROJECT_ID="rkp00010 --qos=debug"
 if get_scheduler_extra_args RIKYU >/dev/null 2>&1; then
@@ -29,6 +30,7 @@ test "$(get_scheduler_extra_args RIKYU)" = "--account=explicit-rikyu"
 unset BK_SCHEDULER_EXTRA_ARGS_RIKYU
 export BK_SCHEDULER_EXTRA_ARGS="--account=global"
 test "$(get_scheduler_extra_args RIKYU)" = "--account=global"
+test "$(get_scheduler_extra_args Fugaku)" = "--account=global"
 
 tmpdir=""
 estimate_tmpdir=$(mktemp -d)
@@ -60,6 +62,7 @@ export BK_TEST_SBATCH_ARGS_FILE="$tmpdir/sbatch.args"
 export BK_ALLOCATION_PROJECT_ID="rkp00010"
 unset BK_SCHEDULER_EXTRA_ARGS
 unset BK_SCHEDULER_EXTRA_ARGS_RIKYU
+unset BK_SCHEDULER_EXTRA_ARGS_Fugaku
 unset BK_SCHEDULER_EXTRA_ARGS_RC_GH200
 
 bash scripts/test_submit_build.sh qws 5 >/dev/null
@@ -71,6 +74,27 @@ fi
 export BK_SCHEDULER_EXTRA_ARGS_RC_GH200="--account=explicit-rc"
 bash scripts/test_submit_build.sh qws 5 >/dev/null
 grep -q -- "--account=explicit-rc" "$BK_TEST_SBATCH_ARGS_FILE"
+
+cat >"$tmpdir/pjsub" <<'SCRIPT'
+#!/bin/bash
+printf '%s\n' "$*" >"${BK_TEST_PJSUB_ARGS_FILE:?}"
+SCRIPT
+chmod +x "$tmpdir/pjsub"
+
+export BK_TEST_PJSUB_ARGS_FILE="$tmpdir/pjsub.args"
+export BK_ALLOCATION_PROJECT_ID="ra000009"
+unset BK_SCHEDULER_EXTRA_ARGS
+unset BK_SCHEDULER_EXTRA_ARGS_Fugaku
+
+bash scripts/test_submit.sh qws 2 >/dev/null
+grep -q -- "-g ra000009" "$BK_TEST_PJSUB_ARGS_FILE"
+
+unset BK_ALLOCATION_PROJECT_ID
+bash scripts/test_submit.sh qws 2 >/dev/null
+if grep -q -- "-g" "$BK_TEST_PJSUB_ARGS_FILE"; then
+    echo "Fugaku must not pass -g when BK_ALLOCATION_PROJECT_ID is unset" >&2
+    exit 1
+fi
 
 popd >/dev/null
 

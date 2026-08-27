@@ -72,7 +72,7 @@ The workflow accepts these inputs:
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
 | `code` | Benchkit program filter / Benchkitプログラムのフィルタ | `qws,genesis` |
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo do not honor this as a general system selector. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
-| `allocation_project_id` | Optional semantic project/allocation ID passed to GitLab as `BK_ALLOCATION_PROJECT_ID`. Benchkit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU. / GitLab へ `BK_ALLOCATION_PROJECT_ID` として渡す任意の意味的な project/allocation ID。Benchkit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>` | `rkp00010` |
+| `allocation_project_id` | Optional semantic project/allocation ID passed to GitLab as `BK_ALLOCATION_PROJECT_ID`. Benchkit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU and PJM `-g <id>` on Fugaku. / GitLab へ `BK_ALLOCATION_PROJECT_ID` として渡す任意の意味的な project/allocation ID。Benchkit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>`、Fugaku の PJM `-g <id>` | `rkp00010` |
 | `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling is maintained in a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側で管理します | `osu-micro-benchmarks` |
 | `benchpark` | Enable the legacy Benchpark bridge path together with Benchkit / legacy Benchpark bridge pathも有効化 | `true` |
 | `park_only` | Run only the legacy Benchpark bridge path / legacy Benchpark bridgeのみ実行 | `true` |
@@ -156,7 +156,7 @@ The recommended mechanism is pipeline variables. `GitLab Manual CI` uses pipelin
 |---|---|---|
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo are not a general multi-system Benchpark runner. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用multi-system Benchpark runnerではありません | `MiyabiG,MiyabiC,RC_GENOA` |
 | `code` | Benchkit program filter / Benchkit programフィルタ | `qws,genesis` |
-| `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID. Benchkit validates the value and derives scheduler arguments only for systems that support it. / 任意の意味的な project/allocation ID。Benchkit は値を検証し、対応 system に限って scheduler 引数へ変換します | `rkp00010` |
+| `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID. Benchkit validates the value and derives scheduler arguments only for systems that support it: `--account=<id>` on RIKYU and `-g <id>` on Fugaku/FugakuCN. / 任意の意味的な project/allocation ID。Benchkit は値を検証し、対応 system に限って scheduler 引数へ変換します。RIKYU では `--account=<id>`、Fugaku/FugakuCN では `-g <id>` になります | `rkp00010` |
 | `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling has moved to a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側へ移行済み | `osu-micro-benchmarks` |
 | `benchpark` | Enable the legacy Benchpark bridge path / legacy Benchpark bridge pathを有効化 | `true` |
 | `park_only` | Run the legacy Benchpark bridge and skip the normal Benchkit matrix / legacy Benchpark bridgeのみ実行し通常Benchkit matrixをスキップ | `true` |
