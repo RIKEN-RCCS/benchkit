@@ -61,6 +61,7 @@ fi
 count=$((count + 1))
 printf '%s\n' "$count" > "${BK_TEST_BUILD_COUNT}"
 printf 'artifact %s %s\n' "$system" "$BK_COMMIT_HASH" > artifacts/app.bin
+chmod 755 artifacts/app.bin
 EOF
 chmod +x "${TMP_DIR}/project/programs/app/build.sh"
 
@@ -307,17 +308,25 @@ awk -F= '$1 == "BK_CACHE_SOURCE_INFO_SHA256" && length($2) == 64 {found=1} END {
 awk -F= '$1 == "BK_CACHE_ARTIFACTS_SHA256" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
   "${integrity_cache_dir}/manifest.env"
 
-printf 'tampered artifact\n' > "${integrity_cache_dir}/artifacts/app.bin"
+chmod 644 "${integrity_cache_dir}/artifacts/app.bin"
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
 run_integrity_build_with_cache
 test "$(cat "${TMP_DIR}/integrity-build-count")" = "2"
+grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
+test -x "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+printf 'tampered artifact\n' > "${integrity_cache_dir}/artifacts/app.bin"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_integrity_build_with_cache
+test "$(cat "${TMP_DIR}/integrity-build-count")" = "3"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
 
 printf '\n# tampered source info\n' >> "${integrity_cache_dir}/results/source_info.env"
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
 run_integrity_build_with_cache
-test "$(cat "${TMP_DIR}/integrity-build-count")" = "3"
+test "$(cat "${TMP_DIR}/integrity-build-count")" = "4"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
 
