@@ -16,9 +16,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check tracked text file integrity
         run: python3 scripts/tests/check_text_integrity.py
+
+      - name: Check commit messages
+        run: python3 scripts/tests/check_commit_messages.py
 
       - name: Check PR base is current
         if: github.event_name == 'pull_request'
