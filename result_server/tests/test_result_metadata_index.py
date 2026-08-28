@@ -30,6 +30,9 @@ def test_extract_result_index_record_from_benchmark_result():
             "repo_url": "https://example.org/repo.git",
             "branch": "develop",
             "commit_hash": "abcdef123456",
+            "ref_name": "v1.0",
+            "ref_kind": "tag",
+            "resolved_commit": "0123456789abcdef0123456789abcdef01234567",
         },
     }
 
@@ -46,10 +49,12 @@ def test_extract_result_index_record_from_benchmark_result():
     assert record["exp"] == "case0"
     assert record["pipeline_id"] == "3152"
     assert record["source_type"] == "git"
-    assert record["source_ref"] == "abcdef123456"
+    assert record["source_ref"] == "0123456789abcdef0123456789abcdef01234567"
     metadata = json.loads(record["metadata_json"])
     assert metadata["fom"] == 42.5
     assert metadata["source_info"]["branch"] == "develop"
+    assert metadata["source_info"]["ref_kind"] == "tag"
+    assert metadata["source_info"]["resolved_commit"] == "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_index_result_metadata_upserts_rows(tmp_path):

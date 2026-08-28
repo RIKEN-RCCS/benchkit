@@ -362,7 +362,7 @@ validate_cached_source() {
   local source_info_file="$1"
   local source_type
   local repo_url
-  local branch
+  local ref_name
   local cached_commit
   local current_commit
   local file_path
@@ -378,10 +378,14 @@ validate_cached_source() {
   case "$source_type" in
     git)
       repo_url=$(env_file_value "$source_info_file" BK_REPO_URL)
-      branch=$(env_file_value "$source_info_file" BK_BRANCH)
-      cached_commit=$(env_file_value "$source_info_file" BK_COMMIT_HASH)
-      if ! current_commit=$(resolve_git_ref_commit "$repo_url" "$branch"); then
-        echo "cannot verify current git ref for ${repo_url} ${branch}"
+      ref_name=$(env_file_value "$source_info_file" BK_SOURCE_REF_NAME)
+      cached_commit=$(env_file_value "$source_info_file" BK_SOURCE_RESOLVED_COMMIT)
+      if [ -z "$repo_url" ] || [ -z "$ref_name" ] || [ -z "$cached_commit" ]; then
+        echo "cached git source metadata is incomplete"
+        return 1
+      fi
+      if ! current_commit=$(resolve_git_ref_commit "$repo_url" "$ref_name"); then
+        echo "cannot verify current git ref for ${repo_url} ${ref_name}"
         return 1
       fi
       if [ "$current_commit" != "$cached_commit" ]; then

@@ -116,7 +116,9 @@ Benchkit では、実行条件とシステム運用設定を明確に分けま�
 
 Benchkit では、まず **top-level application の source provenance** を追えることを優先します。
 具体的には、Git 管理のアプリであれば `repo_url`、`branch`、`commit_hash` を `source_info` として入れられる形が望ましいです。
-通常のアプリ build は、対象 repo の対象 branch の最新 commit を使います。
+`branch` は表示用の ref 名であり、branch だけでなく tag 名が入る場合もあります。
+新しい result では、追加で `ref_name`、`ref_kind`、`resolved_commit` も記録します。
+通常のアプリ build は、対象 repo の対象 ref の最新 commit を使います。
 再現実行や監査で commit を固定したい場合だけ、`bk_fetch_source` の第4引数に expected commit を渡して、意図した commit を build してください。
 tar archive を使う場合も、必要に応じて第4引数に expected SHA-256 を渡せます。
 
@@ -163,7 +165,8 @@ cache miss の場合は通常どおり `build.sh` が実行され、`artifacts/`
 cache hit の場合は保存済みの `artifacts/` と build provenance が復元され、`build.sh` は実行されません。
 
 cache hit は、少なくとも現在の app build input hash と source provenance が一致するときだけ許可されます。
-Git source では cache 内の `repo_url` / `branch` / `commit_hash` に対し、現在の branch commit を `git ls-remote` で再解決します。
+Git source では cache 内の `repo_url` / `ref_name` / `resolved_commit` に対し、現在の ref commit を `git ls-remote` で再解決します。
+新 metadata がない既存 cache entry は miss になり、通常の build 後に新しい cache として保存されます。
 file/archive source では SHA-256 を再計算します。
 container image SHA-256 が source_info に入っている場合は container image も再検証します。
 container ではない host build でも、common の `make` / `cmake` / `ninja` wrapper を通る場合は build tool 実行直前の build environment fingerprint で照合します。
@@ -599,7 +602,7 @@ git push origin add-<code>
 - ビルド・実行ファイルの衝突は基本的に発生しない
 
 ### Git リポジトリの取り扱い
-- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch] [expected_commit_or_sha256]` を使う
+- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch_or_tag] [expected_commit_or_sha256]` を使う
 - `bk_fetch_source` は Git URL または tar archive を取得・展開し、`results/source_info.env` に source provenance を書く
 - Git source では expected commit を指定すると、その commit に checkout して一致しなければ失敗する
 - tar archive では expected SHA-256 を指定すると、一致しなければ失敗し、`source_info` に `sha256sum` も記録する

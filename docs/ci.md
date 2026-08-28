@@ -264,8 +264,9 @@ cache is safe to use by comparing the current build input hash and the cached
 `BK_BUILD_CACHE_DIR` が設定されていればそれを cache root として使います。未設定の場合、custom runner が `CUSTOM_DIR` を渡していれば `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG` を使います。どちらもなければ build cache は無効です。
 復元してよいかは script 側が現在の build input hash と cache 内の `results/source_info.env` を比較して判断します。
 
-Git sources are rechecked with `git ls-remote`; file/archive sources are
-rechecked by SHA-256. If a container image hash is recorded, that image hash is
+Git sources are rechecked with `git ls-remote` using the recorded `ref_name`
+and `resolved_commit`; file/archive sources are rechecked by SHA-256. If a
+container image hash is recorded, that image hash is
 also verified. Host builds that go through the common `make` / `cmake` /
 `ninja` wrappers are matched by a build-environment fingerprint collected just
 before the build tool runs. The fingerprint includes loaded modules, selected
@@ -276,7 +277,7 @@ does not declare a GitLab `cache:` stanza; the cache directory must be a
 site-managed persistent path such as the custom runner's `CUSTOM_DIR`, not a
 per-job cleanup directory.
 
-Git source は `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
+Git source は記録済みの `ref_name` と `resolved_commit` を使って `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
 container image hash が記録されている場合は image hash も確認します。
 common の `make` / `cmake` / `ninja` wrapper を通る host build は、build tool 実行直前に収集した build environment fingerprint で照合します。この fingerprint には loaded modules、選択された build 環境変数、tool の real path、version、binary SHA-256 hash が含まれます。
 cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、成功後に新しい cache を保存します。

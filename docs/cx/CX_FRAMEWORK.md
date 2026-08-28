@@ -115,7 +115,7 @@ It applies to:
 - `拠点接続`:
   実システム、runner、Jacamar CI、scheduler、module 環境、共有ストレージ、実行アカウント、結果回収条件などを、CX 基盤や Benchkit から接続可能な形で定義・管理すること。
 - `ソース出自情報`:
-  実行結果や推定結果が、どのソースコード状態に由来するかを追跡するための情報。少なくとも最上位アプリケーションの source repository、branch、commit hash を含みうる。
+  実行結果や推定結果が、どのソースコード状態に由来するかを追跡するための情報。少なくとも最上位アプリケーションの source repository、branch または tag/ref 名、実際に解決された commit hash を含みうる。
 - `最上位アプリケーション`:
   CX 基盤が直接対象とするベンチマーク対象アプリケーション本体。依存パッケージや依存ライブラリではなく、性能結果や最適化結果を第一義的に結び付ける主体を指す。
 
@@ -134,7 +134,7 @@ In this specification and its lower-level specifications, the following terms ar
 - `site integration`:
   The definition and management of real systems, runners, Jacamar CI, scheduler behavior, module environments, shared storage, execution accounts, and result-collection conditions in a form that can be integrated with the CX Platform and Benchkit.
 - `source provenance`:
-  Information used to trace which source-code state produced a benchmark or estimation result. At minimum, it may include the source repository, branch, and commit hash of the top-level application.
+  Information used to trace which source-code state produced a benchmark or estimation result. At minimum, it may include the source repository, branch or tag/ref name, and resolved commit hash of the top-level application.
 - `top-level application`:
   The benchmark target application directly handled by the CX Platform. It does not mean dependency packages or libraries, but the primary subject to which performance and optimization results are attached.
 

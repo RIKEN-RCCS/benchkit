@@ -132,10 +132,16 @@ build_source_info_block() {
       --arg repo_url "$(source_info_env_value BK_REPO_URL)" \
       --arg branch "$(source_info_env_value BK_BRANCH)" \
       --arg commit_hash "$(source_info_env_value BK_COMMIT_HASH)" \
+      --arg ref_name "$(source_info_env_value BK_SOURCE_REF_NAME)" \
+      --arg ref_kind "$(source_info_env_value BK_SOURCE_REF_KIND)" \
+      --arg resolved_commit "$(source_info_env_value BK_SOURCE_RESOLVED_COMMIT)" \
       --arg container_path "$(source_info_env_value BK_CONTAINER_IMAGE_PATH)" \
       --arg container_sha256sum "$(source_info_env_value BK_CONTAINER_IMAGE_SHA256SUM)" \
       '
       {source_type: $source_type, repo_url: $repo_url, branch: $branch, commit_hash: $commit_hash}
+      + (if $ref_name != "" then {ref_name: $ref_name} else {} end)
+      + (if $ref_kind != "" then {ref_kind: $ref_kind} else {} end)
+      + (if $resolved_commit != "" then {resolved_commit: $resolved_commit} else {} end)
       + (if $container_path != "" or $container_sha256sum != "" then {
           container_image: {
             file_path: $container_path,

@@ -86,9 +86,35 @@ def test_build_result_quality_rollup(tmp_path):
     assert qws["source_status"] == "not tracked"
     assert qws["source_type"] == "git"
     assert qws["source_reference"] == "main"
-    assert qws["source_missing_fields"] == ["commit_hash"]
+    assert qws["source_missing_fields"] == ["resolved_commit"]
     assert qws["breakdown_present"] is False
     assert qws["estimation_ready"] is False
     assert qws["rich"] is False
     assert qws["next_action"] == "fill the missing top-level source_info fields"
     assert "complete source_info fields" in qws["validator_candidates"]
+
+
+def test_build_result_quality_rollup_uses_git_ref_name(tmp_path):
+    _write_result(
+        tmp_path / "result_20260401_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "salmon",
+            "system": "Fugaku",
+            "FOM": 1.0,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.com/repo.git",
+                "branch": "FugakuNEXT-v4",
+                "commit_hash": "abcdef1234567890",
+                "ref_name": "v1.0",
+                "ref_kind": "tag",
+                "resolved_commit": "0123456789abcdef",
+            },
+        },
+    )
+
+    rollup = build_result_quality_rollup(str(tmp_path))
+
+    row = rollup["rows"][0]
+    assert row["source_tracked"] is True
+    assert row["source_reference"] == "v1.0@0123456"

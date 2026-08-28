@@ -123,8 +123,8 @@ def _format_source_hash(source_info):
 
     source_type = source_info.get("source_type")
     if source_type == "git":
-        branch = source_info.get("branch", "")
-        commit_hash = source_info.get("commit_hash", "")
+        branch = source_info.get("ref_name") or source_info.get("branch", "")
+        commit_hash = source_info.get("resolved_commit") or source_info.get("commit_hash", "")
         short_hash = commit_hash[:7] if commit_hash else ""
         return f"{branch}@{short_hash}" if branch and short_hash else short_hash or branch or "-"
 
