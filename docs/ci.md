@@ -346,3 +346,7 @@ Do not include secrets or private credentials in pull requests, issues, commit m
 外部AI toolやprivate toolingのsession URLを、commit message、pull request、issue、CI logに含めないでください。commit attributionが必要な場合は、公開してよい一般的な署名や `Co-authored-by` trailer に留めます。
 
 Do not include external AI tool or private tooling session URLs in commit messages, pull requests, issues, or CI logs. If attribution is needed, use public-safe signing or a `Co-authored-by` trailer instead.
+
+このcheckは新規に入るcommitを対象とし、既存履歴を遡及的に書き換えるためのpolicyではありません。
+
+This check applies to newly introduced commits and is not a retroactive history-rewrite policy.
