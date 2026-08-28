@@ -1859,6 +1859,9 @@ bk_write_source_info_env() {
   _bk_sha256sum="${7:-}"
   _bk_container_path="${8:-${BK_SOURCE_CONTAINER_PATH:-}}"
   _bk_container_sha256sum="${9:-${BK_SOURCE_CONTAINER_SHA256:-}}"
+  _bk_ref_name="${10:-}"
+  _bk_ref_kind="${11:-}"
+  _bk_resolved_commit="${12:-}"
 
   if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
     echo "bk_write_source_info_env: neither base64 nor openssl found" >&2
@@ -1876,6 +1879,9 @@ bk_write_source_info_env() {
     printf 'BK_SHA256SUM_B64=%s\n' "$(bk_base64_encode_value "$_bk_sha256sum")"
     printf 'BK_CONTAINER_IMAGE_PATH_B64=%s\n' "$(bk_base64_encode_value "$_bk_container_path")"
     printf 'BK_CONTAINER_IMAGE_SHA256SUM_B64=%s\n' "$(bk_base64_encode_value "$_bk_container_sha256sum")"
+    printf 'BK_SOURCE_REF_NAME_B64=%s\n' "$(bk_base64_encode_value "$_bk_ref_name")"
+    printf 'BK_SOURCE_REF_KIND_B64=%s\n' "$(bk_base64_encode_value "$_bk_ref_kind")"
+    printf 'BK_SOURCE_RESOLVED_COMMIT_B64=%s\n' "$(bk_base64_encode_value "$_bk_resolved_commit")"
   } > results/source_info.env
 }
 
@@ -1918,15 +1924,46 @@ bk_record_file_source_info() {
   bk_write_source_info_env "file" "" "" "" "$BK_FILE_PATH" "$BK_MD5SUM" "$BK_SHA256SUM"
 }
 
+bk_git_ref_kind() {
+  _bk_git_dir="$1"
+  _bk_ref_name="${2:-}"
+
+  case "$_bk_ref_name" in
+    ""|HEAD|detached)
+      printf '%s\n' "commit"
+      return 0
+      ;;
+  esac
+
+  if git -C "$_bk_git_dir" show-ref --verify --quiet "refs/heads/${_bk_ref_name}"; then
+    printf '%s\n' "branch"
+    return 0
+  fi
+  if git -C "$_bk_git_dir" show-ref --verify --quiet "refs/remotes/origin/${_bk_ref_name}"; then
+    printf '%s\n' "branch"
+    return 0
+  fi
+  if git -C "$_bk_git_dir" show-ref --verify --quiet "refs/tags/${_bk_ref_name}"; then
+    printf '%s\n' "tag"
+    return 0
+  fi
+  if git -C "$_bk_git_dir" rev-parse --verify --quiet "${_bk_ref_name}^{commit}" >/dev/null 2>&1; then
+    printf '%s\n' "commit"
+    return 0
+  fi
+
+  printf '%s\n' "unknown"
+}
+
 # bk_fetch_source - Fetch source code and collect metadata.
 #
 # Usage:
-#   bk_fetch_source <source> <dest_dir> [branch] [expected_commit_or_sha256]
+#   bk_fetch_source <source> <dest_dir> [branch_or_tag] [expected_commit_or_sha256]
 #
 # Arguments:
 #   $1 - source: Repository URL or archive file path
 #   $2 - dest_dir: Destination directory name
-#   $3 - branch: (optional) Git branch to clone
+#   $3 - branch_or_tag: (optional) Git branch or tag to clone
 #   $4 - expected commit for git, expected sha256 for archive (optional)
 #
 # Auto-detection:
@@ -1936,8 +1973,11 @@ bk_record_file_source_info() {
 # Environment variables set:
 #   BK_SOURCE_TYPE  - "git" or "file"
 #   BK_REPO_URL     - (git) Repository URL
-#   BK_BRANCH       - (git) Branch name
+#   BK_BRANCH       - (git) Source ref display name
 #   BK_COMMIT_HASH  - (git) Full 40-char commit hash
+#   BK_SOURCE_REF_NAME         - (git) Source ref name used for provenance/cache checks
+#   BK_SOURCE_REF_KIND         - (git) branch, tag, commit, or unknown
+#   BK_SOURCE_RESOLVED_COMMIT  - (git) Full 40-char commit resolved from the source ref
 #   BK_FILE_PATH    - (file) Absolute path to archive
 #   BK_MD5SUM       - (file) Full 32-char md5sum
 #   BK_SHA256SUM    - (file) Full 64-char sha256sum
@@ -2024,9 +2064,14 @@ bk_fetch_source() {
       fi
     fi
 
-    export BK_BRANCH BK_COMMIT_HASH
+    BK_SOURCE_REF_NAME="${BK_BRANCH:-}"
+    BK_SOURCE_REF_KIND=$(bk_git_ref_kind "$_bk_dest" "$BK_SOURCE_REF_NAME")
+    BK_SOURCE_RESOLVED_COMMIT="$BK_COMMIT_HASH"
+    export BK_BRANCH BK_COMMIT_HASH BK_SOURCE_REF_NAME BK_SOURCE_REF_KIND BK_SOURCE_RESOLVED_COMMIT
 
-    bk_write_source_info_env "git" "$BK_REPO_URL" "$BK_BRANCH" "$BK_COMMIT_HASH"
+    bk_write_source_info_env \
+      "git" "$BK_REPO_URL" "$BK_BRANCH" "$BK_COMMIT_HASH" "" "" "" "" "" \
+      "$BK_SOURCE_REF_NAME" "$BK_SOURCE_REF_KIND" "$BK_SOURCE_RESOLVED_COMMIT"
 
   else
     # --- File archive path ---

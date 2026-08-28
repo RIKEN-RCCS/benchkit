@@ -31,9 +31,15 @@ def _summarize_source_info(data: Dict[str, Any]) -> Dict[str, Any]:
 
     source_type = source_info.get("source_type") or "unknown"
     if source_type == "git":
-        required_fields = ("repo_url", "branch", "commit_hash")
-        branch = source_info.get("branch") or ""
-        commit_hash = source_info.get("commit_hash") or ""
+        missing_fields = []
+        if not source_info.get("repo_url"):
+            missing_fields.append("repo_url")
+        if not (source_info.get("ref_name") or source_info.get("branch")):
+            missing_fields.append("ref_name")
+        if not (source_info.get("resolved_commit") or source_info.get("commit_hash")):
+            missing_fields.append("resolved_commit")
+        branch = source_info.get("ref_name") or source_info.get("branch") or ""
+        commit_hash = source_info.get("resolved_commit") or source_info.get("commit_hash") or ""
         short_hash = commit_hash[:7] if commit_hash else ""
         reference = (
             f"{branch}@{short_hash}"
@@ -58,7 +64,8 @@ def _summarize_source_info(data: Dict[str, Any]) -> Dict[str, Any]:
         required_fields = ()
         reference = "unknown source type"
 
-    missing_fields = [field for field in required_fields if not source_info.get(field)]
+    if source_type != "git":
+        missing_fields = [field for field in required_fields if not source_info.get(field)]
     if source_type == "file" and not source_info.get("sha256sum") and not source_info.get("md5sum"):
         missing_fields.append("sha256sum")
     if source_type == "unknown":

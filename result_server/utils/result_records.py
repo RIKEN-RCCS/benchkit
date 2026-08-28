@@ -79,7 +79,13 @@ def summarize_result_quality(data):
     if has_source_info:
         source_type = source_info.get("source_type")
         if source_type == "git":
-            source_missing_fields = [key for key in ("repo_url", "branch", "commit_hash") if not source_info.get(key)]
+            source_missing_fields = []
+            if not source_info.get("repo_url"):
+                source_missing_fields.append("repo_url")
+            if not (source_info.get("ref_name") or source_info.get("branch")):
+                source_missing_fields.append("ref_name")
+            if not (source_info.get("resolved_commit") or source_info.get("commit_hash")):
+                source_missing_fields.append("resolved_commit")
             source_info_complete = not source_missing_fields
         elif source_type == "file":
             source_missing_fields = [key for key in ("file_path",) if not source_info.get(key)]

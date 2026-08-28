@@ -11,7 +11,7 @@ from hypothesis import strategies as st
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from test_support import install_portal_test_stubs
-from utils.result_table_rows import _build_source_link
+from utils.result_table_rows import _build_source_link, _format_source_hash
 
 install_portal_test_stubs()
 
@@ -69,13 +69,18 @@ class TestHashValueFormatProperty:
             "repo_url": "https://github.com/example/repo.git",
             "branch": "main",
             "commit_hash": commit_hash,
+            "ref_name": "main",
+            "ref_kind": "branch",
+            "resolved_commit": commit_hash,
         }
 
         assert source_info["source_type"] == "git"
         assert "repo_url" in source_info
         assert "branch" in source_info
         assert "commit_hash" in source_info
+        assert source_info["ref_kind"] in {"branch", "tag", "commit", "unknown"}
         assert COMMIT_HASH_PATTERN.match(source_info["commit_hash"]) is not None
+        assert COMMIT_HASH_PATTERN.match(source_info["resolved_commit"]) is not None
 
     @given(md5sum=md5sum_strategy, sha256sum=sha256sum_strategy)
     @settings(max_examples=100)
@@ -106,6 +111,20 @@ def test_git_source_link_allows_http_urls_only():
 
     assert link["href"] == "https://github.com/example/repo.git"
     assert link["title"] == "https://github.com/example/repo.git"
+
+
+def test_git_source_hash_prefers_resolved_ref_fields():
+    source_info = {
+        "source_type": "git",
+        "repo_url": "https://github.com/example/repo.git",
+        "branch": "main",
+        "commit_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ref_name": "v1.0",
+        "ref_kind": "tag",
+        "resolved_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    }
+
+    assert _format_source_hash(source_info) == "v1.0@bbbbbbb"
 
 
 def test_git_source_link_rejects_javascript_urls():

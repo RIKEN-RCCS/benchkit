@@ -38,6 +38,7 @@ printf 'first\n' > "${TMP_DIR}/src/value.txt"
 git -C "${TMP_DIR}/src" add value.txt
 git -C "${TMP_DIR}/src" commit -q -m "first"
 commit_one=$(git -C "${TMP_DIR}/src" rev-parse HEAD)
+git -C "${TMP_DIR}/src" tag -a v1.0 -m "version one" "$commit_one"
 printf 'second\n' > "${TMP_DIR}/src/value.txt"
 git -C "${TMP_DIR}/src" commit -q -am "second"
 git -C "${TMP_DIR}/src" clone -q --bare "${TMP_DIR}/src" "${TMP_DIR}/origin.git"
@@ -51,7 +52,26 @@ bash "${REPO_DIR}/scripts/result.sh" app TestSystem native build run 123 >/dev/n
 jq -e --arg commit "$commit_one" '
   .source_info.source_type == "git" and
   .source_info.branch == "main" and
-  .source_info.commit_hash == $commit
+  .source_info.commit_hash == $commit and
+  .source_info.ref_name == "main" and
+  .source_info.ref_kind == "branch" and
+  .source_info.resolved_commit == $commit
+' results/result0.json >/dev/null
+popd >/dev/null
+
+mkdir -p "${TMP_DIR}/git-tag-work"
+pushd "${TMP_DIR}/git-tag-work" >/dev/null
+write_minimal_result
+bk_fetch_source "${TMP_DIR}/origin.git" checkout v1.0
+test "$(git -C checkout rev-parse HEAD)" = "$commit_one"
+bash "${REPO_DIR}/scripts/result.sh" app TestSystem native build run 123 >/dev/null
+jq -e --arg commit "$commit_one" '
+  .source_info.source_type == "git" and
+  .source_info.branch == "v1.0" and
+  .source_info.commit_hash == $commit and
+  .source_info.ref_name == "v1.0" and
+  .source_info.ref_kind == "tag" and
+  .source_info.resolved_commit == $commit
 ' results/result0.json >/dev/null
 popd >/dev/null
 

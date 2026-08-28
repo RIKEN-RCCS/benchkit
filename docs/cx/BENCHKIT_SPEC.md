@@ -378,13 +378,14 @@ tag や公式 version が付与されない段階でも性能評価・推定・�
 Benchkit が最低限追跡すべき項目は以下である。
 
 - 最上位アプリケーションの source repository
-- 最上位アプリケーションの branch
+- 最上位アプリケーションの branch または tag/ref 名
 - 最上位アプリケーションの commit hash
+- ref の種類と、実際に解決された commit hash
 - 必要に応じて source URL
 - 補助情報としての version や tag
 
 例:
-最上位アプリケーションが GitHub 上の `qws` であれば、`main` ブランチのどの commit hash から得られた結果かを追跡できなければならない。
+最上位アプリケーションが GitHub 上の `qws` であれば、`main` ブランチや指定 tag/ref のどの commit hash から得られた結果かを追跡できなければならない。
 
 また、ポータル上では `/results/usage` を通じて、各 app / system の最新 result を基準に source tracking の current-state を確認できることが望ましい。
 ここでは `source_status`、`source_type`、`source_reference`、不足している source field を軽く見られる形が自然である。
@@ -405,13 +406,14 @@ even before tags or official versions are created, while benchmarking, estimatio
 At minimum, Benchkit should track:
 
 - the source repository of the top-level application
-- the branch of the top-level application
+- the branch or tag/ref name of the top-level application
 - the commit hash of the top-level application
+- the ref kind and the resolved commit hash actually used
 - the source URL when needed
 - version or tag information as supporting metadata
 
 Example:
-If the top-level application is `qws` on GitHub, Benchkit must be able to trace which commit hash on the `main` branch produced the result.
+If the top-level application is `qws` on GitHub, Benchkit must be able to trace which commit hash on the `main` branch or specified tag/ref produced the result.
 
 It is also desirable for the portal to expose source-tracking current state through `/results/usage`, based on the latest result for each application/system pair.
 A lightweight view of `source_status`, `source_type`, `source_reference`, and missing source fields is a natural form for that visibility.
