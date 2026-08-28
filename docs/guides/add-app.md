@@ -123,6 +123,24 @@ tar archive を使う場合も、必要に応じて第4引数に expected SHA-25
 一方で、ローカルファイルや依存ライブラリを含む完全な provenance を、現時点ですべての app に必須化する方針ではありません。
 portal の `/results/usage` では、この source provenance が各 app / system の最新 result に対して current-state として見えるので、まずは top-level source tracked を目標に整備すると自然です。
 
+### pre-staged input と site-local 情報の扱い
+
+大きな入力データ、restart、学習済みモデル、商用・共同研究由来のデータなどは、repository に直接入れず、site 側の shared filesystem や object storage に置いて参照することがあります。
+この場合は、`BK_<APP>_INPUT_DIR`、`BK_<APP>_RESTART_DIR`、`BK_<APP>_DATASET` のような app-local override を用意し、`programs/<code>/README.md` に期待する directory layout、生成手順、dataset identity を書いてください。
+
+site-local path や allocation / project ID は、それ自体を一律に secret として扱う必要はありません。
+公開課題の ID や、実行に必要な shared path を repository に書かざるを得ない場合があります。
+ただし、public repository に書く情報は benchmark の理解・実行・検証に必要な最小限にしてください。
+
+- 必須でない user home path、個人名に強く結びつく path、site-private な運用ログ、private URL、token、password、credential は書かない
+- project / allocation ID は secret ではないが、budget や site 運用に結びつく metadata として扱い、可能なら Portal profile、runner variable、または site-local operations note に置く
+- path そのものではなく、dataset ID、生成 recipe / revision、manifest、SHA-256 や tree digest で「何を読んだか」を識別できるようにする
+- repository の default path は最小限の fallback とし、実運用で site ごとに変わる値は環境変数 override で差し替えられるようにする
+- Result provenance に残すべき情報は、local path より dataset identity と manifest digest を優先する
+
+pre-staged input を使う app では、「正しい場所にファイルがある」だけでは再現性の説明として不足します。
+可能であれば input directory と同じ場所に manifest を置き、run 前に manifest / digest を検証して、Result metadata へ dataset identity を残してください。
+
 ### build environment snapshot の方針
 
 CI の共通 wrapper は、`build.sh` 実行前に runner 側の軽量 snapshot を記録します。
