@@ -1,0 +1,99 @@
+"""Portal release/version helpers."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+
+RELEASE_NOTES = [
+    {
+        "version": "v2026.08.31",
+        "date": "2026-08-31",
+        "title": "Initial public CX Portal baseline",
+        "summary": (
+            "Public portal baseline for scoped QWS measurements on Fugaku and RIKYU, "
+            "with public-safe result pages and Portal-managed main-branch triggers."
+        ),
+        "changes": [
+            "Public result browsing, comparison, and system catalog pages are available in public portal mode.",
+            "Public mode hides operator-only views, raw result JSON routes, trigger internals, and environment snapshot detail.",
+            "Portal-managed triggers submit scoped main-branch measurements with an explicit result-server destination.",
+            "Build cache restore checks source identity, host build environment, and restored artifact integrity.",
+            "Branch and tag source inputs record the resolved commit used for the build.",
+            "Manual GitLab CI is reserved for development and release-candidate validation, not production main results.",
+        ],
+    }
+]
+
+
+def _find_git_root(start_path: Path) -> Path | None:
+    current = start_path.resolve()
+    if current.is_file():
+        current = current.parent
+    for path in (current, *current.parents):
+        if (path / ".git").exists():
+            return path
+    return None
+
+
+def _run_git(args: list[str], git_root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=git_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def portal_version_info(
+    env: dict[str, str] | None = None,
+    *,
+    start_path: str | os.PathLike[str] | None = None,
+) -> dict[str, str]:
+    """Return the release label and source commit displayed by the portal."""
+    source = env if env is not None else os.environ
+    explicit_version = (
+        source.get("RESULT_SERVER_VERSION", "").strip()
+        or source.get("BENCHKIT_PORTAL_VERSION", "").strip()
+    )
+
+    git_root = _find_git_root(Path(start_path or __file__))
+    commit = ""
+    git_label = ""
+    if git_root is not None:
+        commit = _run_git(["rev-parse", "--short=12", "HEAD"], git_root)
+        git_label = _run_git(["describe", "--tags", "--exact-match", "HEAD"], git_root)
+        if not git_label:
+            git_label = _run_git(["describe", "--tags", "--always", "--dirty"], git_root)
+
+    if explicit_version:
+        label = explicit_version
+        source_name = "environment"
+    elif git_label:
+        label = git_label
+        source_name = "git"
+    else:
+        label = "development"
+        source_name = "default"
+
+    return {
+        "label": label,
+        "commit": commit,
+        "source": source_name,
+    }
+
+
+def portal_release_notes() -> list[dict[str, object]]:
+    """Return broad-grained release notes for the public changes page."""
+    return RELEASE_NOTES

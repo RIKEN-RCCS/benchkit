@@ -197,6 +197,11 @@ RESULT_SERVER_PUBLIC_PORTAL_MODE=true
 Development or internal-only portal services may leave the flag unset unless
 they intentionally need to preview the public browser surface.
 
+Set `RESULT_SERVER_VERSION` to the deployed public tag when the production
+checkout is not expected to sit exactly on a Git tag. If it is unset, the portal
+shows the exact tag for `HEAD` when available, otherwise the current Git
+description or `development`.
+
 ## Testing Plan
 
 Add lightweight tests as the design is implemented:

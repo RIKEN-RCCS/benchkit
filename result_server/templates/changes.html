@@ -1,0 +1,76 @@
+{% extends "_results_base.html" %}
+
+{% block title %}CX Portal Changes{% endblock %}
+{% block page_title %}CX Portal Changes{% endblock %}
+{% block page_subtitle %}Broad-grained release notes for the public CX Portal surface.{% endblock %}
+
+{% block content %}
+<style>
+    .changes-list {
+        display: grid;
+        gap: 16px;
+    }
+    .changes-release-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 8px;
+    }
+    .changes-release-title {
+        margin: 0;
+        font-size: 20px;
+    }
+    .changes-release-date {
+        color: #52606d;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    .changes-version {
+        display: inline-block;
+        margin-right: 8px;
+        color: #0f766e;
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 0.9em;
+    }
+    .changes-summary {
+        margin: 0 0 12px;
+        color: #52606d;
+        line-height: 1.55;
+    }
+    .changes-items {
+        margin: 0;
+        padding-left: 22px;
+        color: #1f2933;
+        line-height: 1.6;
+    }
+    @media (max-width: 640px) {
+        .changes-release-header {
+            display: block;
+        }
+        .changes-release-date {
+            display: block;
+            margin-top: 4px;
+        }
+    }
+</style>
+
+<section class="changes-list">
+    {% for release in release_notes %}
+    <section class="page-card">
+        <div class="changes-release-header">
+            <h2 class="changes-release-title">
+                <span class="changes-version">{{ release.version }}</span>{{ release.title }}
+            </h2>
+            <span class="changes-release-date">{{ release.date }}</span>
+        </div>
+        <p class="changes-summary">{{ release.summary }}</p>
+        <ul class="changes-items">
+            {% for item in release.changes %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endfor %}
+</section>
+{% endblock %}

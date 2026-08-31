@@ -104,6 +104,7 @@
         <a href="{{ url_for('home') }}" class="nav-brand">CX Portal</a>
         <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">Home</a>
         <a href="{{ url_for('systemlist') }}" class="nav-link {% if request.endpoint == 'systemlist' %}active{% endif %}">Systems</a>
+        <a href="{{ url_for('changes') }}" class="nav-link {% if request.endpoint == 'changes' %}active{% endif %}">Changes</a>
 
         {% if session.get('authenticated') and not public_portal_mode %}
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">Public</a>

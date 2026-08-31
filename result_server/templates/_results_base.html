@@ -24,6 +24,17 @@
     -->
 
     {% block content %}{% endblock %}
+
+    {% set portal_version = config.get('PORTAL_VERSION', {}) %}
+    {% set portal_version_label = portal_version.get('label', 'development') %}
+    {% set portal_version_commit = portal_version.get('commit', '') %}
+    <footer class="portal-footer">
+        <span>CX Portal <span class="portal-version-label">{{ portal_version_label }}</span></span>
+        {% if portal_version_commit %}
+        <span class="portal-version-commit">commit {{ portal_version_commit }}</span>
+        {% endif %}
+        <a href="{{ url_for('changes') }}">Changes</a>
+    </footer>
 </div>
 
 </body>

@@ -16,6 +16,7 @@ from utils.audit_logging import configure_audit_logging
 from utils.auth import parse_ingest_keys
 from utils.csrf import init_csrf
 from utils.portal_access import is_public_portal_mode, register_public_portal_guard
+from utils.portal_version import portal_version_info
 from utils.preflight import validate_production_config
 
 
@@ -194,6 +195,7 @@ def create_app(prefix="", base_dir=None):
     _configure_api_auth(app)
     _configure_public_portal_mode(app)
     _configure_execution_profiles(app, base_dir)
+    app.config["PORTAL_VERSION"] = portal_version_info()
     register_public_portal_guard(app)
     init_csrf(app, exempt_blueprints=(api_bp,))
 

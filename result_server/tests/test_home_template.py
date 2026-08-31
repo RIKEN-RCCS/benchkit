@@ -64,3 +64,22 @@ def test_home_page_renders_discord_link_when_configured(monkeypatch):
     assert "invitation-only Discord" in html
     assert "application-onboarding coordination" in html
     assert "https://discord.gg/example" in html
+
+
+def test_changes_page_renders_release_notes(monkeypatch):
+    monkeypatch.delenv("CX_DISCORD_INVITE_URL", raising=False)
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        include_home_route=False,
+    )
+    register_home_routes(app)
+
+    with app.test_client() as client:
+        response = client.get("/changes")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "CX Portal Changes" in html
+    assert "v2026.08.31" in html
+    assert "Initial public CX Portal baseline" in html
+    assert "Portal-managed triggers" in html

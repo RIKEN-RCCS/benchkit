@@ -61,6 +61,25 @@
         background: rgba(255, 255, 255, 0.94);
         box-shadow: 0 12px 30px rgba(18, 52, 77, 0.06);
     }
+    .portal-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 18px 0 0;
+        padding: 12px 2px 0;
+        border-top: 1px solid #d8e3e8;
+        color: #52606d;
+        font-size: 12px;
+    }
+    .portal-footer a {
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .portal-version-label,
+    .portal-version-commit {
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
     .table-card {
         overflow: hidden;
     }
@@ -345,6 +364,9 @@
         }
         .page-subtitle {
             font-size: 13px;
+        }
+        .portal-footer {
+            gap: 8px;
         }
     }
 </style>
