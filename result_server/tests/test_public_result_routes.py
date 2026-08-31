@@ -16,6 +16,7 @@ install_portal_test_stubs()
 
 def _add_navigation_routes(app):
     app.add_url_rule("/", "home", lambda: "home")
+    app.add_url_rule("/changes", "changes", lambda: "changes")
     app.add_url_rule("/systems", "systemlist", lambda: "systems")
     app.add_url_rule("/login", "auth.login", lambda: "login")
     app.add_url_rule("/logout", "auth.logout", lambda: "logout")

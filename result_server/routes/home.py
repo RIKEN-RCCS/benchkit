@@ -2,6 +2,8 @@ import os
 
 from flask import render_template
 
+from utils.portal_version import portal_release_notes
+
 
 HOME_GUIDE_LINKS = {
     "add_app": "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-app.md",
@@ -23,4 +25,16 @@ def register_home_routes(app, prefix=""):
             guide_links=build_home_guide_links(),
         )
 
+    def changes():
+        return render_template(
+            "changes.html",
+            release_notes=portal_release_notes(),
+        )
+
     app.add_url_rule(f"{prefix}/", endpoint="home", view_func=homepage, strict_slashes=False)
+    app.add_url_rule(
+        f"{prefix}/changes",
+        endpoint="changes",
+        view_func=changes,
+        strict_slashes=False,
+    )

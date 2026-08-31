@@ -169,6 +169,7 @@ def create_dev_app(base_dir):
     from utils.audit_logging import configure_audit_logging
     from utils.auth import parse_ingest_keys
     from utils.csrf import init_csrf
+    from utils.portal_version import portal_version_info
     from utils.system_info import get_all_systems_info, summarize_systems_info
 
     app = Flask(__name__, template_folder="templates")
@@ -202,6 +203,7 @@ def create_dev_app(base_dir):
         ALLOWED_AFFILIATIONS=parse_allowed_affiliations(
             os.environ.get("RESULT_SERVER_ALLOWED_AFFILIATIONS")
         ),
+        PORTAL_VERSION=portal_version_info(),
     )
     Session(app)
     configure_audit_logging(app)

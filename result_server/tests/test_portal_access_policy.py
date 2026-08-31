@@ -53,6 +53,7 @@ def test_every_registered_route_has_access_class(tmp_path):
 
 
 def test_representative_route_access_classes():
+    assert classify_endpoint("changes") == ACCESS_PUBLIC
     assert classify_endpoint("home") == ACCESS_PUBLIC
     assert classify_endpoint("systemlist") == ACCESS_PUBLIC
     assert classify_endpoint("results.results") == ACCESS_PUBLIC
@@ -74,6 +75,7 @@ def test_public_portal_mode_blocks_restricted_browser_routes_but_allows_api_auth
 
     with app.test_client() as client:
         assert client.get("/").status_code == 200
+        assert client.get("/changes").status_code == 200
         assert client.get("/auth/login").status_code == 404
         assert client.get("/estimated/").status_code == 404
         assert client.get("/results/confidential").status_code == 404
@@ -98,6 +100,7 @@ def test_public_portal_mode_hides_anonymous_restricted_navigation():
 
     assert "Home" in html
     assert "Systems" in html
+    assert "Changes" in html
     assert "Results" in html
     assert "Login" not in html
     assert "Admin" not in html
@@ -136,6 +139,7 @@ def test_public_portal_mode_hides_authenticated_restricted_navigation():
 
     assert "Home" in html
     assert "Systems" in html
+    assert "Changes" in html
     assert "Results" in html
     assert "admin@example.test" not in html
     assert "Login" not in html

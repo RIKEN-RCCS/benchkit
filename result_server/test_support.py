@@ -139,6 +139,10 @@ def build_portal_shell_app(
         def home():
             return ""
 
+        @app.route(f"{prefix}/changes")
+        def changes():
+            return ""
+
     if include_systemlist_route:
         def systemlist():
             return ""

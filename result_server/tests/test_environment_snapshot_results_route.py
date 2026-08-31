@@ -16,6 +16,7 @@ from utils.environment_snapshots import index_environment_snapshot  # noqa: E402
 
 def _add_navigation_routes(app):
     app.add_url_rule("/", "home", lambda: "home")
+    app.add_url_rule("/changes", "changes", lambda: "changes")
     app.add_url_rule("/systems", "systemlist", lambda: "systems")
     app.add_url_rule("/login", "auth.login", lambda: "login")
     app.add_url_rule("/logout", "auth.logout", lambda: "logout")
