@@ -61,6 +61,7 @@ The initial public allowlist should be deliberately small.
 | Route | Public | Restricted viewer | Authenticated console | Operator | Runner/API | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `GET /` | yes | yes | yes | yes | no | Public home page. |
+| `GET /changes` | yes | yes | yes | yes | no | Public broad-grained portal release notes. |
 | `GET /systems` | yes | yes | yes | yes | no | Public system catalog. |
 | `GET /results/` | yes | yes | yes | yes | no | Public results list, rendered with public-safe columns only. |
 | `GET /results/detail/<filename>` | conditional | yes | yes | yes | no | Public only for public results and public-safe detail fields. |
@@ -108,6 +109,7 @@ Conceptual nginx layout:
 ```nginx
 # Public routes: allow all.
 location = / { proxy_pass http://portal_backend; }
+location = /changes { proxy_pass http://portal_backend; }
 location = /systems { proxy_pass http://portal_backend; }
 location = /results/ { proxy_pass http://portal_backend; }
 location /static/ { proxy_pass http://portal_backend; }

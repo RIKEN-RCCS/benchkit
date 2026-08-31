@@ -82,4 +82,4 @@ def test_changes_page_renders_release_notes(monkeypatch):
     assert "CX Portal Changes" in html
     assert "v2026.08.31" in html
     assert "Initial public CX Portal baseline" in html
-    assert "Portal-managed triggers" in html
+    assert "Compare selected public results" in html
