@@ -13,16 +13,16 @@ RELEASE_NOTES = [
         "date": "2026-08-31",
         "title": "Initial public CX Portal baseline",
         "summary": (
-            "Public portal baseline for scoped QWS measurements on Fugaku and RIKYU, "
-            "with public-safe result pages and Portal-managed main-branch triggers."
+            "Initial public portal surface with result browsing, comparison, "
+            "system information, and release visibility."
         ),
         "changes": [
-            "Public result browsing, comparison, and system catalog pages are available in public portal mode.",
-            "Public mode hides operator-only views, raw result JSON routes, trigger internals, and environment snapshot detail.",
-            "Portal-managed triggers submit scoped main-branch measurements with an explicit result-server destination.",
-            "Build cache restore checks source identity, host build environment, and restored artifact integrity.",
-            "Branch and tag source inputs record the resolved commit used for the build.",
-            "Manual GitLab CI is reserved for development and release-candidate validation, not production main results.",
+            "Browse public benchmark results from the portal.",
+            "Open public-safe result detail pages.",
+            "Compare selected public results.",
+            "Browse connected system summaries.",
+            "Show the deployed portal version in the shared footer.",
+            "Open a public Changes page with broad release notes.",
         ],
     }
 ]
