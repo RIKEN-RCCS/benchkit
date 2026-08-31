@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject commit messages that expose external AI tool session metadata."""
+"""Reject commit messages that expose known Claude session metadata."""
 
 from __future__ import annotations
 
@@ -93,8 +93,8 @@ def main() -> int:
         for commit, label in violations:
             print(f"  - {commit[:12]}: {label}", file=sys.stderr)
         print(
-            "Remove external AI tool session URLs or private tooling session "
-            "identifiers from commit messages before merging.",
+            "Remove Claude-Session trailers or claude.ai/code/session URLs "
+            "from commit messages before merging.",
             file=sys.stderr,
         )
         return 1

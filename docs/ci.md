@@ -285,9 +285,9 @@ cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、�
 
 ## Lightweight Repository Policy / 軽量repository policy
 
-`Repository Policy` runs on every pull request and on pushes to `develop` or `main`. It runs `scripts/tests/check_text_integrity.py` to ensure tracked text-like files decode as UTF-8 and do not contain the U+FFFD replacement character. It also runs `scripts/tests/check_commit_messages.py` to reject external AI tool session URLs and private tooling session identifiers in newly introduced commit messages. On pull requests, `scripts/tests/check_pr_base_current.py` confirms that the CI run used the current base branch SHA.
+`Repository Policy` runs on every pull request and on pushes to `develop` or `main`. It runs `scripts/tests/check_text_integrity.py` to ensure tracked text-like files decode as UTF-8 and do not contain the U+FFFD replacement character. It also runs `scripts/tests/check_commit_messages.py` to reject known Claude session metadata (`Claude-Session:` trailers and `claude.ai/code/session...` URLs) in newly introduced commit messages. On pull requests, `scripts/tests/check_pr_base_current.py` confirms that the CI run used the current base branch SHA.
 
-`Repository Policy` は全pull requestと `develop` / `main` へのpushで動きます。`scripts/tests/check_text_integrity.py` を実行し、管理下のtext系fileがUTF-8としてdecodeでき、U+FFFD replacement characterを含まないことを確認します。さらに `scripts/tests/check_commit_messages.py` で、新規に入るcommit messageに外部AI toolのsession URLやprivate tooling session識別子が含まれないことを確認します。pull requestでは `scripts/tests/check_pr_base_current.py` により、CI runが最新のbase branch SHAを使っていることも確認します。
+`Repository Policy` は全pull requestと `develop` / `main` へのpushで動きます。`scripts/tests/check_text_integrity.py` を実行し、管理下のtext系fileがUTF-8としてdecodeでき、U+FFFD replacement characterを含まないことを確認します。さらに `scripts/tests/check_commit_messages.py` で、新規に入るcommit messageに既知のClaude session metadata（`Claude-Session:` trailerと `claude.ai/code/session...` URL）が含まれないことを確認します。pull requestでは `scripts/tests/check_pr_base_current.py` により、CI runが最新のbase branch SHAを使っていることも確認します。
 
 The periodic review should therefore focus on semantic checks that are hard to encode in CI: stale documentation, implementation/design mismatches, workflow review, unused-code candidates, ownership-boundary drift, and research-snapshot consistency. It should not need to repeat the lightweight executable checks unless a CI result itself looks suspicious.
 
@@ -344,9 +344,9 @@ pull request、issue、commit message、CI設定には、secretやprivate creden
 
 Do not include secrets or private credentials in pull requests, issues, commit messages, or CI configuration.
 
-外部AI toolやprivate toolingのsession URLを、commit message、pull request、issue、CI logに含めないでください。commit attributionが必要な場合は、公開してよい一般的な署名や `Co-authored-by` trailer に留めます。
+`Claude-Session:` trailerや `claude.ai/code/session...` URLを、commit message、pull request、issue、CI logに含めないでください。commit attributionが必要な場合は、公開してよい一般的な署名や `Co-authored-by` trailer に留めます。
 
-Do not include external AI tool or private tooling session URLs in commit messages, pull requests, issues, or CI logs. If attribution is needed, use public-safe signing or a `Co-authored-by` trailer instead.
+Do not include `Claude-Session:` trailers or `claude.ai/code/session...` URLs in commit messages, pull requests, issues, or CI logs. If attribution is needed, use public-safe signing or a `Co-authored-by` trailer instead.
 
 このcheckは新規に入るcommitを対象とし、既存履歴を遡及的に書き換えるためのpolicyではありません。
 
