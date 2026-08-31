@@ -78,6 +78,10 @@ The workflow accepts these inputs:
 | `park_only` | Run only the legacy Benchpark bridge path / legacy Benchpark bridgeのみ実行 | `true` |
 | `park_send` | Run the legacy Benchpark bridge send-only path / legacy Benchpark bridge送信系のみ実行 | `true` |
 
+`GitLab Manual CI` is for development and release-candidate validation, not for producing production `main` branch results. The workflow rejects `target_ref` values that name the production `main` branch. Public `main` measurements should be produced by Portal-managed triggers with an explicit `code` / `system` scope and an explicit `RESULT_SERVER` pipeline variable.
+
+`GitLab Manual CI` は開発・release candidate検証用であり、本番 `main` branch結果を作る入口ではありません。このworkflowは本番 `main` branchを指す `target_ref` を拒否します。公開用の `main` 計測は、Portal管理のtriggerから、明示的な `code` / `system` scope と明示的な `RESULT_SERVER` pipeline variable を渡して作成します。
+
 このworkflowは以下を行います。
 
 The workflow:

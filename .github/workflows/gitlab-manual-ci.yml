@@ -53,6 +53,19 @@ jobs:
           fetch-depth: 0
           path: trusted
 
+      - name: Reject production main target
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          set -euo pipefail
+
+          case "${TARGET_REF}" in
+            main|heads/main|refs/heads/main|origin/main|refs/remotes/origin/main)
+              echo "::error::GitLab Manual CI must not target the production main branch. Use develop, a trusted ci/pr-* branch, a feature branch, a tag, or a SHA for manual validation."
+              exit 1
+              ;;
+          esac
+
       - name: Prepare GitLab repository settings
         id: gitlab-repo
         uses: ./trusted/.github/actions/prepare-gitlab-repo
