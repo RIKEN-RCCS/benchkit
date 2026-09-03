@@ -40,6 +40,20 @@ case "$system" in
 	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
 	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
 	;;
+    RIKYU)
+	module load nvhpc-hpcx-cuda13/26.5
+	exedir=exe
+	mkdir -p $code/$exedir/
+	NP=$((nodes * numproc_node))
+	cp $artdir/${BIN}.t${NP} $code/$exedir/${BIN}
+	cd $code/$exedir/
+	echo "code is executed in "$code/$exedir/
+	# CUDA context must exist before MPI_Init and each rank must pin one
+	# GPU, or the inter-node device exchange hangs (UCX protocol failure)
+	mpirun -np "$NP" bash -c 'export CUDA_VISIBLE_DEVICES=$((OMPI_COMM_WORLD_LOCAL_RANK % 4)); exec ./Simulation.x' > ${LOG} 2>&1
+	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
+	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
+	;;
     *)
 	echo "Unknown system: $system"
 	exit 1
