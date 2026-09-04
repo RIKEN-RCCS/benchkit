@@ -51,6 +51,7 @@
 #!/bin/bash
 set -euo pipefail
 
+source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 
 myapp_declare_estimation_layout() {
@@ -246,6 +247,7 @@ bk_run_estimation_data_collection mpiexec ./a.out "$@"
 #!/bin/bash
 set -euo pipefail
 
+source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 
 myapp_declare_estimation_layout() {
