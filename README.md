@@ -33,7 +33,6 @@ Core specifications:
 - [CX framework](docs/cx/CX_FRAMEWORK.md): top-level concept and terminology.
 - [CX platform](docs/cx/CX_PLATFORM.md): system-level responsibilities and component boundaries.
 - [Benchkit specification](docs/cx/BENCHKIT_SPEC.md): Benchkit responsibilities, interfaces, and future extension points.
-- [Benchkit gap analysis](docs/cx/BENCHKIT_GAP_ANALYSIS.md): implementation-facing functional gaps against the Benchkit specification.
 
 Estimation specifications:
 
