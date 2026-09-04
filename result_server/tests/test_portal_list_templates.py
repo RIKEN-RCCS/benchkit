@@ -357,6 +357,8 @@ def test_estimated_results_template_renders_table_note():
         )
 
     assert "Scan system pairs, applied packages, and ratio here" in html
+    assert "Applicability Status" in html
+    assert "not_applicable = attempt stored without a valid estimate" in html
     assert "PerfTools" in html
     assert "https://github.com/masaaki-kondo/PerfTools" in html
     assert "estimated-table-wrap" in html
