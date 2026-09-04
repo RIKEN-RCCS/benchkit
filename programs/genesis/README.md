@@ -9,10 +9,12 @@ and `padata*.tgz`.
 
 ## NVIDIA GPU Run And NCU Collection
 
-For MiyabiG and RC_GH200, `run.sh` first runs GENESIS without a profiler and
+For NVIDIA GPU systems, `run.sh` first runs GENESIS without a profiler and
 uses that run to measure the app FOM and section timings. It then runs
 additional NCU acquisition passes by default; those passes are used only to
-derive GPU kernel source/target time ratios for estimation. Set
+derive GPU kernel source/target time ratios for estimation. MiyabiG and
+RC_GH200 default to manual NCU windows, while RIKYU defaults to automatic NSYS
+discovery followed by NCU. Set
 `BK_PROFILER=none`, `BK_GENESIS_NCU_PROFILE=false`, or
 `GENESIS_PROFILER_TOOL=none` to skip the additional profiler runs.
 
@@ -102,19 +104,20 @@ BK_GENESIS_NCU_<PROFILE>_NSTEPS
 Legacy single-window collection can be requested with `BK_GENESIS_NCU_KERNEL_REGEX`;
 the wrapper treats it as a `custom` profile.
 
-The default automatic mode derives candidate NCU windows from an Nsight Systems
-CUDA kernel summary and then executes the generated NCU plan:
+RIKYU's default automatic mode derives candidate NCU windows from an Nsight
+Systems CUDA kernel summary and then executes the generated NCU plan:
 
 ```bash
 BK_GENESIS_NCU_PROFILE_MODE=discovery
 ```
 
-In this mode, `run.sh` keeps the normal unprofiled benchmark run, then runs a
-short NSYS discovery pass, writes `results/kernel_discovery.json` and
-`results/ncu_plan.json`, and runs the selected NCU windows. The generated NCU
-profiles default to the top three GPU-time kernels with `launch_skip=1` and
-`launch_count=10`; the NCU archives are registered as section artifacts and are
-used by the GPU estimation packages to compute source/target kernel time ratios.
+When `BK_GENESIS_NCU_PROFILE_MODE=discovery`, `run.sh` keeps the normal
+unprofiled benchmark run, then runs a short NSYS discovery pass, writes
+`results/kernel_discovery.json` and `results/ncu_plan.json`, and runs the
+selected NCU windows. The generated NCU profiles default to the top three
+GPU-time kernels with `launch_skip=1` and `launch_count=10`; the NCU archives
+are registered as section artifacts and are used by the GPU estimation packages
+to compute source/target kernel time ratios.
 
 Use `BK_GENESIS_NCU_PROFILE_MODE=discovery-only` when investigating NSYS output
 without paying the NCU cost. That mode writes the full discovery summary and

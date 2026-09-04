@@ -121,6 +121,7 @@ run_genesis_nvidia_gpu() {
     local system_name="$1"
     local env_prefix="$2"
     local default_module="$3"
+    local default_profile_mode="${4:-discovery}"
     local module_var="${env_prefix}_MODULE"
     local mpi_cmd_var="${env_prefix}_MPI_CMD"
     local mpi_args_var="${env_prefix}_MPI_ARGS"
@@ -144,6 +145,7 @@ run_genesis_nvidia_gpu() {
     if [ -n "${!cuda_visible_devices_var:-}" ]; then
         export CUDA_VISIBLE_DEVICES="${!cuda_visible_devices_var}"
     fi
+    export GENESIS_NCU_PROFILE_MODE_DEFAULT="$default_profile_mode"
 
     genesis_configure_ncu_profile "$system_name" "$profiler_tool_var" "$profiler_level_var" "$module_var" || return 1
 
@@ -205,10 +207,10 @@ case "$system" in
 	# ${mpi_cmd} ./${binary} ${input}.sub 2>&1 | tee ${output}
     # ;;
   MiyabiG)
-    run_genesis_nvidia_gpu "$system" GENESIS_MIYABIG none
+    run_genesis_nvidia_gpu "$system" GENESIS_MIYABIG none manual
     ;;
   RC_GH200)
-    run_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    run_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9" manual
     ;;
   RIKYU)
     export GENESIS_RIKYU_MODULE="${GENESIS_RIKYU_MODULE:-none}"
@@ -216,7 +218,7 @@ case "$system" in
     GENESIS_RIKYU_APPTAINER_PREFIX=$(genesis_rikyu_apptainer_run_prefix)
     export GENESIS_RIKYU_MPI_CMD="${GENESIS_RIKYU_MPI_CMD:-srun --mpi=pmix -n ${numproc} --ntasks-per-node=${numproc_node} ${GENESIS_RIKYU_APPTAINER_PREFIX}}"
     export GENESIS_RIKYU_MPI_ARGS="${GENESIS_RIKYU_MPI_ARGS:-}"
-    run_genesis_nvidia_gpu "$system" GENESIS_RIKYU "$GENESIS_RIKYU_MODULE"
+    run_genesis_nvidia_gpu "$system" GENESIS_RIKYU "$GENESIS_RIKYU_MODULE" discovery
     ;;
   *)
     echo "Unknown Running system: $system"
