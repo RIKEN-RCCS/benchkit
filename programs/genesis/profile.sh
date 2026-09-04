@@ -550,7 +550,7 @@ genesis_run_ncu_profiles() {
 }
 
 genesis_ncu_profile_mode() {
-    printf '%s\n' "${BK_GENESIS_NCU_PROFILE_MODE:-discovery}"
+    printf '%s\n' "${BK_GENESIS_NCU_PROFILE_MODE:-${GENESIS_NCU_PROFILE_MODE_DEFAULT:-discovery}}"
 }
 
 genesis_generate_ncu_plan() {
