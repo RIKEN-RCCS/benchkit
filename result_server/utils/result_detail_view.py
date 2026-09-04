@@ -25,6 +25,7 @@ def build_result_detail_context(
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": [] if public_surface else _build_quality_rows(quality),
         "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
+        "build_cache_rows": [] if public_surface else _build_build_cache_rows(result.get("build_cache")),
         "environment_rows": (
             [] if public_surface else _build_environment_rows(result.get("environment_snapshot"))
         ),
@@ -290,6 +291,108 @@ def _build_scalar_rows(scalar_metrics):
     if len(scalar_metrics.keys()) < 2:
         return []
     return build_labeled_value_rows(list(scalar_metrics.items()))
+
+
+def _build_build_cache_rows(build_cache):
+    if not isinstance(build_cache, dict) or not build_cache:
+        return []
+
+    rows = []
+    status = str(build_cache.get("status") or "unknown")
+    stored = bool(build_cache.get("stored"))
+    status_label = status
+    if stored:
+        status_label = f"{status} (stored fresh entry)"
+    rows.append({"label": "Status", "value": status_label})
+
+    reason = str(build_cache.get("reason") or "").strip()
+    if reason:
+        rows.append({"label": "Reason", "value": reason})
+
+    entry = build_cache.get("entry")
+    entry = entry if isinstance(entry, dict) else {}
+    _append_cache_entry_rows(rows, entry, prefix="")
+
+    if status == "hit":
+        hit_basis = build_cache.get("hit_basis") or []
+        if hit_basis:
+            rows.append({"label": "Hit Basis", "list": [str(item) for item in hit_basis]})
+    else:
+        store_basis = build_cache.get("store_basis") or []
+        if store_basis:
+            rows.append({"label": "Stored Entry Basis", "list": [str(item) for item in store_basis]})
+
+    restore = build_cache.get("restore")
+    restore = restore if isinstance(restore, dict) else {}
+    restore_reason = str(restore.get("reason") or "").strip()
+    if restore_reason:
+        rows.append({"label": "Rejected Cache Reason", "value": restore_reason})
+    rejected_entry = restore.get("rejected_entry")
+    rejected_entry = rejected_entry if isinstance(rejected_entry, dict) else {}
+    _append_cache_entry_rows(rows, rejected_entry, prefix="Rejected ")
+
+    return rows
+
+
+def _append_cache_entry_rows(rows, entry, *, prefix):
+    if not entry:
+        return
+
+    created_at = str(entry.get("created_at") or "").strip()
+    if created_at:
+        rows.append({"label": f"{prefix}Cached Binary Created At", "value": created_at})
+
+    source_summary = _format_cache_entry_source(entry)
+    if source_summary:
+        rows.append({"label": f"{prefix}Source", "value": source_summary})
+
+    container = entry.get("container_image")
+    container = container if isinstance(container, dict) else {}
+    container_sha = str(container.get("sha256sum") or "").strip()
+    if container_sha:
+        rows.append({"label": f"{prefix}Container Image SHA-256", "value": container_sha})
+
+    host_fingerprint = str(entry.get("host_environment_fingerprint") or "").strip()
+    if host_fingerprint:
+        rows.append({"label": f"{prefix}Host Environment Fingerprint", "value": host_fingerprint})
+    elif entry.get("env_key_present") is True:
+        rows.append({"label": f"{prefix}Host Environment", "value": "environment key matched"})
+
+    digests = entry.get("digests")
+    digests = digests if isinstance(digests, dict) else {}
+    digest_labels = [
+        ("build_inputs", "Build Inputs Hash"),
+        ("source_info", "Source Info Digest"),
+        ("artifacts", "Artifact Tree Digest"),
+    ]
+    for key, label in digest_labels:
+        value = str(digests.get(key) or "").strip()
+        if value:
+            rows.append({"label": f"{prefix}{label}", "value": value})
+
+
+def _format_cache_entry_source(entry):
+    source = entry.get("source")
+    source = source if isinstance(source, dict) else {}
+    source_type = str(source.get("type") or "").strip()
+    if not source_type:
+        return ""
+
+    if source_type == "git":
+        ref_kind = str(source.get("ref_kind") or "").strip()
+        ref_name = str(source.get("ref_name") or "").strip()
+        resolved_commit = str(source.get("resolved_commit") or "").strip()
+        ref_label = " ".join(part for part in [ref_kind, ref_name] if part)
+        if ref_label and resolved_commit:
+            return f"git {ref_label} @ {resolved_commit}"
+        if resolved_commit:
+            return f"git @ {resolved_commit}"
+        return f"git {ref_label}".strip()
+
+    source_sha = str(source.get("sha256sum") or "").strip()
+    if source_type == "file" and source_sha:
+        return f"file source {source_sha}"
+    return source_type
 
 
 def _build_build_rows(build_data):

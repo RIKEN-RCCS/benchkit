@@ -119,6 +119,7 @@ write_status() {
   local status="$1"
   local reason="${2:-}"
   local stored="${3:-false}"
+  local include_manifest="${4:-false}"
 
   mkdir -p "${repo_root}/results"
   {
@@ -126,7 +127,118 @@ write_status() {
     printf 'BK_BUILD_CACHE_REASON_B64=%s\n' "$(bk_base64_encode_value "$reason")"
     printf 'BK_BUILD_CACHE_DIR_B64=%s\n' "$(bk_base64_encode_value "$cache_dir")"
     printf 'BK_BUILD_CACHE_STORED=%s\n' "$stored"
+    if [ "$include_manifest" = "true" ] && [ -f "$cache_manifest" ]; then
+      write_status_manifest_summary
+    fi
   } > "$status_file"
+}
+
+write_status_value() {
+  local key="$1"
+  local value="$2"
+
+  if [ -n "$value" ]; then
+    printf '%s=%s\n' "$key" "$value"
+  fi
+}
+
+write_status_b64_value() {
+  local key="$1"
+  local value="$2"
+
+  if [ -n "$value" ]; then
+    printf '%s_B64=%s\n' "$key" "$(bk_base64_encode_value "$value")"
+  fi
+}
+
+write_status_manifest_summary() {
+  local value
+  local source_info_file="${cache_dir}/results/source_info.env"
+  local source_type=""
+  local source_ref_name=""
+  local source_ref_kind=""
+  local source_resolved_commit=""
+  local source_sha256=""
+  local container_sha256=""
+  local env_key=""
+
+  value=$(manifest_value BK_CACHE_CREATED_AT)
+  write_status_value BK_BUILD_CACHE_CREATED_AT "$value"
+  value=$(manifest_value BK_CACHE_BUILD_INPUTS_SHA256)
+  write_status_value BK_BUILD_CACHE_BUILD_INPUTS_SHA256 "$value"
+  value=$(manifest_value BK_CACHE_SOURCE_INFO_SHA256)
+  write_status_value BK_BUILD_CACHE_SOURCE_INFO_SHA256 "$value"
+  value=$(manifest_value BK_CACHE_ARTIFACTS_SHA256)
+  write_status_value BK_BUILD_CACHE_ARTIFACTS_SHA256 "$value"
+  value=$(manifest_value BK_CACHE_HOST_ENV_FINGERPRINT)
+  write_status_value BK_BUILD_CACHE_HOST_ENV_FINGERPRINT "$value"
+
+  env_key=$(manifest_value BK_CACHE_ENV_KEY_B64 | decode_base64_value 2>/dev/null || true)
+  if [ -n "$env_key" ]; then
+    printf 'BK_BUILD_CACHE_ENV_KEY_PRESENT=true\n'
+  else
+    printf 'BK_BUILD_CACHE_ENV_KEY_PRESENT=false\n'
+  fi
+
+  if [ -f "$source_info_file" ]; then
+    source_type=$(env_file_value "$source_info_file" BK_SOURCE_TYPE)
+    source_ref_name=$(env_file_value "$source_info_file" BK_SOURCE_REF_NAME)
+    source_ref_kind=$(env_file_value "$source_info_file" BK_SOURCE_REF_KIND)
+    source_resolved_commit=$(env_file_value "$source_info_file" BK_SOURCE_RESOLVED_COMMIT)
+    source_sha256=$(env_file_value "$source_info_file" BK_SHA256SUM)
+    container_sha256=$(env_file_value "$source_info_file" BK_CONTAINER_IMAGE_SHA256SUM)
+
+    write_status_value BK_BUILD_CACHE_SOURCE_TYPE "$source_type"
+    write_status_b64_value BK_BUILD_CACHE_SOURCE_REF_NAME "$source_ref_name"
+    write_status_value BK_BUILD_CACHE_SOURCE_REF_KIND "$source_ref_kind"
+    write_status_value BK_BUILD_CACHE_SOURCE_RESOLVED_COMMIT "$source_resolved_commit"
+    write_status_value BK_BUILD_CACHE_SOURCE_SHA256 "$source_sha256"
+    write_status_value BK_BUILD_CACHE_CONTAINER_IMAGE_SHA256SUM "$container_sha256"
+  fi
+}
+
+append_rejected_status_summary() {
+  local previous_status_file="$1"
+  local value
+
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_REASON)
+  write_status_b64_value BK_BUILD_CACHE_RESTORE_REASON "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_CREATED_AT)
+  write_status_value BK_BUILD_CACHE_REJECTED_CREATED_AT "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_BUILD_INPUTS_SHA256)
+  write_status_value BK_BUILD_CACHE_REJECTED_BUILD_INPUTS_SHA256 "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_INFO_SHA256)
+  write_status_value BK_BUILD_CACHE_REJECTED_SOURCE_INFO_SHA256 "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_ARTIFACTS_SHA256)
+  write_status_value BK_BUILD_CACHE_REJECTED_ARTIFACTS_SHA256 "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_HOST_ENV_FINGERPRINT)
+  write_status_value BK_BUILD_CACHE_REJECTED_HOST_ENV_FINGERPRINT "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_ENV_KEY_PRESENT)
+  write_status_value BK_BUILD_CACHE_REJECTED_ENV_KEY_PRESENT "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_TYPE)
+  write_status_value BK_BUILD_CACHE_REJECTED_SOURCE_TYPE "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_REF_NAME)
+  write_status_b64_value BK_BUILD_CACHE_REJECTED_SOURCE_REF_NAME "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_REF_KIND)
+  write_status_value BK_BUILD_CACHE_REJECTED_SOURCE_REF_KIND "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_RESOLVED_COMMIT)
+  write_status_value BK_BUILD_CACHE_REJECTED_SOURCE_RESOLVED_COMMIT "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_SOURCE_SHA256)
+  write_status_value BK_BUILD_CACHE_REJECTED_SOURCE_SHA256 "$value"
+  value=$(env_file_value "$previous_status_file" BK_BUILD_CACHE_CONTAINER_IMAGE_SHA256SUM)
+  write_status_value BK_BUILD_CACHE_REJECTED_CONTAINER_IMAGE_SHA256SUM "$value"
+}
+
+append_restore_summary_to_status() {
+  local previous_status_file="$1"
+
+  [ -n "$previous_status_file" ] || return 0
+  [ -f "$previous_status_file" ] || return 0
+  {
+    printf 'BK_BUILD_CACHE_RESTORE_STATUS=miss\n'
+    append_rejected_status_summary "$previous_status_file"
+  } >> "$status_file"
+  rm -f "$previous_status_file"
 }
 
 build_inputs_hash() {
@@ -138,7 +250,8 @@ build_inputs_hash() {
   hash_list=$(mktemp)
   if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git -C "$repo_root" ls-files \
-      "programs/${code}" \
+      "programs/${code}/build.sh" \
+      "programs/${code}/patches" \
       "scripts/bk_functions.sh" \
       "scripts/build_tool_wrappers" \
       "scripts/build_with_cache.sh" \
@@ -146,9 +259,14 @@ build_inputs_hash() {
       "scripts/matrix_generate.sh" \
       > "$file_list"
   else
-    find "${repo_root}/programs/${code}" "${repo_root}/scripts/build_tool_wrappers" \
+    find "${repo_root}/scripts/build_tool_wrappers" \
       -type f -print > "$file_list" 2>/dev/null || true
+    if [ -d "${repo_root}/programs/${code}/patches" ]; then
+      find "${repo_root}/programs/${code}/patches" \
+        -type f -print >> "$file_list" 2>/dev/null || true
+    fi
     printf '%s\n' \
+      "programs/${code}/build.sh" \
       "scripts/bk_functions.sh" \
       "scripts/build_with_cache.sh" \
       "scripts/collect_environment_snapshot.sh" \
@@ -402,7 +520,7 @@ validate_cached_source() {
       fi
       current_sha256=$(bk_sha256_file "$file_path")
       if [ "$current_sha256" != "$cached_sha256" ]; then
-        echo "source archive sha256 changed"
+        echo "source archive sha256 changed: cached ${cached_sha256}, current ${current_sha256}"
         return 1
       fi
       ;;
@@ -421,7 +539,7 @@ validate_cached_source() {
     fi
     current_container_sha256=$(bk_sha256_file "$container_path")
     if [ "$current_container_sha256" != "$cached_container_sha256" ]; then
-      echo "container image sha256 changed"
+      echo "container image sha256 changed: cached ${cached_container_sha256}, current ${current_container_sha256}"
       return 1
     fi
     return 0
@@ -434,7 +552,7 @@ validate_cached_source() {
       return 1
     fi
     if [ "$current_host_fingerprint" != "$cached_host_fingerprint" ]; then
-      echo "host build environment fingerprint changed"
+      echo "host build environment fingerprint changed: cached ${cached_host_fingerprint}, current ${current_host_fingerprint}"
       return 1
     fi
     if [ -n "$(manifest_value BK_CACHE_ENV_KEY_B64)" ] || [ -n "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
@@ -479,24 +597,24 @@ restore_cache() {
     return 1
   fi
   if [ ! -d "${cache_dir}/artifacts" ] || [ ! -f "$cached_source_info" ]; then
-    write_status miss "cached artifacts or source_info.env are missing"
+    write_status miss "cached artifacts or source_info.env are missing" false true
     return 1
   fi
 
   current_inputs_hash=$(build_inputs_hash)
   cached_inputs_hash=$(manifest_value BK_CACHE_BUILD_INPUTS_SHA256)
   if [ "$current_inputs_hash" != "$cached_inputs_hash" ]; then
-    write_status miss "build inputs changed"
+    write_status miss "build inputs changed: cached ${cached_inputs_hash}, current ${current_inputs_hash}" false true
     return 1
   fi
 
   if ! reason=$(validate_payload_integrity "${cache_dir}/artifacts" "$cached_source_info" "cached"); then
-    write_status miss "$reason"
+    write_status miss "$reason" false true
     return 1
   fi
 
   if ! reason=$(validate_cached_source "$cached_source_info"); then
-    write_status miss "$reason"
+    write_status miss "$reason" false true
     return 1
   fi
 
@@ -509,15 +627,17 @@ restore_cache() {
   if ! reason=$(validate_payload_integrity "${repo_root}/artifacts" "${repo_root}/results/source_info.env" "restored"); then
     rm -rf "${repo_root}/artifacts"
     rm -f "${repo_root}/results/source_info.env"
-    write_status miss "$reason"
+    write_status miss "$reason" false true
     return 1
   fi
-  write_status hit "restored cached build artifacts"
+  write_status hit "restored cached build artifacts" false true
   echo "build cache: hit for ${code}/${system}"
 }
 
 store_cache() {
   local tmp_dir
+  local previous_status_file=""
+  local previous_cache_status=""
   local inputs_hash
   local source_info_sha256=""
   local source_info_file="${repo_root}/results/source_info.env"
@@ -537,11 +657,19 @@ store_cache() {
     write_status miss "build completed but artifacts or source_info.env are missing"
     return 0
   fi
+  if [ -f "$status_file" ]; then
+    previous_cache_status=$(env_file_value "$status_file" BK_BUILD_CACHE_STATUS)
+    if [ "$previous_cache_status" = "miss" ]; then
+      previous_status_file=$(mktemp)
+      cp "$status_file" "$previous_status_file"
+    fi
+  fi
   container_sha256=$(env_file_value "$source_info_file" BK_CONTAINER_IMAGE_SHA256SUM)
   if [ -z "$container_sha256" ]; then
     host_fingerprint=$(host_environment_fingerprint || true)
     if [ -z "$host_fingerprint" ] && [ -z "${BK_BUILD_CACHE_ENV_KEY:-}" ]; then
       write_status miss "host build cache store requires environment fingerprint or non-empty BK_BUILD_CACHE_ENV_KEY"
+      append_restore_summary_to_status "$previous_status_file"
       return 0
     fi
   fi
@@ -559,11 +687,13 @@ store_cache() {
   if ! source_info_sha256=$(bk_sha256_file "${tmp_dir}/results/source_info.env"); then
     rm -rf "$tmp_dir"
     write_status miss "build completed but source_info.env cannot be hashed"
+    append_restore_summary_to_status "$previous_status_file"
     return 0
   fi
   if ! artifacts_sha256=$(artifact_tree_hash "${tmp_dir}/artifacts"); then
     rm -rf "$tmp_dir"
     write_status miss "build completed but artifacts cannot be hashed"
+    append_restore_summary_to_status "$previous_status_file"
     return 0
   fi
   {
@@ -581,7 +711,8 @@ store_cache() {
   rm -rf "$cache_dir"
   mkdir -p "$(dirname "$cache_dir")"
   mv "$tmp_dir" "$cache_dir"
-  write_status miss "stored cache after build" true
+  write_status miss "stored cache after build" true true
+  append_restore_summary_to_status "$previous_status_file"
   echo "build cache: stored ${code}/${system}"
 }
 

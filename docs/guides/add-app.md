@@ -211,13 +211,16 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 
 ### build cache の方針
 
-cross build job では、共通 wrapper `scripts/build_with_cache.sh` が `build.sh` の前後で build artifact cache を扱います。
+cross build job と native `build_run` job の build phase では、共通 wrapper `scripts/build_with_cache.sh` が `build.sh` の前後で build artifact cache を扱います。
 app の `build.sh` から cache 用の関数を呼ぶ必要はありません。
 `BK_BUILD_CACHE_DIR` が設定されていればそれを cache root として使います。未設定の場合、custom runner が `CUSTOM_DIR` を渡していれば `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG` を使います。どちらもなければ build cache は無効です。
 cache miss の場合は通常どおり `build.sh` が実行され、`artifacts/`、`results/source_info.env`、`results/environment_snapshot_build_actual.json` が cache に保存されます。
 cache hit の場合は保存済みの `artifacts/` と build provenance が復元され、`build.sh` は実行されません。
 
 cache hit は、少なくとも現在の app build input hash と source provenance が一致するときだけ許可されます。
+app 側の build recipe は `programs/<code>/build.sh` と、任意のpatch file置き場である `programs/<code>/patches/` として扱います。
+build に必要な app 固有処理は `build.sh` に閉じ、repo内patchは `programs/<code>/patches/` に置いてください。`run.sh`、`profile.sh`、`estimate.sh`、README などは build cache input ではありません。
+そのため、`profile.sh` と `estimate.sh` では build option の選択や app artifact の再buildを行わないでください。
 Git source では cache 内の `repo_url` / `ref_name` / `resolved_commit` に対し、現在の ref commit を `git ls-remote` で再解決します。
 新 metadata がない既存 cache entry は miss になり、通常の build 後に新しい cache として保存されます。
 file/archive source では SHA-256 を再計算します。
@@ -225,6 +228,8 @@ container image SHA-256 が source_info に入っている場合は container im
 container ではない host build でも、common の `make` / `cmake` / `ninja` wrapper を通る場合は build tool 実行直前の build environment fingerprint で照合します。
 この fingerprint には loaded modules、選択された build 環境変数、tool の real path、version、binary SHA-256 hash が含まれます。
 app 側で cache API を呼ぶ必要はありません。通常どおり `module load` して `make` / `cmake` / `ninja` を呼ぶだけで、common wrapper が fingerprint を記録します。
+Result JSON の `build_cache` には、cache status、cached binaryの作成時刻、digest、hit/store根拠、miss時の拒否理由が入ります。
+cache directory path は入りません。
 
 ---
 

@@ -256,15 +256,15 @@ app support matrix、partial support、app entrypoint不足、`list.csv` 内の�
 
 ## GitLab Build Cache / GitLab build cache
 
-Generated GitLab CI uses `scripts/build_with_cache.sh` for `cross` build jobs.
-If `BK_BUILD_CACHE_DIR` is set, it is used as the cache root. Otherwise, custom
-runners that expose `CUSTOM_DIR` use
-`$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG`. If neither is
-available, build cache is disabled. The script decides whether the restored
-cache is safe to use by comparing the current build input hash and the cached
-`results/source_info.env`.
+Generated GitLab CI uses `scripts/build_with_cache.sh` for `cross` build jobs
+and for the build phase of `native` `build_run` jobs. If `BK_BUILD_CACHE_DIR`
+is set, it is used as the cache root. Otherwise, custom runners that expose
+`CUSTOM_DIR` use `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG`. If
+neither is available, build cache is disabled. The script decides whether the
+restored cache is safe to use by comparing the current build input hash and the
+cached `results/source_info.env`.
 
-生成された GitLab CI の `cross` build job は `scripts/build_with_cache.sh` を使います。
+生成された GitLab CI の `cross` build job と `native` `build_run` job の build phase は `scripts/build_with_cache.sh` を使います。
 `BK_BUILD_CACHE_DIR` が設定されていればそれを cache root として使います。未設定の場合、custom runner が `CUSTOM_DIR` を渡していれば `$CUSTOM_DIR/build_cache/$CUSTOM_RUNNER_PROJECT_SLUG` を使います。どちらもなければ build cache は無効です。
 復元してよいかは script 側が現在の build input hash と cache 内の `results/source_info.env` を比較して判断します。
 
@@ -275,7 +275,12 @@ also verified. Host builds that go through the common `make` / `cmake` /
 `ninja` wrappers are matched by a build-environment fingerprint collected just
 before the build tool runs. The fingerprint includes loaded modules, selected
 build environment variables, tool real paths, versions, and binary SHA-256
-hashes. Cache misses fall back to the normal `programs/<code>/build.sh` path
+hashes. The app-owned build recipe portion of the build input hash is limited
+to `programs/<code>/build.sh` and optional patch files under
+`programs/<code>/patches/`; `run.sh`, `profile.sh`, `estimate.sh`, and app
+documentation are not build cache inputs. Because of that boundary,
+`profile.sh` and `estimate.sh` must not select build options or rebuild app
+artifacts. Cache misses fall back to the normal `programs/<code>/build.sh` path
 and store a fresh cache after a successful build. The generated child pipeline
 does not declare a GitLab `cache:` stanza; the cache directory must be a
 site-managed persistent path such as the custom runner's `CUSTOM_DIR`, not a
@@ -284,8 +289,22 @@ per-job cleanup directory.
 Git source は記録済みの `ref_name` と `resolved_commit` を使って `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
 container image hash が記録されている場合は image hash も確認します。
 common の `make` / `cmake` / `ninja` wrapper を通る host build は、build tool 実行直前に収集した build environment fingerprint で照合します。この fingerprint には loaded modules、選択された build 環境変数、tool の real path、version、binary SHA-256 hash が含まれます。
+build input hash の app 側 build recipe は `programs/<code>/build.sh` と、任意のpatch file置き場である `programs/<code>/patches/` に限定します。`run.sh`、`profile.sh`、`estimate.sh`、app 文書は build cache input ではありません。
+この境界を守るため、`profile.sh` と `estimate.sh` では build option の選択や app artifact の再buildを行わないでください。
 cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、成功後に新しい cache を保存します。
 生成された child pipeline は GitLab の `cache:` stanza を出しません。cache directory は job ごとの cleanup 対象ではなく、custom runner の `CUSTOM_DIR` など site 側で管理する永続パスにしてください。
+
+`scripts/result.sh` copies safe build cache metadata into the Result JSON as
+`build_cache`: status, reason, cache-entry creation time, aggregate digests,
+hit/store basis, and rejected-entry reason for cache misses. It does not copy
+the cache directory path. The internal result detail page renders this block so
+operators can tell when a cached binary was created and why the cache entry was
+accepted or rejected.
+
+`scripts/result.sh` は安全な build cache metadata を Result JSON の `build_cache` に写します。
+含めるのは status、reason、cache entry作成時刻、aggregate digest、hit/store根拠、cache miss時の rejected entry reason です。
+cache directory path は写しません。
+internal の result detail page ではこのblockを表示し、cached binaryがいつ作られ、なぜcache entryが採用または拒否されたかを確認できます。
 
 ## Lightweight Repository Policy / 軽量repository policy
 
