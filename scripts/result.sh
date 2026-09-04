@@ -94,12 +94,27 @@ decode_base64_value() {
   return 1
 }
 
-source_info_env_value() {
-  local key="$1"
+env_file_value() {
+  local file="$1"
+  local key="$2"
   local line
-  line=$(awk -F= -v k="${key}_B64" '$1 == k {print substr($0, length(k) + 2); exit}' results/source_info.env)
+
+  [ -f "$file" ] || return 0
+
+  line=$(awk -F= -v k="${key}_B64" '$1 == k {print substr($0, length(k) + 2); exit}' "$file")
   if [ -n "$line" ]; then
     printf '%s' "$line" | decode_base64_value 2>/dev/null || true
+    return 0
+  fi
+
+  line=$(awk -F= -v k="$key" '
+    $1 == k {
+      print substr($0, length(k) + 2)
+      exit
+    }
+  ' "$file")
+  if [ -n "$line" ]; then
+    printf '%s' "$line"
     return 0
   fi
 
@@ -114,7 +129,15 @@ source_info_env_value() {
       }
       exit
     }
-  ' results/source_info.env
+  ' "$file"
+}
+
+source_info_env_value() {
+  env_file_value results/source_info.env "$1"
+}
+
+build_cache_env_value() {
+  env_file_value results/build_cache.env "$1"
 }
 
 build_source_info_block() {
@@ -171,6 +194,196 @@ build_source_info_block() {
 # Read source_info.env if it exists (written by bk_fetch_source in build stage).
 # It is parsed as data and converted with jq; it is never sourced as shell.
 source_info_block=$(build_source_info_block)
+
+build_cache_field() {
+  local prefix="$1"
+  local suffix="$2"
+
+  if [ -n "$prefix" ]; then
+    build_cache_env_value "BK_BUILD_CACHE_${prefix}_${suffix}"
+  else
+    build_cache_env_value "BK_BUILD_CACHE_${suffix}"
+  fi
+}
+
+build_cache_entry_block() {
+  local prefix="$1"
+  local created_at
+  local build_inputs_sha256
+  local source_info_sha256
+  local artifacts_sha256
+  local host_fingerprint
+  local env_key_present
+  local source_type
+  local source_ref_name
+  local source_ref_kind
+  local source_resolved_commit
+  local source_sha256
+  local container_sha256
+
+  created_at=$(build_cache_field "$prefix" CREATED_AT)
+  build_inputs_sha256=$(build_cache_field "$prefix" BUILD_INPUTS_SHA256)
+  source_info_sha256=$(build_cache_field "$prefix" SOURCE_INFO_SHA256)
+  artifacts_sha256=$(build_cache_field "$prefix" ARTIFACTS_SHA256)
+  host_fingerprint=$(build_cache_field "$prefix" HOST_ENV_FINGERPRINT)
+  env_key_present=$(build_cache_field "$prefix" ENV_KEY_PRESENT)
+  source_type=$(build_cache_field "$prefix" SOURCE_TYPE)
+  source_ref_name=$(build_cache_field "$prefix" SOURCE_REF_NAME)
+  source_ref_kind=$(build_cache_field "$prefix" SOURCE_REF_KIND)
+  source_resolved_commit=$(build_cache_field "$prefix" SOURCE_RESOLVED_COMMIT)
+  source_sha256=$(build_cache_field "$prefix" SOURCE_SHA256)
+  container_sha256=$(build_cache_field "$prefix" CONTAINER_IMAGE_SHA256SUM)
+
+  if [ -z "$created_at$build_inputs_sha256$source_info_sha256$artifacts_sha256$host_fingerprint$env_key_present$source_type$source_ref_name$source_ref_kind$source_resolved_commit$source_sha256$container_sha256" ]; then
+    printf '%s' "{}"
+    return 0
+  fi
+
+  jq -n -c \
+    --arg created_at "$created_at" \
+    --arg build_inputs_sha256 "$build_inputs_sha256" \
+    --arg source_info_sha256 "$source_info_sha256" \
+    --arg artifacts_sha256 "$artifacts_sha256" \
+    --arg host_fingerprint "$host_fingerprint" \
+    --arg env_key_present "$env_key_present" \
+    --arg source_type "$source_type" \
+    --arg source_ref_name "$source_ref_name" \
+    --arg source_ref_kind "$source_ref_kind" \
+    --arg source_resolved_commit "$source_resolved_commit" \
+    --arg source_sha256 "$source_sha256" \
+    --arg container_sha256 "$container_sha256" \
+    '
+    def sha256_uri($v):
+      if $v == "" then ""
+      elif ($v | startswith("sha256:")) then $v
+      else "sha256:" + $v
+      end;
+    def keep_values:
+      with_entries(select(.value != "" and .value != {} and .value != []));
+    {
+      created_at: $created_at,
+      digests: ({
+        build_inputs: sha256_uri($build_inputs_sha256),
+        source_info: sha256_uri($source_info_sha256),
+        artifacts: sha256_uri($artifacts_sha256)
+      } | keep_values),
+      host_environment_fingerprint: sha256_uri($host_fingerprint),
+      env_key_present: (
+        if $env_key_present == "" then null
+        else ($env_key_present == "true")
+        end
+      ),
+      source: ({
+        type: $source_type,
+        ref_name: $source_ref_name,
+        ref_kind: $source_ref_kind,
+        resolved_commit: $source_resolved_commit,
+        sha256sum: sha256_uri($source_sha256)
+      } | keep_values),
+      container_image: ({
+        sha256sum: sha256_uri($container_sha256)
+      } | keep_values)
+    }
+    | with_entries(select(.value != "" and .value != {} and .value != [] and .value != null))
+    '
+}
+
+build_cache_block() {
+  if [ ! -f results/build_cache.env ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local status
+  local stored
+  local reason
+  local restore_status
+  local restore_reason
+  local entry_json
+  local rejected_entry_json
+
+  status=$(build_cache_env_value BK_BUILD_CACHE_STATUS)
+  stored=$(build_cache_env_value BK_BUILD_CACHE_STORED)
+  reason=$(build_cache_env_value BK_BUILD_CACHE_REASON)
+  restore_status=$(build_cache_env_value BK_BUILD_CACHE_RESTORE_STATUS)
+  restore_reason=$(build_cache_env_value BK_BUILD_CACHE_RESTORE_REASON)
+  entry_json=$(build_cache_entry_block "")
+  rejected_entry_json=$(build_cache_entry_block "REJECTED")
+
+  jq -n -c \
+    --arg status "$status" \
+    --arg stored "$stored" \
+    --arg reason "$reason" \
+    --arg restore_status "$restore_status" \
+    --arg restore_reason "$restore_reason" \
+    --argjson entry "$entry_json" \
+    --argjson rejected_entry "$rejected_entry_json" \
+    '
+    def has_digest($name): (($entry.digests // {})[$name] // "") != "";
+    def has_rejected: $rejected_entry != {};
+    def hit_basis:
+      [
+        if has_digest("build_inputs") then "build inputs hash matched" else empty end,
+        if has_digest("source_info") then "source_info.env digest matched" else empty end,
+        if has_digest("artifacts") then "artifact tree digest matched before and after restore" else empty end,
+        if (($entry.source.type // "") == "git" and ($entry.source.resolved_commit // "") != "")
+          then "git source ref resolved to cached commit" else empty end,
+        if (($entry.source.type // "") == "file" and ($entry.source.sha256sum // "") != "")
+          then "source archive SHA-256 matched" else empty end,
+        if (($entry.container_image.sha256sum // "") != "")
+          then "container image SHA-256 matched" else empty end,
+        if (($entry.host_environment_fingerprint // "") != "")
+          then "host build environment fingerprint matched"
+        elif ($entry.env_key_present // false)
+          then "host build environment key matched"
+        else empty end
+      ];
+    def store_basis:
+      [
+        if has_digest("build_inputs") then "build inputs hash recorded" else empty end,
+        if has_digest("source_info") then "source_info.env digest recorded" else empty end,
+        if has_digest("artifacts") then "artifact tree digest recorded" else empty end,
+        if (($entry.container_image.sha256sum // "") != "")
+          then "container image SHA-256 recorded" else empty end,
+        if (($entry.host_environment_fingerprint // "") != "")
+          then "host build environment fingerprint recorded"
+        elif ($entry.env_key_present // false)
+          then "host build environment key recorded"
+        else empty end
+      ];
+    {
+      schema_version: 1,
+      status: (if $status != "" then $status else "unknown" end),
+      stored: ($stored == "true")
+    }
+    + (if $reason != "" then {reason: $reason} else {} end)
+    + (if $entry != {} then {entry: $entry} else {} end)
+    + (
+      if $status == "hit" and (hit_basis | length) > 0
+      then {hit_basis: hit_basis}
+      elif $stored == "true" and (store_basis | length) > 0
+      then {store_basis: store_basis}
+      else {}
+      end
+    )
+    + (
+      if $restore_status != "" or $restore_reason != "" or has_rejected
+      then {
+        restore: (
+          {
+            status: (if $restore_status != "" then $restore_status else "miss" end)
+          }
+          + (if $restore_reason != "" then {reason: $restore_reason} else {} end)
+          + (if has_rejected then {rejected_entry: $rejected_entry} else {} end)
+        )
+      }
+      else {}
+      end
+    )
+    '
+}
+
+build_cache_block=$(build_cache_block)
 
 sha256_text() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -391,6 +604,12 @@ write_result_json() {
   \"environment_snapshot\": ${environment_snapshot_block}"
   fi
 
+  local build_cache_json_block=""
+  if [ -n "$build_cache_block" ]; then
+    build_cache_json_block=",
+  \"build_cache\": ${build_cache_block}"
+  fi
+
   local input_info_json_block=""
   if [ -n "$input_info_block" ]; then
     input_info_json_block=",
@@ -448,7 +667,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${input_info_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}
+  "source_info": $source_info_block${input_info_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}
 }
 EOF
 

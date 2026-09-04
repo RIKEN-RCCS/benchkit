@@ -209,7 +209,7 @@ ${job_prefix}_build_run:
     - export BK_BENCHKIT_ROOT=\"\$PWD\"
     - export PATH=\"\$PWD/scripts/build_tool_wrappers:\$PATH\"
     - bash scripts/record_timestamp.sh results/build_start
-    - bash $program_path/build.sh $system
+    - bash scripts/build_with_cache.sh $program $system $program_path
     - bash scripts/record_timestamp.sh results/build_end
     - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}

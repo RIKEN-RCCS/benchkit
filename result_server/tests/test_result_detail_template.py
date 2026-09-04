@@ -88,6 +88,36 @@ FULL_RESULT = {
             },
         },
     },
+    "build_cache": {
+        "schema_version": 1,
+        "status": "hit",
+        "stored": False,
+        "reason": "restored cached build artifacts",
+        "entry": {
+            "created_at": "2026-09-04T10:20:30Z",
+            "digests": {
+                "build_inputs": "sha256:111111",
+                "source_info": "sha256:222222",
+                "artifacts": "sha256:333333",
+            },
+            "source": {
+                "type": "git",
+                "ref_kind": "branch",
+                "ref_name": "develop",
+                "resolved_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            },
+            "container_image": {
+                "sha256sum": "sha256:444444",
+            },
+        },
+        "hit_basis": [
+            "build inputs hash matched",
+            "source_info.env digest matched",
+            "artifact tree digest matched before and after restore",
+            "git source ref resolved to cached commit",
+            "container image SHA-256 matched",
+        ],
+    },
 }
 
 FULL_QUALITY = {
@@ -138,6 +168,11 @@ class TestResultDetailTemplate:
         assert "3207" in html
         assert "Environment Snapshot" in html
         assert "sha256:abcdef" in html
+        assert "Build Cache" in html
+        assert "Cached Binary Created At" in html
+        assert "2026-09-04T10:20:30Z" in html
+        assert "Hit Basis" in html
+        assert "build inputs hash matched" in html
         assert "rccs-cloud" in html
         assert "slurm" in html
         assert "Build Tools" in html
@@ -159,6 +194,8 @@ class TestResultDetailTemplate:
         assert "Suggested Actions" not in html
         assert "Improvement Candidates" not in html
         assert "Environment Snapshot" not in html
+        assert "Build Cache" not in html
+        assert "Cached Binary Created At" not in html
         assert "Allocation Project ID" not in html
         assert "Runner" not in html
         assert "rccs-cloud" not in html
@@ -353,6 +390,40 @@ class TestResultDetailTemplate:
         assert "Build Information" in html
         assert "cmake" in html
         assert "Compiler" not in html
+
+    def test_build_cache_miss_shows_rejected_reason(self, app):
+        result = {
+            **FULL_RESULT,
+            "build_cache": {
+                "schema_version": 1,
+                "status": "miss",
+                "stored": True,
+                "reason": "stored cache after build",
+                "entry": {
+                    "created_at": "2026-09-05T01:02:03Z",
+                    "digests": {"build_inputs": "sha256:new"},
+                },
+                "store_basis": ["build inputs hash recorded"],
+                "restore": {
+                    "status": "miss",
+                    "reason": "build inputs changed: cached old, current new",
+                    "rejected_entry": {
+                        "created_at": "2026-09-04T01:02:03Z",
+                        "digests": {"build_inputs": "sha256:old"},
+                    },
+                },
+            },
+        }
+        with app.test_request_context():
+            html = _render_result_detail(result, FULL_QUALITY)
+
+        assert "miss (stored fresh entry)" in html
+        assert "Stored Entry Basis" in html
+        assert "build inputs hash recorded" in html
+        assert "Rejected Cache Reason" in html
+        assert "build inputs changed: cached old, current new" in html
+        assert "Rejected Cached Binary Created At" in html
+        assert "2026-09-04T01:02:03Z" in html
 
     def test_quality_section(self, app):
         with app.test_request_context():

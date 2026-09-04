@@ -105,6 +105,10 @@
 </div>
 {% endif %}
 
+{% if build_cache_rows %}
+{{ render_titled_key_value_table("Build Cache", build_cache_rows, "meta-table") }}
+{% endif %}
+
 {% if environment_rows %}
 {{ render_titled_key_value_table("Environment Snapshot", environment_rows, "meta-table") }}
 {% if environment_snapshot_results_url %}

@@ -19,7 +19,12 @@ def test_matrix_generator_collects_snapshots_in_common_wrappers():
     )
     assert "export BK_BENCHKIT_ROOT=" in matrix_generate
     assert "scripts/build_tool_wrappers" in matrix_generate
-    assert "bash scripts/build_with_cache.sh $program $system $program_path" in matrix_generate
+    assert (
+        matrix_generate.count(
+            "bash scripts/build_with_cache.sh $program $system $program_path"
+        )
+        == 2
+    )
     assert ".benchkit_build_cache/${program}/${system}/" not in matrix_generate
     assert "policy: pull-push" not in matrix_generate
     build_cache = (REPO_ROOT / "scripts" / "build_with_cache.sh").read_text(

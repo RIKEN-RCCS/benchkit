@@ -65,6 +65,23 @@ cat > "${TMP_DIR}/project/results/input_info.json" <<'EOF'
   ]
 }
 EOF
+build_cache_reason_b64=$(printf '%s' "restored cached build artifacts" | base64 | tr -d '\r\n')
+build_cache_ref_b64=$(printf '%s' "develop" | base64 | tr -d '\r\n')
+cat > "${TMP_DIR}/project/results/build_cache.env" <<EOF
+BK_BUILD_CACHE_STATUS=hit
+BK_BUILD_CACHE_REASON_B64=${build_cache_reason_b64}
+BK_BUILD_CACHE_DIR_B64=L3RtcC9iZW5jaGtpdC1jYWNoZS9zaG91bGQtbm90LWxlYWs=
+BK_BUILD_CACHE_STORED=false
+BK_BUILD_CACHE_CREATED_AT=2026-09-04T10:20:30Z
+BK_BUILD_CACHE_BUILD_INPUTS_SHA256=1111111111111111111111111111111111111111111111111111111111111111
+BK_BUILD_CACHE_SOURCE_INFO_SHA256=2222222222222222222222222222222222222222222222222222222222222222
+BK_BUILD_CACHE_ARTIFACTS_SHA256=3333333333333333333333333333333333333333333333333333333333333333
+BK_BUILD_CACHE_SOURCE_TYPE=git
+BK_BUILD_CACHE_SOURCE_REF_NAME_B64=${build_cache_ref_b64}
+BK_BUILD_CACHE_SOURCE_REF_KIND=branch
+BK_BUILD_CACHE_SOURCE_RESOLVED_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+BK_BUILD_CACHE_CONTAINER_IMAGE_SHA256SUM=4444444444444444444444444444444444444444444444444444444444444444
+EOF
 
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
@@ -119,6 +136,16 @@ jq -e '
   .input_info.schema_version == 1 and
   .input_info.inputs[0].dataset_id == "qws-case0" and
   .input_info.inputs[0].verification_status == "declared"
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
+  .build_cache.status == "hit" and
+  .build_cache.reason == "restored cached build artifacts" and
+  .build_cache.entry.created_at == "2026-09-04T10:20:30Z" and
+  .build_cache.entry.digests.build_inputs == "sha256:1111111111111111111111111111111111111111111111111111111111111111" and
+  .build_cache.entry.source.ref_name == "develop" and
+  .build_cache.entry.container_image.sha256sum == "sha256:4444444444444444444444444444444444444444444444444444444444444444" and
+  (.build_cache.hit_basis | index("build inputs hash matched")) and
+  ((.build_cache | tostring | contains("should-not-leak")) | not)
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null

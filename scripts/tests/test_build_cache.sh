@@ -258,6 +258,13 @@ BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
 popd >/dev/null
 test "$(cat "${TMP_DIR}/build-count")" = "1"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_CREATED_AT=' "${TMP_DIR}/project/results/build_cache.env"
+awk -F= '$1 == "BK_BUILD_CACHE_BUILD_INPUTS_SHA256" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
+  "${TMP_DIR}/project/results/build_cache.env"
+awk -F= '$1 == "BK_BUILD_CACHE_ARTIFACTS_SHA256" && length($2) == 64 {found=1} END {exit(found ? 0 : 1)}' \
+  "${TMP_DIR}/project/results/build_cache.env"
+grep -q "^BK_BUILD_CACHE_SOURCE_RESOLVED_COMMIT=${first_commit}$" \
+  "${TMP_DIR}/project/results/build_cache.env"
 test -f "${TMP_DIR}/custom-runner/build_cache/benchkit-test/app/TestSystem/manifest.env"
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
 
@@ -350,6 +357,72 @@ run_build_with_cache
 test "$(cat "${TMP_DIR}/build-count")" = "2"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+rm -rf "${TMP_DIR}/git-project" "${TMP_DIR}/git-cache"
+cp -a "${TMP_DIR}/project" "${TMP_DIR}/git-project"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+printf '#!/bin/bash\n' > "${TMP_DIR}/git-project/programs/app/run.sh"
+printf '#!/bin/bash\n' > "${TMP_DIR}/git-project/programs/app/profile.sh"
+printf '# test app\n' > "${TMP_DIR}/git-project/programs/app/README.md"
+mkdir -p "${TMP_DIR}/git-project/programs/app/patches"
+printf 'patch-v1\n' > "${TMP_DIR}/git-project/programs/app/patches/build.patch"
+pushd "${TMP_DIR}/git-project" >/dev/null
+git init --initial-branch=main >/dev/null
+git config user.email "benchkit@example.invalid"
+git config user.name "Benchkit Test"
+git add programs scripts
+git commit -m "project inputs" >/dev/null
+popd >/dev/null
+
+run_git_project_build_with_cache() {
+  pushd "${TMP_DIR}/git-project" >/dev/null
+  BK_BENCHKIT_ROOT="${TMP_DIR}/git-project" \
+    BK_BUILD_CACHE_DIR="${TMP_DIR}/git-cache" \
+    BK_BUILD_CACHE_ALLOW_HOST_ENV_CACHE=true \
+    BK_BUILD_CACHE_ENV_KEY=test-toolchain-v1 \
+    BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
+    BK_TEST_BUILD_COUNT="${TMP_DIR}/git-build-count" \
+    bash scripts/build_with_cache.sh app TestSystem programs/app
+  popd >/dev/null
+}
+
+rm -f "${TMP_DIR}/git-build-count"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
+
+printf '# run-only change\n' >> "${TMP_DIR}/git-project/programs/app/run.sh"
+printf '# profile-only change\n' >> "${TMP_DIR}/git-project/programs/app/profile.sh"
+printf '# docs-only change\n' >> "${TMP_DIR}/git-project/programs/app/README.md"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "1"
+grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/git-project/results/build_cache.env"
+
+printf 'patch-v2\n' >> "${TMP_DIR}/git-project/programs/app/patches/build.patch"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "2"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_RESTORE_STATUS=miss$' "${TMP_DIR}/git-project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_REJECTED_CREATED_AT=' "${TMP_DIR}/git-project/results/build_cache.env"
+restore_reason_b64=$(awk -F= '$1 == "BK_BUILD_CACHE_RESTORE_REASON_B64" {print substr($0, length($1) + 2); exit}' \
+  "${TMP_DIR}/git-project/results/build_cache.env")
+restore_reason=$(printf '%s' "$restore_reason_b64" | base64 --decode)
+case "$restore_reason" in
+  "build inputs changed: cached "*", current "*) ;;
+  *)
+    echo "unexpected build cache restore reason: ${restore_reason}" >&2
+    exit 1
+    ;;
+esac
+
+printf '\n# git build input change\n' >> "${TMP_DIR}/git-project/programs/app/build.sh"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "3"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
 
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/tagsrc"
 rm -f "${TMP_DIR}/tag-build-count"
