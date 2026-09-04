@@ -27,6 +27,14 @@
     line-height: 1.55;
     font-size: 14px;
   }
+  .estimated-status-legend {
+    display: grid;
+    gap: 6px;
+    margin: -4px 0 14px;
+    color: #41566d;
+    font-size: 13px;
+    line-height: 1.45;
+  }
   .estimated-guide-link {
     color: #0f766e;
     font-weight: 600;
@@ -73,6 +81,10 @@
   models when an applicable package is selected.
   {% endif %}
 </p>
+
+<div class="estimated-status-legend" aria-label="Estimated result status legend">
+  <span><strong>Applicability Status:</strong> applicable = requested package applied; partially_applicable = stored with section/overlap fallback; fallback = stored with top-level fallback; not_applicable = attempt stored without a valid estimate; needs_remeasurement = more benchmark data required.</span>
+</div>
 
 {% include "_estimated_results_table.html" %}
 
