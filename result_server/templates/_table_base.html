@@ -310,6 +310,13 @@
         opacity: 0;
         transition: opacity 120ms ease;
     }
+    .tooltip-wide .tooltiptext {
+        width: 460px;
+        margin-left: -230px;
+    }
+    .tooltip-floating-layer.tooltip-wide {
+        max-width: min(520px, calc(100vw - 24px));
+    }
 
     .tooltip-floating-layer.is-visible {
         opacity: 1;
@@ -431,6 +438,10 @@ function filterTable() {
         if (!textEl) return;
 
         var layer = ensureFloatingTooltip();
+        layer.className = 'tooltip-floating-layer';
+        if (target.classList.contains('tooltip-wide')) {
+            layer.classList.add('tooltip-wide');
+        }
         activeTooltip = target;
         layer.innerHTML = textEl.innerHTML;
         layer.classList.add('is-visible');

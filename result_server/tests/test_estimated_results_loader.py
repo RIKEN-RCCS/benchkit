@@ -88,6 +88,7 @@ def test_estimated_rows_prefer_metadata_fields(flask_app, tmp_dir):
     assert rows[0]["current_estimation_package"] == "weakscaling"
     assert rows[0]["future_estimation_package"] == "instrumented_app_sections_dummy"
     assert rows[0]["applicability_status"] == "fallback"
+    assert rows[0]["applicability_tooltip"] == "fallback: stored with top-level fallback"
     assert rows[0]["applicability_meta_line"] == ""
 
 
@@ -115,6 +116,9 @@ def test_estimated_rows_surface_applicability_context(flask_app, tmp_dir):
 
     assert info["total"] == 1
     assert rows[0]["applicability_status"] == "needs_remeasurement"
+    assert "needs_remeasurement: more benchmark data required" in rows[0]["applicability_tooltip"]
+    assert "missing: fom_breakdown, section_artifact" in rows[0]["applicability_tooltip"]
+    assert "actions: provide-section-breakdown-for-weakscaling" in rows[0]["applicability_tooltip"]
     assert rows[0]["applicability_meta_line"] == "action: provide-section-breakdown-for-weakscaling"
     assert "missing: fom_breakdown, section_artifact" in rows[0]["applicability_title"]
 
@@ -130,3 +134,5 @@ def test_estimated_columns_use_compact_labels():
     assert labels["estimate_uuid_short"] == "UUID"
     applicability_column = next(column for column in columns if column["key"] == "applicability_status")
     assert applicability_column["meta_key"] == "applicability_meta_line"
+    assert applicability_column["tooltip_class"] == "tooltip-wide"
+    assert "needs_remeasurement: more benchmark data required" in applicability_column["tooltip"]
