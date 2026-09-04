@@ -7,6 +7,32 @@ from utils.result_records import build_labeled_value_rows, format_numeric_value
 from utils.trigger_display import summarize_execution_trigger
 
 
+HOST_ENVIRONMENT_FINGERPRINT_HELP = (
+    "Checks whether the host build environment is the same. Covers code, "
+    "system, loaded modules, selected build environment, and build tool real "
+    "paths, versions, and binary hashes."
+)
+
+BUILD_CACHE_DIGEST_HELP = {
+    "build_inputs": (
+        "Checks whether the build recipe inputs are the same. Covers app "
+        "build.sh, app patches, build-cache wrapper, build-tool wrappers, "
+        "environment snapshot helper, matrix generator, and any declared extra "
+        "cache inputs."
+    ),
+    "source_info": (
+        "Checks whether the source metadata is the same. Uses source_info.env "
+        "saved with the cache entry, including source type and resolved source "
+        "identity."
+    ),
+    "artifacts": (
+        "Checks whether the restored build outputs are the same as the saved "
+        "cache entry. Covers artifacts/ relative paths, entry types, file "
+        "modes, file contents, and symlink targets."
+    ),
+}
+
+
 def build_result_detail_context(
     result,
     quality,
@@ -354,7 +380,11 @@ def _append_cache_entry_rows(rows, entry, *, prefix):
 
     host_fingerprint = str(entry.get("host_environment_fingerprint") or "").strip()
     if host_fingerprint:
-        rows.append({"label": f"{prefix}Host Environment Fingerprint", "value": host_fingerprint})
+        rows.append({
+            "label": f"{prefix}Host Environment Fingerprint",
+            "value": host_fingerprint,
+            "help": HOST_ENVIRONMENT_FINGERPRINT_HELP,
+        })
     elif entry.get("env_key_present") is True:
         rows.append({"label": f"{prefix}Host Environment", "value": "environment key matched"})
 
@@ -363,12 +393,16 @@ def _append_cache_entry_rows(rows, entry, *, prefix):
     digest_labels = [
         ("build_inputs", "Build Inputs Hash"),
         ("source_info", "Source Info Digest"),
-        ("artifacts", "Artifact Tree Digest"),
+        ("artifacts", "Cached Artifacts Digest"),
     ]
     for key, label in digest_labels:
         value = str(digests.get(key) or "").strip()
         if value:
-            rows.append({"label": f"{prefix}{label}", "value": value})
+            rows.append({
+                "label": f"{prefix}{label}",
+                "value": value,
+                "help": BUILD_CACHE_DIGEST_HELP[key],
+            })
 
 
 def _format_cache_entry_source(entry):
