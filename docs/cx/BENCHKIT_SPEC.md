@@ -320,6 +320,7 @@ Benchkit は少なくとも以下のデータを中心に扱う。
 - 推定結果
 - 使用量情報
 - ソース出自情報
+- ベンチマーク入力出自情報
 
 Benchkit mainly handles at least the following data:
 
@@ -328,6 +329,7 @@ Benchkit mainly handles at least the following data:
 - estimation results
 - usage information
 - source provenance
+- benchmark input provenance
 
 ### 7.1 実行条件 / Execution Conditions
 
@@ -353,6 +355,7 @@ Execution conditions are mainly formed by app-side `list.csv` and system-side `s
 - section / overlap 情報
 - pipeline timing
 - source_info
+- input_info
 - 実行環境メタデータ
 
 Benchmark results are produced by normalizing `run.sh` output into Result JSON through `result.sh`.
@@ -365,6 +368,7 @@ They may include at least:
 - section / overlap information
 - pipeline timing
 - source_info
+- input_info
 - execution-environment metadata
 
 ### 7.3 ソース出自情報 / Source Provenance
@@ -423,7 +427,57 @@ That area is a natural strength of external tools such as Benchpark, Ramble, and
 
 However, if the broader CX Platform later requires wider dependency provenance support, Benchkit may be extended as an integration point for those external tools.
 
-### 7.4 推定結果 / Estimation Results
+### 7.4 ベンチマーク入力出自情報 / Benchmark Input Provenance
+
+Benchkit は、pre-staged input、restart、学習済みモデル、公開 archive など、ベンチマーク実行に使った入力の出自情報を任意の `input_info` として保持できることが望ましい。
+これは top-level app source を表す `source_info` とは別の補助情報であり、`source_info` に app source と benchmark input を混在させすぎない。
+
+`input_info` は最初の段階では任意項目であり、存在しない result を ingest failure として扱わない。
+一方、`results/input_info.json` を app が生成する場合、Benchkit はそれを JSON object として検証し、Result JSON の top-level `input_info` に添付できる。
+
+`input_info` には少なくとも次のような情報を置けることが望ましい。
+
+- dataset identity
+- dataset version または revision
+- input kind
+- manifest digest または content digest
+- 生成 recipe または取得 recipe
+- 公開 URL または archive reference
+- 検証状態
+
+入力が top-level app repository 内に含まれ、その repository の `source_info.resolved_commit` で固定される場合は、別の manifest や content digest を必須にしない。
+この場合、`source_info` が実際に使った app source と repo 内 input の両方の固定点になる。
+`input_info` は省略してもよく、Portal や review で dataset 名を見せたい場合だけ、`kind: "repo-local-input"`、`source: "source_info"`、`repo_relative_path`、`verification_status: "covered_by_source_commit"` などの補助情報を持たせてよい。
+
+site-local path は所在情報であり、長期的な input identity ではない。
+巨大データや共同研究由来データを site-local shared storage に置くことは許容されるが、Result provenance では path より dataset identity、recipe、manifest、digest を優先する。
+public surface では、必要がない限り detailed local path を表示しない。
+
+Benchkit should preferably be able to retain provenance for benchmark inputs such as pre-staged inputs, restarts, trained models, and public archives as optional `input_info`.
+This is auxiliary information separate from `source_info`, which represents the top-level application source; app source and benchmark input should not be mixed too heavily into one object.
+
+At the initial stage, `input_info` is optional, and results without it are not treated as ingest failures.
+When an application produces `results/input_info.json`, Benchkit can validate it as a JSON object and attach it to the top-level `input_info` field in Result JSON.
+
+`input_info` should preferably be able to include information such as:
+
+- dataset identity
+- dataset version or revision
+- input kind
+- manifest digest or content digest
+- generation or acquisition recipe
+- public URL or archive reference
+- verification status
+
+When the input is already stored in the top-level application repository and is fixed by `source_info.resolved_commit`, a separate manifest or content digest is not mandatory.
+In that case, `source_info` is the fixed point for both the application source and the repository-local input actually used.
+`input_info` may be omitted, or it may carry lightweight helper fields such as `kind: "repo-local-input"`, `source: "source_info"`, `repo_relative_path`, and `verification_status: "covered_by_source_commit"` when the dataset name should be visible in the Portal or during review.
+
+A site-local path is location information, not a durable input identity.
+Large datasets and collaboration-derived inputs may still be staged on site-local shared storage, but Result provenance should prefer dataset identity, recipe, manifest, and digest over paths.
+Detailed local paths should not be exposed on the public surface unless they are necessary.
+
+### 7.5 推定結果 / Estimation Results
 
 推定結果は、実測結果やモデルに基づいて生成される Estimate JSON である。
 Benchkit は、`weakscaling` を最小経路とする推定結果と、より詳細な推定結果の両方を扱えることが望ましい。
