@@ -363,6 +363,14 @@ PAPI のように、通常実行とは別に追加採取実行が必要な入力
 特殊採取が不要な package しか宣言されていない場合は、追加実行を行わずに戻ってよい。
 複数 section を 1 回の採取でまとめられる profiler がある場合の重複採取回避は、将来の拡張として扱う。
 
+この入口は、推定処理が不足データを検出した後に benchmark CI / continuous benchmarking を自動再投入するためのものではない。
+推定処理は既存の Result JSON と artifact を入力として扱い、不足している profiler data や section artifact は `fallback`、`not_applicable`、`needs_remeasurement` などの状態として保存・表示する。
+profiler 条件、追加採取の有無、app section 定義を変更する再計測は、app 担当者または operator の明示的な作業として扱う。
+
+This entrypoint is not a mechanism for automatically resubmitting benchmark CI or continuous benchmarking after estimation detects missing data.
+Estimation consumes already stored Result JSON and artifacts, and records missing profiler data or section artifacts as states such as `fallback`, `not_applicable`, or `needs_remeasurement`.
+Remeasurement that changes profiler settings, additional acquisition, or application section definitions is an explicit application-maintainer or operator action.
+
 ## 7. 失敗時の扱い / Failure Handling
 
 ### 7.1 採取失敗と実行失敗を分ける / Distinguish Acquisition Failure from Execution Failure

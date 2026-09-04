@@ -235,6 +235,10 @@ bk_run_estimation_data_collection mpiexec ./a.out "$@"
 
 `bk_run_estimation_data_collection` は Benchkit の共通入口です。内部では割り当てられた package や site 側の wrapper に応じて必要な採取を分岐します。PAPI や GPU profiler のように追加実行が必要なものは、ここでまとめて扱う方が app 側が軽くなります。
 
+これは、推定実行時に不足した profiler data を見つけて、自動的に benchmark CI を再投入する仕組みではありません。
+推定は既に保存された Result JSON と artifact を読み、入力不足は `fallback`、`not_applicable`、`needs_remeasurement` などとして記録します。
+profiler 条件や app section の切り方を変える再計測は、app 担当者または operator が明示的に判断します。
+
 ---
 
 ## 6. `estimate.sh` を入口として使う
