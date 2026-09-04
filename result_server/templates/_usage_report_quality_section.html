@@ -14,6 +14,7 @@
           <th title="Top-level provenance type from source_info.">Type</th>
           <th title="Short provenance reference shown from source_info.">Reference</th>
           <th title="Source fields still missing from the latest result, if any.">Missing Fields</th>
+          <th title="Whether the latest result includes optional benchmark input provenance.">Input</th>
           <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
           <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
           <th title="Whether the latest result reaches the rich quality level.">Rich</th>
@@ -33,6 +34,7 @@
           <td>{{ row.source_type }}</td>
           <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
           <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
+          <td><span class="{{ 'quality-ok' if row.input_info_present else 'quality-warn' }}">{{ 'yes' if row.input_info_present else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>
