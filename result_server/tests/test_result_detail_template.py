@@ -109,6 +109,7 @@ FULL_RESULT = {
             "container_image": {
                 "sha256sum": "sha256:444444",
             },
+            "host_environment_fingerprint": "sha256:555555",
         },
         "hit_basis": [
             "build inputs hash matched",
@@ -171,6 +172,12 @@ class TestResultDetailTemplate:
         assert "Build Cache" in html
         assert "Cached Binary Created At" in html
         assert "2026-09-04T10:20:30Z" in html
+        assert "Host Environment Fingerprint" in html
+        assert "host build environment is the same" in html
+        assert "build recipe inputs are the same" in html
+        assert "source metadata is the same" in html
+        assert "Cached Artifacts Digest" in html
+        assert "restored build outputs are the same" in html
         assert "Hit Basis" in html
         assert "build inputs hash matched" in html
         assert "rccs-cloud" in html

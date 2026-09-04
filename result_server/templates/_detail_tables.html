@@ -3,7 +3,12 @@
 <table class="{{ table_class }}">
     {% for row in rows %}
     <tr>
-        <th>{{ row.label }}</th>
+        <th>
+            {{ row.label }}
+            {% if row.help is defined and row.help %}
+            <span class="detail-label-help">{{ row.help }}</span>
+            {% endif %}
+        </th>
         <td{% if row.value_class is defined %} class="{{ row.value_class }}"{% endif %}>
             {% if row.list is defined %}
             <ul class="{{ list_class }}">
