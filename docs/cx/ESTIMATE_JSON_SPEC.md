@@ -239,7 +239,19 @@ In addition, Benchkit may retain result-compatible CI provenance at the top leve
       "exp": "p8",
       "system": "Fugaku",
       "node_count": "1",
-      "numproc_node": "4"
+      "numproc_node": "4",
+      "input_info": {
+        "schema_version": 1,
+        "inputs": [
+          {
+            "dataset_id": "genesis-apoa1",
+            "kind": "repo-local-input",
+            "source": "source_info",
+            "repo_relative_path": "benchmarks/apoa1",
+            "verification_status": "covered_by_source_commit"
+          }
+        ]
+      }
     },
     "current_source_result": {
       "uuid": "00000000-0000-0000-0000-000000000000",
@@ -283,12 +295,14 @@ In addition, Benchkit may retain result-compatible CI provenance at the top leve
 `source_result_uuid` は推定入力として用いたベンチマーク結果を識別する。
 `source_result_timestamp` はその benchmark result の保存時刻を保持する。
 `source_result` は compare / re-estimation / provenance 表示のために、元 result の最小識別情報をまとめて保持する任意の補助オブジェクトである。
+推定入力の Result JSON が `input_info` を持つ場合、`source_result.input_info` としてその補助情報を保持してよい。
 `estimation_result_uuid` および `estimation_result_timestamp` は、保存対象としての推定結果そのものの出自情報を識別する。
 
 This field stores identifiers for the estimation process itself.
 `source_result_uuid` identifies the benchmark result used as estimation input.
 `source_result_timestamp` retains the stored timestamp of that benchmark result.
 `source_result` is an optional helper object that keeps the minimum identifying context of the source result for compare, re-estimation, and provenance display.
+When the source benchmark Result JSON carries `input_info`, that auxiliary input-provenance object may be retained as `source_result.input_info`.
 `current_source_result` and `future_source_result` are optional side-specific provenance objects that describe which stored result each side's `benchmark` came from.
 `estimation_result_uuid` and `estimation_result_timestamp` identify the estimate result itself as a stored object.
 `estimation_package` と `estimation_package_version` は、実際に適用された推定パッケージを表す。

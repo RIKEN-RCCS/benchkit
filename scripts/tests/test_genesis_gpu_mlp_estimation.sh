@@ -46,6 +46,58 @@ jq -e '
   .fom_breakdown.overlaps == []
 ' results/total_breakdown_input.json >/dev/null
 
+cat > results/input_info_source_result.json <<'EOF'
+{
+  "code": "genesis",
+  "Exp": "p8",
+  "system": "MiyabiG",
+  "FOM": 50.5,
+  "node_count": 1,
+  "numproc_node": 8,
+  "_server_uuid": "11111111-2222-3333-4444-555555555555",
+  "_server_timestamp": "20260904_120000",
+  "input_info": {
+    "schema_version": 1,
+    "inputs": [
+      {
+        "dataset_id": "genesis-apoa1",
+        "kind": "repo-local-input",
+        "source": "source_info",
+        "repo_relative_path": "benchmarks/apoa1",
+        "verification_status": "covered_by_source_commit"
+      }
+    ]
+  }
+}
+EOF
+read_values results/input_info_source_result.json
+est_current_system="$est_system"
+est_current_fom="$est_fom"
+est_current_target_nodes="$est_node_count"
+est_current_scaling_method="identity"
+est_current_bench_system="$est_system"
+est_current_bench_fom="$est_fom"
+est_current_bench_nodes="$est_node_count"
+est_current_bench_numproc_node="$est_numproc_node"
+est_current_bench_timestamp="$est_timestamp"
+est_current_bench_uuid="$est_uuid"
+est_future_system="FugakuNEXT"
+est_future_fom="25.25"
+est_future_target_nodes="$est_node_count"
+est_future_scaling_method="identity"
+est_future_bench_system="$est_system"
+est_future_bench_fom="$est_fom"
+est_future_bench_nodes="$est_node_count"
+est_future_bench_numproc_node="$est_numproc_node"
+est_future_bench_timestamp="$est_timestamp"
+est_future_bench_uuid="$est_uuid"
+print_json > results/estimate_with_input_info.json
+jq -e '
+  .estimate_metadata.source_result.input_info.schema_version == 1 and
+  .estimate_metadata.source_result.input_info.inputs[0].dataset_id == "genesis-apoa1" and
+  .estimate_metadata.source_result.input_info.inputs[0].verification_status == "covered_by_source_commit"
+' results/estimate_with_input_info.json >/dev/null
+
 cat > results/log_p8.txt <<'EOF'
   total time      =      51.892
     setup         =       3.030
