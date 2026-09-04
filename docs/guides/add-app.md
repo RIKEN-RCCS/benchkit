@@ -632,19 +632,21 @@ HPC 上の benchmark CI が必要な場合は、maintainer が `GitLab Manual CI
 - [ ] MiyabiG
 - [ ] MiyabiC
 
+### 入力データ（該当する場合）
+- 種類: inputなし / repo-local / public archive / site-local override / other
+- 説明: [dataset名、取得元、環境変数名、manifest/digestなど、書ける範囲で]
+
 ### 確認事項
 - [x] build.sh が正常に動作
 - [x] run.sh が FOM を出力
 - [x] test_submit.sh でバッチジョブ投入成功
 - [x] 結果フォーマットが正しい
-- [ ] 入力データの出所を説明済み（repo-local / public archive / site-local override / inputなし）
-- [ ] pre-staged input を使う場合、dataset identity / recipe / manifest / digest の扱いを説明済み
 ```
 
 ### レビューポイント
 - システム別ビルド設定の妥当性
 - 結果フォーマットの正確性
-- 入力データの出所と、`Input Status` が `None` / `Declared` / `Covered` / `Verified` のどれに相当するか
+- 入力データがある場合、その出所説明が分かりやすいか、`Input Status` が `None` / `Declared` / `Covered` / `Verified` のどれに相当するか
 - エラーハンドリングの適切性
 - ドキュメントの更新
 
