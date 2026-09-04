@@ -17,6 +17,19 @@ PACKAGE_SHORT_NAMES = {
     "weakscaling": "weakscaling",
 }
 
+APPLICABILITY_STATUS_DESCRIPTIONS = {
+    "applicable": "requested package applied",
+    "partially_applicable": "stored with section/overlap fallback",
+    "fallback": "stored with top-level fallback",
+    "not_applicable": "attempt stored without a valid estimate",
+    "needs_remeasurement": "more benchmark data required",
+}
+
+APPLICABILITY_STATUS_LEGEND = "\n".join(
+    f"{status}: {description}"
+    for status, description in APPLICABILITY_STATUS_DESCRIPTIONS.items()
+)
+
 
 def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallback_timestamp=None):
     current = result_data.get("current_system", {})
@@ -68,6 +81,7 @@ def build_estimated_table_row(filename, result_data, fallback_uuid=None, fallbac
             requested_future,
         ),
         "applicability_title": _build_applicability_title(applicability),
+        "applicability_tooltip": _build_applicability_tooltip(applicability),
         "applicability_meta_line": _build_applicability_meta_line(applicability),
         "applied_package_title": _build_applied_package_title(
             applied_package,
@@ -90,7 +104,7 @@ def build_estimated_table_columns():
         {"label": "Exp", "key": "exp", "section": "leading"},
         *_build_estimated_system_columns("System A", "systemA"),
         *_build_estimated_system_columns("System B", "systemB"),
-        {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line"},
+        {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line", "tooltip": APPLICABILITY_STATUS_LEGEND, "tooltip_class": "tooltip-wide"},
         {"label": "Req. Pkg", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
         {"label": "Applied Pkg", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
         {"label": "UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
@@ -169,6 +183,20 @@ def _build_applied_package_meta_line(method_class, detail_level):
 def _build_applicability_title(applicability):
     return build_multiline_title(
         applicability.get("status", ""),
+        [
+            ("fallback", applicability.get("fallback_used", "")),
+            ("missing", ", ".join(applicability.get("missing_inputs", []))),
+            ("actions", ", ".join(applicability.get("required_actions", []))),
+        ],
+    )
+
+
+def _build_applicability_tooltip(applicability):
+    status = applicability.get("status", "")
+    status_description = APPLICABILITY_STATUS_DESCRIPTIONS.get(status, "")
+    headline = f"{status}: {status_description}" if status_description else status
+    return build_multiline_title(
+        headline,
         [
             ("fallback", applicability.get("fallback_used", "")),
             ("missing", ", ".join(applicability.get("missing_inputs", []))),

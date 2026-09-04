@@ -15,6 +15,19 @@
   |
   <a href="{{ url_for('estimated.show_estimated_result', filename=row.json_link) }}">json</a>
 </td>
+{% elif key == "applicability_status" %}
+<td class="estimated-applicability-cell">
+  {% if row[key] %}
+  {% set applicability_tooltip = row.applicability_tooltip if row.applicability_tooltip is defined else title_value %}
+  <span class="estimated-status-chip tooltip" tabindex="0" data-status="{{ row[key] }}">
+    {{ row[key] }}
+    <span class="tooltiptext">{% if applicability_tooltip %}{% for tooltip_line in applicability_tooltip.split('\n') %}{% if not loop.first %}<br>{% endif %}{{ tooltip_line }}{% endfor %}{% endif %}</span>
+  </span>
+  {% endif %}
+  {% if column.meta_key is defined and row[column.meta_key] %}
+  <div class="estimated-meta-note">{{ row[column.meta_key] }}</div>
+  {% endif %}
+</td>
 {% else %}
 <td
   {% if cell_classes %}class="{{ cell_classes | join(' ') }}"{% endif %}

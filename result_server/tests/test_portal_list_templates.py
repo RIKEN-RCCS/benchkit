@@ -6,6 +6,8 @@ from test_support import build_portal_shell_app, install_portal_test_stubs
 
 install_portal_test_stubs(include_otp=False)
 
+from utils.estimated_table_rows import APPLICABILITY_STATUS_LEGEND
+
 
 def test_results_template_renders_table_note():
     app = build_portal_shell_app(
@@ -288,7 +290,7 @@ def test_estimated_results_template_renders_table_note():
                 {"label": "Bench System", "key": "systemB_bench_system", "group": "System B"},
                 {"label": "Bench FOM", "key": "systemB_bench_fom_display", "group": "System B", "title_key": "systemB_bench_fom", "align": "right"},
                 {"label": "Bench Nodes", "key": "systemB_bench_nodes", "group": "System B"},
-                {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line"},
+                {"label": "Applicability", "key": "applicability_status", "section": "trailing", "title_key": "applicability_title", "meta_key": "applicability_meta_line", "tooltip": APPLICABILITY_STATUS_LEGEND},
                 {"label": "Requested Package", "key": "requested_package_short", "section": "trailing", "title_key": "requested_package_title"},
                 {"label": "Applied Package", "key": "applied_package_short", "section": "trailing", "title_key": "applied_package_title", "meta_key": "applied_package_meta_line"},
                 {"label": "Estimate UUID", "key": "estimate_uuid_short", "section": "trailing", "title_key": "estimate_uuid", "cell_class": "estimated-code-cell"},
@@ -326,6 +328,7 @@ def test_estimated_results_template_renders_table_note():
                     "systemB_bench_nodes": "1",
                     "applicability_status": "applicable",
                     "applicability_title": "applicable",
+                    "applicability_tooltip": "applicable: requested package applied",
                     "applicability_meta_line": "fallback -> weakscaling",
                     "requested_estimation_package": "instrumented_app_sections_dummy",
                     "estimation_package": "instrumented_app_sections_dummy",
@@ -357,8 +360,24 @@ def test_estimated_results_template_renders_table_note():
         )
 
     assert "Scan system pairs, applied packages, and ratio here" in html
-    assert "Applicability Status" in html
-    assert "not_applicable = attempt stored without a valid estimate" in html
+    assert "Applicability" in html
+    assert "estimated-status-legend" not in html
+    assert "estimated-applicability-cell" in html
+    assert "estimated-status-chip" in html
+    assert "tooltip-wide" in html
+    assert "tooltiptext" in html
+    assert "<br>" in html
+    assert 'data-status="applicable"' in html
+    assert "applicable" in html
+    assert "requested package applied" in html
+    assert "partially_applicable" in html
+    assert "stored with section/overlap fallback" in html
+    assert "fallback" in html
+    assert "stored with top-level fallback" in html
+    assert "not_applicable" in html
+    assert "attempt stored without a valid estimate" in html
+    assert "needs_remeasurement" in html
+    assert "more benchmark data required" in html
     assert "PerfTools" in html
     assert "https://github.com/masaaki-kondo/PerfTools" in html
     assert "estimated-table-wrap" in html

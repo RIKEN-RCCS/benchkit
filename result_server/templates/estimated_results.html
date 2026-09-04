@@ -27,13 +27,59 @@
     line-height: 1.55;
     font-size: 14px;
   }
-  .estimated-status-legend {
-    display: grid;
-    gap: 6px;
-    margin: -4px 0 14px;
+  .estimated-status-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid #c7dce5;
+    border-radius: 999px;
+    background: #f8fbfc;
+    color: #24364a;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .estimated-status-chip.tooltip {
+    border-bottom: 0;
+  }
+  .estimated-status-chip:hover,
+  .estimated-status-chip:focus {
+    background: #eef8f7;
+    border-color: #9fc7c2;
+    outline: none;
+  }
+  .estimated-status-chip[data-status="applicable"] {
+    background: #e7f6ea;
+    border-color: #b7dfc0;
+    color: #1f6b33;
+  }
+  .estimated-status-chip[data-status="partially_applicable"] {
+    background: #e8f1ff;
+    border-color: #bfd3f8;
+    color: #1f4f99;
+  }
+  .estimated-status-chip[data-status="fallback"] {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #9a3412;
+  }
+  .estimated-status-chip[data-status="not_applicable"] {
+    background: #eef2f7;
+    border-color: #cbd5e1;
     color: #41566d;
-    font-size: 13px;
-    line-height: 1.45;
+  }
+  .estimated-status-chip[data-status="needs_remeasurement"] {
+    background: #fff8e1;
+    border-color: #f7d38b;
+    color: #8a5a00;
+  }
+  .estimated-status-chip .tooltiptext {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 400;
+    white-space: normal;
   }
   .estimated-guide-link {
     color: #0f766e;
@@ -71,6 +117,10 @@
     line-height: 1.25;
     color: #6b7280;
   }
+  .estimated-applicability-cell {
+    min-width: 160px;
+    overflow: visible;
+  }
 </style>
 
 <p class="estimated-table-note">
@@ -81,10 +131,6 @@
   models when an applicable package is selected.
   {% endif %}
 </p>
-
-<div class="estimated-status-legend" aria-label="Estimated result status legend">
-  <span><strong>Applicability Status:</strong> applicable = requested package applied; partially_applicable = stored with section/overlap fallback; fallback = stored with top-level fallback; not_applicable = attempt stored without a valid estimate; needs_remeasurement = more benchmark data required.</span>
-</div>
 
 {% include "_estimated_results_table.html" %}
 

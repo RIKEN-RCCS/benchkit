@@ -2,12 +2,21 @@
 {% set trailing_columns = columns | selectattr("section", "equalto", "trailing") | list %}
 {% set system_a_columns = columns | selectattr("group", "equalto", "System A") | list %}
 {% set system_b_columns = columns | selectattr("group", "equalto", "System B") | list %}
+{% macro estimated_header_label(column) -%}
+  {% if column.tooltip is defined and column.tooltip %}
+  <span class="tooltip{% if column.tooltip_class is defined %} {{ column.tooltip_class }}{% endif %}">{{ column.label }}
+    <span class="tooltiptext">{% for tooltip_line in column.tooltip.split('\n') %}{% if not loop.first %}<br>{% endif %}{{ tooltip_line }}{% endfor %}</span>
+  </span>
+  {% else %}
+  {{ column.label }}
+  {% endif %}
+{%- endmacro %}
 <div class="estimated-table-wrap">
 <table id="resultsTable" class="estimated-table" border="1">
   <thead>
     <tr>
       {% for column in leading_columns %}
-      <th rowspan="2">{{ column.label }}</th>
+      <th rowspan="2">{{ estimated_header_label(column) }}</th>
       {% endfor %}
       {% if system_a_columns %}
       <th colspan="{{ system_a_columns|length }}">System A</th>
@@ -16,15 +25,15 @@
       <th colspan="{{ system_b_columns|length }}">System B</th>
       {% endif %}
       {% for column in trailing_columns %}
-      <th rowspan="2">{{ column.label }}</th>
+      <th rowspan="2">{{ estimated_header_label(column) }}</th>
       {% endfor %}
     </tr>
     <tr>
       {% for column in system_a_columns %}
-      <th>{{ column.label }}</th>
+      <th>{{ estimated_header_label(column) }}</th>
       {% endfor %}
       {% for column in system_b_columns %}
-      <th>{{ column.label }}</th>
+      <th>{{ estimated_header_label(column) }}</th>
       {% endfor %}
     </tr>
   </thead>
