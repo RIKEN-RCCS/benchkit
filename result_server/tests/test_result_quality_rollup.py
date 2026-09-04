@@ -71,6 +71,7 @@ def test_build_result_quality_rollup(tmp_path):
     assert genesis["source_type"] == "-"
     assert genesis["source_reference"] == "-"
     assert genesis["source_missing_fields"] == ["source_info"]
+    assert genesis["input_info_present"] is False
     assert genesis["breakdown_present"] is False
     assert genesis["estimation_ready"] is False
     assert genesis["rich"] is False
@@ -87,6 +88,7 @@ def test_build_result_quality_rollup(tmp_path):
     assert qws["source_type"] == "git"
     assert qws["source_reference"] == "main"
     assert qws["source_missing_fields"] == ["resolved_commit"]
+    assert qws["input_info_present"] is False
     assert qws["breakdown_present"] is False
     assert qws["estimation_ready"] is False
     assert qws["rich"] is False
@@ -110,6 +112,10 @@ def test_build_result_quality_rollup_uses_git_ref_name(tmp_path):
                 "ref_kind": "tag",
                 "resolved_commit": "0123456789abcdef",
             },
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [{"dataset_id": "salmon-case0", "verification_status": "declared"}],
+            },
         },
     )
 
@@ -117,4 +123,5 @@ def test_build_result_quality_rollup_uses_git_ref_name(tmp_path):
 
     row = rollup["rows"][0]
     assert row["source_tracked"] is True
+    assert row["input_info_present"] is True
     assert row["source_reference"] == "v1.0@0123456"

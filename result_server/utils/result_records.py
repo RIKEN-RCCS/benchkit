@@ -106,6 +106,9 @@ def summarize_result_quality(data):
         suggested_actions.append("fill the missing top-level source_info fields")
         validator_candidates.append("complete source_info fields")
 
+    input_info = data.get("input_info")
+    has_input_info = isinstance(input_info, dict) and bool(input_info)
+
     fom_breakdown = data.get("fom_breakdown")
     sections = []
     overlaps = []
@@ -201,6 +204,7 @@ def summarize_result_quality(data):
             "has_source_info": has_source_info,
             "source_info_complete": source_info_complete,
             "source_missing_fields": source_missing_fields,
+            "has_input_info": has_input_info,
             "has_breakdown": has_breakdown,
             "section_count": len(sections),
             "overlap_count": len(overlaps),

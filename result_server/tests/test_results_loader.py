@@ -419,6 +419,7 @@ class TestSummarizeResultQuality:
         })
 
         assert quality["level"] == "basic"
+        assert quality["stats"]["has_input_info"] is False
         assert "fom_breakdown is missing" in quality["warnings"]
         assert "populate top-level source_info for provenance tracking" in quality["suggested_actions"]
         assert "fom_breakdown present" in quality["validator_candidates"]
@@ -437,6 +438,7 @@ class TestSummarizeResultQuality:
         })
 
         assert quality["level"] == "ready"
+        assert quality["stats"]["has_input_info"] is False
         assert quality["stats"]["section_package_count"] == 1
         assert "attach artifact references for richer estimation provenance" in quality["suggested_actions"]
 
@@ -450,6 +452,10 @@ class TestSummarizeResultQuality:
                 "repo_url": "https://example.invalid/repo.git",
                 "branch": "main",
                 "commit_hash": "0123456789abcdef0123456789abcdef01234567",
+            },
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [{"dataset_id": "case0", "verification_status": "declared"}],
             },
             "fom_breakdown": {
                 "sections": [
@@ -465,6 +471,7 @@ class TestSummarizeResultQuality:
         })
 
         assert quality["level"] == "rich"
+        assert quality["stats"]["has_input_info"] is True
         assert quality["stats"]["artifact_count"] == 1
         assert quality["suggested_actions"] == []
 

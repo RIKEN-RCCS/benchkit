@@ -124,6 +124,7 @@ def build_result_quality_rollup(directory: str) -> dict:
             "source_type": source_summary["source_type"],
             "source_reference": source_summary["reference"],
             "source_missing_fields": source_summary["missing_fields"],
+            "input_info_present": stats["has_input_info"],
             "breakdown_present": stats["has_breakdown"],
             "estimation_ready": quality["level"] in ("ready", "rich"),
             "rich": quality["level"] == "rich",
