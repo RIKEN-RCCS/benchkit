@@ -185,6 +185,17 @@ EOF
 ここで `manifest_digest` は manifest file だけの hash ではなく、manifest の中で dataset ID、version/revision、生成 recipe、期待 file list、size/hash などを説明できるようにしておくと後から追跡しやすくなります。
 公開 surface では detailed local path を出さず、dataset identity と検証状態を優先して見せる前提で設計してください。
 
+Portal の `/results/usage` では、通常の benchmark result に対する入力出自の状態を `Input Status` として表示します。
+この値は estimation 専用ではなく、Result JSON の `input_info` を見た current-state summary です。
+
+- `None`: `input_info` がない
+- `Declared`: `input_info` はあるが、digest 検証や source commit coverage までは示していない
+- `Covered`: repo-local input が `source_info.resolved_commit` で固定されることを示している
+- `Verified`: manifest / content digest などの証跡と `verification_status: "verified"` がある
+
+`None` や `Declared` はただちに CI failure ではありません。
+ただし、長期運用や多拠点再現に使う入力では、可能なら `Covered` または `Verified` に近づけてください。
+
 ### build environment snapshot の方針
 
 CI の共通 wrapper は、`build.sh` 実行前に runner 側の軽量 snapshot を記録します。
@@ -588,10 +599,8 @@ Line# | Configuration
 # 変更をステージング
 git add programs/<code>/
 
-# コミット（[code:<code>]で追加したアプリのみテスト実行）
+# コミット
 git commit -m "Add new app <code>
-
-[code:<code>]
 
 - Implement build.sh for multiple systems
 - Add run.sh with proper FOM output
@@ -602,7 +611,9 @@ git commit -m "Add new app <code>
 git push origin add-<code>
 ```
 
-**注意**: `[code:<code>]`をコミットメッセージに含めることで、CI/CDパイプラインでは追加したアプリのみがテスト実行され、既存の全プログラムのテストは実行されません。これにより実行時間を大幅に短縮できます。
+GitHub pull request では、通常は result server test や shellcheck などの軽量な check だけを実行します。
+HPC 上の benchmark CI が必要な場合は、maintainer が `GitLab Manual CI` を起動し、`code` と `system` の workflow input で対象 app / system を明示してください。
+`[code:<code>]` や `[system:<system>]` の commit message tag は、GitLab 側の legacy scope control として残っていますが、新しいPR運用では使わないでください。
 
 ### PR作成時の記載内容
 **タイトル:** `Add new application: <code>`

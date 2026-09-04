@@ -420,6 +420,7 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "basic"
         assert quality["stats"]["has_input_info"] is False
+        assert quality["stats"]["input_info_status"] == "none"
         assert "fom_breakdown is missing" in quality["warnings"]
         assert "populate top-level source_info for provenance tracking" in quality["suggested_actions"]
         assert "fom_breakdown present" in quality["validator_candidates"]
@@ -439,6 +440,7 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "ready"
         assert quality["stats"]["has_input_info"] is False
+        assert quality["stats"]["input_info_status"] == "none"
         assert quality["stats"]["section_package_count"] == 1
         assert "attach artifact references for richer estimation provenance" in quality["suggested_actions"]
 
@@ -472,8 +474,89 @@ class TestSummarizeResultQuality:
 
         assert quality["level"] == "rich"
         assert quality["stats"]["has_input_info"] is True
+        assert quality["stats"]["input_info_status"] == "declared"
         assert quality["stats"]["artifact_count"] == 1
         assert quality["suggested_actions"] == []
+
+    def test_input_info_status_classification(self):
+        covered = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.com/project.git",
+                "ref_name": "main",
+                "resolved_commit": "0123456789abcdef",
+            },
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "kind": "repo-local-input",
+                        "source": "source_info",
+                        "repo_relative_path": "benchmarks/case0",
+                        "verification_status": "covered_by_source_commit",
+                    }
+                ],
+            },
+        })
+        assert covered["stats"]["input_info_status"] == "covered"
+
+        missing_source_commit = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "kind": "repo-local-input",
+                        "source": "source_info",
+                        "repo_relative_path": "benchmarks/case0",
+                        "verification_status": "covered_by_source_commit",
+                    }
+                ],
+            },
+        })
+        assert missing_source_commit["stats"]["input_info_status"] == "declared"
+
+        verified = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "manifest_digest": "sha256:0123456789abcdef",
+                        "verification_status": "verified",
+                    }
+                ],
+            },
+        })
+        assert verified["stats"]["input_info_status"] == "verified"
+
+        mixed = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "manifest_digest": "sha256:0123456789abcdef",
+                        "verification_status": "verified",
+                    },
+                    {"dataset_id": "case1", "verification_status": "declared"},
+                ],
+            },
+        })
+        assert mixed["stats"]["input_info_status"] == "declared"
 
 
 # ============================================================
