@@ -125,6 +125,25 @@ tar archive を使う場合も、必要に応じて第4引数に expected SHA-25
 一方で、ローカルファイルや依存ライブラリを含む完全な provenance を、現時点ですべての app に必須化する方針ではありません。
 portal の `/results/usage` では、この source provenance が各 app / system の最新 result に対して current-state として見えるので、まずは top-level source tracked を目標に整備すると自然です。
 
+入力ファイルが app repository 内に既にあり、そのまま使う場合は、`source_info.resolved_commit` が app source と repo 内 input の固定点になります。
+この場合、別 manifest や input digest を必須にする必要はありません。
+Portal や review で dataset 名を見せたい場合だけ、任意の `input_info` で repo-relative path を補足できます。
+
+```json
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "dataset_id": "myapp-case0",
+      "kind": "repo-local-input",
+      "source": "source_info",
+      "repo_relative_path": "benchmarks/case0/input.dat",
+      "verification_status": "covered_by_source_commit"
+    }
+  ]
+}
+```
+
 ### pre-staged input と site-local 情報の扱い
 
 大きな入力データ、restart、学習済みモデル、商用・共同研究由来のデータなどは、repository に直接入れず、site 側の shared filesystem や object storage に置いて参照することがあります。
@@ -142,6 +161,29 @@ site-local path や allocation / project ID は、それ自体を一律に secre
 
 pre-staged input を使う app では、「正しい場所にファイルがある」だけでは再現性の説明として不足します。
 可能であれば input directory と同じ場所に manifest を置き、run 前に manifest / digest を検証して、Result metadata へ dataset identity を残してください。
+`run.sh` が `results/input_info.json` を生成すると、`scripts/result.sh` はそれを JSON object として検証し、Result JSON の top-level `input_info` に添付します。
+
+最小例:
+
+```bash
+cat > results/input_info.json <<'EOF'
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "dataset_id": "myapp-case0",
+      "dataset_version": "2026-09",
+      "kind": "benchmark-input",
+      "manifest_digest": "sha256:<manifest-sha256>",
+      "verification_status": "verified"
+    }
+  ]
+}
+EOF
+```
+
+ここで `manifest_digest` は manifest file だけの hash ではなく、manifest の中で dataset ID、version/revision、生成 recipe、期待 file list、size/hash などを説明できるようにしておくと後から追跡しやすくなります。
+公開 surface では detailed local path を出さず、dataset identity と検証状態を優先して見せる前提で設計してください。
 
 ### build environment snapshot の方針
 

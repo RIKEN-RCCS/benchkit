@@ -284,6 +284,32 @@ build_environment_snapshot_block() {
 
 environment_snapshot_block=$(build_environment_snapshot_block)
 
+build_input_info_block() {
+  local input_info_file="results/input_info.json"
+
+  if [ ! -f "$input_info_file" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local input_info_json
+  if ! input_info_json=$(jq -cS 'if type == "object" then . else error("input_info must be a JSON object") end' "$input_info_file" 2>/dev/null); then
+    echo "ERROR: results/input_info.json must be a valid JSON object" >&2
+    return 1
+  fi
+
+  if [ -z "$input_info_json" ] || [ "$input_info_json" = "null" ]; then
+    echo "ERROR: results/input_info.json must not be empty" >&2
+    return 1
+  fi
+
+  printf '%s' "$input_info_json"
+}
+
+if ! input_info_block=$(build_input_info_block); then
+  exit 1
+fi
+
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_unit, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
@@ -365,6 +391,12 @@ write_result_json() {
   \"environment_snapshot\": ${environment_snapshot_block}"
   fi
 
+  local input_info_json_block=""
+  if [ -n "$input_info_block" ]; then
+    input_info_json_block=",
+  \"input_info\": ${input_info_block}"
+  fi
+
   # Attach the profiler summary that matches this FOM index. fapp exposes
   # counter events, while ncu exposes the Nsight Compute option preset.
   local profile_data_block=""
@@ -416,7 +448,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}
+  "source_info": $source_info_block${input_info_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}
 }
 EOF
 

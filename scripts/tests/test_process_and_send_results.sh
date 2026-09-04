@@ -52,6 +52,20 @@ cat > "${TMP_DIR}/project/results/environment_snapshot_run.json" <<'EOF'
 }
 EOF
 
+cat > "${TMP_DIR}/project/results/input_info.json" <<'EOF'
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "dataset_id": "qws-case0",
+      "dataset_version": "2026-09",
+      "kind": "benchmark-input",
+      "verification_status": "declared"
+    }
+  ]
+}
+EOF
+
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
 set -euo pipefail
@@ -100,6 +114,11 @@ jq -e '
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '
   .environment_snapshot.payload.stages.run.stage == "run"
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
+  .input_info.schema_version == 1 and
+  .input_info.inputs[0].dataset_id == "qws-case0" and
+  .input_info.inputs[0].verification_status == "declared"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null
