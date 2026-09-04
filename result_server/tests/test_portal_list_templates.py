@@ -632,6 +632,9 @@ def test_usage_report_quality_section_renders_actions_and_improvement_candidates
                         "source_reference": "-",
                         "source_missing_fields": ["source_info"],
                         "input_info_present": False,
+                        "input_info_status": "none",
+                        "input_info_label": "None",
+                        "input_info_summary": "No input_info object is stored for this result.",
                         "breakdown_present": False,
                         "estimation_ready": False,
                         "rich": False,
@@ -646,7 +649,9 @@ def test_usage_report_quality_section_renders_actions_and_improvement_candidates
         )
 
     assert "Next Action" in html
-    assert "Input" in html
+    assert "Input Status" in html
+    assert "None = no input_info" in html
+    assert "Covered = repo-local input fixed by source_info" in html
     assert "Improvement Candidates" in html
     assert "populate top-level source_info for provenance tracking" in html
     assert "source_info present, fom_breakdown present" in html

@@ -1,6 +1,10 @@
 <section class="page-card table-card">
   <h2 class="section-title">Result Quality Coverage</h2>
   <p class="section-intro">Current-state check from the <strong>latest result</strong> for each application/system pair.</p>
+  <div class="quality-legend" aria-label="Result quality status legend">
+    <span><strong>Quality:</strong> Basic = core result only; Ready = estimation bindings present; Rich = source provenance and artifacts present.</span>
+    <span><strong>Input Status:</strong> None = no input_info; Declared = input_info only; Covered = repo-local input fixed by source_info; Verified = digest-backed input verification.</span>
+  </div>
   {% if result_quality_rollup.rows %}
   <div class="table-wrap">
     <table class="quality-table">
@@ -14,7 +18,7 @@
           <th title="Top-level provenance type from source_info.">Type</th>
           <th title="Short provenance reference shown from source_info.">Reference</th>
           <th title="Source fields still missing from the latest result, if any.">Missing Fields</th>
-          <th title="Whether the latest result includes optional benchmark input provenance.">Input</th>
+          <th title="Input provenance status for the latest result.">Input Status</th>
           <th title="Whether the latest result includes fom_breakdown data.">Breakdown</th>
           <th title="Whether the latest result includes the fields needed for estimation-oriented use.">Est.-Ready</th>
           <th title="Whether the latest result reaches the rich quality level.">Rich</th>
@@ -34,7 +38,7 @@
           <td>{{ row.source_type }}</td>
           <td title="{{ row.source_reference }}">{{ row.source_reference }}</td>
           <td>{{ row.source_missing_fields|join(', ') if row.source_missing_fields else 'none' }}</td>
-          <td><span class="{{ 'quality-ok' if row.input_info_present else 'quality-warn' }}">{{ 'yes' if row.input_info_present else 'no' }}</span></td>
+          <td title="{{ row.input_info_summary }}"><span class="{{ 'quality-ok' if row.input_info_status in ('covered', 'verified') else 'quality-neutral' }}">{{ row.input_info_label }}</span></td>
           <td><span class="{{ 'quality-ok' if row.breakdown_present else 'quality-warn' }}">{{ 'yes' if row.breakdown_present else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.estimation_ready else 'quality-warn' }}">{{ 'yes' if row.estimation_ready else 'no' }}</span></td>
           <td><span class="{{ 'quality-ok' if row.rich else 'quality-warn' }}">{{ 'yes' if row.rich else 'no' }}</span></td>

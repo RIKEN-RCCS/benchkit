@@ -106,8 +106,8 @@ def summarize_result_quality(data):
         suggested_actions.append("fill the missing top-level source_info fields")
         validator_candidates.append("complete source_info fields")
 
-    input_info = data.get("input_info")
-    has_input_info = isinstance(input_info, dict) and bool(input_info)
+    input_summary = summarize_input_info(data)
+    has_input_info = input_summary["present"]
 
     fom_breakdown = data.get("fom_breakdown")
     sections = []
@@ -205,6 +205,9 @@ def summarize_result_quality(data):
             "source_info_complete": source_info_complete,
             "source_missing_fields": source_missing_fields,
             "has_input_info": has_input_info,
+            "input_info_status": input_summary["status"],
+            "input_info_label": input_summary["label"],
+            "input_info_summary": input_summary["summary"],
             "has_breakdown": has_breakdown,
             "section_count": len(sections),
             "overlap_count": len(overlaps),
@@ -213,6 +216,80 @@ def summarize_result_quality(data):
             "artifact_count": artifact_count,
         },
     }
+
+
+def summarize_input_info(data):
+    input_info = data.get("input_info")
+    if not isinstance(input_info, dict) or not input_info:
+        return {
+            "present": False,
+            "status": "none",
+            "label": "None",
+            "summary": "No input_info object is stored for this result.",
+        }
+
+    inputs = input_info.get("inputs")
+    input_items = inputs if isinstance(inputs, list) and inputs else [input_info]
+    ranks = {
+        "declared": 1,
+        "covered": 2,
+        "verified": 3,
+    }
+    source_info = data.get("source_info")
+    has_source_commit = (
+        isinstance(source_info, dict)
+        and bool(source_info.get("resolved_commit") or source_info.get("commit_hash"))
+    )
+    item_statuses = [
+        _classify_input_info_item(item, has_source_commit)
+        for item in input_items
+    ]
+    status = min(item_statuses, key=lambda item_status: ranks[item_status])
+    labels = {
+        "declared": "Declared",
+        "covered": "Covered",
+        "verified": "Verified",
+    }
+    summaries = {
+        "declared": "input_info is present, but digest or source-commit coverage is not declared as verified.",
+        "covered": "input_info declares repository-local input covered by source_info.resolved_commit.",
+        "verified": "input_info declares verified input with digest evidence.",
+    }
+    return {
+        "present": True,
+        "status": status,
+        "label": labels[status],
+        "summary": summaries[status],
+    }
+
+
+def _classify_input_info_item(item, has_source_commit):
+    if not isinstance(item, dict):
+        return "declared"
+
+    verification_status = str(item.get("verification_status") or "").strip().lower()
+    source = str(item.get("source") or "").strip().lower()
+    digest_fields = (
+        "manifest_digest",
+        "content_digest",
+        "sha256",
+        "sha256sum",
+        "digest",
+    )
+    has_digest = any(item.get(field) for field in digest_fields)
+
+    if verification_status == "verified" and has_digest:
+        return "verified"
+
+    repo_local_covered = (
+        has_source_commit
+        and item.get("repo_relative_path")
+        and (source == "source_info" or verification_status == "covered_by_source_commit")
+    )
+    if repo_local_covered:
+        return "covered"
+
+    return "declared"
 
 
 def _dedupe_preserve_order(values):
