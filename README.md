@@ -34,9 +34,15 @@ Core specifications:
 - [CX platform](docs/cx/CX_PLATFORM.md): system-level responsibilities and component boundaries.
 - [Benchkit specification](docs/cx/BENCHKIT_SPEC.md): Benchkit responsibilities, interfaces, and future extension points.
 
-Estimation specifications:
+Estimation and storage specifications:
 
-- [Estimation](docs/cx/ESTIMATION_SPEC.md): common rules for accepting, running, storing, and presenting estimation functions. Detailed estimation data, package, input, and re-estimation specifications are linked from this document.
+- [Estimation](docs/cx/ESTIMATION_SPEC.md): common rules for accepting, running, storing, and presenting estimation functions.
+- [Estimate JSON](docs/cx/ESTIMATE_JSON_SPEC.md): data-format requirements for stored estimation results.
+- [Estimation input acquisition](docs/cx/ESTIMATION_INPUT_ACQUISITION_SPEC.md): handoff rules for inputs required by estimation packages.
+- [Estimation package](docs/cx/ESTIMATION_PACKAGE_SPEC.md): responsibilities and structure of estimation packages.
+- [Estimation package metadata](docs/cx/ESTIMATION_PACKAGE_METADATA_SPEC.md): metadata fields used to describe package identity, inputs, and fallback behavior.
+- [Estimation package shell API](docs/cx/ESTIMATION_PACKAGE_SHELL_API_SPEC.md): shell-level interface for calling package implementations.
+- [Re-estimation](docs/cx/REESTIMATION_SPEC.md): rules for re-running estimation from stored benchmark and estimation records.
 - [Result storage design](docs/cx/RESULT_STORAGE_DESIGN.md): storage-design memo for result and estimate artifacts.
 
 Operational specifications:
