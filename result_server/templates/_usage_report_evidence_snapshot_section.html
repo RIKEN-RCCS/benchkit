@@ -10,7 +10,13 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Evidence Snapshot</h2>
-  <p class="section-intro">Operator review export for configured, executed, profiled, and estimated evidence. Public release still requires stakeholder review.</p>
+  <p class="section-intro">Single operator review table for application/system coverage, latest result quality, and provenance maturity. Public release still requires stakeholder review.</p>
+  <div class="quality-legend" aria-label="Evidence status legend">
+    <span><strong>Evidence Snapshot:</strong> the roll-up and CSV export source for configured, executed, profiled, estimated, source, input, and build-cache evidence.</span>
+    <span><strong>Configured:</strong> yes = enabled and implemented; partial = enabled but script support incomplete; off = configured off; no = not listed.</span>
+    <span><strong>Result Quality:</strong> missing = no result; basic = core result only; ready = estimation bindings present; rich = source provenance and artifacts present.</span>
+    <span><strong>Input Status:</strong> None = no input_info; Declared = input_info only; Covered = repo-local input fixed by source_info; Verified = digest-backed input verification.</span>
+  </div>
 
   <div class="diagnostic-grid">
     <div class="diagnostic-card">
@@ -35,15 +41,15 @@
           <th>Application</th>
           <th>System</th>
           <th>Configured</th>
-          <th>Latest Result</th>
+          <th>Result / Quality</th>
           <th>Exp</th>
           <th>Profiled</th>
           <th>Estimated</th>
-          <th>Source</th>
-          <th>Input</th>
+          <th>Source Status</th>
+          <th>Input Status</th>
           <th>Build Cache</th>
           <th>Public Result</th>
-          <th>Missing Reason</th>
+          <th>Maturity Gaps</th>
         </tr>
       </thead>
       <tbody>

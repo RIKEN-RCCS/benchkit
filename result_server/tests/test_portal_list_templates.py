@@ -417,14 +417,11 @@ def test_usage_report_template_renders_search_box():
                 "apps_with_estimate_count": 1,
                 "unknown_listed_systems": [{"app": "genesis", "system": "UNKNOWN_SYSTEM", "enabled_rows": 1, "disabled_rows": 0}],
             },
-            coverage_systems=[],
-            app_support_rows=[],
-            result_quality_rollup={"rows": []},
             profile_usage_overview={"available": False, "rows": []},
         )
 
     assert "Profile Operations Overview" in html
-    assert "Filter coverage and current-state tables" in html
+    assert "Filter evidence and profile tables" in html
     assert "applyUsageSearch" in html
     assert "Application Entry Points" in html
     assert "genesis is missing run.sh." in html
@@ -547,9 +544,6 @@ def test_usage_report_node_hours_table_uses_explicit_column_widths():
                 "apps_with_estimate_count": 0,
                 "unknown_listed_systems": [],
             },
-            coverage_systems=[],
-            app_support_rows=[],
-            result_quality_rollup={"rows": []},
             profile_usage_overview={"available": False, "rows": []},
         )
 
@@ -636,7 +630,7 @@ def test_vendored_chartjs_static_asset_is_available():
     assert b"Chart.js" in response.data[:512]
 
 
-def test_usage_report_quality_section_renders_actions_and_improvement_candidates():
+def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
@@ -668,44 +662,49 @@ def test_usage_report_quality_section_renders_actions_and_improvement_candidates
                 "apps_with_estimate_count": 1,
                 "unknown_listed_systems": [],
             },
-            coverage_systems=[],
-            app_support_rows=[],
             profile_usage_overview={"available": False, "rows": []},
-            result_quality_rollup={
+            evidence_snapshot={
+                "summary": {
+                    "row_count": 1,
+                    "result_count": 1,
+                    "profiled_count": 0,
+                    "estimated_count": 0,
+                },
                 "rows": [
                     {
-                        "app": "qws",
+                        "code": "qws",
                         "system": "Fugaku",
-                        "timestamp": "2026-04-13 12:00:00",
-                        "filename": "result0.json",
-                        "quality_level": "basic",
-                        "quality_label": "Basic",
+                        "configured": "yes",
+                        "configured_status": "enabled and implemented",
+                        "latest_result_file": "result0.json",
+                        "latest_result_time": "2026-04-13 12:00:00",
+                        "latest_result_exp": "CASE0",
+                        "latest_result_status": "basic",
+                        "profiled": "no",
+                        "latest_profile_time": "-",
+                        "latest_estimate_file": "",
+                        "estimated": "no",
+                        "latest_estimate_time": "-",
+                        "estimate_applicability": "-",
                         "source_status": "not tracked",
-                        "source_type": "-",
-                        "source_reference": "-",
-                        "source_missing_fields": ["source_info"],
-                        "input_info_present": False,
-                        "input_info_status": "none",
-                        "input_info_label": "None",
-                        "input_info_summary": "No input_info object is stored for this result.",
-                        "breakdown_present": False,
-                        "estimation_ready": False,
-                        "rich": False,
-                        "suggested_actions": ["populate top-level source_info for provenance tracking"],
-                        "next_action": "populate top-level source_info for provenance tracking",
-                        "validator_candidates": ["source_info present", "fom_breakdown present"],
-                        "warnings": ["source_info is missing", "fom_breakdown is missing"],
-                        "warning_count": 2,
+                        "input_status": "None",
+                        "build_cache_status": "not recorded",
+                        "public_result_available": "yes",
+                        "missing_reason": "no profile; no estimate; source incomplete; input not declared",
                     }
                 ]
             },
         )
 
-    assert "Next Action" in html
+    assert "Evidence Snapshot" in html
+    assert "Result / Quality" in html
+    assert "Application/System Coverage" not in html
+    assert "Latest Result Quality Details" not in html
+    assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in html
+    assert "Configured:</strong> yes = enabled and implemented" in html
+    assert "Result Quality:</strong> missing = no result" in html
+    assert "Maturity Gaps" in html
     assert "Input Status" in html
     assert "None = no input_info" in html
     assert "Covered = repo-local input fixed by source_info" in html
-    assert "Improvement Candidates" in html
-    assert "populate top-level source_info for provenance tracking" in html
-    assert "source_info present, fom_breakdown present" in html
-    assert "2: source_info is missing, fom_breakdown is missing" in html
+    assert "no profile; no estimate; source incomplete; input not declared" in html

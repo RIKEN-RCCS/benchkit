@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import utils.usage_report_view as usage_report_view
 
 
-def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
+def test_build_usage_report_context_builds_evidence_snapshot_context(monkeypatch):
     monkeypatch.setattr(
         usage_report_view,
         "aggregate_node_hours",
@@ -31,18 +31,8 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
     )
     monkeypatch.setattr(
         usage_report_view,
-        "get_all_systems_info",
-        lambda: {"Fugaku": {"name": "Fugaku Prime"}},
-    )
-    monkeypatch.setattr(
-        usage_report_view,
         "build_site_diagnostics",
         lambda: {"registered_system_count": 1},
-    )
-    monkeypatch.setattr(
-        usage_report_view,
-        "build_result_quality_rollup",
-        lambda directory: {"rows": []},
     )
     monkeypatch.setattr(
         usage_report_view,
@@ -65,9 +55,6 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
     assert context["period_type"] == "fiscal_year"
     assert context["fiscal_year"] == 2025
     assert context["filtered_periods"] == ["FY2025"]
-    assert context["coverage_systems"] == [{"system": "Fugaku", "name": "Fugaku Prime"}]
-    assert context["app_support_rows"] == [{"app": "qws", "systems": {}}]
     assert context["site_diagnostics"] == {"registered_system_count": 1}
-    assert context["result_quality_rollup"] == {"rows": []}
     assert context["profile_usage_overview"] == {"available": False, "rows": []}
     assert context["evidence_snapshot"] == {"rows": []}

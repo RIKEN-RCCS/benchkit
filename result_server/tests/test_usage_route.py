@@ -96,15 +96,17 @@ class TestUsageRoute:
         assert "Usage Report" in resp.get_data(as_text=True)
         assert "no-store" in resp.headers.get("Cache-Control", "")
 
-    def test_usage_page_shows_app_system_coverage(self, client):
+    def test_usage_page_shows_consolidated_evidence_snapshot(self, client):
         _login_session(client, "admin@example.com", ["admin"])
         resp = client.get("/results/usage")
         assert resp.status_code == 200
         text = resp.get_data(as_text=True)
         assert "Configuration Checks" in text
-        assert "Application/System Coverage" in text
-        assert "Result Quality Coverage" in text
-        assert "No collected result-quality data is available yet." in text
+        assert "Evidence Snapshot" in text
+        assert "Result / Quality" in text
+        assert "Application/System Coverage" not in text
+        assert "Latest Result Quality Details" not in text
+        assert "Maturity Gaps" in text
         assert "qws" in text
 
     def test_usage_page_shows_source_tracking_columns_when_rollup_exists(self, client, tmp_dirs):
@@ -130,9 +132,9 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
-        assert "Tracked" in text
-        assert "Reference" in text
-        assert "top-level source tracked" in text
+        assert "Source Status" in text
+        assert "tracked" in text
+        assert "Input Status" in text
 
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
         _login_session(client, "admin@example.com", ["admin"])
@@ -168,8 +170,6 @@ class TestUsageRoute:
                 "fiscal_year": 2025,
                 "period_filter": "",
                 "filtered_periods": ["FY2025"],
-                "coverage_systems": [],
-                "app_support_rows": [],
                 "site_diagnostics": {
                     "registered_system_count": 0,
                     "unused_systems": [],
@@ -178,7 +178,6 @@ class TestUsageRoute:
                     "application_count": 0,
                     "partial_support": [],
                 },
-                "result_quality_rollup": {"rows": []},
                 "profile_usage_overview": {"available": False, "rows": []},
                 "evidence_snapshot": {
                     "summary": {
@@ -211,6 +210,9 @@ class TestUsageRoute:
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
         assert "Evidence Snapshot" in text
+        assert "Maturity Gaps" in text
+        assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in text
+        assert "Input Status:</strong> None = no input_info" in text
         assert "/results/usage/evidence-snapshot.csv" in text
 
     def test_usage_evidence_snapshot_csv_requires_admin(self, client):

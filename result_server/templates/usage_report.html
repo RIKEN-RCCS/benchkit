@@ -1,31 +1,24 @@
 {% extends "_results_base.html" %}
 
 {% block title %}Usage Report{% endblock %}
-{% block page_subtitle %}Review <strong>node-hour usage</strong>, coverage, checks, and latest result current-state across applications and systems.{% endblock %}
+{% block page_subtitle %}Review <strong>evidence maturity</strong>, profile operations, node-hour usage, and configuration checks across applications and systems.{% endblock %}
 
 {% block content %}
   <style>
     .usage-btn { display: inline-block; padding: 7px 14px; font-size: 13px; text-decoration: none; border: 1px solid #b9d7d2; border-radius: 999px; cursor: pointer; background-color: #fff; color: #0f766e; }
     .usage-btn.active { background-color: #0f766e; color: #fff; font-weight: bold; border-color: #0f766e; }
-    .usage-table thead th,
-    .coverage-table thead th,
-    .quality-table thead th {
+    .usage-table thead th {
       position: sticky;
       top: 0;
       z-index: 3;
       box-shadow: inset 0 -1px 0 #d8e3e8;
     }
     .usage-table td,
-    .usage-table th,
-    .quality-table td,
-    .quality-table th {
+    .usage-table th {
       max-width: none;
     }
-    .coverage-table td { text-align: center; white-space: normal; max-width: none; }
     .usage-table td:first-child,
-    .usage-table th:first-child,
-    .coverage-table td:first-child,
-    .coverage-table th:first-child {
+    .usage-table th:first-child {
       text-align: left;
       position: sticky;
       left: 0;
@@ -104,33 +97,6 @@
       background-color: #e2e2e2;
     }
     .usage-table th { white-space: nowrap; }
-    .coverage-status {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 24px;
-      min-height: 24px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .coverage-enabled { color: #0f766e; background: #dff7f2; }
-    .coverage-partial { color: #9a3412; background: #fff1e8; }
-    .coverage-off { color: #9a3412; background: #fff3dd; }
-    .coverage-missing { color: #94a3b8; background: #f1f5f9; }
-    .coverage-legend {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin: 0 0 14px;
-      color: #52606d;
-      font-size: 13px;
-    }
-    .coverage-legend span {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
     .quality-legend {
       display: grid;
       gap: 6px;
@@ -138,47 +104,6 @@
       color: #41566d;
       font-size: 0.92rem;
       line-height: 1.45;
-    }
-    .quality-table td {
-      vertical-align: top;
-    }
-    .quality-table td:nth-child(1),
-    .quality-table td:nth-child(2),
-    .quality-table td:nth-child(4),
-    .quality-table td:nth-child(5),
-    .quality-table td:nth-child(8),
-    .quality-table td:nth-child(9),
-    .quality-table td:nth-child(10),
-    .quality-table td:nth-child(11),
-    .quality-table td:nth-child(12) {
-      white-space: nowrap;
-    }
-    .quality-table td:nth-child(3) a {
-      white-space: nowrap;
-    }
-    .quality-table td:nth-child(6),
-    .quality-table td:nth-child(7),
-    .quality-table td:nth-child(13),
-    .quality-table td:nth-child(14),
-    .quality-table td:nth-child(15) {
-      white-space: normal;
-      min-width: 180px;
-      line-height: 1.45;
-    }
-    .quality-table td:nth-child(13) {
-      min-width: 240px;
-    }
-    .quality-table .quality-ok {
-      color: #0f766e;
-      font-weight: 600;
-    }
-    .quality-table .quality-neutral {
-      color: #41566d;
-      font-weight: 600;
-    }
-    .quality-table .quality-warn {
-      color: #9a3412;
-      font-weight: 600;
     }
     .diagnostic-grid {
       display: grid;
@@ -273,14 +198,12 @@
   {% include "_usage_report_profile_overview_section.html" %}
   {% include "_usage_report_node_hours_section.html" %}
   {% include "_usage_report_configuration_checks.html" %}
-  {% include "_usage_report_coverage_section.html" %}
-  {% include "_usage_report_quality_section.html" %}
 
   <script>
   function applyUsageSearch() {
     const input = document.getElementById('usageSearchInput');
     const needle = (input?.value || '').toLowerCase().trim();
-    const targets = ['.evidence-snapshot-table tbody tr', '.profile-usage-table tbody tr', '.coverage-table tbody tr', '.quality-table tbody tr'];
+    const targets = ['.evidence-snapshot-table tbody tr', '.profile-usage-table tbody tr'];
 
     targets.forEach((selector) => {
       document.querySelectorAll(selector).forEach((row) => {
