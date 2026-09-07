@@ -279,3 +279,16 @@ Portal quality visibility currently lives in:
 - `/results/usage` current-state quality summaries
 
 Treat missing `source_info`, `fom_breakdown`, or artifact references as internal improvement candidates, not upload-time or pull-request gates.
+
+For local review of saved outputs, `scripts/validate_result_json.py` can check
+Result JSON and Estimate JSON files:
+
+```bash
+python scripts/validate_result_json.py results/result0.json
+python scripts/validate_result_json.py received_results estimated_results
+```
+
+The validator returns non-zero for broken JSON or missing minimum contract
+fields. Weaker provenance, such as missing optional `input_info`, is reported
+as a notice or warning so reviewers can see the gap without turning it into a
+normal pull-request gate.
