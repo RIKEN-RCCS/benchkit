@@ -167,8 +167,10 @@ def _merge_latest_estimates(
         applicability = applicability if isinstance(applicability, dict) else {}
         applicability_status = _clean(applicability.get("status")) or "unknown"
 
-        for system in _estimate_systems(data):
-            row = _ensure_row(rows_by_key, code, system, snapshot_time, benchkit_commit)
+        for system in _estimate_evidence_systems(data):
+            row = rows_by_key.get((code, system))
+            if row is None:
+                continue
             current_sort_key = row.get("_estimate_sort_key")
             if current_sort_key is not None and current_sort_key >= record["sort_key"]:
                 continue
@@ -290,15 +292,29 @@ def _build_cache_status(build_cache: Any) -> str:
     return status
 
 
-def _estimate_systems(data: dict[str, Any]) -> list[str]:
+def _estimate_evidence_systems(data: dict[str, Any]) -> list[str]:
+    """Return systems that can own Evidence Snapshot rows for an estimate."""
     systems = []
-    for key in ("current_system", "future_system"):
-        value = data.get(key)
-        if not isinstance(value, dict):
-            continue
-        system = _clean(value.get("system"))
+
+    def add_system(value: Any) -> None:
+        system = _clean(value)
         if system and system not in systems:
             systems.append(system)
+
+    current = data.get("current_system")
+    if isinstance(current, dict):
+        add_system(current.get("system"))
+        benchmark = current.get("benchmark")
+        if isinstance(benchmark, dict):
+            add_system(benchmark.get("system"))
+
+    future = data.get("future_system")
+    if isinstance(future, dict):
+        # future_system.system may be an abstract target, so use its measured baseline.
+        benchmark = future.get("benchmark")
+        if isinstance(benchmark, dict):
+            add_system(benchmark.get("system"))
+
     return systems
 
 
