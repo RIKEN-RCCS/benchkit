@@ -173,11 +173,11 @@ class TestResultDetailTemplate:
         assert "Cached Binary Created At" in html
         assert "2026-09-04T10:20:30Z" in html
         assert "Host Environment Fingerprint" in html
-        assert "host build environment is the same" in html
-        assert "build recipe inputs are the same" in html
-        assert "source metadata is the same" in html
+        assert "Matched current host build environment" in html
+        assert "Git-tracked files under programs/&lt;code&gt;/" in html
+        assert "Matched current source metadata" in html
         assert "Cached Artifacts Digest" in html
-        assert "restored build outputs are the same" in html
+        assert "Matched restored build outputs" in html
         assert "Hit Basis" in html
         assert "build inputs hash matched" in html
         assert "rccs-cloud" in html
@@ -408,7 +408,12 @@ class TestResultDetailTemplate:
                 "reason": "stored cache after build",
                 "entry": {
                     "created_at": "2026-09-05T01:02:03Z",
-                    "digests": {"build_inputs": "sha256:new"},
+                    "host_environment_fingerprint": "sha256:host-new",
+                    "digests": {
+                        "build_inputs": "sha256:new",
+                        "source_info": "sha256:source-new",
+                        "artifacts": "sha256:artifacts-new",
+                    },
                 },
                 "store_basis": ["build inputs hash recorded"],
                 "restore": {
@@ -416,7 +421,12 @@ class TestResultDetailTemplate:
                     "reason": "build inputs changed: cached old, current new",
                     "rejected_entry": {
                         "created_at": "2026-09-04T01:02:03Z",
-                        "digests": {"build_inputs": "sha256:old"},
+                        "host_environment_fingerprint": "sha256:host-old",
+                        "digests": {
+                            "build_inputs": "sha256:old",
+                            "source_info": "sha256:source-old",
+                            "artifacts": "sha256:artifacts-old",
+                        },
                     },
                 },
             },
@@ -431,6 +441,15 @@ class TestResultDetailTemplate:
         assert "build inputs changed: cached old, current new" in html
         assert "Rejected Cached Binary Created At" in html
         assert "2026-09-04T01:02:03Z" in html
+        assert "Recorded the host build environment" in html
+        assert "Recorded build recipe inputs" in html
+        assert "Recorded source_info.env" in html
+        assert "Recorded cached artifacts" in html
+        assert "Rejected Host Environment Fingerprint" in html
+        assert "Rejected Build Inputs Hash" in html
+        assert "Rejected candidate build inputs" in html
+        assert "Rejected candidate source metadata" in html
+        assert "Rejected candidate artifact digest" in html
 
     def test_quality_section(self, app):
         with app.test_request_context():
