@@ -65,17 +65,16 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
                 "app": "qws",
                 "systems": {
                     "Fugaku": {"status": "enabled"},
-                    "FugakuNEXT": {"status": "enabled_partial"},
                 },
             }
         ],
     )
 
     assert snapshot["generated_at"] == "2026-09-07T00:00:00Z"
-    assert snapshot["summary"]["row_count"] == 2
+    assert snapshot["summary"]["row_count"] == 1
     assert snapshot["summary"]["result_count"] == 1
     assert snapshot["summary"]["profiled_count"] == 1
-    assert snapshot["summary"]["estimated_count"] == 2
+    assert snapshot["summary"]["estimated_count"] == 1
 
     fugaku = next(row for row in snapshot["rows"] if row["system"] == "Fugaku")
     assert fugaku["configured"] == "yes"
@@ -90,12 +89,53 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert fugaku["build_cache_status"] == "hit"
     assert fugaku["public_result_available"] == "yes"
     assert fugaku["missing_reason"] == "none"
+    assert all(row["system"] != "FugakuNEXT" for row in snapshot["rows"])
 
-    future = next(row for row in snapshot["rows"] if row["system"] == "FugakuNEXT")
-    assert future["configured"] == "partial"
-    assert future["estimated"] == "yes"
-    assert "script support incomplete" in future["missing_reason"]
-    assert "no result" in future["missing_reason"]
+
+def test_evidence_snapshot_uses_estimate_benchmark_systems_without_future_target_rows(tmp_path):
+    received_dir = tmp_path / "received"
+    estimated_dir = tmp_path / "estimated"
+    received_dir.mkdir()
+    estimated_dir.mkdir()
+
+    _write_json(
+        estimated_dir / "estimate_20260902_020202_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "genesis",
+            "exp": "p8",
+            "current_system": {
+                "system": "Fugaku",
+                "benchmark": {"system": "Fugaku"},
+            },
+            "future_system": {
+                "system": "FugakuNEXT",
+                "benchmark": {"system": "MiyabiG"},
+            },
+            "applicability": {"status": "applicable"},
+        },
+    )
+
+    snapshot = build_evidence_snapshot(
+        str(received_dir),
+        str(estimated_dir),
+        benchkit_commit="abc123",
+        generated_at="2026-09-07T00:00:00Z",
+        app_support_rows=[
+            {
+                "app": "genesis",
+                "systems": {
+                    "Fugaku": {"status": "enabled"},
+                    "MiyabiG": {"status": "enabled"},
+                },
+            }
+        ],
+    )
+
+    systems = {row["system"]: row for row in snapshot["rows"]}
+    assert set(systems) == {"Fugaku", "MiyabiG"}
+    assert systems["Fugaku"]["estimated"] == "yes"
+    assert systems["MiyabiG"]["estimated"] == "yes"
+    assert "FugakuNEXT" not in systems
 
 
 def test_evidence_snapshot_redacts_confidential_result_availability(tmp_path):
