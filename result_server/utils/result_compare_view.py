@@ -62,6 +62,7 @@ def build_comparison_summary(results, *, include_evidence=True):
     latest = result_rows[-1] if result_rows else {}
     diff_rows = _build_diff_rows(baseline, latest) if len(result_rows) >= 2 else []
     return {
+        "include_evidence": include_evidence,
         "baseline": baseline,
         "latest": latest,
         "fom_change": _build_fom_change(baseline, latest) if len(result_rows) >= 2 else {},
