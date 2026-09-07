@@ -136,6 +136,17 @@ Jacamar-CI のビルドは、ログインノードのプロセス数・メモリ
 
 このスクリプトは `config.toml` の `environment` に `PATH=$BASE_DIR/bin:...` を登録時点で入れるため、アーティファクト保存時に `gitlab-runner` が見つからない問題も避けられます。`--proxy` / `--no-proxy` を指定した場合は proxy / no_proxy も `config.toml` に入れるため、Jacamar が投入する計算ノードジョブで `qsub -v http_proxy,...` を使う場合の継承元にもなります。以下の手動手順は、スクリプトが失敗した場合の切り分けや、サイト固有に調整したい場合の参照として使ってください。
 
+### セットアップ後の自己診断
+
+セットアップ後や手動修正後は、runner directory の形を doctor script で確認できます。この script は GitLab へ接続せず、scheduler job も投入せず、runner token の値も表示しません。生成済みの helper scripts、`config.toml`、`custom-config.toml`、systemd user unit の marker を見て、`CUSTOM_DIR` が渡ること、per-job cache と persistent build cache が混同されていないこと、Jacamar の基本設定が残っていることを確認します。
+
+```bash
+scripts/site/doctor_runner.sh \
+  --site your_site \
+  --arch amd64 \
+  --base-dir "$BASE_DIR"
+```
+
 ---
 
 ## 2. ディレクトリ構成
