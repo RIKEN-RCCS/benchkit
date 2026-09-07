@@ -250,8 +250,7 @@ build_inputs_hash() {
   hash_list=$(mktemp)
   if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git -C "$repo_root" ls-files \
-      "programs/${code}/build.sh" \
-      "programs/${code}/patches" \
+      "programs/${code}" \
       "scripts/bk_functions.sh" \
       "scripts/build_tool_wrappers" \
       "scripts/build_with_cache.sh" \
@@ -261,12 +260,11 @@ build_inputs_hash() {
   else
     find "${repo_root}/scripts/build_tool_wrappers" \
       -type f -print > "$file_list" 2>/dev/null || true
-    if [ -d "${repo_root}/programs/${code}/patches" ]; then
-      find "${repo_root}/programs/${code}/patches" \
+    if [ -d "${repo_root}/programs/${code}" ]; then
+      find "${repo_root}/programs/${code}" \
         -type f -print >> "$file_list" 2>/dev/null || true
     fi
     printf '%s\n' \
-      "programs/${code}/build.sh" \
       "scripts/bk_functions.sh" \
       "scripts/build_with_cache.sh" \
       "scripts/collect_environment_snapshot.sh" \

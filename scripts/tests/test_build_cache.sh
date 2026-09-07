@@ -366,7 +366,9 @@ printf '#!/bin/bash\n' > "${TMP_DIR}/git-project/programs/app/run.sh"
 printf '#!/bin/bash\n' > "${TMP_DIR}/git-project/programs/app/profile.sh"
 printf '# test app\n' > "${TMP_DIR}/git-project/programs/app/README.md"
 mkdir -p "${TMP_DIR}/git-project/programs/app/patches"
+mkdir -p "${TMP_DIR}/git-project/programs/app/src"
 printf 'patch-v1\n' > "${TMP_DIR}/git-project/programs/app/patches/build.patch"
+printf 'local-source-v1\n' > "${TMP_DIR}/git-project/programs/app/src/local-source.txt"
 pushd "${TMP_DIR}/git-project" >/dev/null
 git init --initial-branch=main >/dev/null
 git config user.email "benchkit@example.invalid"
@@ -392,18 +394,26 @@ run_git_project_build_with_cache
 test "$(cat "${TMP_DIR}/git-build-count")" = "1"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
 
+printf 'local-source-v2\n' >> "${TMP_DIR}/git-project/programs/app/src/local-source.txt"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "2"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_RESTORE_STATUS=miss$' "${TMP_DIR}/git-project/results/build_cache.env"
+
 printf '# run-only change\n' >> "${TMP_DIR}/git-project/programs/app/run.sh"
 printf '# profile-only change\n' >> "${TMP_DIR}/git-project/programs/app/profile.sh"
 printf '# docs-only change\n' >> "${TMP_DIR}/git-project/programs/app/README.md"
 rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
 run_git_project_build_with_cache
-test "$(cat "${TMP_DIR}/git-build-count")" = "1"
-grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/git-project/results/build_cache.env"
+test "$(cat "${TMP_DIR}/git-build-count")" = "3"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
+grep -q '^BK_BUILD_CACHE_RESTORE_STATUS=miss$' "${TMP_DIR}/git-project/results/build_cache.env"
 
 printf 'patch-v2\n' >> "${TMP_DIR}/git-project/programs/app/patches/build.patch"
 rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
 run_git_project_build_with_cache
-test "$(cat "${TMP_DIR}/git-build-count")" = "2"
+test "$(cat "${TMP_DIR}/git-build-count")" = "4"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
 grep -q '^BK_BUILD_CACHE_RESTORE_STATUS=miss$' "${TMP_DIR}/git-project/results/build_cache.env"
 grep -q '^BK_BUILD_CACHE_REJECTED_CREATED_AT=' "${TMP_DIR}/git-project/results/build_cache.env"
@@ -421,7 +431,7 @@ esac
 printf '\n# git build input change\n' >> "${TMP_DIR}/git-project/programs/app/build.sh"
 rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
 run_git_project_build_with_cache
-test "$(cat "${TMP_DIR}/git-build-count")" = "3"
+test "$(cat "${TMP_DIR}/git-build-count")" = "5"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
 
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/tagsrc"
