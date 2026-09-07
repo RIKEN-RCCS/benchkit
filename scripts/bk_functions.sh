@@ -978,6 +978,63 @@ bk_json_string_array() {
   printf ']'
 }
 
+# bk_record_input_info - Pass benchmark input metadata to Benchkit.
+#
+# Usage:
+#   bk_record_input_info path/to/input-info.json
+#   bk_record_input_info <<'EOF'
+#   {"schema_version": 1, "inputs": [...]}
+#   EOF
+#
+# The file path used by the common result packaging layer is intentionally kept
+# behind this helper so app scripts can focus on dataset identity and evidence.
+bk_record_input_info() {
+  if [ $# -gt 1 ]; then
+    echo "bk_record_input_info: accepts at most one JSON file path" >&2
+    return 1
+  fi
+
+  _bk_input_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
+  _bk_input_info_dir=$(dirname "$_bk_input_info_file")
+  mkdir -p "$_bk_input_info_dir" || return 1
+  _bk_input_info_tmp=$(mktemp "${_bk_input_info_file}.tmp.XXXXXX") || return 1
+
+  if [ $# -eq 1 ]; then
+    _bk_input_info_source="$1"
+    if [ ! -f "$_bk_input_info_source" ]; then
+      echo "bk_record_input_info: input info JSON file not found: $_bk_input_info_source" >&2
+      rm -f "$_bk_input_info_tmp"
+      return 1
+    fi
+    if ! cp "$_bk_input_info_source" "$_bk_input_info_tmp"; then
+      rm -f "$_bk_input_info_tmp"
+      return 1
+    fi
+  elif ! cat > "$_bk_input_info_tmp"; then
+    rm -f "$_bk_input_info_tmp"
+    return 1
+  fi
+
+  if [ ! -s "$_bk_input_info_tmp" ]; then
+    echo "bk_record_input_info: input info JSON must not be empty" >&2
+    rm -f "$_bk_input_info_tmp"
+    return 1
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq -e 'type == "object"' "$_bk_input_info_tmp" >/dev/null 2>&1; then
+      echo "bk_record_input_info: input info must be a JSON object" >&2
+      rm -f "$_bk_input_info_tmp"
+      return 1
+    fi
+  fi
+
+  if ! mv "$_bk_input_info_tmp" "$_bk_input_info_file"; then
+    rm -f "$_bk_input_info_tmp"
+    return 1
+  fi
+}
+
 # Write a compact, tool-neutral manifest for the profiler archive. Result JSON
 # generation reads this manifest to expose summary fields without opening every
 # raw profiler artifact. For fapp, run_events contains counter names; for ncu it

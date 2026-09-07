@@ -127,9 +127,10 @@ portal の `/results/usage` では、この source provenance が各 app / syste
 
 入力ファイルが app repository 内に既にあり、そのまま使う場合は、`source_info.resolved_commit` が app source と repo 内 input の固定点になります。
 この場合、別 manifest や input digest を必須にする必要はありません。
-Portal や review で dataset 名を見せたい場合だけ、任意の `input_info` で repo-relative path を補足できます。
+Portal や review で dataset 名を見せたい場合だけ、任意の入力metadataで repo-relative path を補足できます。
 
-```json
+```bash
+bk_record_input_info <<'EOF'
 {
   "schema_version": 1,
   "inputs": [
@@ -142,6 +143,7 @@ Portal や review で dataset 名を見せたい場合だけ、任意の `input_
     }
   ]
 }
+EOF
 ```
 
 ### pre-staged input と site-local 情報の扱い
@@ -161,12 +163,13 @@ site-local path や allocation / project ID は、それ自体を一律に secre
 
 pre-staged input を使う app では、「正しい場所にファイルがある」だけでは再現性の説明として不足します。
 可能であれば input directory と同じ場所に manifest を置き、run 前に manifest / digest を検証して、Result metadata へ dataset identity を残してください。
-`run.sh` が `results/input_info.json` を生成すると、`scripts/result.sh` はそれを JSON object として検証し、Result JSON の top-level `input_info` に添付します。
+app から実行時の入力metadataを渡す場合は、`scripts/bk_functions.sh` を source して `bk_record_input_info` を使ってください。
+app 側は共通層の受け渡し file path を意識せず、入力metadataの中身だけを定義します。
 
 最小例:
 
 ```bash
-cat > results/input_info.json <<'EOF'
+bk_record_input_info <<'EOF'
 {
   "schema_version": 1,
   "inputs": [

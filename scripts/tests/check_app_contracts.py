@@ -100,7 +100,12 @@ def input_provenance_visible(app: str) -> bool:
     run_text = app_script_text(app, "run.sh")
     return any(
         marker in run_text
-        for marker in ("results/input_info.json", "input_info", "BK_INPUT_")
+        for marker in (
+            "bk_record_input_info",
+            "results/input_info.json",
+            "input_info",
+            "BK_INPUT_",
+        )
     )
 
 

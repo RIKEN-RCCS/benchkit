@@ -433,7 +433,7 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 これは top-level app source を表す `source_info` とは別の補助情報であり、`source_info` に app source と benchmark input を混在させすぎない。
 
 `input_info` は最初の段階では任意項目であり、存在しない result を ingest failure として扱わない。
-一方、`results/input_info.json` を app が生成する場合、Benchkit はそれを JSON object として検証し、Result JSON の top-level `input_info` に添付できる。
+一方、app が Benchkit の入力metadata helper または対応する受け渡し形式で input metadata を渡す場合、Benchkit はそれを JSON object として検証し、Result JSON の top-level `input_info` に添付できる。
 
 `input_info` には少なくとも次のような情報を置けることが望ましい。
 
@@ -457,7 +457,7 @@ Benchkit should preferably be able to retain provenance for benchmark inputs suc
 This is auxiliary information separate from `source_info`, which represents the top-level application source; app source and benchmark input should not be mixed too heavily into one object.
 
 At the initial stage, `input_info` is optional, and results without it are not treated as ingest failures.
-When an application produces `results/input_info.json`, Benchkit can validate it as a JSON object and attach it to the top-level `input_info` field in Result JSON.
+When an application passes input metadata through the Benchkit input metadata helper or a supported handoff format, Benchkit can validate it as a JSON object and attach it to the top-level `input_info` field in Result JSON.
 
 `input_info` should preferably be able to include information such as:
 
