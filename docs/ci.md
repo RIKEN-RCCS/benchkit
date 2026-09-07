@@ -276,12 +276,13 @@ also verified. Host builds that go through the common `make` / `cmake` /
 before the build tool runs. The fingerprint includes loaded modules, selected
 build environment variables, tool real paths, versions, and binary SHA-256
 hashes. The app-owned build recipe portion of the build input hash is limited
-to `programs/<code>/build.sh` and optional patch files under
-`programs/<code>/patches/`; `run.sh`, `profile.sh`, `estimate.sh`, and app
-documentation are not build cache inputs. Because of that boundary,
-`profile.sh` and `estimate.sh` must not select build options or rebuild app
-artifacts. Cache misses fall back to the normal `programs/<code>/build.sh` path
-and store a fresh cache after a successful build. The generated child pipeline
+to Git-tracked files under `programs/<code>/`. This is intentionally
+conservative: a changed app-side file may cause an extra rebuild, but it should
+not accidentally restore an old binary after app-local source or build recipe
+changes. `profile.sh` and `estimate.sh` still must not select build options or
+rebuild app artifacts. Cache misses fall back to the normal
+`programs/<code>/build.sh` path and store a fresh cache after a successful build.
+The generated child pipeline
 does not declare a GitLab `cache:` stanza; the cache directory must be a
 site-managed persistent path such as the custom runner's `CUSTOM_DIR`, not a
 per-job cleanup directory.
@@ -289,8 +290,8 @@ per-job cleanup directory.
 Git source は記録済みの `ref_name` と `resolved_commit` を使って `git ls-remote` で再確認し、file/archive source は SHA-256 を再計算します。
 container image hash が記録されている場合は image hash も確認します。
 common の `make` / `cmake` / `ninja` wrapper を通る host build は、build tool 実行直前に収集した build environment fingerprint で照合します。この fingerprint には loaded modules、選択された build 環境変数、tool の real path、version、binary SHA-256 hash が含まれます。
-build input hash の app 側 build recipe は `programs/<code>/build.sh` と、任意のpatch file置き場である `programs/<code>/patches/` に限定します。`run.sh`、`profile.sh`、`estimate.sh`、app 文書は build cache input ではありません。
-この境界を守るため、`profile.sh` と `estimate.sh` では build option の選択や app artifact の再buildを行わないでください。
+build input hash の app 側 build recipe は `programs/<code>/` 配下の Git 管理ファイルを保守的に対象にします。app 側ファイルの変更で余分な rebuild が起きることはありますが、app-local source や build recipe の変更後に古い binary を誤って restore しないことを優先します。
+`profile.sh` と `estimate.sh` では build option の選択や app artifact の再buildを行わないでください。
 cache miss の場合は通常の `programs/<code>/build.sh` 経路に戻り、成功後に新しい cache を保存します。
 生成された child pipeline は GitLab の `cache:` stanza を出しません。cache directory は job ごとの cleanup 対象ではなく、custom runner の `CUSTOM_DIR` など site 側で管理する永続パスにしてください。
 
