@@ -133,6 +133,27 @@ jq -e '
   .environment_snapshot.payload.stages.run.stage == "run"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '
+  type == "object" and
+  (.source_info == null or (.source_info | type) == "object") and
+  (.input_info | type) == "object" and
+  (.input_info.inputs | type) == "array" and
+  (.build_cache.schema_version == 1) and
+  (.build_cache.status | type) == "string" and
+  (.build_cache.stored | type) == "boolean" and
+  (.build_cache.entry.digests | type) == "object" and
+  (.build_cache.hit_basis | type) == "array" and
+  (.environment_snapshot.schema_version == 1) and
+  (.environment_snapshot.hash | type) == "string" and
+  (.environment_snapshot.hash | startswith("sha256:")) and
+  (.environment_snapshot.summary | type) == "object" and
+  (.environment_snapshot.payload | type) == "object" and
+  (.pipeline_timing | type) == "object" and
+  (.pipeline_timing.build_time | type) == "number" and
+  (.pipeline_timing.queue_time | type) == "number" and
+  (.pipeline_timing.run_time | type) == "number" and
+  (.execution_trigger | type) == "object"
+' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+jq -e '
   .input_info.schema_version == 1 and
   .input_info.inputs[0].dataset_id == "qws-case0" and
   .input_info.inputs[0].verification_status == "declared"
