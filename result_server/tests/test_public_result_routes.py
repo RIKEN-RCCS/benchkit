@@ -98,3 +98,131 @@ def test_public_portal_compare_hides_confidential_result_for_authorized_session(
         )
 
     assert response.status_code == 404
+
+
+def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(
+        received_dir,
+        filename,
+        {
+            "code": "qws",
+            "system": "Fugaku",
+            "Exp": "CASE1",
+            "FOM": 1.0,
+            "node_count": 1,
+            "pipeline_id": 1234,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.test/repo.git",
+                "ref_name": "main",
+                "resolved_commit": "abcdef1234567890",
+            },
+            "input_info": {
+                "dataset_id": "qws-small",
+                "verification_status": "covered_by_source_commit",
+                "source": "source_info",
+                "repo_relative_path": "inputs/qws-small",
+                "local_path": "local-input-placeholder",
+            },
+            "environment_snapshot": {
+                "hash": "sha256:env",
+                "summary": {
+                    "allocation_project_id": "project-placeholder",
+                    "runner": "runner-placeholder",
+                },
+            },
+        },
+    )
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}")
+
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert "Download Evidence Packet" not in text
+    assert "evidence-packet.md" not in text
+
+
+def test_public_portal_evidence_packet_route_is_blocked_until_release_review(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(
+        received_dir,
+        filename,
+        {
+            "code": "qws",
+            "system": "Fugaku",
+            "Exp": "CASE1",
+            "FOM": 1.0,
+        },
+    )
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}/evidence-packet.md")
+
+    assert response.status_code == 404
+
+
+def test_public_portal_evidence_packet_hides_confidential_result_for_authorized_session(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(
+        received_dir,
+        filename,
+        {
+            "code": "qws",
+            "system": "Fugaku",
+            "Exp": "CASE1",
+            "FOM": 1.0,
+            "confidential": ["dev"],
+        },
+    )
+
+    with app.test_client() as client:
+        _authenticate_dev(client)
+        response = client.get(f"/results/detail/{filename}/evidence-packet.md")
+
+    assert response.status_code == 404
+
+
+def test_console_evidence_packet_uses_result_permissions(tmp_path):
+    received_dir = tmp_path / "received"
+    received_dir.mkdir()
+    app = build_results_route_app(received_dir=str(received_dir))
+    app.config["USER_STORE"] = StaticAffiliationUserStore({"dev@example.test": ["dev"]})
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(
+        received_dir,
+        filename,
+        {
+            "code": "qws",
+            "system": "Fugaku",
+            "Exp": "CASE1",
+            "FOM": 1.0,
+            "confidential": ["dev"],
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.test/qws.git",
+                "ref_name": "main",
+                "resolved_commit": "abcdef1234567890",
+            },
+        },
+    )
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}/evidence-packet.md")
+        assert response.status_code == 403
+
+        _authenticate_dev(client)
+        response = client.get(f"/results/detail/{filename}/evidence-packet.md")
+
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert "portable review note for one Benchkit benchmark result" in text
+    assert "readers who may not know the surrounding Benchkit operation" in text
+    assert "does not guarantee independent reproduction" in text
+    assert "Pipeline ID" not in text
+    assert "Raw Result JSON" in text
+    assert "https://example.test/qws.git" in text

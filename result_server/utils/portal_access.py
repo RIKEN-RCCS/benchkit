@@ -48,6 +48,7 @@ RESTRICTED_VIEWER_ENDPOINTS = frozenset(
         "estimated.estimated_results",
         "estimated.show_estimated_result",
         "results.environment_snapshot_results",
+        "results.result_evidence_packet",
         "results.results_confidential",
     }
 )

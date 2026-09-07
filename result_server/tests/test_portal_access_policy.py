@@ -60,6 +60,7 @@ def test_representative_route_access_classes():
     assert classify_endpoint("results.result_detail") == ACCESS_PUBLIC_CONDITIONAL
     assert classify_endpoint("results.show_result") == ACCESS_PUBLIC_CONDITIONAL
     assert classify_endpoint("results.results_confidential") == ACCESS_RESTRICTED_VIEWER
+    assert classify_endpoint("results.result_evidence_packet") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("estimated.estimated_results") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("auth.login") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("profile_requests.profile_requests") == ACCESS_AUTHENTICATED_CONSOLE
@@ -80,6 +81,7 @@ def test_public_portal_mode_blocks_restricted_browser_routes_but_allows_api_auth
         assert client.get("/auth/login").status_code == 404
         assert client.get("/estimated/").status_code == 404
         assert client.get("/results/confidential").status_code == 404
+        assert client.get("/results/detail/example.json/evidence-packet.md").status_code == 404
         assert client.get("/results/usage/evidence-snapshot.csv").status_code == 404
         assert client.get("/admin/users").status_code == 404
         assert client.get("/execution-profile-requests/").status_code == 404

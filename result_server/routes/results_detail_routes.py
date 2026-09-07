@@ -8,6 +8,10 @@ from utils.environment_snapshots import (
     list_environment_snapshot_results,
 )
 from utils.node_hours import compute_node_hours
+from utils.evidence_packet import (
+    build_result_evidence_packet,
+    evidence_packet_download_name,
+)
 from utils.result_compare_view import load_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
@@ -73,7 +77,52 @@ def register_results_detail_routes(results_bp):
                 "results.environment_snapshot_results",
                 snapshot_hash=detail_context["environment_snapshot_hash"],
             )
+        detail_context["evidence_packet_url"] = (
+            ""
+            if is_public_surface
+            else url_for("results.result_evidence_packet", filename=filename)
+        )
         return render_template("result_detail.html", result=result, quality=quality, **detail_context)
+
+    @results_bp.route("/detail/<filename>/evidence-packet.md")
+    def result_evidence_packet(filename):
+        is_public_surface = public_surface()
+        if is_public_surface:
+            abort(404, "Result file not found")
+
+        result = load_permitted_result_json(
+            filename,
+            current_app.config["RECEIVED_DIR"],
+            not_found_message="Result file not found",
+        )
+        quality = summarize_result_quality(result)
+        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
+        padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]
+        padata_urls = {
+            name: url_for("results.show_result", filename=name)
+            for name in padata_filenames
+        }
+        packet = build_result_evidence_packet(
+            result,
+            filename,
+            quality,
+            public_surface=False,
+            detail_url=url_for("results.result_detail", filename=filename),
+            raw_json_url=url_for("results.show_result", filename=filename),
+            padata_filenames=padata_filenames,
+            padata_url_by_filename=padata_urls,
+        )
+
+        response = current_app.response_class(
+            packet,
+            content_type="text/markdown; charset=utf-8",
+        )
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={evidence_packet_download_name(filename)}"
+        )
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @results_bp.route("/environment-snapshots/<path:snapshot_hash>")
     def environment_snapshot_results(snapshot_hash):
