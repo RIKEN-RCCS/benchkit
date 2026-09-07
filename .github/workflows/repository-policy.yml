@@ -28,3 +28,6 @@ jobs:
       - name: Check PR base is current
         if: github.event_name == 'pull_request'
         run: python3 scripts/tests/check_pr_base_current.py
+
+      - name: Report app contract diagnostics
+        run: python3 scripts/tests/check_app_contracts.py
