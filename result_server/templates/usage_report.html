@@ -234,6 +234,27 @@
       vertical-align: top;
       white-space: normal;
     }
+    .evidence-snapshot-table {
+      min-width: 1240px;
+      table-layout: fixed;
+    }
+    .evidence-snapshot-table th:nth-child(1) { width: 150px; }
+    .evidence-snapshot-table th:nth-child(2) { width: 150px; }
+    .evidence-snapshot-table th:nth-child(3) { width: 120px; }
+    .evidence-snapshot-table th:nth-child(4) { width: 180px; }
+    .evidence-snapshot-table th:nth-child(5) { width: 110px; }
+    .evidence-snapshot-table th:nth-child(6) { width: 140px; }
+    .evidence-snapshot-table th:nth-child(7) { width: 140px; }
+    .evidence-snapshot-table th:nth-child(8) { width: 130px; }
+    .evidence-snapshot-table th:nth-child(9) { width: 120px; }
+    .evidence-snapshot-table th:nth-child(10) { width: 130px; }
+    .evidence-snapshot-table th:nth-child(11) { width: 130px; }
+    .evidence-snapshot-table th:nth-child(12) { width: 260px; }
+    .evidence-snapshot-table td {
+      vertical-align: top;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
     .profile-usage-mono {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 13px;
@@ -248,6 +269,7 @@
     }
   </style>
 
+  {% include "_usage_report_evidence_snapshot_section.html" %}
   {% include "_usage_report_profile_overview_section.html" %}
   {% include "_usage_report_node_hours_section.html" %}
   {% include "_usage_report_configuration_checks.html" %}
@@ -258,7 +280,7 @@
   function applyUsageSearch() {
     const input = document.getElementById('usageSearchInput');
     const needle = (input?.value || '').toLowerCase().trim();
-    const targets = ['.profile-usage-table tbody tr', '.coverage-table tbody tr', '.quality-table tbody tr'];
+    const targets = ['.evidence-snapshot-table tbody tr', '.profile-usage-table tbody tr', '.coverage-table tbody tr', '.quality-table tbody tr'];
 
     targets.forEach((selector) => {
       document.querySelectorAll(selector).forEach((row) => {

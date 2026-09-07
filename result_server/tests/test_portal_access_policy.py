@@ -64,6 +64,7 @@ def test_representative_route_access_classes():
     assert classify_endpoint("auth.login") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("profile_requests.profile_requests") == ACCESS_AUTHENTICATED_CONSOLE
     assert classify_endpoint("results.usage_report") == ACCESS_OPERATOR
+    assert classify_endpoint("results.usage_evidence_snapshot_csv") == ACCESS_OPERATOR
     assert classify_endpoint("admin.users") == ACCESS_OPERATOR
     assert classify_endpoint("api.ingest_result") == ACCESS_RUNNER_API
 
@@ -79,6 +80,7 @@ def test_public_portal_mode_blocks_restricted_browser_routes_but_allows_api_auth
         assert client.get("/auth/login").status_code == 404
         assert client.get("/estimated/").status_code == 404
         assert client.get("/results/confidential").status_code == 404
+        assert client.get("/results/usage/evidence-snapshot.csv").status_code == 404
         assert client.get("/admin/users").status_code == 404
         assert client.get("/execution-profile-requests/").status_code == 404
 

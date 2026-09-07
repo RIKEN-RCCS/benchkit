@@ -139,11 +139,20 @@ class TestUsageRoute:
 
         captured = {}
 
-        def fake_build_usage_report_context(directory, args, current_fiscal_year, db_path=None):
+        def fake_build_usage_report_context(
+            directory,
+            args,
+            current_fiscal_year,
+            db_path=None,
+            estimated_dir=None,
+            benchkit_commit="",
+        ):
             captured["directory"] = directory
             captured["args"] = args
             captured["current_fiscal_year"] = current_fiscal_year
             captured["db_path"] = db_path
+            captured["estimated_dir"] = estimated_dir
+            captured["benchkit_commit"] = benchkit_commit
             return {
                 "result": {
                     "apps": [],
@@ -171,6 +180,15 @@ class TestUsageRoute:
                 },
                 "result_quality_rollup": {"rows": []},
                 "profile_usage_overview": {"available": False, "rows": []},
+                "evidence_snapshot": {
+                    "summary": {
+                        "row_count": 0,
+                        "result_count": 0,
+                        "profiled_count": 0,
+                        "estimated_count": 0,
+                    },
+                    "rows": [],
+                },
             }
 
         import routes.results_usage_routes as usage_routes_mod
@@ -182,8 +200,69 @@ class TestUsageRoute:
         assert resp.status_code == 200
         assert captured["directory"] == app.config["RECEIVED_DIR"]
         assert captured["db_path"] == app.config.get("EXECUTION_PROFILE_DB_PATH")
+        assert captured["estimated_dir"] == app.config.get("ESTIMATED_DIR")
+        assert captured["benchkit_commit"] == ""
         assert captured["current_fiscal_year"] == 2025
         assert captured["args"].get("period_type") is None
+
+    def test_usage_page_shows_evidence_snapshot_and_csv_link(self, client, tmp_dirs):
+        _login_session(client, "admin@example.com", ["admin"])
+        resp = client.get("/results/usage")
+        text = resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert "Evidence Snapshot" in text
+        assert "/results/usage/evidence-snapshot.csv" in text
+
+    def test_usage_evidence_snapshot_csv_requires_admin(self, client):
+        resp = client.get("/results/usage/evidence-snapshot.csv")
+        assert resp.status_code == 302
+        assert "/auth/login" in resp.headers["Location"]
+
+        _login_session(client, "user@example.com", ["dev"])
+        resp = client.get("/results/usage/evidence-snapshot.csv")
+        assert resp.status_code == 403
+
+    def test_usage_evidence_snapshot_csv_exports_flat_rows(self, client, tmp_dirs):
+        received, estimated = tmp_dirs
+        _write_result(
+            received,
+            "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+            {
+                "code": "qws",
+                "system": "Fugaku",
+                "Exp": "CASE0",
+                "FOM": 1.0,
+                "source_info": {
+                    "source_type": "git",
+                    "repo_url": "https://example.com/qws.git",
+                    "ref_name": "main",
+                    "resolved_commit": "abcdef1234567890",
+                },
+                "build_cache": {"status": "hit", "stored": False},
+            },
+        )
+        _write_result(
+            estimated,
+            "estimate_20260902_020202_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+            {
+                "code": "qws",
+                "exp": "CASE0",
+                "current_system": {"system": "Fugaku"},
+                "future_system": {"system": "FugakuNEXT"},
+                "applicability": {"status": "applicable"},
+            },
+        )
+
+        _login_session(client, "admin@example.com", ["admin"])
+        resp = client.get("/results/usage/evidence-snapshot.csv")
+        text = resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/csv"
+        assert "attachment; filename=evidence_snapshot_" in resp.headers["Content-Disposition"]
+        assert "snapshot_time,benchkit_commit,code,system,configured" in text
+        assert "qws,Fugaku" in text
+        assert "hit" in text
+        assert "example.com/qws.git" not in text
 
     def test_usage_page_shows_no_data_message(self, client):
         _login_session(client, "admin@example.com", ["admin"])

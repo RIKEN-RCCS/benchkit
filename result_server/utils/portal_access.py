@@ -54,7 +54,10 @@ RESTRICTED_VIEWER_ENDPOINTS = frozenset(
 
 AUTHENTICATED_CONSOLE_ENDPOINT_PREFIXES = ("profile_requests.",)
 OPERATOR_ENDPOINT_PREFIXES = ("admin.",)
-OPERATOR_ENDPOINTS = frozenset({"results.usage_report"})
+OPERATOR_ENDPOINTS = frozenset({
+    "results.usage_evidence_snapshot_csv",
+    "results.usage_report",
+})
 RUNNER_API_ENDPOINT_PREFIXES = ("api.",)
 PUBLIC_ENDPOINT_PREFIXES = ("security_metadata",)
 PUBLIC_PORTAL_ALLOWED_ACCESS_CLASSES = frozenset(
