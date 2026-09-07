@@ -18,6 +18,29 @@ if [[ ! -f "$estimate_script" ]]; then
   exit 0
 fi
 
+record_estimate_timing() {
+  local elapsed_time="$1"
+  shift
+
+  local json_file
+  for json_file in "$@"; do
+    [[ -f "$json_file" ]] || continue
+    local tmp_file="${json_file}.timing.$$"
+    if ! jq --argjson elapsed_time "$elapsed_time" '
+      .estimation_timing = ((.estimation_timing // {}) + {
+        schema_version: 1,
+        elapsed_time: $elapsed_time,
+        unit: "s",
+        recorded_by: "scripts/estimation/run.sh"
+      })
+    ' "$json_file" > "$tmp_file"; then
+      rm -f "$tmp_file"
+      return 1
+    fi
+    mv "$tmp_file" "$json_file"
+  done
+}
+
 # Run estimation for each result JSON
 found=0
 for json_file in results/result[0-9]*.json; do
@@ -30,7 +53,13 @@ for json_file in results/result[0-9]*.json; do
     jq . results/server_result_meta.json || true
   fi
   echo "Running estimation: $estimate_script $json_file"
+  marker_file=$(mktemp "${TMPDIR:-/tmp}/benchkit-estimate-marker.XXXXXX")
+  estimate_start=$SECONDS
   bash "$estimate_script" "$json_file"
+  estimate_elapsed=$((SECONDS - estimate_start))
+  mapfile -t estimate_outputs < <(find results -maxdepth 1 -type f -name 'estimate*.json' -newer "$marker_file" | sort)
+  rm -f "$marker_file"
+  record_estimate_timing "$estimate_elapsed" "${estimate_outputs[@]}"
 done
 
 if [[ "$found" -eq 0 ]]; then

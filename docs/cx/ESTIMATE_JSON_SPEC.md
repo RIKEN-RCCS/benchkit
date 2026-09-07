@@ -176,6 +176,7 @@ In addition, `target_nodes` represents the estimated node count on each system s
 将来拡張として、Estimate JSON は以下の項目を持ってよい。
 
 - `estimate_metadata`
+- `estimation_timing`
 - `measurement`
 - `assumptions`
 - `input_artifacts`
@@ -310,7 +311,37 @@ When the source benchmark Result JSON carries `input_info`, that auxiliary input
 `estimation_package` and `estimation_package_version` identify the package that was actually applied.
 `requested_estimation_package` and `requested_estimation_package_version` identify the package initially requested before any fallback.
 
-### 6.2 measurement
+### 6.2 estimation_timing
+
+推定処理自体の実行時間を保持する任意項目。
+
+想定項目:
+
+- `schema_version`
+- `elapsed_time`
+- `unit`
+- `recorded_by`
+
+例:
+
+```json
+{
+  "estimation_timing": {
+    "schema_version": 1,
+    "elapsed_time": 42,
+    "unit": "s",
+    "recorded_by": "scripts/estimation/run.sh"
+  }
+}
+```
+
+`elapsed_time` は推定ジョブ内で app の `estimate.sh` 実行に要した wall-clock 秒数を表す。
+これは推定された benchmark 実行時間ではなく、推定処理そのものの運用コストを観測するための値である。
+
+`elapsed_time` records wall-clock seconds spent running the app's `estimate.sh` inside the estimate job.
+It is the operational cost of producing the estimate, not the estimated benchmark runtime.
+
+### 6.3 measurement
 
 推定入力となった計測方法や採取方式を保持する。
 
@@ -338,7 +369,7 @@ When the source benchmark Result JSON carries `input_info`, that auxiliary input
 
 This field stores how the measurement inputs used for estimation were obtained.
 
-### 6.3 model
+### 6.4 model
 
 推定モデルの識別情報を保持する。
 
@@ -378,7 +409,7 @@ For example, `current_system.model` may retain either an `intra_system_scaling_m
 
 When needed, a side-specific `model` may contain `source_system`, `target_system`, and `system_compatibility_rule`.
 
-### 6.4 assumptions
+### 6.5 assumptions
 
 推定時の仮定を保持する。
 
@@ -409,7 +440,7 @@ This field may include assumptions such as:
 - whether a communication-cost adjustment is applied
 - how problem size is increased
 
-### 6.5 applicability
+### 6.6 applicability
 
 推定方式に必要な入力が十分だったか、不足があったか、フォールバックが行われたかを保持する。
 
@@ -462,7 +493,7 @@ In such a case, `estimate_metadata.requested_estimation_package` identifies the 
 
 This field records the final applicability state of the estimate, whether fallback was used, and what was missing.
 
-### 6.6 confidence
+### 6.7 confidence
 
 推定結果の信頼度や品質指標を保持する。
 
