@@ -7,30 +7,90 @@ from utils.result_records import build_labeled_value_rows, format_numeric_value
 from utils.trigger_display import summarize_execution_trigger
 
 
-HOST_ENVIRONMENT_FINGERPRINT_HELP = (
-    "Checks whether the host build environment is the same. Covers code, "
-    "system, loaded modules, selected build environment, and build tool real "
-    "paths, versions, and binary hashes."
+HOST_ENVIRONMENT_FINGERPRINT_COVERAGE = (
+    "Covers code, system, loaded modules, selected build environment, and build "
+    "tool real paths, versions, and binary hashes."
+)
+
+HOST_ENVIRONMENT_FINGERPRINT_HELP = {
+    "matched": (
+        "Matched current host build environment against the restored cache "
+        f"entry. {HOST_ENVIRONMENT_FINGERPRINT_COVERAGE}"
+    ),
+    "recorded": (
+        "Recorded the host build environment for the newly stored cache entry. "
+        f"{HOST_ENVIRONMENT_FINGERPRINT_COVERAGE}"
+    ),
+    "rejected": (
+        "Recorded host build environment from a rejected cache candidate, shown "
+        f"for diagnosis. {HOST_ENVIRONMENT_FINGERPRINT_COVERAGE}"
+    ),
+}
+
+BUILD_CACHE_BUILD_INPUTS_COVERAGE = (
+    "Covers Git-tracked files under programs/<code>/, the build-cache wrapper, "
+    "build-tool wrappers, environment snapshot helper, matrix generator, and "
+    "any site-provided extra cache inputs."
 )
 
 BUILD_CACHE_DIGEST_HELP = {
-    "build_inputs": (
-        "Checks whether the build recipe inputs are the same. Covers app "
-        "build.sh, app patches, build-cache wrapper, build-tool wrappers, "
-        "environment snapshot helper, matrix generator, and any declared extra "
-        "cache inputs."
-    ),
-    "source_info": (
-        "Checks whether the source metadata is the same. Uses source_info.env "
-        "saved with the cache entry, including source type and resolved source "
-        "identity."
-    ),
-    "artifacts": (
-        "Checks whether the restored build outputs are the same as the saved "
-        "cache entry. Covers artifacts/ relative paths, entry types, file "
-        "modes, file contents, and symlink targets."
-    ),
+    "matched": {
+        "build_inputs": (
+            "Matched current build recipe inputs against the restored cache "
+            f"entry. {BUILD_CACHE_BUILD_INPUTS_COVERAGE}"
+        ),
+        "source_info": (
+            "Matched current source metadata against source_info.env saved with "
+            "the cache entry, including source type and resolved source identity."
+        ),
+        "artifacts": (
+            "Matched restored build outputs against the saved cache entry before "
+            "and after restore. Covers artifacts/ relative paths, entry types, "
+            "file modes, file contents, and symlink targets."
+        ),
+    },
+    "recorded": {
+        "build_inputs": (
+            "Recorded build recipe inputs for the newly stored cache entry. "
+            f"{BUILD_CACHE_BUILD_INPUTS_COVERAGE}"
+        ),
+        "source_info": (
+            "Recorded source_info.env for the newly stored cache entry, including "
+            "source type and resolved source identity."
+        ),
+        "artifacts": (
+            "Recorded cached artifacts for the newly stored cache entry. Covers "
+            "artifacts/ relative paths, entry types, file modes, file contents, "
+            "and symlink targets."
+        ),
+    },
+    "rejected": {
+        "build_inputs": (
+            "Rejected candidate build inputs. The candidate was not restored; "
+            "compare this value with the rejection reason."
+        ),
+        "source_info": (
+            "Rejected candidate source metadata. The candidate was not restored; "
+            "compare this value with the rejection reason."
+        ),
+        "artifacts": (
+            "Rejected candidate artifact digest. The candidate was not restored; "
+            "this value describes the skipped cache entry."
+        ),
+    },
 }
+
+
+def build_cache_host_environment_help(context="matched"):
+    return HOST_ENVIRONMENT_FINGERPRINT_HELP.get(
+        context, HOST_ENVIRONMENT_FINGERPRINT_HELP["matched"]
+    )
+
+
+def build_cache_digest_help(key, context="matched"):
+    return BUILD_CACHE_DIGEST_HELP.get(context, BUILD_CACHE_DIGEST_HELP["matched"]).get(
+        key, ""
+    )
 
 
 def build_result_detail_context(
@@ -335,9 +395,10 @@ def _build_build_cache_rows(build_cache):
     if reason:
         rows.append({"label": "Reason", "value": reason})
 
+    entry_context = "matched" if status == "hit" else "recorded"
     entry = build_cache.get("entry")
     entry = entry if isinstance(entry, dict) else {}
-    _append_cache_entry_rows(rows, entry, prefix="")
+    _append_cache_entry_rows(rows, entry, prefix="", context=entry_context)
 
     if status == "hit":
         hit_basis = build_cache.get("hit_basis") or []
@@ -355,12 +416,12 @@ def _build_build_cache_rows(build_cache):
         rows.append({"label": "Rejected Cache Reason", "value": restore_reason})
     rejected_entry = restore.get("rejected_entry")
     rejected_entry = rejected_entry if isinstance(rejected_entry, dict) else {}
-    _append_cache_entry_rows(rows, rejected_entry, prefix="Rejected ")
+    _append_cache_entry_rows(rows, rejected_entry, prefix="Rejected ", context="rejected")
 
     return rows
 
 
-def _append_cache_entry_rows(rows, entry, *, prefix):
+def _append_cache_entry_rows(rows, entry, *, prefix, context):
     if not entry:
         return
 
@@ -383,7 +444,7 @@ def _append_cache_entry_rows(rows, entry, *, prefix):
         rows.append({
             "label": f"{prefix}Host Environment Fingerprint",
             "value": host_fingerprint,
-            "help": HOST_ENVIRONMENT_FINGERPRINT_HELP,
+            "help": build_cache_host_environment_help(context),
         })
     elif entry.get("env_key_present") is True:
         rows.append({"label": f"{prefix}Host Environment", "value": "environment key matched"})
@@ -401,7 +462,7 @@ def _append_cache_entry_rows(rows, entry, *, prefix):
             rows.append({
                 "label": f"{prefix}{label}",
                 "value": value,
-                "help": BUILD_CACHE_DIGEST_HELP[key],
+                "help": build_cache_digest_help(key, context),
             })
 
 

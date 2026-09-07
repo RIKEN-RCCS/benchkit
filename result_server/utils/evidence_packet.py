@@ -8,8 +8,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from utils.result_detail_view import (
-    BUILD_CACHE_DIGEST_HELP,
-    HOST_ENVIRONMENT_FINGERPRINT_HELP,
+    build_cache_digest_help,
+    build_cache_host_environment_help,
 )
 from utils.result_records import format_numeric_value, summarize_input_info
 from utils.trigger_display import summarize_execution_trigger
@@ -324,6 +324,9 @@ def _build_cache_rows(build_cache: Any) -> list[tuple[str, Any]]:
     entry = build_cache.get("entry")
     entry = entry if isinstance(entry, dict) else {}
     if entry:
+        context = (
+            "matched" if str(build_cache.get("status") or "") == "hit" else "recorded"
+        )
         rows.extend([
             ("Cached binary created at", entry.get("created_at")),
             ("Source", _format_cache_source(entry.get("source"))),
@@ -331,7 +334,7 @@ def _build_cache_rows(build_cache: Any) -> list[tuple[str, Any]]:
                 "Host environment fingerprint",
                 _digest_with_help(
                     entry.get("host_environment_fingerprint"),
-                    HOST_ENVIRONMENT_FINGERPRINT_HELP,
+                    build_cache_host_environment_help(context),
                 ),
             ),
         ])
@@ -340,15 +343,24 @@ def _build_cache_rows(build_cache: Any) -> list[tuple[str, Any]]:
         rows.extend([
             (
                 "Build inputs hash",
-                _digest_with_help(digests.get("build_inputs"), BUILD_CACHE_DIGEST_HELP["build_inputs"]),
+                _digest_with_help(
+                    digests.get("build_inputs"),
+                    build_cache_digest_help("build_inputs", context),
+                ),
             ),
             (
                 "Source info digest",
-                _digest_with_help(digests.get("source_info"), BUILD_CACHE_DIGEST_HELP["source_info"]),
+                _digest_with_help(
+                    digests.get("source_info"),
+                    build_cache_digest_help("source_info", context),
+                ),
             ),
             (
                 "Cached artifacts digest",
-                _digest_with_help(digests.get("artifacts"), BUILD_CACHE_DIGEST_HELP["artifacts"]),
+                _digest_with_help(
+                    digests.get("artifacts"),
+                    build_cache_digest_help("artifacts", context),
+                ),
             ),
         ])
     if build_cache.get("hit_basis"):
