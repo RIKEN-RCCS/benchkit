@@ -5,6 +5,8 @@
 
 {% block content %}
 {% include "_compare_page_styles.html" %}
+{% set comparison_summary = comparison_summary|default({}, true) %}
+{% set fom_change = comparison_summary.get('fom_change', {}) %}
 
 <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
@@ -16,6 +18,61 @@
 {% endif %}
 
 <p class="compare-note">{{ headline }}</p>
+
+{% if comparison_summary %}
+<div class="section">
+    <h2>Run Comparison Summary</h2>
+    <p class="compare-note">Baseline is the oldest selected result; latest is the newest selected result.</p>
+    <div class="comparison-summary-grid">
+        <div class="comparison-kpi">
+            <span class="comparison-kpi-label">Baseline</span>
+            <span class="comparison-kpi-value">{{ comparison_summary.baseline.timestamp }}</span>
+            <span class="comparison-kpi-subline">{{ comparison_summary.baseline.system }} / {{ comparison_summary.baseline.code }} / {{ comparison_summary.baseline.exp }}</span>
+        </div>
+        <div class="comparison-kpi">
+            <span class="comparison-kpi-label">Latest</span>
+            <span class="comparison-kpi-value">{{ comparison_summary.latest.timestamp }}</span>
+            <span class="comparison-kpi-subline">{{ comparison_summary.latest.system }} / {{ comparison_summary.latest.code }} / {{ comparison_summary.latest.exp }}</span>
+        </div>
+        <div class="comparison-kpi">
+            <span class="comparison-kpi-label">FOM Ratio</span>
+            <span class="comparison-kpi-value">{{ fom_change.get('ratio_display', '-') }}</span>
+            <span class="comparison-kpi-subline">latest / baseline</span>
+        </div>
+        <div class="comparison-kpi">
+            <span class="comparison-kpi-label">FOM Delta</span>
+            <span class="comparison-kpi-value">{{ fom_change.get('delta_display', '-') }}</span>
+            <span class="comparison-kpi-subline">{{ fom_change.get('percent_display', '-') }}</span>
+        </div>
+    </div>
+    {% if fom_change.get('note') %}
+    <p class="compare-note">{{ fom_change.note }}</p>
+    {% endif %}
+
+    {% if comparison_summary.diff_rows %}
+    <table class="comparison-diff-table">
+        <thead>
+            <tr>
+                <th>Aspect</th>
+                <th>Baseline</th>
+                <th>Latest</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in comparison_summary.diff_rows %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.baseline }}</td>
+                <td>{{ row.latest }}</td>
+                <td><span class="comparison-status comparison-status-{{ row.status }}">{{ row.status }}</span></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endif %}
 
 {% if has_vector_metrics %}
 <div class="section">

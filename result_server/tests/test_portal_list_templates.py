@@ -582,10 +582,42 @@ def test_result_compare_template_renders_headline():
             mixed=False,
             headline="Fugaku / qws - Comparing 2 results",
             has_vector_metrics=False,
+            comparison_summary={
+                "baseline": {
+                    "timestamp": "2026-04-13 12:00:00",
+                    "system": "Fugaku",
+                    "code": "qws",
+                    "exp": "CASE0",
+                },
+                "latest": {
+                    "timestamp": "2026-04-13 13:00:00",
+                    "system": "Fugaku",
+                    "code": "qws",
+                    "exp": "CASE0",
+                },
+                "fom_change": {
+                    "ratio_display": "0.917",
+                    "delta_display": "-0.100",
+                    "percent_display": "-8.333%",
+                    "note": "Ratio is latest FOM divided by baseline FOM; no pass/fail judgement is applied.",
+                },
+                "diff_rows": [
+                    {
+                        "label": "Source",
+                        "baseline": "git main@abcdef12",
+                        "latest": "git main@fedcba98",
+                        "status": "changed",
+                    }
+                ],
+            },
             compare_chart={"vector_axis_label": "", "fom_unit": "s"},
         )
 
     assert "Fugaku / qws - Comparing 2 results" in html
+    assert "Run Comparison Summary" in html
+    assert "latest / baseline" in html
+    assert "git main@abcdef12" in html
+    assert "changed" in html
     assert "FOM Timeline" in html
     assert "compareConfigData" in html
     assert "vendor/chartjs/chart.umd.min.js" in html
