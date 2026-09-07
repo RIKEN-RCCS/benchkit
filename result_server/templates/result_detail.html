@@ -34,11 +34,28 @@
     .artifact-table th { text-align: left; background-color: #f2f2f2; }
     .artifact-table td { white-space: normal; vertical-align: top; }
     .artifact-missing { color: #6b7280; }
-	</style>
+    .detail-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 1rem; }
+    .detail-download-link {
+        display: inline-block;
+        padding: 0.45rem 0.8rem;
+        border: 1px solid #b9d7d2;
+        border-radius: 6px;
+        color: #0f766e;
+        text-decoration: none;
+        font-weight: 600;
+        background: #fff;
+    }
+    </style>
 
-<a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
+    <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-{{ render_titled_key_value_table("Meta Information", meta_rows, "meta-table") }}
+    {% if evidence_packet_url %}
+    <div class="detail-actions">
+        <a class="detail-download-link" href="{{ evidence_packet_url }}">Download Evidence Packet</a>
+    </div>
+    {% endif %}
+
+    {{ render_titled_key_value_table("Meta Information", meta_rows, "meta-table") }}
 
 {% if profile_rows %}
 {{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}
