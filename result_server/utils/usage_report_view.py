@@ -2,9 +2,7 @@ from utils.app_support_matrix import load_app_system_support_matrix
 from utils.evidence_snapshot import build_evidence_snapshot
 from utils.node_hours import aggregate_node_hours
 from utils.profile_usage_overview import build_profile_usage_overview
-from utils.result_quality_rollup import build_result_quality_rollup
 from utils.site_diagnostics import build_site_diagnostics
-from utils.system_info import get_all_systems_info
 from utils.usage_query_params import parse_usage_query_params, select_usage_periods
 
 
@@ -25,12 +23,7 @@ def build_usage_report_context(
     result = aggregate_node_hours(received_dir, fiscal_year, period_type)
     period_filter, filtered_periods = select_usage_periods(result["periods"], period_filter)
 
-    systems_info = get_all_systems_info()
-    coverage_systems, app_support_rows = load_app_system_support_matrix()
-    coverage_headers = [
-        {"system": system, "name": systems_info.get(system, {}).get("name", system)}
-        for system in coverage_systems
-    ]
+    _, app_support_rows = load_app_system_support_matrix()
 
     return {
         "result": result,
@@ -38,10 +31,7 @@ def build_usage_report_context(
         "fiscal_year": fiscal_year,
         "period_filter": period_filter,
         "filtered_periods": filtered_periods,
-        "coverage_systems": coverage_headers,
-        "app_support_rows": app_support_rows,
         "site_diagnostics": build_site_diagnostics(),
-        "result_quality_rollup": build_result_quality_rollup(received_dir),
         "profile_usage_overview": build_profile_usage_overview(received_dir, db_path),
         "evidence_snapshot": build_evidence_snapshot(
             received_dir,
