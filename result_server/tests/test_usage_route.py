@@ -179,6 +179,7 @@ class TestUsageRoute:
                     "partial_support": [],
                 },
                 "profile_usage_overview": {"available": False, "rows": []},
+                "performance_telemetry": {"summary": {"result_count": 0}, "rows": []},
                 "evidence_snapshot": {
                     "summary": {
                         "row_count": 0,
@@ -211,6 +212,7 @@ class TestUsageRoute:
         assert resp.status_code == 200
         assert "Evidence Snapshot" in text
         assert "Maturity Gaps" in text
+        assert "Execution Timing Overview" in text
         assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in text
         assert "Input Status:</strong> None = no input_info" in text
         assert "/results/usage/evidence-snapshot.csv" in text

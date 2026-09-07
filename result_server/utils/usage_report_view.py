@@ -1,6 +1,7 @@
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.evidence_snapshot import build_evidence_snapshot
 from utils.node_hours import aggregate_node_hours
+from utils.performance_telemetry import build_performance_telemetry
 from utils.profile_usage_overview import build_profile_usage_overview
 from utils.site_diagnostics import build_site_diagnostics
 from utils.usage_query_params import parse_usage_query_params, select_usage_periods
@@ -33,6 +34,7 @@ def build_usage_report_context(
         "filtered_periods": filtered_periods,
         "site_diagnostics": build_site_diagnostics(),
         "profile_usage_overview": build_profile_usage_overview(received_dir, db_path),
+        "performance_telemetry": build_performance_telemetry(received_dir),
         "evidence_snapshot": build_evidence_snapshot(
             received_dir,
             estimated_dir or received_dir,

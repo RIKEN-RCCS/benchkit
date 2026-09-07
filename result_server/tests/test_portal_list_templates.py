@@ -421,6 +421,7 @@ def test_usage_report_template_renders_search_box():
         )
 
     assert "Profile Operations Overview" in html
+    assert "Execution Timing Overview" in html
     assert "Filter evidence and profile tables" in html
     assert "applyUsageSearch" in html
     assert "Application Entry Points" in html
@@ -663,6 +664,42 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                 "unknown_listed_systems": [],
             },
             profile_usage_overview={"available": False, "rows": []},
+            performance_telemetry={
+                "summary": {
+                    "result_count": 1,
+                    "timing_record_count": 1,
+                    "profiled_result_count": 0,
+                    "build_cache_record_count": 1,
+                    "build_cache_hit_count": 1,
+                    "build_cache_miss_count": 0,
+                    "build_cache_store_count": 0,
+                    "avg_build_time": "30s",
+                    "avg_queue_time": "1m",
+                    "avg_run_time": "2m",
+                },
+                "rows": [
+                    {
+                        "code": "qws",
+                        "system": "Fugaku",
+                        "result_count": 1,
+                        "timing_count": 1,
+                        "profiled_count": 0,
+                        "avg_build_time": "30s",
+                        "avg_queue_time": "1m",
+                        "avg_run_time": "2m",
+                        "latest_build_time": "30s",
+                        "latest_queue_time": "1m",
+                        "latest_run_time": "2m",
+                        "build_cache_hit_count": 1,
+                        "build_cache_miss_count": 0,
+                        "build_cache_store_count": 0,
+                        "latest_build_cache_status": "hit",
+                        "latest_result_file": "result0.json",
+                        "latest_result_time": "2026-04-13 12:00:00",
+                        "latest_exp": "CASE0",
+                    }
+                ],
+            },
             evidence_snapshot={
                 "summary": {
                     "row_count": 1,
@@ -697,6 +734,9 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
         )
 
     assert "Evidence Snapshot" in html
+    assert "Execution Timing Overview" in html
+    assert "build 30s / queue 1m / run 2m" in html
+    assert "1 hit / 0 miss" in html
     assert "Result / Quality" in html
     assert "Application/System Coverage" not in html
     assert "Latest Result Quality Details" not in html

@@ -1,0 +1,91 @@
+{% set performance_telemetry = performance_telemetry|default({
+  "summary": {
+    "result_count": 0,
+    "timing_record_count": 0,
+    "profiled_result_count": 0,
+    "build_cache_record_count": 0,
+    "build_cache_hit_count": 0,
+    "build_cache_miss_count": 0,
+    "build_cache_store_count": 0,
+    "avg_build_time": "-",
+    "avg_queue_time": "-",
+    "avg_run_time": "-"
+  },
+  "rows": []
+}, true) %}
+
+<section class="page-card table-card">
+  <h2 class="section-title">Execution Timing Overview</h2>
+  <p class="section-intro">Best-effort timing and build-cache telemetry from stored Result JSON. These values summarize observed CI stages; profiler overhead requires a paired non-profile run.</p>
+
+  <div class="diagnostic-grid">
+    <div class="diagnostic-card">
+      <h3>Timing Records</h3>
+      <p>{{ performance_telemetry.summary.timing_record_count }} with timing / {{ performance_telemetry.summary.result_count }} results</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Average Timing</h3>
+      <p>build {{ performance_telemetry.summary.avg_build_time }} / queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Build Cache</h3>
+      <p>{{ performance_telemetry.summary.build_cache_hit_count }} hit / {{ performance_telemetry.summary.build_cache_miss_count }} miss / {{ performance_telemetry.summary.build_cache_store_count }} stored</p>
+    </div>
+  </div>
+
+  {% if performance_telemetry.rows %}
+  <div class="table-wrap">
+    <table class="performance-telemetry-table">
+      <thead>
+        <tr>
+          <th>Application</th>
+          <th>System</th>
+          <th>Results</th>
+          <th>Average Timing</th>
+          <th>Latest Timing</th>
+          <th>Build Cache</th>
+          <th>Latest Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in performance_telemetry.rows %}
+        <tr>
+          <td>{{ row.code }}</td>
+          <td>{{ row.system }}</td>
+          <td>
+            {{ row.result_count }} results
+            <span class="profile-usage-subline">{{ row.timing_count }} timing records</span>
+            <span class="profile-usage-subline">{{ row.profiled_count }} profiled</span>
+          </td>
+          <td>
+            build {{ row.avg_build_time }}
+            <span class="profile-usage-subline">queue {{ row.avg_queue_time }}</span>
+            <span class="profile-usage-subline">run {{ row.avg_run_time }}</span>
+          </td>
+          <td>
+            build {{ row.latest_build_time }}
+            <span class="profile-usage-subline">queue {{ row.latest_queue_time }}</span>
+            <span class="profile-usage-subline">run {{ row.latest_run_time }}</span>
+          </td>
+          <td>
+            {{ row.build_cache_hit_count }} hit / {{ row.build_cache_miss_count }} miss
+            <span class="profile-usage-subline">{{ row.build_cache_store_count }} stored</span>
+            <span class="profile-usage-subline">latest {{ row.latest_build_cache_status }}</span>
+          </td>
+          <td>
+            {% if row.latest_result_file %}
+            <a href="{{ url_for('results.result_detail', filename=row.latest_result_file) }}">{{ row.latest_result_time }}</a>
+            {% else %}
+            -
+            {% endif %}
+            <span class="profile-usage-subline">exp {{ row.latest_exp }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted-empty">No execution timing data is available yet.</p>
+  {% endif %}
+</section>
