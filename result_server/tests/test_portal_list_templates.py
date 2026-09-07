@@ -753,7 +753,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Evidence Snapshot" in html
     assert "Execution Timing Overview" in html
     assert "Operator view for choosing trigger scope/frequency and improving CI and build-cache flow" in html
-    assert "build 30s / queue 1m / run 2m" in html
+    assert "reported queue values may not include scheduler-side wait" in html
+    assert "build 30s / reported queue 1m / run 2m" in html
     assert "regular 2m / profiled -" in html
     assert "1 with timing / 1 estimates; avg 42s" in html
     assert "1 hit / 0 miss" in html

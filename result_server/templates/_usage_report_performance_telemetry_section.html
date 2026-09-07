@@ -24,7 +24,7 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Execution Timing Overview</h2>
-  <p class="section-intro">Operator view for choosing trigger scope/frequency and improving CI and build-cache flow. It summarizes observed timing and build-cache telemetry from benchmark Result JSON; profiler overhead requires a paired non-profile run.</p>
+  <p class="section-intro">Operator view for choosing trigger scope/frequency and improving CI and build-cache flow. It summarizes observed timing and build-cache telemetry from benchmark Result JSON; reported queue values may not include scheduler-side wait on every site.</p>
 
   <div class="diagnostic-grid">
     <div class="diagnostic-card">
@@ -33,7 +33,7 @@
     </div>
     <div class="diagnostic-card">
       <h3>Average Timing</h3>
-      <p>build {{ performance_telemetry.summary.avg_build_time }} / queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}</p>
+      <p>build {{ performance_telemetry.summary.avg_build_time }} / reported queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}</p>
     </div>
     <div class="diagnostic-card">
       <h3>Run Split</h3>
@@ -77,12 +77,12 @@
           </td>
           <td>
             build {{ row.avg_build_time }}
-            <span class="profile-usage-subline">queue {{ row.avg_queue_time }}</span>
+            <span class="profile-usage-subline">reported queue {{ row.avg_queue_time }}</span>
             <span class="profile-usage-subline">run {{ row.avg_run_time }}</span>
           </td>
           <td>
             build {{ row.latest_build_time }}
-            <span class="profile-usage-subline">queue {{ row.latest_queue_time }}</span>
+            <span class="profile-usage-subline">reported queue {{ row.latest_queue_time }}</span>
             <span class="profile-usage-subline">{{ row.latest_run_kind }} run {{ row.latest_run_time }}</span>
           </td>
           <td>

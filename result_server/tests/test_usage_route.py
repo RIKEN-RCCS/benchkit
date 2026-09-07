@@ -214,6 +214,7 @@ class TestUsageRoute:
         assert "Maturity Gaps" in text
         assert "Execution Timing Overview" in text
         assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in text
+        assert "reported queue values may not include scheduler-side wait" in text
         assert "Input Status:</strong> None = no input_info" in text
         assert "/results/usage/evidence-snapshot.csv" in text
 
