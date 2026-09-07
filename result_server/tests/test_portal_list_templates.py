@@ -669,6 +669,10 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "result_count": 1,
                     "timing_record_count": 1,
                     "profiled_result_count": 0,
+                    "regular_run_timing_count": 1,
+                    "profiled_run_timing_count": 0,
+                    "estimate_record_count": 1,
+                    "estimate_timing_record_count": 1,
                     "build_cache_record_count": 1,
                     "build_cache_hit_count": 1,
                     "build_cache_miss_count": 0,
@@ -676,6 +680,9 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "avg_build_time": "30s",
                     "avg_queue_time": "1m",
                     "avg_run_time": "2m",
+                    "avg_regular_run_time": "2m",
+                    "avg_profiled_run_time": "-",
+                    "avg_estimate_time": "42s",
                 },
                 "rows": [
                     {
@@ -684,12 +691,22 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "result_count": 1,
                         "timing_count": 1,
                         "profiled_count": 0,
+                        "regular_run_timing_count": 1,
+                        "profiled_run_timing_count": 0,
+                        "estimate_count": 1,
+                        "estimate_timing_count": 1,
                         "avg_build_time": "30s",
                         "avg_queue_time": "1m",
                         "avg_run_time": "2m",
+                        "avg_regular_run_time": "2m",
+                        "avg_profiled_run_time": "-",
+                        "avg_estimate_time": "42s",
                         "latest_build_time": "30s",
                         "latest_queue_time": "1m",
                         "latest_run_time": "2m",
+                        "latest_run_kind": "regular",
+                        "latest_estimate_elapsed_time": "42s",
+                        "latest_estimate_exp": "CASE0",
                         "build_cache_hit_count": 1,
                         "build_cache_miss_count": 0,
                         "build_cache_store_count": 0,
@@ -735,7 +752,10 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
 
     assert "Evidence Snapshot" in html
     assert "Execution Timing Overview" in html
+    assert "Operator view for choosing trigger scope/frequency and improving CI and build-cache flow" in html
     assert "build 30s / queue 1m / run 2m" in html
+    assert "regular 2m / profiled -" in html
+    assert "1 with timing / 1 estimates; avg 42s" in html
     assert "1 hit / 0 miss" in html
     assert "Result / Quality" in html
     assert "Application/System Coverage" not in html

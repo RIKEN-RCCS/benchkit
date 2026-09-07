@@ -1,31 +1,47 @@
 {% set performance_telemetry = performance_telemetry|default({
   "summary": {
     "result_count": 0,
+    "ignored_result_count": 0,
     "timing_record_count": 0,
     "profiled_result_count": 0,
+    "regular_run_timing_count": 0,
+    "profiled_run_timing_count": 0,
+    "estimate_record_count": 0,
+    "estimate_timing_record_count": 0,
     "build_cache_record_count": 0,
     "build_cache_hit_count": 0,
     "build_cache_miss_count": 0,
     "build_cache_store_count": 0,
     "avg_build_time": "-",
     "avg_queue_time": "-",
-    "avg_run_time": "-"
+    "avg_run_time": "-",
+    "avg_regular_run_time": "-",
+    "avg_profiled_run_time": "-",
+    "avg_estimate_time": "-"
   },
   "rows": []
 }, true) %}
 
 <section class="page-card table-card">
   <h2 class="section-title">Execution Timing Overview</h2>
-  <p class="section-intro">Best-effort timing and build-cache telemetry from stored Result JSON. These values summarize observed CI stages; profiler overhead requires a paired non-profile run.</p>
+  <p class="section-intro">Operator view for choosing trigger scope/frequency and improving CI and build-cache flow. It summarizes observed timing and build-cache telemetry from benchmark Result JSON; profiler overhead requires a paired non-profile run.</p>
 
   <div class="diagnostic-grid">
     <div class="diagnostic-card">
       <h3>Timing Records</h3>
-      <p>{{ performance_telemetry.summary.timing_record_count }} with timing / {{ performance_telemetry.summary.result_count }} results</p>
+      <p>{{ performance_telemetry.summary.timing_record_count }} with timing / {{ performance_telemetry.summary.result_count }} benchmark results</p>
     </div>
     <div class="diagnostic-card">
       <h3>Average Timing</h3>
       <p>build {{ performance_telemetry.summary.avg_build_time }} / queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Run Split</h3>
+      <p>regular {{ performance_telemetry.summary.avg_regular_run_time }} / profiled {{ performance_telemetry.summary.avg_profiled_run_time }}</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Estimation Runtime</h3>
+      <p>{{ performance_telemetry.summary.estimate_timing_record_count }} with timing / {{ performance_telemetry.summary.estimate_record_count }} estimates; avg {{ performance_telemetry.summary.avg_estimate_time }}</p>
     </div>
     <div class="diagnostic-card">
       <h3>Build Cache</h3>
@@ -43,6 +59,8 @@
           <th>Results</th>
           <th>Average Timing</th>
           <th>Latest Timing</th>
+          <th>Run Split</th>
+          <th>Estimation</th>
           <th>Build Cache</th>
           <th>Latest Result</th>
         </tr>
@@ -65,7 +83,19 @@
           <td>
             build {{ row.latest_build_time }}
             <span class="profile-usage-subline">queue {{ row.latest_queue_time }}</span>
-            <span class="profile-usage-subline">run {{ row.latest_run_time }}</span>
+            <span class="profile-usage-subline">{{ row.latest_run_kind }} run {{ row.latest_run_time }}</span>
+          </td>
+          <td>
+            regular {{ row.avg_regular_run_time }}
+            <span class="profile-usage-subline">{{ row.regular_run_timing_count }} timing records</span>
+            <span class="profile-usage-subline">profiled {{ row.avg_profiled_run_time }}</span>
+            <span class="profile-usage-subline">{{ row.profiled_run_timing_count }} timing records</span>
+          </td>
+          <td>
+            {{ row.estimate_count }} estimates
+            <span class="profile-usage-subline">{{ row.estimate_timing_count }} timing records</span>
+            <span class="profile-usage-subline">avg {{ row.avg_estimate_time }}</span>
+            <span class="profile-usage-subline">latest {{ row.latest_estimate_elapsed_time }}</span>
           </td>
           <td>
             {{ row.build_cache_hit_count }} hit / {{ row.build_cache_miss_count }} miss

@@ -34,7 +34,10 @@ def build_usage_report_context(
         "filtered_periods": filtered_periods,
         "site_diagnostics": build_site_diagnostics(),
         "profile_usage_overview": build_profile_usage_overview(received_dir, db_path),
-        "performance_telemetry": build_performance_telemetry(received_dir),
+        "performance_telemetry": build_performance_telemetry(
+            received_dir,
+            estimated_dir or received_dir,
+        ),
         "evidence_snapshot": build_evidence_snapshot(
             received_dir,
             estimated_dir or received_dir,
