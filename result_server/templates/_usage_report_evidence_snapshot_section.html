@@ -1,0 +1,89 @@
+{% set evidence_snapshot = evidence_snapshot|default({
+  "summary": {
+    "row_count": 0,
+    "result_count": 0,
+    "profiled_count": 0,
+    "estimated_count": 0
+  },
+  "rows": []
+}, true) %}
+
+<section class="page-card table-card">
+  <h2 class="section-title">Evidence Snapshot</h2>
+  <p class="section-intro">Operator review export for configured, executed, profiled, and estimated evidence. Public release still requires stakeholder review.</p>
+
+  <div class="diagnostic-grid">
+    <div class="diagnostic-card">
+      <h3>Rows</h3>
+      <p>{{ evidence_snapshot.summary.row_count }} review rows</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Evidence</h3>
+      <p>{{ evidence_snapshot.summary.result_count }} executed / {{ evidence_snapshot.summary.profiled_count }} profiled / {{ evidence_snapshot.summary.estimated_count }} estimated</p>
+    </div>
+    <div class="diagnostic-card">
+      <h3>Export</h3>
+      <p><a class="usage-btn" href="{{ url_for('results.usage_evidence_snapshot_csv') }}">Download CSV</a></p>
+    </div>
+  </div>
+
+  {% if evidence_snapshot.rows %}
+  <div class="table-wrap">
+    <table class="evidence-snapshot-table">
+      <thead>
+        <tr>
+          <th>Application</th>
+          <th>System</th>
+          <th>Configured</th>
+          <th>Latest Result</th>
+          <th>Exp</th>
+          <th>Profiled</th>
+          <th>Estimated</th>
+          <th>Source</th>
+          <th>Input</th>
+          <th>Build Cache</th>
+          <th>Public Result</th>
+          <th>Missing Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in evidence_snapshot.rows %}
+        <tr>
+          <td>{{ row.code }}</td>
+          <td>{{ row.system }}</td>
+          <td title="{{ row.configured_status }}">{{ row.configured }}</td>
+          <td>
+            {% if row.latest_result_file %}
+            <a href="{{ url_for('results.result_detail', filename=row.latest_result_file) }}">{{ row.latest_result_time }}</a>
+            {% else %}
+            -
+            {% endif %}
+            <span class="profile-usage-subline">{{ row.latest_result_status }}</span>
+          </td>
+          <td>{{ row.latest_result_exp }}</td>
+          <td>
+            {{ row.profiled }}
+            <span class="profile-usage-subline">{{ row.latest_profile_time }}</span>
+          </td>
+          <td>
+            {% if row.latest_estimate_file %}
+            <a href="{{ url_for('estimated.estimated_detail', filename=row.latest_estimate_file) }}">{{ row.estimated }}</a>
+            {% else %}
+            {{ row.estimated }}
+            {% endif %}
+            <span class="profile-usage-subline">{{ row.estimate_applicability }}</span>
+          </td>
+          <td>{{ row.source_status }}</td>
+          <td>{{ row.input_status }}</td>
+          <td>{{ row.build_cache_status }}</td>
+          <td>{{ row.public_result_available }}</td>
+          <td>{{ row.missing_reason }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted-empty">No evidence snapshot rows are available yet.</p>
+  {% endif %}
+</section>

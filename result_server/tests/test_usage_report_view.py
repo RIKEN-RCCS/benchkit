@@ -49,6 +49,11 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
         "build_profile_usage_overview",
         lambda directory, db_path: {"available": False, "rows": []},
     )
+    monkeypatch.setattr(
+        usage_report_view,
+        "build_evidence_snapshot",
+        lambda directory, estimated_dir, benchkit_commit, app_support_rows: {"rows": []},
+    )
 
     context = usage_report_view.build_usage_report_context(
         "received",
@@ -65,3 +70,4 @@ def test_build_usage_report_context_builds_named_coverage_headers(monkeypatch):
     assert context["site_diagnostics"] == {"registered_system_count": 1}
     assert context["result_quality_rollup"] == {"rows": []}
     assert context["profile_usage_overview"] == {"available": False, "rows": []}
+    assert context["evidence_snapshot"] == {"rows": []}

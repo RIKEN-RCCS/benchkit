@@ -72,6 +72,10 @@ def build_portal_shell_app(
     def usage_report():
         return ""
 
+    @results_bp.route("/usage/evidence-snapshot.csv")
+    def usage_evidence_snapshot_csv():
+        return ""
+
     @estimated_bp.route("/")
     def estimated_results():
         return ""
