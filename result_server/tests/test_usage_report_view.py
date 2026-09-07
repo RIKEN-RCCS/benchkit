@@ -41,6 +41,11 @@ def test_build_usage_report_context_builds_evidence_snapshot_context(monkeypatch
     )
     monkeypatch.setattr(
         usage_report_view,
+        "build_performance_telemetry",
+        lambda directory: {"summary": {"result_count": 0}, "rows": []},
+    )
+    monkeypatch.setattr(
+        usage_report_view,
         "build_evidence_snapshot",
         lambda directory, estimated_dir, benchkit_commit, app_support_rows: {"rows": []},
     )
@@ -57,4 +62,5 @@ def test_build_usage_report_context_builds_evidence_snapshot_context(monkeypatch
     assert context["filtered_periods"] == ["FY2025"]
     assert context["site_diagnostics"] == {"registered_system_count": 1}
     assert context["profile_usage_overview"] == {"available": False, "rows": []}
+    assert context["performance_telemetry"] == {"summary": {"result_count": 0}, "rows": []}
     assert context["evidence_snapshot"] == {"rows": []}

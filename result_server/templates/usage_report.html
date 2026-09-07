@@ -159,6 +159,22 @@
       vertical-align: top;
       white-space: normal;
     }
+    .performance-telemetry-table {
+      min-width: 1080px;
+      table-layout: fixed;
+    }
+    .performance-telemetry-table th:nth-child(1) { width: 140px; }
+    .performance-telemetry-table th:nth-child(2) { width: 140px; }
+    .performance-telemetry-table th:nth-child(3) { width: 150px; }
+    .performance-telemetry-table th:nth-child(4) { width: 180px; }
+    .performance-telemetry-table th:nth-child(5) { width: 180px; }
+    .performance-telemetry-table th:nth-child(6) { width: 170px; }
+    .performance-telemetry-table th:nth-child(7) { width: 220px; }
+    .performance-telemetry-table td {
+      vertical-align: top;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
     .evidence-snapshot-table {
       min-width: 1240px;
       table-layout: fixed;
@@ -196,6 +212,7 @@
 
   {% include "_usage_report_evidence_snapshot_section.html" %}
   {% include "_usage_report_profile_overview_section.html" %}
+  {% include "_usage_report_performance_telemetry_section.html" %}
   {% include "_usage_report_node_hours_section.html" %}
   {% include "_usage_report_configuration_checks.html" %}
 
@@ -203,7 +220,7 @@
   function applyUsageSearch() {
     const input = document.getElementById('usageSearchInput');
     const needle = (input?.value || '').toLowerCase().trim();
-    const targets = ['.evidence-snapshot-table tbody tr', '.profile-usage-table tbody tr'];
+    const targets = ['.evidence-snapshot-table tbody tr', '.profile-usage-table tbody tr', '.performance-telemetry-table tbody tr'];
 
     targets.forEach((selector) => {
       document.querySelectorAll(selector).forEach((row) => {
