@@ -20,9 +20,14 @@
 <p class="compare-note">{{ headline }}</p>
 
 {% if comparison_summary %}
+{% set include_operator_evidence = comparison_summary.get('include_evidence', true) %}
 <div class="section">
     <h2>Run Comparison Summary</h2>
-    <p class="compare-note">Baseline is the oldest selected result; latest is the newest selected result.</p>
+    {% if include_operator_evidence %}
+    <p class="compare-note">Baseline is the oldest selected result; latest is the newest selected result. This view highlights FOM and evidence differences for review, but does not classify regressions.</p>
+    {% else %}
+    <p class="compare-note">Baseline is the oldest selected result; latest is the newest selected result. This view highlights FOM differences and basic run identity; operator evidence is omitted on this surface.</p>
+    {% endif %}
     <div class="comparison-summary-grid">
         <div class="comparison-kpi">
             <span class="comparison-kpi-label">Baseline</span>

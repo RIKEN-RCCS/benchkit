@@ -100,6 +100,40 @@ def test_public_portal_compare_hides_confidential_result_for_authorized_session(
     assert response.status_code == 404
 
 
+def test_public_portal_compare_explains_operator_evidence_is_omitted(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    first = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    second = "result_20260824_091000_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
+    for filename, fom in ((first, 1.0), (second, 1.1)):
+        _write_result(
+            received_dir,
+            filename,
+            {
+                "code": "demoapp",
+                "system": "PublicSystem",
+                "Exp": "CASE1",
+                "FOM": fom,
+                "source_info": {
+                    "source_type": "git",
+                    "repo_url": "https://example.test/repo.git",
+                    "ref_name": "main",
+                    "resolved_commit": "abcdef1234567890",
+                },
+                "build_cache": {"status": "hit"},
+            },
+        )
+
+    with app.test_client() as client:
+        response = client.get(f"/results/compare?files={first},{second}")
+
+    text = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "operator evidence is omitted on this surface" in text
+    assert "highlights FOM and evidence differences for review" not in text
+    assert "Source" not in text
+    assert "Build Cache" not in text
+
+
 def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
     app, received_dir = _build_public_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"

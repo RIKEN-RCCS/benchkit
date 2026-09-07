@@ -97,6 +97,7 @@ def test_build_result_compare_context_summarizes_evidence_differences():
     summary = context["comparison_summary"]
     assert summary["baseline"]["timestamp"] == "2026-09-01 00:00:00"
     assert summary["latest"]["timestamp"] == "2026-09-02 00:00:00"
+    assert summary["include_evidence"] is True
     assert summary["fom_change"]["ratio_display"] == "1.200"
     assert summary["fom_change"]["delta_display"] == "+2.000"
     assert summary["fom_change"]["percent_display"] == "+20.000%"
@@ -221,5 +222,6 @@ def test_public_surface_compare_summary_omits_operator_evidence(tmp_path):
     )
 
     summary = context["comparison_summary"]
+    assert summary["include_evidence"] is False
     assert summary["fom_change"]["ratio_display"] == "2.000"
     assert [row["label"] for row in summary["diff_rows"]] == ["System", "Code", "Exp"]

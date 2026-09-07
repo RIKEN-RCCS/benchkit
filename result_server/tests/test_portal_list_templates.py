@@ -578,6 +578,7 @@ def test_result_compare_template_renders_headline():
             headline="Fugaku / qws - Comparing 2 results",
             has_vector_metrics=False,
             comparison_summary={
+                "include_evidence": True,
                 "baseline": {
                     "timestamp": "2026-04-13 12:00:00",
                     "system": "Fugaku",
@@ -610,6 +611,8 @@ def test_result_compare_template_renders_headline():
 
     assert "Fugaku / qws - Comparing 2 results" in html
     assert "Run Comparison Summary" in html
+    assert "highlights FOM and evidence differences for review" in html
+    assert "does not classify regressions" in html
     assert "latest / baseline" in html
     assert "git main@abcdef12" in html
     assert "changed" in html
