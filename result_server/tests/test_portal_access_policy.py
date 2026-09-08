@@ -171,6 +171,53 @@ def test_console_prefixed_navigation_uses_prefixed_profile_request_url():
     assert 'href="/execution-profile-requests/"' not in html
 
 
+def test_dev2_navigation_uses_console_profile_request_url():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        prefix="/dev2",
+    )
+
+    with app.test_request_context("/dev2/admin/users"):
+        from flask import render_template, session
+
+        session["authenticated"] = True
+        session["user_email"] = "admin@example.test"
+        session["user_affiliations"] = ["admin"]
+        html = render_template("_navigation.html")
+
+    assert 'href="/dev2/console/execution-profile-requests/"' in html
+    assert 'href="/dev2/execution-profile-requests/"' not in html
+
+
+def test_dev2_review_queue_links_to_console_applicant_request_view():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        prefix="/dev2",
+    )
+
+    with app.test_request_context("/dev2/admin/execution-profile-requests"):
+        from flask import render_template, session
+
+        session["authenticated"] = True
+        session["user_email"] = "admin@example.test"
+        session["user_affiliations"] = ["admin"]
+        html = render_template(
+            "admin_execution_profile_requests.html",
+            profile_requests=[],
+            profile_links={},
+            selected_status="open",
+            status_options=[("open", "Open")],
+            today="2026-09-08",
+            default_target_ref="develop",
+            gitlab_targets=[],
+            review_mode=True,
+            create_endpoint="admin.create_execution_profile_request",
+        )
+
+    assert 'href="/dev2/console/execution-profile-requests/"' in html
+    assert 'href="/dev2/execution-profile-requests/"' not in html
+
+
 def test_public_portal_mode_hides_home_restricted_entry_points(monkeypatch):
     monkeypatch.delenv("CX_DISCORD_INVITE_URL", raising=False)
     app = build_portal_shell_app(

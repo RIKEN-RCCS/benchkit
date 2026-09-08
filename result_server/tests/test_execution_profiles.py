@@ -1361,6 +1361,36 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
         _cleanup(temp_dirs)
 
 
+def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    source_profile = _profile()
+    store.upsert_profile(source_profile, actor="admin@test.com")
+    requested_profile = dict(source_profile)
+    requested_profile["metadata_json"] = {"note": "change requested in note only"}
+    store.create_profile_request(
+        requested_profile=requested_profile,
+        requester_email="applicant@test.com",
+        actor="applicant@test.com",
+        request_type="change_profile",
+        source_profile_id=source_profile["id"],
+    )
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/admin/execution-profile-requests")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Change request" in html
+        assert "Target Profile: source-system-demoapp-nightly" in html
+        assert "change requested in note only" in html
+        assert "Requested profile changes" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
 def test_authenticated_user_can_submit_own_execution_profile_request(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     app, temp_dirs = _admin_app(db_path)
@@ -1417,6 +1447,12 @@ def test_admin_can_open_applicant_execution_profile_requests_view(tmp_path):
         assert "Applicant request view" in html
         assert "Create Request" in html
         assert "Open Applicant Request View" not in html
+        form_html = html.split('<form method="POST" action="/execution-profile-requests/"', 1)[1].split(
+            "</form>",
+            1,
+        )[0]
+        assert "Submit Request" in form_html
+        assert "Execution Profiles" not in form_html
         assert "admin@test.com" in html
         assert "My Requests" in html
         assert submit_resp.status_code == 200
