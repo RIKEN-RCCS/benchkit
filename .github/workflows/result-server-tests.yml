@@ -77,6 +77,7 @@ jobs:
           bash scripts/tests/test_ncu_plan_generation.sh
           bash scripts/tests/test_result_profile_data.sh
           bash scripts/tests/test_process_and_send_results.sh
+          bash scripts/tests/test_result_common_json_contract.sh
           bash scripts/tests/test_scheduler_extra_args.sh
           bash scripts/tests/test_send_results_profile_data.sh
           bash scripts/tests/test_send_estimate_artifacts.sh
