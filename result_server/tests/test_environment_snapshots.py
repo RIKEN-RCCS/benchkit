@@ -19,8 +19,8 @@ from utils.environment_snapshots import (  # noqa: E402
 
 def _payload(snapshot_hash="sha256:abc123"):
     return {
-        "code": "qws",
-        "system": "Fugaku",
+        "code": "demoapp",
+        "system": "DemoSystem",
         "Exp": "CASE1",
         "_server_uuid": "11111111-2222-3333-4444-555555555555",
         "pipeline_id": 3270,
@@ -28,17 +28,17 @@ def _payload(snapshot_hash="sha256:abc123"):
             "schema_version": 1,
             "hash": snapshot_hash,
             "summary": {
-                "system": "Fugaku",
-                "allocation_project_id": "rkp00010",
+                "system": "DemoSystem",
+                "allocation_project_id": "project00010",
                 "scheduler": "pbs",
-                "runner": "fugaku-runner",
+                "runner": "demosystem-runner",
                 "benchkit_commit": "abcdef",
             },
             "payload": {
                 "schema_version": 1,
                 "system": {
-                    "name": "Fugaku",
-                    "allocation_project_id": "rkp00010",
+                    "name": "DemoSystem",
+                    "allocation_project_id": "project00010",
                 },
                 "scheduler": {"kind": "pbs"},
             },
@@ -54,7 +54,7 @@ def test_extract_environment_snapshot_record():
     assert record["schema_version"] == 1
     assert record["result_uuid"] == "11111111-2222-3333-4444-555555555555"
     assert record["pipeline_id"] == "3270"
-    assert json.loads(record["summary_json"])["allocation_project_id"] == "rkp00010"
+    assert json.loads(record["summary_json"])["allocation_project_id"] == "project00010"
 
 
 def test_index_environment_snapshot_deduplicates_payloads(tmp_path):
@@ -79,7 +79,7 @@ def test_index_environment_snapshot_deduplicates_payloads(tmp_path):
     assert rows[0]["result_count"] == 2
     snapshot = get_environment_snapshot(str(db_path), "sha256:abc123")
     assert snapshot is not None
-    assert snapshot["summary"]["system"] == "Fugaku"
+    assert snapshot["summary"]["system"] == "DemoSystem"
     assert snapshot["payload"]["scheduler"]["kind"] == "pbs"
     linked_results = list_environment_snapshot_results(str(db_path), "sha256:abc123")
     assert [row["json_file"] for row in linked_results] == ["result-b.json", "result-a.json"]

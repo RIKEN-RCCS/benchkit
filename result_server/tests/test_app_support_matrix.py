@@ -24,39 +24,39 @@ def test_load_app_system_support_matrix(tmp_path):
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
         [
-            ["Fugaku", "cross", "", "", "FJ", "small"],
-            ["RC_GENOA", "native", "", "", "SLURM_RC", "genoa"],
+            ["DemoSystem", "cross", "", "", "FJ", "small"],
+            ["CpuSystem", "native", "", "", "SLURM_RC", "genoa"],
         ],
     )
 
-    qws_dir = programs_dir / "qws"
-    qws_dir.mkdir()
-    (qws_dir / "build.sh").write_text(
-        "case \"$system\" in\nFugaku|RC_GENOA)\n  echo build\n  ;;\nesac\n",
+    demoapp_dir = programs_dir / "demoapp"
+    demoapp_dir.mkdir()
+    (demoapp_dir / "build.sh").write_text(
+        "case \"$system\" in\nDemoSystem|CpuSystem)\n  echo build\n  ;;\nesac\n",
         encoding="utf-8",
     )
-    (qws_dir / "run.sh").write_text(
-        "case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n",
+    (demoapp_dir / "run.sh").write_text(
+        "case \"$system\" in\nDemoSystem)\n  echo run\n  ;;\nesac\n",
         encoding="utf-8",
     )
     _write_csv(
-        qws_dir / "list.csv",
+        demoapp_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
-            ["Fugaku", "yes", "1", "4", "12", "0:10:00"],
-            ["RC_GENOA", "no", "1", "1", "96", "0:10:00"],
+            ["DemoSystem", "yes", "1", "4", "12", "0:10:00"],
+            ["CpuSystem", "no", "1", "1", "96", "0:10:00"],
         ],
     )
 
-    genesis_dir = programs_dir / "genesis"
-    genesis_dir.mkdir()
-    (genesis_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
-    (genesis_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
+    auxapp_dir = programs_dir / "auxapp"
+    auxapp_dir.mkdir()
+    (auxapp_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
+    (auxapp_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
     _write_csv(
-        genesis_dir / "list.csv",
+        auxapp_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
-            ["RC_GENOA", "yes", "1", "1", "1", "0:10:00"],
+            ["CpuSystem", "yes", "1", "1", "1", "0:10:00"],
         ],
     )
 
@@ -65,16 +65,16 @@ def test_load_app_system_support_matrix(tmp_path):
         system_csv_path=str(config_dir / "system.csv"),
     )
 
-    assert systems == ["Fugaku", "RC_GENOA"]
-    assert [row["app"] for row in rows] == ["genesis", "qws"]
-    assert rows[0]["systems"]["Fugaku"]["status"] == "not_listed"
-    assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled_partial"
-    assert rows[0]["systems"]["RC_GENOA"]["build_supported"] is False
-    assert rows[0]["systems"]["RC_GENOA"]["run_supported"] is False
-    assert rows[1]["systems"]["Fugaku"]["status"] == "enabled"
-    assert rows[1]["systems"]["Fugaku"]["build_supported"] is True
-    assert rows[1]["systems"]["Fugaku"]["run_supported"] is True
-    assert rows[1]["systems"]["RC_GENOA"]["status"] == "configured_off"
+    assert systems == ["DemoSystem", "CpuSystem"]
+    assert [row["app"] for row in rows] == ["auxapp", "demoapp"]
+    assert rows[0]["systems"]["DemoSystem"]["status"] == "not_listed"
+    assert rows[0]["systems"]["CpuSystem"]["status"] == "enabled_partial"
+    assert rows[0]["systems"]["CpuSystem"]["build_supported"] is False
+    assert rows[0]["systems"]["CpuSystem"]["run_supported"] is False
+    assert rows[1]["systems"]["DemoSystem"]["status"] == "enabled"
+    assert rows[1]["systems"]["DemoSystem"]["build_supported"] is True
+    assert rows[1]["systems"]["DemoSystem"]["run_supported"] is True
+    assert rows[1]["systems"]["CpuSystem"]["status"] == "configured_off"
 
 
 def test_support_matrix_ignores_comment_only_mentions(tmp_path):
@@ -86,17 +86,17 @@ def test_support_matrix_ignores_comment_only_mentions(tmp_path):
     _write_csv(
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
-        [["RC_GENOA", "native", "", "", "SLURM_RC", "genoa"]],
+        [["CpuSystem", "native", "", "", "SLURM_RC", "genoa"]],
     )
 
     app_dir = programs_dir / "sample"
     app_dir.mkdir()
-    (app_dir / "build.sh").write_text("# TODO: support RC_GENOA later\n", encoding="utf-8")
+    (app_dir / "build.sh").write_text("# TODO: support CpuSystem later\n", encoding="utf-8")
     (app_dir / "run.sh").write_text("echo run\n", encoding="utf-8")
     _write_csv(
         app_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
-        [["RC_GENOA", "yes", "1", "1", "1", "0:10:00"]],
+        [["CpuSystem", "yes", "1", "1", "1", "0:10:00"]],
     )
 
     _, rows = load_app_system_support_matrix(
@@ -104,9 +104,9 @@ def test_support_matrix_ignores_comment_only_mentions(tmp_path):
         system_csv_path=str(config_dir / "system.csv"),
     )
 
-    assert rows[0]["systems"]["RC_GENOA"]["status"] == "enabled_partial"
-    assert rows[0]["systems"]["RC_GENOA"]["build_supported"] is False
-    assert rows[0]["systems"]["RC_GENOA"]["run_supported"] is False
+    assert rows[0]["systems"]["CpuSystem"]["status"] == "enabled_partial"
+    assert rows[0]["systems"]["CpuSystem"]["build_supported"] is False
+    assert rows[0]["systems"]["CpuSystem"]["run_supported"] is False
 
 
 def test_support_matrix_handles_nested_case_blocks(tmp_path):
@@ -119,28 +119,28 @@ def test_support_matrix_handles_nested_case_blocks(tmp_path):
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
         [
-            ["Fugaku", "cross", "", "", "FJ", "small"],
-            ["RC_GH200", "native", "", "", "SLURM_RC", "gh200"],
-            ["MiyabiG", "cross", "", "", "SLURM", "small"],
+            ["DemoSystem", "cross", "", "", "FJ", "small"],
+            ["GpuSystem", "native", "", "", "SLURM_RC", "gh200"],
+            ["PeerSystem", "cross", "", "", "SLURM", "small"],
         ],
     )
 
-    app_dir = programs_dir / "qws"
+    app_dir = programs_dir / "demoapp"
     app_dir.mkdir()
     (app_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
     (app_dir / "run.sh").write_text(
         """case "$system" in
-    Fugaku|FugakuCN)
+    DemoSystem|DemoSystemCN)
         case "$nodes" in
             1)
                 echo run
                 ;;
         esac
         ;;
-    RC_GH200)
+    GpuSystem)
         echo gh200
         ;;
-    MiyabiG|MiyabiC)
+    PeerSystem|PeerSystemC)
         echo miyabi
         ;;
 esac
@@ -151,9 +151,9 @@ esac
         app_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
-            ["Fugaku", "yes", "1", "4", "12", "0:10:00"],
-            ["RC_GH200", "yes", "1", "1", "72", "0:10:00"],
-            ["MiyabiG", "yes", "1", "1", "72", "0:10:00"],
+            ["DemoSystem", "yes", "1", "4", "12", "0:10:00"],
+            ["GpuSystem", "yes", "1", "1", "72", "0:10:00"],
+            ["PeerSystem", "yes", "1", "1", "72", "0:10:00"],
         ],
     )
 
@@ -163,9 +163,9 @@ esac
     )
 
     systems = rows[0]["systems"]
-    assert systems["Fugaku"]["run_supported"] is True
-    assert systems["RC_GH200"]["run_supported"] is True
-    assert systems["MiyabiG"]["run_supported"] is True
+    assert systems["DemoSystem"]["run_supported"] is True
+    assert systems["GpuSystem"]["run_supported"] is True
+    assert systems["PeerSystem"]["run_supported"] is True
 
 
 def test_support_matrix_handles_space_before_case_paren(tmp_path):
@@ -177,7 +177,7 @@ def test_support_matrix_handles_space_before_case_paren(tmp_path):
     _write_csv(
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
-        [["MiyabiG", "cross", "", "", "SLURM", "small"]],
+        [["PeerSystem", "cross", "", "", "SLURM", "small"]],
     )
 
     app_dir = programs_dir / "LQCD_dw_solver"
@@ -185,7 +185,7 @@ def test_support_matrix_handles_space_before_case_paren(tmp_path):
     (app_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
     (app_dir / "run.sh").write_text(
         """case "$system" in
-  MiyabiG )
+  PeerSystem )
       echo run
       ;;
 esac
@@ -195,7 +195,7 @@ esac
     _write_csv(
         app_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
-        [["MiyabiG", "yes", "1", "1", "2", "0:10:00"]],
+        [["PeerSystem", "yes", "1", "1", "2", "0:10:00"]],
     )
 
     _, rows = load_app_system_support_matrix(
@@ -203,7 +203,7 @@ esac
         system_csv_path=str(config_dir / "system.csv"),
     )
 
-    assert rows[0]["systems"]["MiyabiG"]["run_supported"] is True
+    assert rows[0]["systems"]["PeerSystem"]["run_supported"] is True
 
 
 def test_support_matrix_handles_prefix_wildcards(tmp_path):
@@ -216,10 +216,10 @@ def test_support_matrix_handles_prefix_wildcards(tmp_path):
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
         [
-            ["Fugaku", "cross", "", "", "FJ", "small"],
-            ["FugakuCN", "native", "", "", "FJ", "small"],
-            ["MiyabiG", "cross", "", "", "SLURM", "small"],
-            ["MiyabiC", "cross", "", "", "SLURM", "small"],
+            ["DemoSystem", "cross", "", "", "FJ", "small"],
+            ["DemoSystemCN", "native", "", "", "FJ", "small"],
+            ["PeerSystem", "cross", "", "", "SLURM", "small"],
+            ["PeerSystemC", "cross", "", "", "SLURM", "small"],
         ],
     )
 
@@ -227,7 +227,7 @@ def test_support_matrix_handles_prefix_wildcards(tmp_path):
     app_dir.mkdir()
     (app_dir / "build.sh").write_text(
         """case "$system" in
-  Fugaku*|Miyabi*)
+  DemoSystem*|PeerSystem*)
       echo prep
       ;;
 esac
@@ -239,10 +239,10 @@ esac
         app_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
-            ["Fugaku", "yes", "1", "1", "12", "0:10:00"],
-            ["FugakuCN", "yes", "1", "1", "12", "0:10:00"],
-            ["MiyabiG", "yes", "1", "1", "2", "0:10:00"],
-            ["MiyabiC", "yes", "1", "1", "56", "0:10:00"],
+            ["DemoSystem", "yes", "1", "1", "12", "0:10:00"],
+            ["DemoSystemCN", "yes", "1", "1", "12", "0:10:00"],
+            ["PeerSystem", "yes", "1", "1", "2", "0:10:00"],
+            ["PeerSystemC", "yes", "1", "1", "56", "0:10:00"],
         ],
     )
 
@@ -252,7 +252,7 @@ esac
     )
 
     systems = rows[0]["systems"]
-    assert systems["Fugaku"]["build_supported"] is True
-    assert systems["FugakuCN"]["build_supported"] is True
-    assert systems["MiyabiG"]["build_supported"] is True
-    assert systems["MiyabiC"]["build_supported"] is True
+    assert systems["DemoSystem"]["build_supported"] is True
+    assert systems["DemoSystemCN"]["build_supported"] is True
+    assert systems["PeerSystem"]["build_supported"] is True
+    assert systems["PeerSystemC"]["build_supported"] is True

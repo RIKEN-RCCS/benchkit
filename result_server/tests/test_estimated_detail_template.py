@@ -11,13 +11,13 @@ from utils.estimated_detail_view import build_estimated_detail_context
 
 
 ESTIMATE_RESULT = {
-    "code": "qws",
+    "code": "demoapp",
     "exp": "CASE0",
     "performance_ratio": 0.104,
     "execution_mode": "cross",
     "ci_trigger": "push",
     "pipeline_id": 2468,
-    "estimate_job": "qws_Fugaku_estimate",
+    "estimate_job": "demoapp_DemoSystem_estimate",
     "applicability": {
         "status": "partially_applicable",
         "missing_inputs": ["section_package_unsupported:half"],
@@ -33,27 +33,27 @@ ESTIMATE_RESULT = {
         "source_result": {
             "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             "timestamp": "2026-04-10 11:11:11",
-            "code": "qws",
+            "code": "demoapp",
             "exp": "CASE0",
-            "system": "Fugaku",
+            "system": "DemoSystem",
             "node_count": "1",
             "numproc_node": "4",
         },
         "current_source_result": {
             "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             "timestamp": "2026-04-10 11:11:11",
-            "code": "qws",
+            "code": "demoapp",
             "exp": "CASE0",
-            "system": "Fugaku",
+            "system": "DemoSystem",
             "node_count": "1",
             "numproc_node": "4",
         },
         "future_source_result": {
             "uuid": "ffffffff-1111-2222-3333-444444444444",
             "timestamp": "2026-04-10 11:22:22",
-            "code": "qws",
+            "code": "demoapp",
             "exp": "CASE0",
-            "system": "MiyabiG",
+            "system": "PeerSystem",
             "node_count": "1",
             "numproc_node": "1",
         },
@@ -69,11 +69,11 @@ ESTIMATE_RESULT = {
         },
     },
     "current_system": {
-        "system": "Fugaku",
+        "system": "DemoSystem",
         "fom": 0.944,
         "target_nodes": "1024",
         "scaling_method": "weakscaling",
-        "benchmark": {"system": "Fugaku", "fom": 0.386, "nodes": "1", "numproc_node": "4"},
+        "benchmark": {"system": "DemoSystem", "fom": 0.386, "nodes": "1", "numproc_node": "4"},
         "model": {"name": "weakscaling-current", "type": "intra_system_scaling_model"},
         "fom_breakdown": {
             "sections": [
@@ -105,11 +105,11 @@ ESTIMATE_RESULT = {
         },
     },
     "future_system": {
-        "system": "FugakuNEXT",
+        "system": "FutureSystem",
         "fom": 9.054,
         "target_nodes": "256",
         "scaling_method": "instrumented-app-sections-dummy",
-        "benchmark": {"system": "MiyabiG", "fom": 5.712, "nodes": "1", "numproc_node": "8"},
+        "benchmark": {"system": "PeerSystem", "fom": 5.712, "nodes": "1", "numproc_node": "8"},
         "model": {"name": "instrumented-app-sections-future-projection", "type": "cross_system_projection_model"},
         "fom_breakdown": {
             "sections": [
@@ -221,7 +221,7 @@ ESTIMATE_RESULT = {
             "detail_level": "intermediate",
             "ci_trigger": "push",
             "pipeline_id": 1234,
-            "estimate_job": "qws_MiyabiG_reestimate",
+            "estimate_job": "demoapp_PeerSystem_reestimate",
         },
     },
 }
@@ -265,11 +265,11 @@ def test_estimated_detail_template_renders_sections(app):
     assert "Pipeline ID" in html
     assert "2468" in html
     assert "Estimate Job" in html
-    assert "qws_Fugaku_estimate" in html
+    assert "demoapp_DemoSystem_estimate" in html
     assert "Source Estimate UUID" in html
     assert "99999999-8888-7777-6666-555555555555" in html
     assert "Source Estimate Job" in html
-    assert "qws_MiyabiG_reestimate" in html
+    assert "demoapp_PeerSystem_reestimate" in html
     assert "fallback" in html
     assert "Missing Inputs" in html
     assert "Required Actions" in html

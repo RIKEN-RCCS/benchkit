@@ -23,8 +23,8 @@ def test_systemlist_page_renders_summary_and_table():
                 "cpu_only_count": 1,
             },
             systems_info={
-                "Fugaku": {
-                    "name": "Fugaku",
+                "DemoSystem": {
+                    "name": "DemoSystem",
                     "cpu_name": "A64FX",
                     "cpu_per_node": "1",
                     "cpu_cores": "48",
@@ -32,8 +32,8 @@ def test_systemlist_page_renders_summary_and_table():
                     "gpu_per_node": "-",
                     "memory": "32GB",
                 },
-                "MiyabiG": {
-                    "name": "MiyabiG",
+                "PeerSystem": {
+                    "name": "PeerSystem",
                     "cpu_name": "NVIDIA Grace CPU",
                     "cpu_per_node": "1",
                     "cpu_cores": "72",
@@ -53,5 +53,5 @@ def test_systemlist_page_renders_summary_and_table():
     assert "GPU-enabled" in html
     assert "CPU-only" in html
     assert "Hardware summaries are sourced from" in html
-    assert "Fugaku" in html
-    assert "MiyabiG" in html
+    assert "DemoSystem" in html
+    assert "PeerSystem" in html

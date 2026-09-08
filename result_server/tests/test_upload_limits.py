@@ -65,7 +65,7 @@ def test_estimation_artifacts_rejects_archive_member_over_limit():
     uuid_value = "12345678-1234-1234-1234-123456789abc"
     result_filename = f"result_20250101_000000_{uuid_value}.json"
     with open(os.path.join(received, result_filename), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+        json.dump({"code": "demoapp", "_server_uuid": uuid_value}, f)
 
     archive_bytes = io.BytesIO()
     with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
@@ -97,7 +97,7 @@ def test_estimation_artifacts_rejects_archive_over_total_extracted_limit():
     uuid_value = "12345678-1234-1234-1234-123456789abc"
     result_filename = f"result_20250101_000000_{uuid_value}.json"
     with open(os.path.join(received, result_filename), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+        json.dump({"code": "demoapp", "_server_uuid": uuid_value}, f)
 
     archive_bytes = io.BytesIO()
     with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:
@@ -129,7 +129,7 @@ def test_estimation_artifacts_rejects_archive_over_member_count_limit():
     uuid_value = "12345678-1234-1234-1234-123456789abc"
     result_filename = f"result_20250101_000000_{uuid_value}.json"
     with open(os.path.join(received, result_filename), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+        json.dump({"code": "demoapp", "_server_uuid": uuid_value}, f)
 
     archive_bytes = io.BytesIO()
     with tarfile.open(fileobj=archive_bytes, mode="w:gz") as tar:

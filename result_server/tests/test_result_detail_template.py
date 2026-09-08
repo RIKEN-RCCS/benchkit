@@ -21,7 +21,7 @@ def app():
 
 FULL_RESULT = {
     "code": "benchpark-osu-micro-benchmarks",
-    "system": "RC_GH200",
+    "system": "GpuSystem",
     "Exp": "osu_bibw",
     "FOM": 6.47,
     "FOM_unit": "MB/s",
@@ -67,7 +67,7 @@ FULL_RESULT = {
         "schema_version": 1,
         "hash": "sha256:abcdef",
         "summary": {
-            "system": "RC_GH200",
+            "system": "GpuSystem",
             "allocation_project_id": "rccs-cloud",
             "scheduler": "slurm",
             "runner": "gh200-runner",
@@ -75,7 +75,7 @@ FULL_RESULT = {
         },
         "payload": {
             "schema_version": 1,
-            "ci": {"job_name": "qws_RC_GH200_run"},
+            "ci": {"job_name": "demoapp_GpuSystem_run"},
             "toolchain": {
                 "modules": ["gcc/11.5.0", "openmpi/4.1.7"],
                 "commands": {
@@ -158,7 +158,7 @@ class TestResultDetailTemplate:
             html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "benchpark-osu-micro-benchmarks" in html
-        assert "RC_GH200" in html
+        assert "GpuSystem" in html
         assert "osu_bibw" in html
         assert "6.470" in html
         assert "MB/s" in html
@@ -192,7 +192,7 @@ class TestResultDetailTemplate:
             html = _render_result_detail(FULL_RESULT, FULL_QUALITY, public_surface=True)
 
         assert "benchpark-osu-micro-benchmarks" in html
-        assert "RC_GH200" in html
+        assert "GpuSystem" in html
         assert "6.470" in html
         assert "Pipeline ID" not in html
         assert "Parent Pipeline ID" not in html

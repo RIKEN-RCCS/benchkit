@@ -31,8 +31,8 @@ def test_results_template_renders_table_note():
             rows=[
                 {
                     "timestamp": "2026-04-13 12:00:00",
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "fom": 1.234,
                     "fom_unit": "s",
                     "exp": "CASE0",
@@ -68,10 +68,10 @@ def test_results_template_renders_table_note():
             current_system="",
             current_code="",
             current_exp="",
-            filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
+            filter_options={"systems": ["DemoSystem"], "codes": ["demoapp"], "exps": ["CASE0"]},
             systems_info={
-                "Fugaku": {
-                    "name": "Fugaku",
+                "DemoSystem": {
+                    "name": "DemoSystem",
                     "cpu_name": "A64FX",
                     "cpu_per_node": "1",
                     "cpu_cores": "48",
@@ -126,8 +126,8 @@ def test_results_template_renders_profile_summary_when_padata_link_is_available(
                     "filename": "result0.json",
                     "source_info": None,
                     "quality": {"level": "ready", "label": "Ready", "summary": "Breakdown is present."},
-                    "system": "RC_GH200",
-                    "code": "genesis",
+                    "system": "GpuSystem",
+                    "code": "auxapp",
                     "fom": 1.0,
                     "exp": "CASE0",
                     "fom_version": "test",
@@ -144,7 +144,7 @@ def test_results_template_renders_profile_summary_when_padata_link_is_available(
             current_system="",
             current_code="",
             current_exp="",
-            filter_options={"systems": ["RC_GH200"], "codes": ["genesis"], "exps": ["CASE0"]},
+            filter_options={"systems": ["GpuSystem"], "codes": ["auxapp"], "exps": ["CASE0"]},
             systems_info={},
         )
 
@@ -186,8 +186,8 @@ def test_results_template_hides_profile_summary_without_padata_link():
                     "filename": "result0.json",
                     "source_info": None,
                     "quality": {"level": "ready", "label": "Ready", "summary": "Breakdown is present."},
-                    "system": "RC_GH200",
-                    "code": "genesis",
+                    "system": "GpuSystem",
+                    "code": "auxapp",
                     "fom": 1.0,
                     "exp": "CASE0",
                     "fom_version": "test",
@@ -204,7 +204,7 @@ def test_results_template_hides_profile_summary_without_padata_link():
             current_system="",
             current_code="",
             current_exp="",
-            filter_options={"systems": ["RC_GH200"], "codes": ["genesis"], "exps": ["CASE0"]},
+            filter_options={"systems": ["GpuSystem"], "codes": ["auxapp"], "exps": ["CASE0"]},
             systems_info={},
         )
 
@@ -248,7 +248,7 @@ def test_code_cell_adds_noopener_to_source_links():
         html = render_template(
             "_results_table_cell_code.html",
             row={
-                "code": "qws",
+                "code": "demoapp",
                 "source_link": {
                     "href": "https://example.invalid/repo.git",
                     "title": "https://example.invalid/repo.git",
@@ -302,27 +302,27 @@ def test_estimated_results_template_renders_table_note():
                     "timestamp": "2026-04-13 12:00:00",
                     "timestamp_date": "2026-04-13",
                     "timestamp_time": "12:00:00",
-                    "code": "qws",
+                    "code": "demoapp",
                     "exp": "CASE0",
-                    "systemA_system": "Fugaku",
+                    "systemA_system": "DemoSystem",
                     "systemA_fom": 0.944,
                     "systemA_fom_display": "0.944",
                     "systemA_target_nodes": "1024",
                     "systemA_scaling_method": "weakscaling",
                     "systemA_scaling_short": "weakscaling",
                     "systemA_scaling_title": "weakscaling",
-                    "systemA_bench_system": "Fugaku",
+                    "systemA_bench_system": "DemoSystem",
                     "systemA_bench_fom": 0.386,
                     "systemA_bench_fom_display": "0.386",
                     "systemA_bench_nodes": "1",
-                    "systemB_system": "FugakuNEXT",
+                    "systemB_system": "FutureSystem",
                     "systemB_fom": 9.054,
                     "systemB_fom_display": "9.054",
                     "systemB_target_nodes": "256",
                     "systemB_scaling_method": "instrumented-app-sections-dummy",
                     "systemB_scaling_short": "instr-app-sec",
                     "systemB_scaling_title": "instrumented-app-sections-dummy",
-                    "systemB_bench_system": "MiyabiG",
+                    "systemB_bench_system": "PeerSystem",
                     "systemB_bench_fom": 5.712,
                     "systemB_bench_fom_display": "5.712",
                     "systemB_bench_nodes": "1",
@@ -355,7 +355,7 @@ def test_estimated_results_template_renders_table_note():
             current_system="",
             current_code="",
             current_exp="",
-            filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
+            filter_options={"systems": ["DemoSystem"], "codes": ["demoapp"], "exps": ["CASE0"]},
             estimation_links={"perftools": "https://github.com/masaaki-kondo/PerfTools"},
         )
 
@@ -412,10 +412,10 @@ def test_usage_report_template_renders_search_box():
                 "application_count": 0,
                 "partial_support": [],
                 "application_directory_count": 1,
-                "apps_missing_files": [{"app": "genesis", "missing_files": ["run.sh"]}],
+                "apps_missing_files": [{"app": "auxapp", "missing_files": ["run.sh"]}],
                 "apps_without_estimate": ["ffb"],
                 "apps_with_estimate_count": 1,
-                "unknown_listed_systems": [{"app": "genesis", "system": "UNKNOWN_SYSTEM", "enabled_rows": 1, "disabled_rows": 0}],
+                "unknown_listed_systems": [{"app": "auxapp", "system": "UNKNOWN_SYSTEM", "enabled_rows": 1, "disabled_rows": 0}],
             },
             profile_usage_overview={"available": False, "rows": []},
         )
@@ -425,7 +425,7 @@ def test_usage_report_template_renders_search_box():
     assert "Filter evidence and profile tables" in html
     assert "applyUsageSearch" in html
     assert "Application Entry Points" in html
-    assert "genesis is missing run.sh." in html
+    assert "auxapp is missing run.sh." in html
     assert "ffb does not define" in html
     assert "UNKNOWN_SYSTEM" in html
 
@@ -450,16 +450,16 @@ def test_profile_usage_overview_template_shows_snapshot_count_and_link():
                 },
                 "rows": [
                     {
-                        "profile_id": "qws-fugaku",
+                        "profile_id": "demoapp-demosystem",
                         "status": "approved",
                         "enabled": True,
-                        "code": "qws",
-                        "system": "Fugaku",
+                        "code": "demoapp",
+                        "system": "DemoSystem",
                         "exp": "*",
-                        "allocation_project_id": "rkp00010",
+                        "allocation_project_id": "project00010",
                         "enabled_trigger_count": 1,
                         "trigger_count": 1,
-                        "trigger_labels": ["scheduled / qws-fugaku-time / on"],
+                        "trigger_labels": ["scheduled / demoapp-demosystem-time / on"],
                         "latest_trigger_run": None,
                         "result_count": 2,
                         "node_hours": 0.5,
@@ -472,10 +472,10 @@ def test_profile_usage_overview_template_shows_snapshot_count_and_link():
                         "latest_result": {
                             "filename": "result_20260810_160604_uuid.json",
                             "timestamp": "2026-08-10 16:06:04",
-                            "code": "qws",
-                            "system": "Fugaku",
+                            "code": "demoapp",
+                            "system": "DemoSystem",
                             "exp": "CASE0",
-                            "trigger_headline": "Scheduled / qws-fugaku-time",
+                            "trigger_headline": "Scheduled / demoapp-demosystem-time",
                             "pipeline_id": 3301,
                             "attribution": {
                                 "label": "trigger id match",
@@ -484,7 +484,7 @@ def test_profile_usage_overview_template_shows_snapshot_count_and_link():
                             "environment_snapshot": {
                                 "hash": "sha256:abcdef",
                                 "short_hash": "sha256:abcdef",
-                                "allocation_project_id": "rkp00010",
+                                "allocation_project_id": "project00010",
                                 "scheduler": "pbs",
                             },
                         },
@@ -511,20 +511,20 @@ def test_usage_report_node_hours_table_uses_explicit_column_widths():
         html = render_template(
             "usage_report.html",
             result={
-                "apps": ["genesis"],
-                "systems": ["RIKYU", "Fugaku"],
+                "apps": ["auxapp"],
+                "systems": ["SourceSystem", "DemoSystem"],
                 "periods": ["2026-04", "2026-05"],
                 "available_fiscal_years": [2026],
                 "table": {
-                    "genesis": {
-                        "RIKYU": {"2026-04": 0.0, "2026-05": 0.0},
-                        "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
+                    "auxapp": {
+                        "SourceSystem": {"2026-04": 0.0, "2026-05": 0.0},
+                        "DemoSystem": {"2026-04": 1.23, "2026-05": 0.0},
                     }
                 },
-                "row_totals": {"genesis": {"2026-04": 1.23, "2026-05": 0.0}},
+                "row_totals": {"auxapp": {"2026-04": 1.23, "2026-05": 0.0}},
                 "col_totals": {
-                    "RIKYU": {"2026-04": 0.0, "2026-05": 0.0},
-                    "Fugaku": {"2026-04": 1.23, "2026-05": 0.0},
+                    "SourceSystem": {"2026-04": 0.0, "2026-05": 0.0},
+                    "DemoSystem": {"2026-04": 1.23, "2026-05": 0.0},
                 },
                 "grand_totals": {"2026-04": 1.23, "2026-05": 0.0},
             },
@@ -566,29 +566,29 @@ def test_result_compare_template_renders_headline():
                 {
                     "filename": "result0.json",
                     "timestamp": "2026-04-13 12:00:00",
-                    "data": {"system": "Fugaku", "code": "qws", "FOM": 1.2},
+                    "data": {"system": "DemoSystem", "code": "demoapp", "FOM": 1.2},
                 },
                 {
                     "filename": "result1.json",
                     "timestamp": "2026-04-13 13:00:00",
-                    "data": {"system": "Fugaku", "code": "qws", "FOM": 1.1},
+                    "data": {"system": "DemoSystem", "code": "demoapp", "FOM": 1.1},
                 },
             ],
             mixed=False,
-            headline="Fugaku / qws - Comparing 2 results",
+            headline="DemoSystem / demoapp - Comparing 2 results",
             has_vector_metrics=False,
             comparison_summary={
                 "include_evidence": True,
                 "baseline": {
                     "timestamp": "2026-04-13 12:00:00",
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "exp": "CASE0",
                 },
                 "latest": {
                     "timestamp": "2026-04-13 13:00:00",
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "exp": "CASE0",
                 },
                 "fom_change": {
@@ -609,7 +609,7 @@ def test_result_compare_template_renders_headline():
             compare_chart={"vector_axis_label": "", "fom_unit": "s"},
         )
 
-    assert "Fugaku / qws - Comparing 2 results" in html
+    assert "DemoSystem / demoapp - Comparing 2 results" in html
     assert "Run Comparison Summary" in html
     assert "highlights FOM and evidence differences for review" in html
     assert "does not classify regressions" in html
@@ -689,8 +689,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                 },
                 "rows": [
                     {
-                        "code": "qws",
-                        "system": "Fugaku",
+                        "code": "demoapp",
+                        "system": "DemoSystem",
                         "result_count": 1,
                         "timing_count": 1,
                         "profiled_count": 0,
@@ -729,8 +729,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                 },
                 "rows": [
                     {
-                        "code": "qws",
-                        "system": "Fugaku",
+                        "code": "demoapp",
+                        "system": "DemoSystem",
                         "configured": "yes",
                         "configured_status": "enabled and implemented",
                         "latest_result_file": "result0.json",

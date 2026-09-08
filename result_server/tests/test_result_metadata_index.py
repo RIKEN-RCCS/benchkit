@@ -17,8 +17,8 @@ from utils.result_metadata_index import (  # noqa: E402
 
 def test_extract_result_index_record_from_benchmark_result():
     payload = {
-        "code": "qws",
-        "system": "RIKYU",
+        "code": "demoapp",
+        "system": "SourceSystem",
         "Exp": "case0",
         "FOM": 42.5,
         "_server_uuid": "11111111-2222-3333-4444-555555555555",
@@ -44,8 +44,8 @@ def test_extract_result_index_record_from_benchmark_result():
 
     assert record["result_uuid"] == "11111111-2222-3333-4444-555555555555"
     assert record["server_timestamp"] == "20260806_010203"
-    assert record["code"] == "qws"
-    assert record["system"] == "RIKYU"
+    assert record["code"] == "demoapp"
+    assert record["system"] == "SourceSystem"
     assert record["exp"] == "case0"
     assert record["pipeline_id"] == "3152"
     assert record["source_type"] == "git"
@@ -60,8 +60,8 @@ def test_extract_result_index_record_from_benchmark_result():
 def test_index_result_metadata_upserts_rows(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     payload = {
-        "code": "qws",
-        "system": "RIKYU",
+        "code": "demoapp",
+        "system": "SourceSystem",
         "_server_uuid": "11111111-2222-3333-4444-555555555555",
         "_server_timestamp": "20260806_010203",
     }
@@ -72,7 +72,7 @@ def test_index_result_metadata_upserts_rows(tmp_path):
         payload=payload,
         json_file="result.json",
     )
-    payload["system"] = "FugakuNEXT"
+    payload["system"] = "FutureSystem"
     index_result_metadata(
         db_path=str(db_path),
         record_type="result",
@@ -84,16 +84,16 @@ def test_index_result_metadata_upserts_rows(tmp_path):
     assert indexed is True
     assert len(rows) == 1
     assert rows[0]["json_file"] == "result-renamed.json"
-    assert rows[0]["system"] == "FugakuNEXT"
+    assert rows[0]["system"] == "FutureSystem"
 
 
 def test_extract_result_index_record_from_estimate_result():
     payload = {
-        "code": "qws",
+        "code": "demoapp",
         "exp": "case0",
         "performance_ratio": 2.5,
-        "current_system": {"system": "RIKYU"},
-        "future_system": {"system": "FugakuNEXT"},
+        "current_system": {"system": "SourceSystem"},
+        "future_system": {"system": "FutureSystem"},
         "estimate_metadata": {
             "estimation_result_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             "estimation_result_timestamp": "2026-08-06 01:02:03",
@@ -111,9 +111,9 @@ def test_extract_result_index_record_from_estimate_result():
 
     assert record["result_uuid"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
     assert record["server_timestamp"] == "2026-08-06 01:02:03"
-    assert record["code"] == "qws"
-    assert record["system"] == "RIKYU"
+    assert record["code"] == "demoapp"
+    assert record["system"] == "SourceSystem"
     assert record["exp"] == "case0"
     metadata = json.loads(record["metadata_json"])
     assert metadata["source_result_uuid"] == "11111111-2222-3333-4444-555555555555"
-    assert metadata["future_system"] == "FugakuNEXT"
+    assert metadata["future_system"] == "FutureSystem"

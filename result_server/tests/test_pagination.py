@@ -402,7 +402,7 @@ class TestEstimatedAuth:
     def test_estimated_route_hides_table_when_unauthenticated(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"estimate_20250101_000000_{uid}.json", {
-            "code": "qws",
+            "code": "demoapp",
             "current_system": {"system": "SysA", "fom": 1.0, "target_nodes": "1", "scaling_method": "m", "benchmark": {"system": "SysA", "fom": 1.0, "nodes": "1"}},
             "future_system": {"system": "SysB", "fom": 2.0, "target_nodes": "2", "scaling_method": "m", "benchmark": {"system": "SysB", "fom": 2.0, "nodes": "2"}},
             "performance_ratio": 2.0,
@@ -418,7 +418,7 @@ class TestEstimatedAuth:
     def test_estimated_json_requires_authentication(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())
         fname = f"estimate_20250101_000000_{uid}.json"
-        _write_json(tmp_dir, fname, {"code": "qws", "system": "SysA", "exp": "CASE0"})
+        _write_json(tmp_dir, fname, {"code": "demoapp", "system": "SysA", "exp": "CASE0"})
         with flask_app.test_client() as client:
             resp = client.get(f"/estimated/{fname}")
         assert resp.status_code == 403

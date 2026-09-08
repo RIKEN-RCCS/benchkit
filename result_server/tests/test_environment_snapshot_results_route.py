@@ -30,8 +30,8 @@ def _write_json(path, payload):
 def _payload(uuid, snapshot_hash="sha256:routeabc"):
     return {
         "_server_uuid": uuid,
-        "code": "qws",
-        "system": "Fugaku",
+        "code": "demoapp",
+        "system": "DemoSystem",
         "Exp": "CASE1",
         "FOM": "0.423",
         "FOM_unit": "s",
@@ -39,7 +39,7 @@ def _payload(uuid, snapshot_hash="sha256:routeabc"):
         "pipeline_id": 3270,
         "pipeline_timing": {"run_time": 120},
         "execution_trigger": {
-            "id": "qws-fugaku-time",
+            "id": "demoapp-demosystem-time",
             "type": "scheduled",
             "reason": "cron:0 14 * * *",
         },
@@ -47,17 +47,17 @@ def _payload(uuid, snapshot_hash="sha256:routeabc"):
             "schema_version": 1,
             "hash": snapshot_hash,
             "summary": {
-                "system": "Fugaku",
-                "allocation_project_id": "rkp00010",
+                "system": "DemoSystem",
+                "allocation_project_id": "project00010",
                 "scheduler": "pbs",
-                "runner": "fugaku-runner",
+                "runner": "demosystem-runner",
                 "benchkit_commit": "abcdef",
             },
             "payload": {
                 "schema_version": 1,
                 "system": {
-                    "name": "Fugaku",
-                    "allocation_project_id": "rkp00010",
+                    "name": "DemoSystem",
+                    "allocation_project_id": "project00010",
                 },
                 "scheduler": {"kind": "pbs"},
             },
@@ -92,9 +92,9 @@ def test_environment_snapshot_results_route_lists_linked_results(tmp_path):
     assert "sha256:routeabc" in html
     assert "result_detail" not in html
     assert "2026-08-10 16:06:04" in html
-    assert "qws" in html
-    assert "Fugaku" in html
-    assert "Scheduled / qws-fugaku-time" in html
+    assert "demoapp" in html
+    assert "DemoSystem" in html
+    assert "Scheduled / demoapp-demosystem-time" in html
     assert "0.03" in html
 
 
