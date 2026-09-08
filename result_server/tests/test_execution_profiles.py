@@ -1361,6 +1361,42 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
         _cleanup(temp_dirs)
 
 
+def test_execution_profile_requests_show_unavailable_linked_profile(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    request_id = store.create_profile_request(
+        requested_profile=_profile(id="removed-profile", status="draft"),
+        requester_email="applicant@test.com",
+        actor="applicant@test.com",
+    )
+    ok, errors = store.review_profile_request(
+        request_id,
+        action="approve",
+        actor="admin@test.com",
+        profile_overrides={"id": "removed-profile"},
+    )
+    assert ok, errors
+    assert store.delete_profile("removed-profile", actor="admin@test.com") is True
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            resp = client.get("/execution-profile-requests/")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "removed-profile" in html
+        assert "Unavailable" in html
+        assert "Profile is no longer registered." in html
+        assert "Submit a new request" in html
+        assert "ask an admin to restore or recreate this profile ID" in html
+        assert "Follow-up Request" not in html
+        assert "profile not found or deleted" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
 def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
