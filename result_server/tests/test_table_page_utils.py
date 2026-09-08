@@ -17,12 +17,12 @@ from utils.table_page_utils import (
 
 
 def test_build_filtered_redirect_args_omits_missing_filters():
-    args = build_filtered_redirect_args(2, 50, "Fugaku", None, "CASE0")
+    args = build_filtered_redirect_args(2, 50, "DemoSystem", None, "CASE0")
 
     assert args == {
         "page": 2,
         "per_page": 50,
-        "system": "Fugaku",
+        "system": "DemoSystem",
         "exp": "CASE0",
     }
 
@@ -44,19 +44,19 @@ def test_build_table_page_context_keeps_common_keys():
         rows=[{"filename": "result0.json"}],
         columns=[{"key": "system", "label": "System"}],
         pagination={"page": 2, "per_page": 50, "total": 3, "total_pages": 1},
-        filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
-        current_system="Fugaku",
-        current_code="qws",
+        filter_options={"systems": ["DemoSystem"], "codes": ["demoapp"], "exps": ["CASE0"]},
+        current_system="DemoSystem",
+        current_code="demoapp",
         current_exp="CASE0",
         current_per_page=50,
-        systems_info={"Fugaku": {"name": "Fugaku"}},
+        systems_info={"DemoSystem": {"name": "DemoSystem"}},
         authenticated=True,
     )
 
     assert context["rows"] == [{"filename": "result0.json"}]
     assert context["columns"][0]["key"] == "system"
     assert context["pagination"]["page"] == 2
-    assert context["systems_info"]["Fugaku"]["name"] == "Fugaku"
+    assert context["systems_info"]["DemoSystem"]["name"] == "DemoSystem"
     assert context["authenticated"] is True
 
 
@@ -65,14 +65,14 @@ def test_build_table_page_context_from_params_maps_filters():
         rows=[{"filename": "result0.json"}],
         columns=[{"key": "system", "label": "System"}],
         pagination={"page": 2, "per_page": 50, "total": 3, "total_pages": 1},
-        filter_options={"systems": ["Fugaku"], "codes": ["qws"], "exps": ["CASE0"]},
-        params={"filter_system": "Fugaku", "filter_code": "qws", "filter_exp": "CASE0", "per_page": 50},
-        systems_info={"Fugaku": {"name": "Fugaku"}},
+        filter_options={"systems": ["DemoSystem"], "codes": ["demoapp"], "exps": ["CASE0"]},
+        params={"filter_system": "DemoSystem", "filter_code": "demoapp", "filter_exp": "CASE0", "per_page": 50},
+        systems_info={"DemoSystem": {"name": "DemoSystem"}},
         authenticated=True,
     )
 
-    assert context["current_system"] == "Fugaku"
-    assert context["current_code"] == "qws"
+    assert context["current_system"] == "DemoSystem"
+    assert context["current_code"] == "demoapp"
     assert context["current_exp"] == "CASE0"
     assert context["current_per_page"] == 50
 
@@ -80,7 +80,7 @@ def test_build_table_page_context_from_params_maps_filters():
 def test_build_auth_required_table_page_context_builds_empty_page():
     context = build_auth_required_table_page_context(
         per_page=100,
-        systems_info={"Fugaku": {"name": "Fugaku"}},
+        systems_info={"DemoSystem": {"name": "DemoSystem"}},
         authenticated=False,
     )
 
@@ -111,10 +111,10 @@ def test_build_table_page_redirect_uses_filtered_args():
     app = build_results_index_app()
 
     with app.test_request_context("/results"):
-        response = build_table_page_redirect("results.results", 3, 20, "Fugaku", "qws", None)
+        response = build_table_page_redirect("results.results", 3, 20, "DemoSystem", "demoapp", None)
 
     assert response.status_code == 302
-    assert response.location.endswith("/results/?page=3&per_page=20&system=Fugaku&code=qws")
+    assert response.location.endswith("/results/?page=3&per_page=20&system=DemoSystem&code=demoapp")
 
 
 def test_build_table_page_redirect_from_params_uses_param_map():
@@ -124,11 +124,11 @@ def test_build_table_page_redirect_from_params_uses_param_map():
         response = build_table_page_redirect_from_params(
             "results.results",
             4,
-            {"per_page": 10, "filter_system": "Fugaku", "filter_code": None, "filter_exp": "CASE0"},
+            {"per_page": 10, "filter_system": "DemoSystem", "filter_code": None, "filter_exp": "CASE0"},
         )
 
     assert response.status_code == 302
-    assert response.location.endswith("/results/?page=4&per_page=10&system=Fugaku&exp=CASE0")
+    assert response.location.endswith("/results/?page=4&per_page=10&system=DemoSystem&exp=CASE0")
 
 
 def test_render_table_page_response_redirects_when_page_changes():

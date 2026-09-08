@@ -42,7 +42,7 @@ def test_results_route_serves_padata_from_received_padata_dir(client, tmp_dirs):
     tgz_name = f"padata_20250101_120000_{uid}.tgz"
 
     with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "system": "Fugaku", "FOM": 1.0}, f)
+        json.dump({"code": "demoapp", "system": "DemoSystem", "FOM": 1.0}, f)
 
     with open(os.path.join(received_padata, tgz_name), "wb") as f:
         f.write(b"fake tgz content")
@@ -60,7 +60,7 @@ def test_public_portal_mode_serves_anonymous_public_padata(client, app, tmp_dirs
     tgz_name = f"padata_20250101_120000_{uid}.tgz"
 
     with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "system": "Fugaku", "FOM": 1.0}, f)
+        json.dump({"code": "demoapp", "system": "DemoSystem", "FOM": 1.0}, f)
     with open(os.path.join(received_padata, tgz_name), "wb") as f:
         f.write(b"fake tgz content")
 
@@ -78,7 +78,7 @@ def test_public_portal_mode_serves_authenticated_public_padata(client, app, tmp_
     tgz_name = f"padata_20250101_120000_{uid}.tgz"
 
     with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
-        json.dump({"code": "qws", "system": "Fugaku", "FOM": 1.0}, f)
+        json.dump({"code": "demoapp", "system": "DemoSystem", "FOM": 1.0}, f)
     with open(os.path.join(received_padata, tgz_name), "wb") as f:
         f.write(b"fake tgz content")
 
@@ -100,8 +100,8 @@ def test_public_portal_mode_hides_padata_when_result_is_confidential(client, app
     with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
         json.dump(
             {
-                "code": "qws",
-                "system": "Fugaku",
+                "code": "demoapp",
+                "system": "DemoSystem",
                 "FOM": 1.0,
                 "_server_uuid": uid,
                 "confidential": ["dev"],
@@ -133,8 +133,8 @@ def test_results_route_blocks_confidential_padata_matched_by_server_uuid(client,
     with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
         json.dump(
             {
-                "code": "qws",
-                "system": "Fugaku",
+                "code": "demoapp",
+                "system": "DemoSystem",
                 "FOM": 1.0,
                 "_server_uuid": uid,
                 "confidential": ["dev"],

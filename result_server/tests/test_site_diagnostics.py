@@ -27,7 +27,7 @@ def test_build_site_diagnostics(tmp_path):
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
         [
-            ["Fugaku", "cross", "", "", "FJ", "small"],
+            ["DemoSystem", "cross", "", "", "FJ", "small"],
             ["RC_TEST", "native", "", "", "SLURM_UNKNOWN", "debug"],
             ["RC_PARTIAL", "native", "", "", "none", "small"],
         ],
@@ -44,37 +44,37 @@ def test_build_site_diagnostics(tmp_path):
         config_dir / "system_info.csv",
         ["system", "name", "cpu_name", "cpu_per_node", "cpu_cores", "gpu_name", "gpu_per_node", "memory", "display_order"],
         [
-            ["Fugaku", "Fugaku", "A64FX", "1", "48", "-", "-", "32GB", "1"],
+            ["DemoSystem", "DemoSystem", "A64FX", "1", "48", "-", "-", "32GB", "1"],
             ["RC_PARTIAL", "RC_PARTIAL", "CPU", "1", "16", "-", "-", "64GB", "2"],
         ],
     )
 
-    qws_dir = programs_dir / "qws"
-    qws_dir.mkdir()
-    (qws_dir / "build.sh").write_text(
-        "case \"$system\" in\nFugaku|RC_PARTIAL)\n  echo build\n  ;;\nesac\n",
+    demoapp_dir = programs_dir / "demoapp"
+    demoapp_dir.mkdir()
+    (demoapp_dir / "build.sh").write_text(
+        "case \"$system\" in\nDemoSystem|RC_PARTIAL)\n  echo build\n  ;;\nesac\n",
         encoding="utf-8",
     )
-    (qws_dir / "run.sh").write_text(
-        "case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n",
+    (demoapp_dir / "run.sh").write_text(
+        "case \"$system\" in\nDemoSystem)\n  echo run\n  ;;\nesac\n",
         encoding="utf-8",
     )
     _write_csv(
-        qws_dir / "list.csv",
+        demoapp_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
-            ["Fugaku", "yes", "1", "4", "12", "0:10:00"],
+            ["DemoSystem", "yes", "1", "4", "12", "0:10:00"],
             ["RC_PARTIAL", "yes", "1", "1", "16", "0:10:00"],
             ["RC_TEST", "no", "1", "1", "16", "0:10:00"],
         ],
     )
-    (qws_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (demoapp_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
 
-    genesis_dir = programs_dir / "genesis"
-    genesis_dir.mkdir()
-    (genesis_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
+    auxapp_dir = programs_dir / "auxapp"
+    auxapp_dir.mkdir()
+    (auxapp_dir / "build.sh").write_text("echo build\n", encoding="utf-8")
     _write_csv(
-        genesis_dir / "list.csv",
+        auxapp_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
         [
             ["UNKNOWN_SYSTEM", "yes", "1", "1", "16", "0:10:00"],
@@ -100,7 +100,7 @@ def test_build_site_diagnostics(tmp_path):
     assert diagnostics["unused_systems"] == ["RC_TEST", "RC_PARTIAL"]
     assert diagnostics["partial_support"] == [
         {
-            "app": "qws",
+            "app": "demoapp",
             "system": "RC_PARTIAL",
             "build_supported": True,
             "run_supported": False,
@@ -109,15 +109,15 @@ def test_build_site_diagnostics(tmp_path):
     ]
     assert diagnostics["apps_missing_files"] == [
         {
-            "app": "genesis",
+            "app": "auxapp",
             "missing_files": ["run.sh"],
         }
     ]
     assert diagnostics["apps_with_estimate_count"] == 1
-    assert diagnostics["apps_without_estimate"] == ["genesis"]
+    assert diagnostics["apps_without_estimate"] == ["auxapp"]
     assert diagnostics["unknown_listed_systems"] == [
         {
-            "app": "genesis",
+            "app": "auxapp",
             "system": "UNKNOWN_SYSTEM",
             "enabled_rows": 1,
             "disabled_rows": 0,
@@ -136,7 +136,7 @@ def test_site_config_preflight_requires_public_systems_to_be_runnable(tmp_path):
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
         [
-            ["Fugaku", "cross", "", "", "FJ", "small"],
+            ["DemoSystem", "cross", "", "", "FJ", "small"],
             ["PUBLIC_BAD_QUEUE", "native", "", "", "MISSING_QUEUE", "debug"],
             ["PRIVATE_DEV", "native", "", "", "DEV_QUEUE", "debug"],
         ],
@@ -152,7 +152,7 @@ def test_site_config_preflight_requires_public_systems_to_be_runnable(tmp_path):
         config_dir / "system_info.csv",
         ["system", "name", "cpu_name", "cpu_per_node", "cpu_cores", "gpu_name", "gpu_per_node", "memory", "display_order"],
         [
-            ["Fugaku", "Fugaku", "A64FX", "1", "48", "-", "-", "32GB", "1"],
+            ["DemoSystem", "DemoSystem", "A64FX", "1", "48", "-", "-", "32GB", "1"],
             ["PUBLIC_BAD_QUEUE", "PUBLIC_BAD_QUEUE", "CPU", "1", "16", "-", "-", "64GB", "2"],
             ["PUBLIC_MISSING_SYSTEM", "PUBLIC_MISSING_SYSTEM", "CPU", "1", "16", "-", "-", "64GB", "3"],
         ],
@@ -185,7 +185,7 @@ def test_site_diagnostics_treats_disabled_estimate_as_inactive(tmp_path):
     _write_csv(
         config_dir / "system.csv",
         ["system", "mode", "tag_build", "tag_run", "queue", "queue_group"],
-        [["Fugaku", "cross", "", "", "FJ", "small"]],
+        [["DemoSystem", "cross", "", "", "FJ", "small"]],
     )
     _write_csv(
         config_dir / "queue.csv",
@@ -195,20 +195,20 @@ def test_site_diagnostics_treats_disabled_estimate_as_inactive(tmp_path):
     _write_csv(
         config_dir / "system_info.csv",
         ["system", "name", "cpu_name", "cpu_per_node", "cpu_cores", "gpu_name", "gpu_per_node", "memory", "display_order"],
-        [["Fugaku", "Fugaku", "A64FX", "1", "48", "-", "-", "32GB", "1"]],
+        [["DemoSystem", "DemoSystem", "A64FX", "1", "48", "-", "-", "32GB", "1"]],
     )
 
-    qws_dir = programs_dir / "qws"
-    qws_dir.mkdir()
-    (qws_dir / "build.sh").write_text("case \"$system\" in\nFugaku)\n  echo build\n  ;;\nesac\n", encoding="utf-8")
-    (qws_dir / "run.sh").write_text("case \"$system\" in\nFugaku)\n  echo run\n  ;;\nesac\n", encoding="utf-8")
+    demoapp_dir = programs_dir / "demoapp"
+    demoapp_dir.mkdir()
+    (demoapp_dir / "build.sh").write_text("case \"$system\" in\nDemoSystem)\n  echo build\n  ;;\nesac\n", encoding="utf-8")
+    (demoapp_dir / "run.sh").write_text("case \"$system\" in\nDemoSystem)\n  echo run\n  ;;\nesac\n", encoding="utf-8")
     _write_csv(
-        qws_dir / "list.csv",
+        demoapp_dir / "list.csv",
         ["system", "enable", "nodes", "numproc_node", "nthreads", "elapse"],
-        [["Fugaku", "yes", "1", "4", "12", "0:10:00"]],
+        [["DemoSystem", "yes", "1", "4", "12", "0:10:00"]],
     )
-    (qws_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
-    (qws_dir / "estimate.disabled").write_text("disabled\n", encoding="utf-8")
+    (demoapp_dir / "estimate.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (demoapp_dir / "estimate.disabled").write_text("disabled\n", encoding="utf-8")
 
     diagnostics = build_site_diagnostics(
         system_csv_path=str(config_dir / "system.csv"),
@@ -218,4 +218,4 @@ def test_site_diagnostics_treats_disabled_estimate_as_inactive(tmp_path):
     )
 
     assert diagnostics["apps_with_estimate_count"] == 0
-    assert diagnostics["apps_without_estimate"] == ["qws"]
+    assert diagnostics["apps_without_estimate"] == ["demoapp"]

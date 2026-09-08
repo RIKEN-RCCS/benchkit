@@ -13,12 +13,12 @@ from utils.result_compare_view import build_result_compare_context, load_result_
 def test_build_result_compare_context_marks_same_system_code_as_not_mixed():
     context = build_result_compare_context(
         [
-            {"data": {"system": "Fugaku", "code": "qws", "FOM": 1.0}},
-            {"data": {"system": "Fugaku", "code": "qws", "FOM": 0.9}},
+            {"data": {"system": "DemoSystem", "code": "demoapp", "FOM": 1.0}},
+            {"data": {"system": "DemoSystem", "code": "demoapp", "FOM": 0.9}},
         ]
     )
 
-    assert context["headline"] == "Fugaku / qws - Comparing 2 results"
+    assert context["headline"] == "DemoSystem / demoapp - Comparing 2 results"
     assert context["mixed"] is False
     assert context["has_vector_metrics"] is False
     assert context["comparison_summary"]["fom_change"]["ratio_display"] == "0.900"
@@ -30,13 +30,13 @@ def test_build_result_compare_context_summarizes_evidence_differences():
             {
                 "timestamp": "2026-09-01 00:00:00",
                 "data": {
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "Exp": "CASE0",
                     "FOM": 10.0,
                     "source_info": {
                         "source_type": "git",
-                        "repo_url": "https://example.test/qws.git",
+                        "repo_url": "https://example.test/demoapp.git",
                         "ref_name": "main",
                         "resolved_commit": "aaaaaaaa11111111",
                     },
@@ -62,13 +62,13 @@ def test_build_result_compare_context_summarizes_evidence_differences():
             {
                 "timestamp": "2026-09-02 00:00:00",
                 "data": {
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "Exp": "CASE0",
                     "FOM": 12.0,
                     "source_info": {
                         "source_type": "git",
-                        "repo_url": "https://example.test/qws.git",
+                        "repo_url": "https://example.test/demoapp.git",
                         "ref_name": "main",
                         "resolved_commit": "bbbbbbbb22222222",
                     },
@@ -109,15 +109,15 @@ def test_build_result_compare_context_summarizes_evidence_differences():
     assert diff_rows["Profile"]["status"] == "same"
 
     summary_text = repr(summary)
-    assert "example.test/qws.git" not in summary_text
+    assert "example.test/demoapp.git" not in summary_text
     assert "/site/input" not in summary_text
 
 
 def test_build_result_compare_context_marks_mixed_rows():
     context = build_result_compare_context(
         [
-            {"data": {"system": "Fugaku", "code": "qws"}},
-            {"data": {"system": "Other", "code": "qws"}},
+            {"data": {"system": "DemoSystem", "code": "demoapp"}},
+            {"data": {"system": "Other", "code": "demoapp"}},
         ]
     )
 
@@ -129,8 +129,8 @@ def test_build_result_compare_context_uses_vector_axis_metadata():
         [
             {
                 "data": {
-                    "system": "Fugaku",
-                    "code": "qws",
+                    "system": "DemoSystem",
+                    "code": "demoapp",
                     "FOM_unit": "s",
                     "metrics": {
                         "vector": {
@@ -151,8 +151,8 @@ def test_build_result_compare_context_uses_vector_axis_metadata():
 def test_public_surface_compare_context_projects_raw_result_data(tmp_path):
     filename = "result_20250101_120000_11111111-2222-3333-4444-555555555555.json"
     payload = {
-        "code": "qws",
-        "system": "Fugaku",
+        "code": "demoapp",
+        "system": "DemoSystem",
         "Exp": "CASE0",
         "FOM": 1.0,
         "FOM_unit": "s",
@@ -182,7 +182,7 @@ def test_public_surface_compare_context_projects_raw_result_data(tmp_path):
     )
 
     projected = context["results"][0]["data"]
-    assert projected["code"] == "qws"
+    assert projected["code"] == "demoapp"
     assert projected["FOM"] == 1.0
     assert "pipeline_id" not in projected
     assert "runner" not in projected
@@ -199,13 +199,13 @@ def test_public_surface_compare_summary_omits_operator_evidence(tmp_path):
         (second, 2.0, "bbbbbbbb22222222"),
     ]:
         payload = {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE0",
             "FOM": fom,
             "source_info": {
                 "source_type": "git",
-                "repo_url": "https://example.test/qws.git",
+                "repo_url": "https://example.test/demoapp.git",
                 "ref_name": "main",
                 "resolved_commit": commit,
             },

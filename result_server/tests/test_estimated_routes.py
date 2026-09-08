@@ -53,7 +53,7 @@ def _write_estimate(directory, filename):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(
             {
-                "code": "qws",
+                "code": "demoapp",
                 "exp": "CASE0",
                 "performance_ratio": 0.104,
                 "applicability": {"status": "applicable"},
@@ -65,8 +65,8 @@ def _write_estimate(directory, filename):
                     "current_package": {"estimation_package": "weakscaling"},
                     "future_package": {"estimation_package": "instrumented_app_sections_dummy"},
                 },
-                "current_system": {"system": "Fugaku"},
-                "future_system": {"system": "FugakuNEXT"},
+                "current_system": {"system": "DemoSystem"},
+                "future_system": {"system": "FutureSystem"},
             },
             f,
             ensure_ascii=False,
@@ -94,4 +94,4 @@ def test_estimated_detail_renders_for_authenticated_user(client, tmp_dirs):
     assert resp.status_code == 200
     assert "Estimate Detail" in html
     assert "Package Resolution" in html
-    assert "FugakuNEXT" in html
+    assert "FutureSystem" in html

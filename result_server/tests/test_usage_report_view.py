@@ -27,7 +27,7 @@ def test_build_usage_report_context_builds_evidence_snapshot_context(monkeypatch
     monkeypatch.setattr(
         usage_report_view,
         "load_app_system_support_matrix",
-        lambda: (["Fugaku"], [{"app": "qws", "systems": {}}]),
+        lambda: (["DemoSystem"], [{"app": "demoapp", "systems": {}}]),
     )
     monkeypatch.setattr(
         usage_report_view,

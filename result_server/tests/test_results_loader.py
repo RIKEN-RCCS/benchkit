@@ -81,7 +81,7 @@ class TestLoadSingleResult:
         """Test case."""
         data = {
             "code": "benchpark-osu",
-            "system": "RC_GH200",
+            "system": "GpuSystem",
             "Exp": "osu_bibw",
             "FOM": 25089.47,
             "FOM_unit": "MB/s",
@@ -291,8 +291,8 @@ class TestLoadResultsTableExtension:
         padata_dir = os.path.join(tmp_dir, "padata")
         os.mkdir(padata_dir)
         _write_json(tmp_dir, filename, {
-            "code": "genesis",
-            "system": "RIKYU",
+            "code": "auxapp",
+            "system": "SourceSystem",
             "Exp": "CASE0",
             "FOM": 1.0,
             "pipeline_id": 17026,
@@ -355,8 +355,8 @@ class TestLoadResultsTableExtension:
     def test_profile_summary_is_built_from_profile_data(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE0",
             "FOM": 1.0,
             "profile_data": {
@@ -384,8 +384,8 @@ class TestLoadResultsTableExtension:
     def test_profile_summary_keeps_ncu_options_separate_from_events(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_120000_{uid}.json", {
-            "code": "genesis",
-            "system": "RC_GH200",
+            "code": "auxapp",
+            "system": "GpuSystem",
             "Exp": "CASE0",
             "FOM": 1.0,
             "profile_data": {
@@ -568,7 +568,7 @@ class TestPipelineTimingFields:
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
-            "code": "qws", "system": "Fugaku", "Exp": "test", "FOM": 42.0,
+            "code": "demoapp", "system": "DemoSystem", "Exp": "test", "FOM": 42.0,
             "pipeline_timing": {
                 "build_time": 120,
                 "queue_time": 45,
@@ -576,8 +576,8 @@ class TestPipelineTimingFields:
             },
             "execution_mode": "cross",
             "ci_trigger": "schedule",
-            "build_job": "qws_Fugaku_build",
-            "run_job": "qws_Fugaku_N1_P4_T12_run",
+            "build_job": "demoapp_DemoSystem_build",
+            "run_job": "demoapp_DemoSystem_N1_P4_T12_run",
             "pipeline_id": 17026,
             "parent_pipeline_id": 17025,
         }
@@ -593,8 +593,8 @@ class TestPipelineTimingFields:
         assert row["run_time"] == "300"
         assert row["execution_mode"] == "cross"
         assert row["ci_trigger"] == "schedule"
-        assert row["build_job"] == "qws_Fugaku_build"
-        assert row["run_job"] == "qws_Fugaku_N1_P4_T12_run"
+        assert row["build_job"] == "demoapp_DemoSystem_build"
+        assert row["run_job"] == "demoapp_DemoSystem_N1_P4_T12_run"
         assert row["pipeline_id"] == "17026"
         assert row["pipeline_label"] == "#17026"
         assert row["parent_pipeline_id"] == "17025"
@@ -605,7 +605,7 @@ class TestPipelineTimingFields:
         """Test case."""
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
-        data = {"code": "qws", "system": "Fugaku", "Exp": "test", "FOM": 42.0}
+        data = {"code": "demoapp", "system": "DemoSystem", "Exp": "test", "FOM": 42.0}
         _write_json(tmp_dir, filename, data)
 
         with flask_app.test_request_context():
@@ -631,7 +631,7 @@ class TestPipelineTimingFields:
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
-            "code": "qws", "system": "Fugaku", "FOM": 1.0,
+            "code": "demoapp", "system": "DemoSystem", "FOM": 1.0,
             "pipeline_timing": {"build_time": 60},
         }
         _write_json(tmp_dir, filename, data)
@@ -650,7 +650,7 @@ class TestPipelineTimingFields:
         uid = str(uuid.uuid4())
         filename = f"result_20250301_100000_{uid}.json"
         data = {
-            "code": "qws", "system": "Fugaku", "FOM": 1.0,
+            "code": "demoapp", "system": "DemoSystem", "FOM": 1.0,
             "pipeline_timing": "invalid",
         }
         _write_json(tmp_dir, filename, data)
@@ -674,11 +674,11 @@ class TestCascadeFilter:
         uid1 = str(uuid.uuid4())
         uid2 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
-                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+                     {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0"})
         _write_json(tmp_dir, f"result_20250101_000001_{uid2}.json",
-                     {"code": "genesis", "system": "Fugaku", "Exp": "CASE1"})
+                     {"code": "auxapp", "system": "DemoSystem", "Exp": "CASE1"})
 
-        opts = get_filter_options(tmp_dir, filter_code="qws")
+        opts = get_filter_options(tmp_dir, filter_code="demoapp")
         assert "CASE0" in opts["exps"]
         assert "CASE1" not in opts["exps"]
 
@@ -687,9 +687,9 @@ class TestCascadeFilter:
         uid1 = str(uuid.uuid4())
         uid2 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
-                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+                     {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0"})
         _write_json(tmp_dir, f"result_20250101_000001_{uid2}.json",
-                     {"code": "genesis", "system": "Fugaku", "Exp": "CASE1"})
+                     {"code": "auxapp", "system": "DemoSystem", "Exp": "CASE1"})
 
         opts = get_filter_options(tmp_dir, filter_code=None)
         assert "CASE0" in opts["exps"]
@@ -699,13 +699,13 @@ class TestCascadeFilter:
         """Test case."""
         uid1 = str(uuid.uuid4())
         _write_json(tmp_dir, f"result_20250101_000000_{uid1}.json",
-                     {"code": "qws", "system": "Fugaku", "Exp": "CASE0"})
+                     {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0"})
 
         opts = get_filter_options(tmp_dir, filter_code="nonexistent")
         assert opts["exps"] == []
         # codes and systems should still be populated
-        assert "qws" in opts["codes"]
-        assert "Fugaku" in opts["systems"]
+        assert "demoapp" in opts["codes"]
+        assert "DemoSystem" in opts["systems"]
 
 
 class TestPadataLinkResolution:
@@ -714,8 +714,8 @@ class TestPadataLinkResolution:
         filename = "result0.json"
         tgz_name = f"padata_20250101_120000_{uid}.tgz"
         _write_json(tmp_dir, filename, {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "FOM": 1.0,
             "_server_uuid": uid,
         })
@@ -735,8 +735,8 @@ class TestPadataLinkResolution:
         tgz_name = f"padata_20250101_120000_{uid}.tgz"
 
         _write_json(tmp_dir, filename, {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "FOM": 1.0,
         })
         open(os.path.join(padata_dir, tgz_name), "wb").close()
@@ -754,8 +754,8 @@ class TestPadataLinkResolution:
         section_name = f"padata_20250101_120000_{uid}_padata_pairlist.tgz"
 
         _write_json(tmp_dir, filename, {
-            "code": "genesis",
-            "system": "RIKYU",
+            "code": "auxapp",
+            "system": "SourceSystem",
             "FOM": 1.0,
         })
         open(os.path.join(tmp_dir, section_name), "wb").close()

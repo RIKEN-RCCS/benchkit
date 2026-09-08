@@ -193,11 +193,11 @@
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
         <label>
             Application Code <span class="request-field-note">Required</span>
-            <input type="text" name="code" required placeholder="qws">
+            <input type="text" name="code" required placeholder="demoapp">
         </label>
         <label>
             System <span class="request-field-note">Required</span>
-            <input type="text" name="system" required placeholder="Fugaku">
+            <input type="text" name="system" required placeholder="DemoSystem">
         </label>
         <label>
             Exp Scope / Case <span class="request-field-note">Optional. Records the applicant's intended case scope for review; it does not currently control submitted benchmark cases.</span>
@@ -205,7 +205,7 @@
         </label>
         <label>
             Activity <span class="request-field-note">Optional</span>
-            <input type="text" name="activity" placeholder="FugakuNEXT">
+            <input type="text" name="activity" placeholder="FutureSystem">
         </label>
         <label class="request-form-wide">
             Desired Schedule <span class="request-field-note">Optional. Fill this only when scheduled execution is requested.</span>
@@ -213,7 +213,7 @@
         </label>
         <label class="request-form-wide">
             Desired Watch Target <span class="request-field-note">Optional. Fill this only when repo/ref change monitoring is requested.</span>
-            <input type="text" name="desired_watch_target" placeholder="https://github.com/RIKEN-LQCD/qws.git@master">
+            <input type="text" name="desired_watch_target" placeholder="https://example.test/demoapp.git@main">
         </label>
         <label class="request-form-wide">
             Note <span class="request-field-note">Optional</span>
@@ -326,7 +326,7 @@
                             </label>
                             <label>
                                 Allocation Project ID
-                                <input type="text" name="allocation_project_id" placeholder="rkp00010">
+                                <input type="text" name="allocation_project_id" placeholder="project00010">
                             </label>
                             <label>
                                 Valid From

@@ -69,7 +69,7 @@ class TestUsageRoute:
         _write_result(
             received,
             "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
-            {"code": "qws", "system": "Fugaku", "Exp": "CASE0", "FOM": 1.0},
+            {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0", "FOM": 1.0},
         )
         resp = client.get("/results/confidential")
         text = resp.get_data(as_text=True)
@@ -96,7 +96,13 @@ class TestUsageRoute:
         assert "Usage Report" in resp.get_data(as_text=True)
         assert "no-store" in resp.headers.get("Cache-Control", "")
 
-    def test_usage_page_shows_consolidated_evidence_snapshot(self, client):
+    def test_usage_page_shows_consolidated_evidence_snapshot(self, client, tmp_dirs):
+        received, _ = tmp_dirs
+        _write_result(
+            received,
+            "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+            {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0", "FOM": 1.0},
+        )
         _login_session(client, "admin@example.com", ["admin"])
         resp = client.get("/results/usage")
         assert resp.status_code == 200
@@ -107,7 +113,7 @@ class TestUsageRoute:
         assert "Application/System Coverage" not in text
         assert "Latest Result Quality Details" not in text
         assert "Maturity Gaps" in text
-        assert "qws" in text
+        assert "demoapp" in text
 
     def test_usage_page_shows_source_tracking_columns_when_rollup_exists(self, client, tmp_dirs):
         received, _ = tmp_dirs
@@ -115,8 +121,8 @@ class TestUsageRoute:
             received,
             "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
             {
-                "code": "qws",
-                "system": "Fugaku",
+                "code": "demoapp",
+                "system": "DemoSystem",
                 "Exp": "CASE0",
                 "FOM": 1.0,
                 "source_info": {
@@ -233,13 +239,13 @@ class TestUsageRoute:
             received,
             "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
             {
-                "code": "qws",
-                "system": "Fugaku",
+                "code": "demoapp",
+                "system": "DemoSystem",
                 "Exp": "CASE0",
                 "FOM": 1.0,
                 "source_info": {
                     "source_type": "git",
-                    "repo_url": "https://example.com/qws.git",
+                    "repo_url": "https://example.com/demoapp.git",
                     "ref_name": "main",
                     "resolved_commit": "abcdef1234567890",
                 },
@@ -250,10 +256,10 @@ class TestUsageRoute:
             estimated,
             "estimate_20260902_020202_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
             {
-                "code": "qws",
+                "code": "demoapp",
                 "exp": "CASE0",
-                "current_system": {"system": "Fugaku"},
-                "future_system": {"system": "FugakuNEXT"},
+                "current_system": {"system": "DemoSystem"},
+                "future_system": {"system": "FutureSystem"},
                 "applicability": {"status": "applicable"},
             },
         )
@@ -265,9 +271,9 @@ class TestUsageRoute:
         assert resp.mimetype == "text/csv"
         assert "attachment; filename=evidence_snapshot_" in resp.headers["Content-Disposition"]
         assert "snapshot_time,benchkit_commit,code,system,configured" in text
-        assert "qws,Fugaku" in text
+        assert "demoapp,DemoSystem" in text
         assert "hit" in text
-        assert "example.com/qws.git" not in text
+        assert "example.com/demoapp.git" not in text
 
     def test_usage_page_shows_no_data_message(self, client):
         _login_session(client, "admin@example.com", ["admin"])
@@ -280,7 +286,7 @@ class TestUsageRoute:
         _write_result(
             received,
             "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
-            {"code": "qws", "system": "Fugaku", "Exp": "CASE0", "FOM": 1.0},
+            {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0", "FOM": 1.0},
         )
         _login_session(client, "admin@example.com", ["admin"])
         resp = client.get("/results/confidential")
@@ -293,7 +299,7 @@ class TestUsageRoute:
         _write_result(
             received,
             "result_20260401_123456_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
-            {"code": "qws", "system": "Fugaku", "Exp": "CASE0", "FOM": 1.0},
+            {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0", "FOM": 1.0},
         )
         _login_session(client, "user@example.com", ["dev"])
         resp = client.get("/results/confidential")

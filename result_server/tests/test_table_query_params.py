@@ -13,8 +13,8 @@ def test_parse_table_query_params_reads_filters_and_pagination():
     args = MultiDict([
         ("page", "3"),
         ("per_page", "50"),
-        ("system", "Fugaku"),
-        ("code", "qws"),
+        ("system", "DemoSystem"),
+        ("code", "demoapp"),
         ("exp", "CASE0"),
     ])
 
@@ -23,8 +23,8 @@ def test_parse_table_query_params_reads_filters_and_pagination():
     assert params == {
         "page": 3,
         "per_page": 50,
-        "filter_system": "Fugaku",
-        "filter_code": "qws",
+        "filter_system": "DemoSystem",
+        "filter_code": "demoapp",
         "filter_exp": "CASE0",
     }
 

@@ -104,8 +104,8 @@ class TestIngestResult:
             resp = client.post(
                 "/api/ingest/result",
                 data=json.dumps({
-                    "code": "qws",
-                    "system": "RIKYU",
+                    "code": "demoapp",
+                    "system": "SourceSystem",
                     "Exp": "case0",
                     "FOM": 42.0,
                     "ci_trigger": "trigger",
@@ -133,8 +133,8 @@ class TestIngestResult:
             "result",
             body["id"],
             body["json_file"],
-            "qws",
-            "RIKYU",
+            "demoapp",
+            "SourceSystem",
             "case0",
             "trigger",
             "3152",
@@ -157,23 +157,23 @@ class TestIngestResult:
             resp = client.post(
                 "/api/ingest/result",
                 data=json.dumps({
-                    "code": "qws",
-                    "system": "Fugaku",
+                    "code": "demoapp",
+                    "system": "DemoSystem",
                     "Exp": "CASE1",
                     "pipeline_id": 3270,
                     "environment_snapshot": {
                         "schema_version": 1,
                         "hash": "sha256:test",
                         "summary": {
-                            "system": "Fugaku",
-                            "allocation_project_id": "rkp00010",
+                            "system": "DemoSystem",
+                            "allocation_project_id": "project00010",
                             "scheduler": "pbs",
                         },
                         "payload": {
                             "schema_version": 1,
                             "system": {
-                                "name": "Fugaku",
-                                "allocation_project_id": "rkp00010",
+                                "name": "DemoSystem",
+                                "allocation_project_id": "project00010",
                             },
                             "scheduler": {"kind": "pbs"},
                         },
@@ -204,8 +204,8 @@ class TestIngestResult:
             body["id"],
             "sha256:test",
             body["json_file"],
-            "qws",
-            "Fugaku",
+            "demoapp",
+            "DemoSystem",
             "CASE1",
             "3270",
         )
@@ -352,11 +352,11 @@ class TestIngestEstimate:
             resp = client.post(
                 "/api/ingest/estimate",
                 data=json.dumps({
-                    "code": "qws",
+                    "code": "demoapp",
                     "exp": "case0",
                     "performance_ratio": 1.5,
-                    "current_system": {"system": "RIKYU"},
-                    "future_system": {"system": "FugakuNEXT"},
+                    "current_system": {"system": "SourceSystem"},
+                    "future_system": {"system": "FutureSystem"},
                     "estimate_metadata": {
                         "source_result_uuid": "11111111-2222-3333-4444-555555555555",
                         "estimation_package": "weakscaling",
@@ -383,8 +383,8 @@ class TestIngestEstimate:
             "estimate",
             body["id"],
             body["json_file"],
-            "qws",
-            "RIKYU",
+            "demoapp",
+            "SourceSystem",
             "case0",
         )
 
@@ -577,13 +577,13 @@ class TestQueryResult:
 
     def test_query_returns_latest_match(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        old = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 1.0}
-        new = {"system": "Fugaku", "code": "qws", "Exp": "default", "FOM": 9.9}
+        old = {"system": "DemoSystem", "code": "demoapp", "Exp": "default", "FOM": 1.0}
+        new = {"system": "DemoSystem", "code": "demoapp", "Exp": "default", "FOM": 9.9}
         self._seed_result(received, old, "result_20250101_000000_aaaa.json")
         self._seed_result(received, new, "result_20250102_000000_bbbb.json")
 
         resp = client.get(
-            "/api/query/result?system=Fugaku&code=qws",
+            "/api/query/result?system=DemoSystem&code=demoapp",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200
@@ -591,13 +591,13 @@ class TestQueryResult:
 
     def test_query_with_exp_filter(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        d1 = {"system": "Fugaku", "code": "qws", "Exp": "A", "FOM": 1.0}
-        d2 = {"system": "Fugaku", "code": "qws", "Exp": "B", "FOM": 2.0}
+        d1 = {"system": "DemoSystem", "code": "demoapp", "Exp": "A", "FOM": 1.0}
+        d2 = {"system": "DemoSystem", "code": "demoapp", "Exp": "B", "FOM": 2.0}
         self._seed_result(received, d1, "result_20250101_000000_aaaa.json")
         self._seed_result(received, d2, "result_20250102_000000_bbbb.json")
 
         resp = client.get(
-            "/api/query/result?system=Fugaku&code=qws&exp=A",
+            "/api/query/result?system=DemoSystem&code=demoapp&exp=A",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200
@@ -605,20 +605,20 @@ class TestQueryResult:
 
     def test_query_no_match_returns_404(self, client, tmp_dirs):
         resp = client.get(
-            "/api/query/result?system=Fugaku&code=nonexistent",
+            "/api/query/result?system=DemoSystem&code=nonexistent",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 404
 
     def test_query_missing_params_returns_400(self, client):
         resp = client.get(
-            "/api/query/result?system=Fugaku",
+            "/api/query/result?system=DemoSystem",
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 400
 
     def test_query_missing_api_key_returns_401(self, client):
-        resp = client.get("/api/query/result?system=Fugaku&code=qws")
+        resp = client.get("/api/query/result?system=DemoSystem&code=demoapp")
         assert resp.status_code == 401
 
 
@@ -630,7 +630,7 @@ class TestQueryByUuid:
 
     def test_query_result_by_uuid(self, client, tmp_dirs):
         received = tmp_dirs[0]
-        data = {"code": "qws", "_server_uuid": "12345678-1234-1234-1234-123456789abc"}
+        data = {"code": "demoapp", "_server_uuid": "12345678-1234-1234-1234-123456789abc"}
         self._seed_json(received, "result_20250101_000000_12345678-1234-1234-1234-123456789abc.json", data)
 
         resp = client.get(
@@ -638,12 +638,12 @@ class TestQueryByUuid:
             headers={"X-API-Key": API_KEY},
         )
         assert resp.status_code == 200
-        assert resp.get_json()["code"] == "qws"
+        assert resp.get_json()["code"] == "demoapp"
 
     def test_query_estimate_by_uuid(self, client, tmp_dirs):
         estimated = tmp_dirs[3]
         data = {
-            "code": "qws",
+            "code": "demoapp",
             "estimate_metadata": {
                 "estimation_result_uuid": "87654321-4321-4321-4321-cba987654321",
                 "source_result_uuid": "12345678-1234-1234-1234-123456789abc",
@@ -672,7 +672,7 @@ class TestEstimationInputs:
         filename = f"result_20250101_000000_{uuid_value}.json"
         path = os.path.join(received_dir, filename)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"code": "qws", "_server_uuid": uuid_value}, f)
+            json.dump({"code": "demoapp", "_server_uuid": uuid_value}, f)
         return os.path.splitext(filename)[0]
 
     def test_ingest_estimation_artifacts_expands_under_result_stem(self, client, tmp_dirs):

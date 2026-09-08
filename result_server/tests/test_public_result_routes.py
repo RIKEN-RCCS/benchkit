@@ -50,8 +50,8 @@ def test_public_portal_detail_hides_confidential_result_for_authorized_session(t
         received_dir,
         filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
             "confidential": ["dev"],
@@ -73,8 +73,8 @@ def test_public_portal_compare_hides_confidential_result_for_authorized_session(
         received_dir,
         public_filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
         },
@@ -83,8 +83,8 @@ def test_public_portal_compare_hides_confidential_result_for_authorized_session(
         received_dir,
         confidential_filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE2",
             "FOM": 1.1,
             "confidential": ["dev"],
@@ -141,8 +141,8 @@ def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
         received_dir,
         filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
             "node_count": 1,
@@ -154,10 +154,10 @@ def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
                 "resolved_commit": "abcdef1234567890",
             },
             "input_info": {
-                "dataset_id": "qws-small",
+                "dataset_id": "demoapp-small",
                 "verification_status": "covered_by_source_commit",
                 "source": "source_info",
-                "repo_relative_path": "inputs/qws-small",
+                "repo_relative_path": "inputs/demoapp-small",
                 "local_path": "local-input-placeholder",
             },
             "environment_snapshot": {
@@ -186,8 +186,8 @@ def test_public_portal_evidence_packet_route_is_blocked_until_release_review(tmp
         received_dir,
         filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
         },
@@ -206,8 +206,8 @@ def test_public_portal_evidence_packet_hides_confidential_result_for_authorized_
         received_dir,
         filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
             "confidential": ["dev"],
@@ -231,14 +231,14 @@ def test_console_evidence_packet_uses_result_permissions(tmp_path):
         received_dir,
         filename,
         {
-            "code": "qws",
-            "system": "Fugaku",
+            "code": "demoapp",
+            "system": "DemoSystem",
             "Exp": "CASE1",
             "FOM": 1.0,
             "confidential": ["dev"],
             "source_info": {
                 "source_type": "git",
-                "repo_url": "https://example.test/qws.git",
+                "repo_url": "https://example.test/demoapp.git",
                 "ref_name": "main",
                 "resolved_commit": "abcdef1234567890",
             },
@@ -259,4 +259,4 @@ def test_console_evidence_packet_uses_result_permissions(tmp_path):
     assert "does not guarantee independent reproduction" in text
     assert "Pipeline ID" not in text
     assert "Raw Result JSON" in text
-    assert "https://example.test/qws.git" in text
+    assert "https://example.test/demoapp.git" in text

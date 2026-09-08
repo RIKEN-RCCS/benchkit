@@ -360,7 +360,7 @@
         {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
         <label>
             Profile ID
-            <input type="text" name="id" required placeholder="qws-fugaku-rkp00010" value="{{ edit_profile.id if edit_profile else '' }}">
+            <input type="text" name="id" required placeholder="demoapp-demosystem-project00010" value="{{ edit_profile.id if edit_profile else '' }}">
         </label>
         <label>
             Status
@@ -374,11 +374,11 @@
         </label>
         <label>
             Activity
-            <input type="text" name="activity" placeholder="FugakuNEXT" value="{{ edit_profile.activity if edit_profile else '' }}">
+            <input type="text" name="activity" placeholder="FutureSystem" value="{{ edit_profile.activity if edit_profile else '' }}">
         </label>
         <label>
             Allocation Project ID
-            <input type="text" name="allocation_project_id" placeholder="rkp00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
+            <input type="text" name="allocation_project_id" placeholder="project00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
             <span class="field-help">Optional. When set, this ID belongs to one system. Benchkit enables scheduler-specific account options only where supported.</span>
         </label>
         <label>
@@ -391,11 +391,11 @@
         </label>
         <label class="profile-form-wide">
             Code Scope
-            <textarea name="code" rows="2" placeholder="qws, genesis">{{ edit_profile.code | join(', ') if edit_profile else '' }}</textarea>
+            <textarea name="code" rows="2" placeholder="demoapp, auxapp">{{ edit_profile.code | join(', ') if edit_profile else '' }}</textarea>
         </label>
         <label class="profile-form-wide">
             System
-            <input type="text" name="system" placeholder="Fugaku" value="{{ edit_profile.system | join(', ') if edit_profile else '' }}">
+            <input type="text" name="system" placeholder="DemoSystem" value="{{ edit_profile.system | join(', ') if edit_profile else '' }}">
             <span class="field-help">Use a single system when Allocation Project ID is set.</span>
         </label>
         <label class="profile-form-wide">
@@ -559,7 +559,7 @@
         <input type="hidden" name="enabled" value="{% if trigger_enabled %}on{% endif %}">
         <label>
             Trigger ID
-            <input type="text" name="id" required placeholder="qws-fugaku-nightly" value="{{ edit_trigger.id if edit_trigger else '' }}">
+            <input type="text" name="id" required placeholder="demoapp-demosystem-nightly" value="{{ edit_trigger.id if edit_trigger else '' }}">
         </label>
         <label>
             Type
@@ -623,7 +623,7 @@
             </label>
             <label class="profile-form-wide">
                 Watch Targets
-                <textarea name="watch_targets" rows="2" placeholder="https://github.com/RIKEN-LQCD/qws.git@master&#10;https://github.com/RIKEN-LQCD/qws.git@develop">{{ edit_trigger.watch_targets | join('\n') if edit_trigger else '' }}</textarea>
+                <textarea name="watch_targets" rows="2" placeholder="https://example.test/demoapp.git@main&#10;https://example.test/demoapp.git@develop">{{ edit_trigger.watch_targets | join('\n') if edit_trigger else '' }}</textarea>
             </label>
         </div>
         <div class="profile-form-actions">
