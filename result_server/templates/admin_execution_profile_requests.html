@@ -46,10 +46,26 @@
     .request-followup details {
         margin-top: 8px;
     }
-    .request-followup summary {
+    .request-followup-summary {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 5px 10px;
+        border: 1px solid #bdd7df;
+        border-radius: 6px;
+        background: #fff;
         cursor: pointer;
         color: #0f766e;
+        font-size: 12px;
         font-weight: 700;
+        list-style: none;
+    }
+    .request-followup-summary::-webkit-details-marker {
+        display: none;
+    }
+    .request-followup[open] .request-followup-summary {
+        background: #eef8f7;
+        border-color: #7fc2b8;
     }
     .request-followup-form select,
     .request-followup-form textarea {
@@ -401,7 +417,7 @@
                         </span>
                         <div class="request-followup">
                             <details>
-                                <summary>New follow-up</summary>
+                                <summary class="request-followup-summary">Follow-up Request</summary>
                                 <div class="request-explainer">
                                     Pause disables the profile and its triggers temporarily. Retirement disables them and marks the profile retired; neither action deletes history.
                                 </div>
