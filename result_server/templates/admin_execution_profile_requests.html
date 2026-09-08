@@ -436,7 +436,8 @@
                         </div>
                         {% elif link.profile_id %}
                         <span class="request-mono">{{ link.profile_id }}</span>
-                        <span class="request-subline">profile not found or deleted</span>
+                        <span class="request-badge request-badge-muted">Unavailable</span>
+                        <span class="request-subline">Profile is no longer registered. Submit a new request, or ask an admin to restore or recreate this profile ID.</span>
                         {% else %}
                         -
                         {% endif %}
