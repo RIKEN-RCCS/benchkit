@@ -221,16 +221,13 @@
         </label>
         <div class="request-actions request-form-wide">
             <button type="submit" class="btn btn-primary">Submit Request</button>
-            {% if review_mode or 'admin' in session.get('user_affiliations', []) %}
-            <a class="btn btn-secondary" href="{{ url_for('admin.execution_profiles') }}">Execution Profiles</a>
-            {% endif %}
         </div>
     </form>
 </section>
 {% else %}
 <div class="request-review-link">
-    {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
-    <a class="btn btn-secondary" href="{{ portal_prefix }}/execution-profile-requests/">Open Applicant Request View</a>
+    {% set console_prefix = '/dev2/console' if request.path == '/dev2' or request.path.startswith('/dev2/') else ('/dev/console' if request.path == '/dev' or request.path.startswith('/dev/') else ('/console' if request.path == '/console' or request.path.startswith('/console/') else '')) %}
+    <a class="btn btn-secondary" href="{{ console_prefix }}/execution-profile-requests/">Open Applicant Request View</a>
 </div>
 {% endif %}
 
@@ -286,6 +283,9 @@
                             on {{ profile.system | join(', ') or '*' }}
                             {% if profile.exp %}/ {{ profile.exp | join(', ') }}{% endif %}
                         </span>
+                        {% if item.source_profile_id %}
+                        <span class="request-subline">Target Profile: {{ item.source_profile_id }}</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if not metadata.desired_schedule and not metadata.desired_watch_target %}

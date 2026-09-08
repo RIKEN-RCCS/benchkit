@@ -98,6 +98,7 @@
 </style>
 
 {% set public_portal_mode = config.get('PUBLIC_PORTAL_MODE', False) %}
+{% set console_prefix = '/dev2/console' if request.path == '/dev2' or request.path.startswith('/dev2/') else ('/dev/console' if request.path == '/dev' or request.path.startswith('/dev/') else ('/console' if request.path == '/console' or request.path.startswith('/console/') else '')) %}
 
 <nav class="nav-bar">
     <div class="nav-left">
@@ -127,12 +128,10 @@
                 <a href="{{ url_for('admin.users') }}">Admin</a>
                 <a href="{{ url_for('admin.execution_profiles') }}">Execution Profiles</a>
                 <a href="{{ url_for('admin.execution_profile_requests') }}">Profile Request Review</a>
-                {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
-                <a href="{{ portal_prefix }}/execution-profile-requests/">Profile Requests</a>
+                <a href="{{ console_prefix }}/execution-profile-requests/">Profile Requests</a>
                 <hr>
                 {% else %}
-                {% set portal_prefix = '/console' if request.path.startswith('/console/') else ('/dev2' if request.path.startswith('/dev2/') else ('/dev' if request.path.startswith('/dev/') else '')) %}
-                <a href="{{ portal_prefix }}/execution-profile-requests/">Profile Requests</a>
+                <a href="{{ console_prefix }}/execution-profile-requests/">Profile Requests</a>
                 {% endif %}
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
             </div>
