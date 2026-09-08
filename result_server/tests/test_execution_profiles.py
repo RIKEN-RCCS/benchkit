@@ -1293,7 +1293,7 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
         assert "demoapp-demosystem-request" in mine_html
         assert "approved" in mine_html
         assert "2 / 2 triggers enabled" in mine_html
-        assert "New follow-up" in mine_html
+        assert "Follow-up Request" in mine_html
         assert "Pause request" in mine_html
         result = load_execution_profiles(str(db_path))
         assert len(result.profiles) == 1
