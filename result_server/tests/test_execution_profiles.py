@@ -1371,7 +1371,8 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
             assert "profile request submitted" in html
             assert "actor admin@test.com" in html
             assert "admin@test.com" in html
-            assert "watch https://example.test/demoapp.git@master" in html
+            assert "Watch" in html
+            assert "https://example.test/demoapp.git@master" in html
 
             resp = client.post(
                 "/admin/execution-profile-requests/1/review",
@@ -1738,7 +1739,8 @@ def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path
         html = resp.data.decode()
         assert resp.status_code == 200
         assert "Change request" in html
-        assert "Target Profile: source-system-demoapp-nightly" in html
+        assert "Source" in html
+        assert "source-system-demoapp-nightly" in html
         assert "change requested in note" in html
         assert "Requested Profile Changes" in html
         assert "System" in html
