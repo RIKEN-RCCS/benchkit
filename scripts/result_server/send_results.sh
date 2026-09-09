@@ -107,6 +107,18 @@ build_profile_data_summary_for_archives() {
   rm -f "$summaries_file"
 }
 
+log_result_summary() {
+  local json_file="$1"
+
+  if ! jq -r '
+    def field_value:
+      if . == null or . == "" then "-" else tostring end;
+    "Result summary: code=\(.code | field_value) system=\(.system | field_value) mode=\(.execution_mode | field_value) exp=\(.exp | field_value) fom=\(.fom | field_value) pipeline=\(.pipeline_id | field_value)"
+  ' "$json_file" 2>/dev/null; then
+    echo "Result summary: unavailable"
+  fi
+}
+
 is_safe_local_padata_path() {
   local artifact_path="$1"
 
@@ -198,7 +210,7 @@ for json_file in results/result*.json; do
     tgz_file="results/${tgz_base}.tgz"
   fi
 
-  echo tgz_file $tgz_file
+  echo tgz_file "$tgz_file"
 
   padata_archive_paths=()
   padata_archive_specs=()
@@ -219,7 +231,7 @@ for json_file in results/result*.json; do
   fi
 
   echo "Processing $json_file"
-  cat "$json_file"
+  log_result_summary "$json_file"
 
   echo "Posting $json_file to ${RESULT_SERVER}/api/ingest/result"
 
