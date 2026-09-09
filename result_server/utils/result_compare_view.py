@@ -291,13 +291,20 @@ def _build_cache_summary(build_cache):
     status = str(build_cache.get("status") or "unknown").strip() or "unknown"
     stored = build_cache.get("stored") is True
     display = f"{status} stored" if stored else status
+    entry = build_cache.get("entry")
+    entry = entry if isinstance(entry, dict) else {}
+    digests = entry.get("digests")
+    digests = digests if isinstance(digests, dict) else {}
     key = (
         status,
         stored,
-        build_cache.get("host_environment_fingerprint") or "",
-        build_cache.get("build_inputs_hash") or "",
-        build_cache.get("source_info_digest") or "",
-        build_cache.get("artifact_tree_digest")
+        entry.get("host_environment_fingerprint")
+        or build_cache.get("host_environment_fingerprint")
+        or "",
+        digests.get("build_inputs") or build_cache.get("build_inputs_hash") or "",
+        digests.get("source_info") or build_cache.get("source_info_digest") or "",
+        digests.get("artifacts")
+        or build_cache.get("artifact_tree_digest")
         or build_cache.get("cached_artifacts_digest")
         or "",
     )

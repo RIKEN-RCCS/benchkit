@@ -53,8 +53,15 @@ def test_build_result_compare_context_summarizes_evidence_differences():
                     },
                     "build_cache": {
                         "status": "hit",
-                        "host_environment_fingerprint": "sha256:env-a",
-                        "build_inputs_hash": "sha256:input-a",
+                        "stored": False,
+                        "entry": {
+                            "host_environment_fingerprint": "sha256:env-a",
+                            "digests": {
+                                "build_inputs": "sha256:input-a",
+                                "source_info": "sha256:source-a",
+                                "artifacts": "sha256:artifacts-a",
+                            },
+                        },
                     },
                     "profile_data": {"tool": "ncu", "level": "kernel"},
                 },
@@ -84,9 +91,16 @@ def test_build_result_compare_context_summarizes_evidence_differences():
                         ],
                     },
                     "build_cache": {
-                        "status": "miss",
-                        "host_environment_fingerprint": "sha256:env-b",
-                        "build_inputs_hash": "sha256:input-a",
+                        "status": "hit",
+                        "stored": False,
+                        "entry": {
+                            "host_environment_fingerprint": "sha256:env-b",
+                            "digests": {
+                                "build_inputs": "sha256:input-a",
+                                "source_info": "sha256:source-a",
+                                "artifacts": "sha256:artifacts-a",
+                            },
+                        },
                     },
                     "profile_data": {"tool": "ncu", "level": "kernel"},
                 },
@@ -111,6 +125,58 @@ def test_build_result_compare_context_summarizes_evidence_differences():
     summary_text = repr(summary)
     assert "example.test/demoapp.git" not in summary_text
     assert "/site/input" not in summary_text
+
+
+def test_build_result_compare_context_detects_build_cache_digest_changes():
+    base_entry = {
+        "host_environment_fingerprint": "sha256:env-a",
+        "digests": {
+            "build_inputs": "sha256:input-a",
+            "source_info": "sha256:source-a",
+            "artifacts": "sha256:artifacts-a",
+        },
+    }
+    latest_entry = {
+        **base_entry,
+        "digests": {
+            **base_entry["digests"],
+            "artifacts": "sha256:artifacts-b",
+        },
+    }
+    context = build_result_compare_context(
+        [
+            {
+                "data": {
+                    "system": "DemoSystem",
+                    "code": "demoapp",
+                    "FOM": 1.0,
+                    "build_cache": {
+                        "status": "hit",
+                        "stored": False,
+                        "entry": base_entry,
+                    },
+                },
+            },
+            {
+                "data": {
+                    "system": "DemoSystem",
+                    "code": "demoapp",
+                    "FOM": 1.0,
+                    "build_cache": {
+                        "status": "hit",
+                        "stored": False,
+                        "entry": latest_entry,
+                    },
+                },
+            },
+        ]
+    )
+
+    diff_rows = {
+        row["label"]: row
+        for row in context["comparison_summary"]["diff_rows"]
+    }
+    assert diff_rows["Build Cache"]["status"] == "changed"
 
 
 def test_build_result_compare_context_marks_mixed_rows():
