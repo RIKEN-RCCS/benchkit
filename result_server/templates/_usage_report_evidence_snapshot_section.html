@@ -39,54 +39,54 @@
     <table class="evidence-snapshot-table">
       <thead>
         <tr>
-          <th>Application</th>
-          <th>System</th>
-          <th>Configured</th>
-          <th>Result / Quality</th>
-          <th>Exp</th>
-          <th>Profiled</th>
-          <th>Estimated</th>
-          <th>Source Status</th>
-          <th>Input Status</th>
-          <th>Build Cache</th>
-          <th>Public Result</th>
+          <th>Target</th>
+          <th>Configuration</th>
+          <th>Result Evidence</th>
+          <th>Profile / Estimate</th>
+          <th>Provenance</th>
           <th>Next Action</th>
-          <th>Maturity Gaps</th>
         </tr>
       </thead>
       <tbody>
       {% for row in evidence_snapshot.rows %}
         <tr>
-          <td>{{ row.code }}</td>
-          <td>{{ row.system }}</td>
-          <td title="{{ row.configured_status }}">{{ row.configured }}</td>
+          <td>
+            <span class="profile-usage-mono">{{ row.code }}</span>
+            <span class="profile-usage-subline">{{ row.system }}</span>
+          </td>
+          <td title="{{ row.configured_status }}">
+            <span class="evidence-snapshot-value">{{ row.configured }}</span>
+            <span class="profile-usage-subline">{{ row.configured_status }}</span>
+          </td>
           <td>
             {% if row.latest_result_file %}
             <a href="{{ url_for('results.result_detail', filename=row.latest_result_file) }}">{{ row.latest_result_time }}</a>
             {% else %}
             -
             {% endif %}
-            <span class="profile-usage-subline">{{ row.latest_result_status }}</span>
-          </td>
-          <td>{{ row.latest_result_exp }}</td>
-          <td>
-            {{ row.profiled }}
-            <span class="profile-usage-subline">{{ row.latest_profile_time }}</span>
+            <span class="profile-usage-subline">Quality: {{ row.latest_result_status }}</span>
+            <span class="profile-usage-subline">Exp: {{ row.latest_result_exp }} / Public: {{ row.public_result_available }}</span>
           </td>
           <td>
+            <span class="evidence-snapshot-label">Profiled</span> {{ row.profiled }}
+            <span class="profile-usage-subline">Latest: {{ row.latest_profile_time }}</span>
+            <span class="evidence-snapshot-label">Estimated</span>
             {% if row.latest_estimate_file %}
             <a href="{{ url_for('estimated.estimated_detail', filename=row.latest_estimate_file) }}">{{ row.estimated }}</a>
             {% else %}
             {{ row.estimated }}
             {% endif %}
-            <span class="profile-usage-subline">{{ row.estimate_applicability }}</span>
+            <span class="profile-usage-subline">Applicability: {{ row.estimate_applicability }}</span>
           </td>
-          <td>{{ row.source_status }}</td>
-          <td>{{ row.input_status }}</td>
-          <td>{{ row.build_cache_status }}</td>
-          <td>{{ row.public_result_available }}</td>
-          <td>{{ row.next_action }}</td>
-          <td>{{ row.missing_reason }}</td>
+          <td>
+            <span class="evidence-snapshot-label">Source</span> {{ row.source_status }}
+            <span class="profile-usage-subline"><span class="evidence-snapshot-label">Input</span> {{ row.input_status }}</span>
+            <span class="profile-usage-subline"><span class="evidence-snapshot-label">Build Cache</span> {{ row.build_cache_status }}</span>
+          </td>
+          <td>
+            <span class="evidence-snapshot-value">{{ row.next_action }}</span>
+            <span class="profile-usage-subline">Maturity Gaps: {{ row.missing_reason }}</span>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
