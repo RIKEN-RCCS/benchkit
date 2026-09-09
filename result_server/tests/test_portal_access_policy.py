@@ -64,6 +64,7 @@ def test_representative_route_access_classes():
     assert classify_endpoint("estimated.estimated_results") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("auth.login") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("profile_requests.profile_requests") == ACCESS_AUTHENTICATED_CONSOLE
+    assert classify_endpoint("profile_requests.managed_profiles") == ACCESS_AUTHENTICATED_CONSOLE
     assert classify_endpoint("results.usage_report") == ACCESS_OPERATOR
     assert classify_endpoint("results.usage_evidence_snapshot_csv") == ACCESS_OPERATOR
     assert classify_endpoint("admin.users") == ACCESS_OPERATOR
@@ -85,6 +86,7 @@ def test_public_portal_mode_blocks_restricted_browser_routes_but_allows_api_auth
         assert client.get("/results/usage/evidence-snapshot.csv").status_code == 404
         assert client.get("/admin/users").status_code == 404
         assert client.get("/execution-profile-requests/").status_code == 404
+        assert client.get("/execution-profile-requests/managed-profiles/").status_code == 404
 
         response = client.get("/api/query/result")
 
@@ -168,6 +170,7 @@ def test_console_prefixed_navigation_uses_prefixed_profile_request_url():
         html = render_template("_navigation.html")
 
     assert 'href="/console/execution-profile-requests/"' in html
+    assert 'href="/console/execution-profile-requests/managed-profiles/"' in html
     assert 'href="/execution-profile-requests/"' not in html
 
 
@@ -186,6 +189,7 @@ def test_dev2_navigation_uses_console_profile_request_url():
         html = render_template("_navigation.html")
 
     assert 'href="/dev2/console/execution-profile-requests/"' in html
+    assert 'href="/dev2/console/execution-profile-requests/managed-profiles/"' in html
     assert 'href="/dev2/execution-profile-requests/"' not in html
 
 

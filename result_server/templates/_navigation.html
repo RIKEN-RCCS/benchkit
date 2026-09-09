@@ -128,9 +128,11 @@
                 <a href="{{ url_for('admin.users') }}">Admin</a>
                 <a href="{{ url_for('admin.execution_profiles') }}">Execution Profiles</a>
                 <a href="{{ url_for('admin.execution_profile_requests') }}">Profile Request Review</a>
+                <a href="{{ console_prefix }}/execution-profile-requests/managed-profiles/">Managed Profiles</a>
                 <a href="{{ console_prefix }}/execution-profile-requests/">Profile Requests</a>
                 <hr>
                 {% else %}
+                <a href="{{ console_prefix }}/execution-profile-requests/managed-profiles/">Managed Profiles</a>
                 <a href="{{ console_prefix }}/execution-profile-requests/">Profile Requests</a>
                 {% endif %}
                 <a href="{{ url_for('auth.logout') }}">Logout</a>
