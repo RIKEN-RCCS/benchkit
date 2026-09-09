@@ -42,6 +42,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
         "profiled_result_count": 0,
         "regular_run_timing_count": 0,
         "profiled_run_timing_count": 0,
+        "profile_overhead_pair_count": 0,
         "estimate_record_count": 0,
         "estimate_timing_record_count": 0,
         "build_cache_record_count": 0,
@@ -71,6 +72,8 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "profiled_count": 0,
                 "regular_run_timing_count": 0,
                 "profiled_run_timing_count": 0,
+                "profile_overhead_pair_count": 0,
+                "profile_overhead_status": "-",
                 "estimate_count": 0,
                 "estimate_timing_count": 0,
                 "build_cache_hit_count": 0,
@@ -96,10 +99,12 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "_profiled_run_totals": _empty_scalar_total(),
                 "_estimate_totals": _empty_scalar_total(),
                 "_scheduler_queue_totals": _empty_scalar_total(),
+                "_run_pair_kinds": {},
             },
         )
         row["result_count"] += 1
         is_profiled = _has_profile_data(data)
+        run_kind = "profiled" if is_profiled else "regular"
 
         raw_timing = data.get("pipeline_timing")
         timing = _timing_values(raw_timing)
@@ -116,6 +121,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 _add_scalar_total(scheduler_queue_totals, scheduler_queue_time)
             run_time = timing.get("run_time")
             if run_time is not None:
+                row["_run_pair_kinds"].setdefault(_run_pair_key(data), set()).add(run_kind)
                 if is_profiled:
                     row["profiled_run_timing_count"] += 1
                     summary["profiled_run_timing_count"] += 1
@@ -138,7 +144,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                     _nested_value(raw_timing, "scheduler_queue_time_source")
                 )
                 row["latest_run_time"] = _format_seconds(timing.get("run_time"))
-                row["latest_run_kind"] = "profiled" if is_profiled else "regular"
+                row["latest_run_kind"] = run_kind
 
         if is_profiled:
             row["profiled_count"] += 1
@@ -165,6 +171,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
 
     rows = [_finalize_row(row) for row in rows_by_key.values()]
     rows.sort(key=lambda row: (row["code"].lower(), row["system"].lower()))
+    summary["profile_overhead_pair_count"] = sum(row["profile_overhead_pair_count"] for row in rows)
 
     summary.update(
         {
@@ -313,6 +320,8 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     profiled_run_totals = row.pop("_profiled_run_totals")
     estimate_totals = row.pop("_estimate_totals")
     scheduler_queue_totals = row.pop("_scheduler_queue_totals")
+    run_pair_kinds = row.pop("_run_pair_kinds")
+    profile_overhead_pair_count = _profile_overhead_pair_count(run_pair_kinds)
     row.pop("_estimate_sort_key", None)
     row.update(
         {
@@ -323,9 +332,34 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
             "avg_regular_run_time": _format_scalar_average(regular_run_totals),
             "avg_profiled_run_time": _format_scalar_average(profiled_run_totals),
             "avg_estimate_time": _format_scalar_average(estimate_totals),
+            "profile_overhead_pair_count": profile_overhead_pair_count,
+            "profile_overhead_status": _profile_overhead_status(row, profile_overhead_pair_count),
         }
     )
     return row
+
+
+def _run_pair_key(data: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return tuple(
+        _clean(data.get(field)) or "-"
+        for field in ("Exp", "node_count", "numproc_node", "nthreads", "FOM_version")
+    )
+
+
+def _profile_overhead_pair_count(run_pair_kinds: dict[tuple[str, ...], set[str]]) -> int:
+    return sum(1 for kinds in run_pair_kinds.values() if {"regular", "profiled"} <= kinds)
+
+
+def _profile_overhead_status(row: dict[str, Any], pair_count: int) -> str:
+    if pair_count:
+        return "paired data available"
+    if row["regular_run_timing_count"] and row["profiled_run_timing_count"]:
+        return "needs matching run dimensions"
+    if row["regular_run_timing_count"]:
+        return "needs matching profiled run"
+    if row["profiled_run_timing_count"]:
+        return "needs matching regular run"
+    return "-"
 
 
 def _format_average(totals: dict[str, dict[str, float | int]], field: str) -> str:

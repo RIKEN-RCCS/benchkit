@@ -674,6 +674,7 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "profiled_result_count": 0,
                     "regular_run_timing_count": 1,
                     "profiled_run_timing_count": 0,
+                    "profile_overhead_pair_count": 0,
                     "scheduler_queue_timing_count": 0,
                     "estimate_record_count": 1,
                     "estimate_timing_record_count": 1,
@@ -698,6 +699,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "profiled_count": 0,
                         "regular_run_timing_count": 1,
                         "profiled_run_timing_count": 0,
+                        "profile_overhead_pair_count": 0,
+                        "profile_overhead_status": "needs matching profiled run",
                         "scheduler_queue_timing_count": 0,
                         "estimate_count": 1,
                         "estimate_timing_count": 1,
@@ -769,6 +772,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "reported queue 1m" in html
     assert "not measured" in html
     assert "regular 2m / profiled -" in html
+    assert "overhead pairs 0" in html
+    assert "needs matching profiled run" in html
     assert "1 with timing / 1 estimates; avg 42s" in html
     assert "1 hit / 0 miss" in html
     assert "Result / Quality" in html

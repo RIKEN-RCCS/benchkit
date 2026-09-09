@@ -129,6 +129,7 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert telemetry["summary"]["profiled_result_count"] == 1
     assert telemetry["summary"]["regular_run_timing_count"] == 1
     assert telemetry["summary"]["profiled_run_timing_count"] == 1
+    assert telemetry["summary"]["profile_overhead_pair_count"] == 0
     assert telemetry["summary"]["estimate_record_count"] == 1
     assert telemetry["summary"]["estimate_timing_record_count"] == 1
     assert telemetry["summary"]["build_cache_record_count"] == 2
@@ -155,6 +156,8 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert demoapp["avg_run_time"] == "3.5m"
     assert demoapp["avg_regular_run_time"] == "5m"
     assert demoapp["avg_profiled_run_time"] == "2m"
+    assert demoapp["profile_overhead_pair_count"] == 0
+    assert demoapp["profile_overhead_status"] == "needs matching run dimensions"
     assert demoapp["latest_exp"] == "CASE1"
     assert demoapp["latest_build_time"] == "30s"
     assert demoapp["latest_queue_time"] == "1m"
@@ -174,6 +177,45 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert demoapp["build_cache_store_count"] == 1
 
 
+def test_performance_telemetry_counts_profile_overhead_pairs(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "programs" / "demoapp").mkdir(parents=True)
+    monkeypatch.setattr(performance_telemetry, "REPO_ROOT", repo_root)
+
+    common = {
+        "code": "demoapp",
+        "system": "DemoSystem",
+        "Exp": "CASE0",
+        "node_count": 1,
+        "numproc_node": 4,
+        "nthreads": 8,
+        "FOM_version": "region-v1",
+    }
+    _write_json(
+        tmp_path / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            **common,
+            "FOM": 1.0,
+            "pipeline_timing": {"run_time": 300},
+        },
+    )
+    _write_json(
+        tmp_path / "result_20260902_010101_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            **common,
+            "FOM": 1.0,
+            "profile_data": {"tool": "ncu"},
+            "pipeline_timing": {"run_time": 360},
+        },
+    )
+
+    telemetry = build_performance_telemetry(str(tmp_path))
+
+    assert telemetry["summary"]["profile_overhead_pair_count"] == 1
+    assert telemetry["rows"][0]["profile_overhead_pair_count"] == 1
+    assert telemetry["rows"][0]["profile_overhead_status"] == "paired data available"
+
+
 def test_performance_telemetry_handles_missing_directory(tmp_path):
     telemetry = build_performance_telemetry(str(tmp_path / "missing"))
 
@@ -181,6 +223,7 @@ def test_performance_telemetry_handles_missing_directory(tmp_path):
     assert telemetry["summary"]["ignored_result_count"] == 0
     assert telemetry["summary"]["timing_record_count"] == 0
     assert telemetry["summary"]["scheduler_queue_timing_count"] == 0
+    assert telemetry["summary"]["profile_overhead_pair_count"] == 0
     assert telemetry["summary"]["estimate_record_count"] == 0
     assert telemetry["summary"]["estimate_timing_record_count"] == 0
     assert telemetry["summary"]["avg_build_time"] == "-"

@@ -6,6 +6,7 @@
     "profiled_result_count": 0,
     "regular_run_timing_count": 0,
     "profiled_run_timing_count": 0,
+    "profile_overhead_pair_count": 0,
     "scheduler_queue_timing_count": 0,
     "estimate_record_count": 0,
     "estimate_timing_record_count": 0,
@@ -42,7 +43,10 @@
     </div>
     <div class="diagnostic-card">
       <h3>Run Split</h3>
-      <p>regular {{ performance_telemetry.summary.avg_regular_run_time }} / profiled {{ performance_telemetry.summary.avg_profiled_run_time }}</p>
+      <p>
+        regular {{ performance_telemetry.summary.avg_regular_run_time }} / profiled {{ performance_telemetry.summary.avg_profiled_run_time }}
+        <span class="profile-usage-subline">overhead pairs {{ performance_telemetry.summary.profile_overhead_pair_count|default(0) }}</span>
+      </p>
     </div>
     <div class="diagnostic-card">
       <h3>Estimation Runtime</h3>
@@ -103,6 +107,8 @@
             <span class="profile-usage-subline">{{ row.regular_run_timing_count }} timing records</span>
             <span class="profile-usage-subline">profiled {{ row.avg_profiled_run_time }}</span>
             <span class="profile-usage-subline">{{ row.profiled_run_timing_count }} timing records</span>
+            <span class="profile-usage-subline">overhead pairs {{ row.profile_overhead_pair_count|default(0) }}</span>
+            <span class="profile-usage-subline">{{ row.profile_overhead_status|default('-') }}</span>
           </td>
           <td>
             {{ row.estimate_count }} estimates
