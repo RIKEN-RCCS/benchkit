@@ -1366,6 +1366,9 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
             assert "Create Request" not in html
             assert "Open Applicant Request View" in html
             assert "FutureSystem-demoapp-DemoSystem" in html
+            assert "Request Events" in html
+            assert "profile request submitted" in html
+            assert "actor admin@test.com" in html
             assert "admin@test.com" in html
             assert "watch https://example.test/demoapp.git@master" in html
 
@@ -2106,6 +2109,9 @@ def test_managed_execution_profiles_filter_by_activity_manager_affiliation(tmp_p
         assert "1 / 1 triggers enabled" in html
         assert "managed-demoapp-scheduled" in html
         assert "0 8 * * *" in html
+        assert "Recent Events" in html
+        assert "profile created" in html
+        assert "trigger definition created" in html
         assert "Profile Request Review" not in html
         assert "Approve" not in html
         assert "outside-demoapp-profile" not in html

@@ -382,6 +382,9 @@ def _build_profile_request_links(store, requests):
             "trigger_count": len(triggers),
             "enabled_trigger_count": sum(1 for trigger in triggers if trigger.get("enabled")),
             "requested_changes": _profile_request_change_rows(item, profile),
+            "request_events": _compact_event_rows(
+                store.list_profile_request_events(item["id"])
+            ),
         }
     return links
 
@@ -467,6 +470,58 @@ def _profile_request_diff_display(value):
     return text or "-"
 
 
+def _compact_event_rows(events):
+    return [
+        {
+            "created_at": event.get("created_at") or "-",
+            "actor": event.get("actor") or "-",
+            "event_label": str(event.get("event_type") or "-").replace("_", " "),
+            "detail": _compact_event_detail(event.get("payload") or {}),
+        }
+        for event in events
+    ]
+
+
+def _compact_event_detail(payload):
+    if not isinstance(payload, dict):
+        return "-"
+    parts = []
+
+    def add(text):
+        text = str(text or "").strip()
+        if text and text not in parts:
+            parts.append(text)
+
+    request_id = payload.get("request_id")
+    if request_id not in (None, ""):
+        add(f"request #{request_id}")
+    add(payload.get("request_type"))
+    profile_id = payload.get("created_profile_id") or payload.get("profile_id")
+    if profile_id:
+        add(f"profile {profile_id}")
+    trigger_id = payload.get("trigger_id")
+    if trigger_id:
+        add(f"trigger {trigger_id}")
+    add(payload.get("trigger_type"))
+    status = payload.get("status")
+    if status:
+        add(f"status {status}")
+    previous_status = payload.get("previous_status")
+    if previous_status:
+        add(f"from {previous_status}")
+
+    trigger_states = payload.get("trigger_states")
+    if isinstance(trigger_states, list):
+        add(f"{len(trigger_states)} trigger states recorded")
+    trigger_restore = payload.get("trigger_restore")
+    if isinstance(trigger_restore, dict):
+        restored = trigger_restore.get("enabled_trigger_ids")
+        restored_count = len(restored) if isinstance(restored, list) else 0
+        add(f"restored {restored_count} triggers")
+
+    return "; ".join(parts) or "-"
+
+
 def _build_owned_profile_rows(profile_links, requests):
     """Return current profiles represented by the user's request history."""
     rows = {}
@@ -528,8 +583,18 @@ def _build_managed_profile_rows(profiles, trigger_definitions):
                 "enabled_trigger_count": sum(
                     1 for trigger in triggers if trigger.get("enabled")
                 ),
+                "events": [],
                 "match_reasons": match_reasons,
             }
+        )
+    return rows
+
+
+def _attach_profile_events(store, rows):
+    for row in rows:
+        profile_id = row["profile"]["id"]
+        row["events"] = _compact_event_rows(
+            store.list_profile_events(profile_id, limit=6)
         )
     return rows
 
@@ -832,15 +897,21 @@ def profile_requests():
 def managed_profiles():
     """Render read-only execution profiles visible to the authenticated user."""
     db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    store = ExecutionProfileStore(db_path)
     profile_result = load_execution_profiles(db_path)
     trigger_definitions = _list_trigger_definitions(db_path)
+    managed_profile_rows = _build_managed_profile_rows(
+        profile_result.profiles,
+        trigger_definitions,
+    )
+    try:
+        _attach_profile_events(store, managed_profile_rows)
+    except sqlite3.Error as exc:
+        flash(f"Profile event history could not be loaded: {exc}")
     return render_template(
         "managed_execution_profiles.html",
         profile_result=profile_result,
-        managed_profiles=_build_managed_profile_rows(
-            profile_result.profiles,
-            trigger_definitions,
-        ),
+        managed_profiles=managed_profile_rows,
         is_admin=_session_is_admin(),
         current_user_affiliations=session.get("user_affiliations", []),
         default_target_ref=_default_trigger_ref(),

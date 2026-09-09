@@ -31,10 +31,11 @@
         white-space: normal;
         line-height: 1.35;
     }
-    .managed-table th:nth-child(1) { width: 18%; }
-    .managed-table th:nth-child(2) { width: 20%; }
-    .managed-table th:nth-child(3) { width: 20%; }
-    .managed-table th:nth-child(4) { width: 42%; }
+    .managed-table th:nth-child(1) { width: 17%; }
+    .managed-table th:nth-child(2) { width: 18%; }
+    .managed-table th:nth-child(3) { width: 18%; }
+    .managed-table th:nth-child(4) { width: 32%; }
+    .managed-table th:nth-child(5) { width: 15%; }
     .managed-mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 13px;
@@ -78,6 +79,26 @@
     }
     .managed-trigger-list li + li {
         padding-top: 10px;
+        border-top: 1px solid #dce8ee;
+    }
+    .managed-event-details {
+        margin-top: 4px;
+    }
+    .managed-event-details summary {
+        cursor: pointer;
+        color: #0f766e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .managed-event-list {
+        display: grid;
+        gap: 7px;
+        margin: 7px 0 0;
+        padding: 0;
+        list-style: none;
+    }
+    .managed-event-list li + li {
+        padding-top: 7px;
         border-top: 1px solid #dce8ee;
     }
 </style>
@@ -149,6 +170,7 @@
                     <th>Scope</th>
                     <th>Governance</th>
                     <th>Registered Triggers</th>
+                    <th>Recent Events</th>
                 </tr>
             </thead>
             <tbody>
@@ -221,10 +243,29 @@
                         <span class="managed-subline">No trigger definitions</span>
                         {% endif %}
                     </td>
+                    <td>
+                        {% if row.events %}
+                        <details class="managed-event-details">
+                            <summary>{{ row.events | length }} recent events</summary>
+                            <ul class="managed-event-list">
+                            {% for event in row.events %}
+                                <li>
+                                    <span class="managed-mono">{{ event.created_at }}</span>
+                                    <span class="managed-subline">{{ event.event_label }}</span>
+                                    <span class="managed-subline">actor {{ event.actor }}</span>
+                                    <span class="managed-subline">{{ event.detail }}</span>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </details>
+                        {% else %}
+                        <span class="managed-subline">No profile events</span>
+                        {% endif %}
+                    </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="4">No registered profiles match the current session.</td>
+                    <td colspan="5">No registered profiles match the current session.</td>
                 </tr>
             {% endfor %}
             </tbody>
