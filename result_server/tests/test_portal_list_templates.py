@@ -777,7 +777,9 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "needs matching profiled run" in html
     assert "1 with timing / 1 estimates; avg 42s" in html
     assert "1 hit / 0 miss" in html
-    assert "Result / Quality" in html
+    assert "Result Evidence" in html
+    assert "Profile / Estimate" in html
+    assert "Provenance" in html
     assert "Application/System Coverage" not in html
     assert "Latest Result Quality Details" not in html
     assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in html

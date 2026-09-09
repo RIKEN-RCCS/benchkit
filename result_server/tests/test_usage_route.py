@@ -109,7 +109,9 @@ class TestUsageRoute:
         text = resp.get_data(as_text=True)
         assert "Configuration Checks" in text
         assert "Evidence Snapshot" in text
-        assert "Result / Quality" in text
+        assert "Result Evidence" in text
+        assert "Profile / Estimate" in text
+        assert "Provenance" in text
         assert "Application/System Coverage" not in text
         assert "Latest Result Quality Details" not in text
         assert "Maturity Gaps" in text
@@ -138,9 +140,10 @@ class TestUsageRoute:
         resp = client.get("/results/usage")
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
-        assert "Source Status" in text
+        assert "Provenance" in text
+        assert "Source" in text
         assert "tracked" in text
-        assert "Input Status" in text
+        assert "Input" in text
 
     def test_usage_route_uses_default_parameters(self, app, client, monkeypatch):
         _login_session(client, "admin@example.com", ["admin"])
