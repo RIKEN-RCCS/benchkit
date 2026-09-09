@@ -108,7 +108,7 @@ export BK_TRIGGER_REASON="cron:0 14 * * *@2026-08-07T14:00+09:00"
 export PARENT_PIPELINE_ID="54321"
 
 pushd "${TMP_DIR}/project" >/dev/null
-bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345
+bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345 > "${TMP_DIR}/process.log"
 popd >/dev/null
 
 test ! -f "${TMP_DIR}/project/results/result0.json"
@@ -172,5 +172,15 @@ jq -e '
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null
+grep -q "Result summary: code=qws system=Fugaku mode=cross" "${TMP_DIR}/process.log"
+grep -q "pipeline=12345" "${TMP_DIR}/process.log"
+if grep -q '"environment_snapshot"' "${TMP_DIR}/process.log"; then
+  echo "process log should not include full result JSON" >&2
+  exit 1
+fi
+if grep -q "should-not-leak" "${TMP_DIR}/process.log"; then
+  echo "process log should not include cache-local paths" >&2
+  exit 1
+fi
 
 echo "process_and_send_results read-only artifact test passed"

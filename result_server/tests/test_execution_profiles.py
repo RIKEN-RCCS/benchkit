@@ -2654,6 +2654,32 @@ def test_admin_execution_profiles_dry_run_uses_portal_prefix_for_result_server(
         _cleanup(temp_dirs)
 
 
+def test_admin_execution_profiles_dry_run_strips_console_prefix_for_result_server(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_request_context(
+            "/dev2/console/admin/execution-profiles/dry-run-submit",
+            base_url="https://portal.example.org",
+        ):
+            assert _portal_result_server_url() == "https://portal.example.org/dev2"
+        with app.test_request_context(
+            "/dev/console/admin/execution-profiles/dry-run-submit",
+            base_url="https://portal.example.org",
+        ):
+            assert _portal_result_server_url() == "https://portal.example.org/dev"
+        with app.test_request_context(
+            "/console/admin/execution-profiles/dry-run-submit",
+            base_url="https://portal.example.org",
+        ):
+            assert _portal_result_server_url() == "https://portal.example.org"
+    finally:
+        _cleanup(temp_dirs)
+
+
 def test_admin_execution_profiles_dry_run_uses_configured_result_server_url(
     tmp_path,
     monkeypatch,

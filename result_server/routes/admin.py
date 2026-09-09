@@ -285,6 +285,8 @@ def _portal_result_server_url():
         return configured.rstrip("/")
     path = request.path or ""
     prefix = path.split("/admin/", 1)[0] if "/admin/" in path else ""
+    if prefix.endswith("/console"):
+        prefix = prefix[: -len("/console")]
     if prefix == "/admin":
         prefix = ""
     return f"{request.url_root.rstrip('/')}{prefix}"
