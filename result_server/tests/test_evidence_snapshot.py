@@ -88,6 +88,7 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert demosystem["input_status"] == "Covered"
     assert demosystem["build_cache_status"] == "hit"
     assert demosystem["public_result_available"] == "yes"
+    assert demosystem["next_action"] == "Ready for review"
     assert demosystem["missing_reason"] == "none"
     assert all(row["system"] != "FutureSystem" for row in snapshot["rows"])
 
@@ -165,4 +166,44 @@ def test_evidence_snapshot_redacts_confidential_result_availability(tmp_path):
     row = snapshot["rows"][0]
     assert row["public_result_available"] == "no"
     assert row["configured"] == "no"
+    assert row["next_action"] == "Decide whether to add this app/system condition"
     assert "not configured" in row["missing_reason"]
+
+
+def test_evidence_snapshot_next_action_prioritizes_practical_followup(tmp_path):
+    received_dir = tmp_path / "received"
+    estimated_dir = tmp_path / "estimated"
+    received_dir.mkdir()
+    estimated_dir.mkdir()
+
+    _write_json(
+        received_dir / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "input_info": {"inputs": [{"dataset_id": "case0", "verification_status": "declared"}]},
+        },
+    )
+
+    snapshot = build_evidence_snapshot(
+        str(received_dir),
+        str(estimated_dir),
+        generated_at="2026-09-07T00:00:00Z",
+        app_support_rows=[
+            {
+                "app": "demoapp",
+                "systems": {
+                    "DemoSystem": {"status": "enabled"},
+                    "PeerSystem": {"status": "enabled"},
+                    "PartialSystem": {"status": "enabled_partial"},
+                },
+            }
+        ],
+    )
+
+    rows = {(row["code"], row["system"]): row for row in snapshot["rows"]}
+    assert rows[("demoapp", "DemoSystem")]["next_action"] == "Record source provenance"
+    assert rows[("demoapp", "PeerSystem")]["next_action"] == "Trigger a benchmark run"
+    assert rows[("demoapp", "PartialSystem")]["next_action"] == "Complete app adapter scripts"

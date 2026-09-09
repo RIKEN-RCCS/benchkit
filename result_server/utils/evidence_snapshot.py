@@ -35,6 +35,7 @@ EVIDENCE_SNAPSHOT_CSV_COLUMNS = [
     "input_status",
     "build_cache_status",
     "public_result_available",
+    "next_action",
     "missing_reason",
 ]
 
@@ -245,6 +246,7 @@ def _ensure_row(
             "input_status": "None",
             "build_cache_status": "not recorded",
             "public_result_available": "no",
+            "next_action": "",
             "missing_reason": "",
         }
     return rows_by_key[key]
@@ -275,7 +277,30 @@ def _finalize_missing_reason(row: dict[str, Any]) -> dict[str, Any]:
         if not key.startswith("_")
     }
     cleaned["missing_reason"] = "; ".join(reasons) if reasons else "none"
+    cleaned["next_action"] = _next_action(cleaned)
     return cleaned
+
+
+def _next_action(row: dict[str, Any]) -> str:
+    if row["configured"] == "no":
+        return "Decide whether to add this app/system condition"
+    if row["configured"] == "partial":
+        return "Complete app adapter scripts"
+    if row["configured"] == "off":
+        return "Confirm whether this condition should stay disabled"
+    if row["latest_result_status"] == "missing":
+        return "Trigger a benchmark run"
+    if row["source_status"] != "tracked":
+        return "Record source provenance"
+    if row["input_status"] == "None":
+        return "Declare input metadata"
+    if row["profiled"] == "no":
+        return "Collect profile data if needed"
+    if row["estimated"] == "no":
+        return "Run estimation if applicable"
+    if row["public_result_available"] == "no":
+        return "Review publication eligibility"
+    return "Ready for review"
 
 
 def _has_profile_data(data: dict[str, Any]) -> bool:

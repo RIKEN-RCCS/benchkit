@@ -16,6 +16,7 @@
     <span><strong>Configured:</strong> yes = enabled and implemented; partial = enabled but script support incomplete; off = configured off; no = not listed.</span>
     <span><strong>Result Quality:</strong> missing = no result; basic = core result only; ready = estimation bindings present; rich = source provenance and artifacts present.</span>
     <span><strong>Input Status:</strong> None = no input_info; Declared = input_info only; Covered = repo-local input fixed by source_info; Verified = digest-backed input verification.</span>
+    <span><strong>Next Action:</strong> the first practical follow-up suggested by the current evidence state.</span>
   </div>
 
   <div class="diagnostic-grid">
@@ -49,6 +50,7 @@
           <th>Input Status</th>
           <th>Build Cache</th>
           <th>Public Result</th>
+          <th>Next Action</th>
           <th>Maturity Gaps</th>
         </tr>
       </thead>
@@ -83,6 +85,7 @@
           <td>{{ row.input_status }}</td>
           <td>{{ row.build_cache_status }}</td>
           <td>{{ row.public_result_available }}</td>
+          <td>{{ row.next_action }}</td>
           <td>{{ row.missing_reason }}</td>
         </tr>
       {% endfor %}
