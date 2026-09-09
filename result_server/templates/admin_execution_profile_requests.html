@@ -67,12 +67,14 @@
         background: #eef8f7;
         border-color: #7fc2b8;
     }
+    .request-followup-form input,
     .request-followup-form select,
     .request-followup-form textarea {
         width: 100%;
         box-sizing: border-box;
         font-size: 12px;
     }
+    .request-followup-form label,
     .request-review-form label {
         display: grid;
         gap: 4px;
@@ -90,11 +92,61 @@
     }
     .request-review-form .request-form-wide { grid-column: 1 / -1; }
     .request-form-wide { grid-column: 1 / -1; }
+    .request-trigger-preview {
+        padding: 8px;
+        border: 1px solid #dce8ee;
+        border-radius: 6px;
+        background: #f8fafc;
+    }
+    .request-trigger-preview strong {
+        display: block;
+        color: #334155;
+        font-size: 12px;
+    }
+    .request-trigger-preview .request-field-note {
+        display: block;
+        margin-top: 3px;
+    }
+    .request-trigger-preview-list {
+        display: grid;
+        gap: 6px;
+    }
     .request-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         align-items: center;
+    }
+    .request-remove-form {
+        margin-top: 8px;
+    }
+    .request-trigger-details {
+        margin-top: 6px;
+    }
+    .request-trigger-details summary {
+        cursor: pointer;
+        color: #0f766e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .request-trigger-list {
+        display: grid;
+        gap: 7px;
+        margin: 7px 0 0;
+        padding: 0;
+        list-style: none;
+    }
+    .request-trigger-list li {
+        padding-top: 7px;
+        border-top: 1px solid #dce8ee;
+    }
+    .request-trigger-details .request-mono {
+        display: inline;
+        overflow: visible;
+        text-overflow: initial;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
     .request-mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -141,6 +193,12 @@
     .request-table.request-table-applicant th:nth-child(2) { width: 25%; }
     .request-table.request-table-applicant th:nth-child(3) { width: 29%; }
     .request-table.request-table-applicant th:nth-child(4) { width: 30%; }
+    .request-table.request-table-profile { min-width: 1280px; }
+    .request-table.request-table-profile th:nth-child(1) { width: 17%; }
+    .request-table.request-table-profile th:nth-child(2) { width: 18%; }
+    .request-table.request-table-profile th:nth-child(3) { width: 13%; }
+    .request-table.request-table-profile th:nth-child(4) { width: 32%; }
+    .request-table.request-table-profile th:nth-child(5) { width: 20%; }
     .request-mono,
     .request-nowrap {
         display: block;
@@ -240,6 +298,134 @@
         </div>
     </form>
 </section>
+<section class="page-card table-card">
+        <h2 class="section-title">My Profiles</h2>
+        <p class="section-intro">Current execution profiles connected to your request history.</p>
+        <div class="table-wrap">
+            <table class="request-table request-table-profile">
+                <thead>
+                    <tr>
+                        <th>Profile</th>
+                        <th>Scope</th>
+                        <th>Status</th>
+                        <th>Triggers</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in owned_profiles %}
+                    {% set owned_profile = row.profile %}
+                    {% set owned_metadata = owned_profile.metadata_json if owned_profile.metadata_json is mapping else {} %}
+                    <tr>
+                        <td>
+                            <span class="request-mono">{{ owned_profile.id }}</span>
+                            <span class="request-subline">{{ row.request_count }} related request{% if row.request_count != 1 %}s{% endif %}</span>
+                            <span class="request-subline">latest #{{ row.latest_request_id }} / {{ row.latest_request_status }}</span>
+                        </td>
+                        <td>
+                            <span class="request-subline">
+                                {{ owned_profile.code | join(', ') or '*' }}
+                                on {{ owned_profile.system | join(', ') or '*' }}
+                                {% if owned_profile.exp %}/ {{ owned_profile.exp | join(', ') }}{% endif %}
+                            </span>
+                            <span class="request-subline">{{ owned_profile.activity or '-' }}</span>
+                        </td>
+                        <td>
+                            <span class="request-badge {% if owned_profile.status == 'retired' %}request-badge-danger{% elif owned_profile.status == 'paused' or not owned_profile.enabled %}request-badge-warning{% endif %}">
+                                {{ owned_profile.status }}
+                                / {% if owned_profile.enabled %}enabled{% else %}disabled{% endif %}
+                            </span>
+                            <span class="request-subline">{{ owned_profile.allocation_project_id or '-' }}</span>
+                        </td>
+                        <td>
+                            <span class="request-subline">
+                                {{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled
+                            </span>
+                            {% if row.triggers %}
+                            <details class="request-trigger-details">
+                                <summary>Trigger details</summary>
+                                <ul class="request-trigger-list">
+                                {% for trigger in row.triggers %}
+                                    <li>
+                                        <span class="request-mono">{{ trigger.id }}</span>
+                                        <span class="request-subline">
+                                            {{ trigger.trigger_type }}
+                                            / {% if trigger.enabled %}enabled{% else %}disabled{% endif %}
+                                        </span>
+                                        {% if trigger.trigger_type == 'scheduled' %}
+                                        <span class="request-subline">
+                                            schedule <span class="request-mono">{{ trigger.cron_expr }}</span>
+                                            / {{ trigger.timezone }}
+                                        </span>
+                                        {% elif trigger.trigger_type == 'watch_event' %}
+                                        <span class="request-subline">
+                                            watch {{ trigger.watch_kind }}
+                                            / {{ trigger.match_mode }}
+                                            / <span class="request-mono">{{ trigger.watch_targets | join(', ') }}</span>
+                                        </span>
+                                        {% endif %}
+                                        <span class="request-subline">
+                                            target <span class="request-mono">{{ trigger.gitlab_target or 'default' }}</span>
+                                            / <span class="request-mono">{{ trigger.target_ref or default_target_ref }}</span>
+                                        </span>
+                                        {% if not trigger.target_ref %}
+                                        <span class="request-field-note">ref not set</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            </details>
+                            {% else %}
+                            <span class="request-subline">No trigger definitions</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if owned_profile.status == 'retired' %}
+                            <span class="request-subline">No profile actions available.</span>
+                            {% else %}
+                            <div class="request-followup">
+                                <details>
+                                    <summary class="request-followup-summary">Request Profile Change</summary>
+                                    <div class="request-explainer">
+                                        Submit one follow-up request for this profile.
+                                    </div>
+                                    <form method="POST" action="{{ url_for('profile_requests.submit_execution_profile_followup_request') }}" class="request-followup-form">
+                                        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                        <input type="hidden" name="source_profile_id" value="{{ owned_profile.id }}">
+                                        <select name="request_type">
+                                            {% if owned_profile.enabled and owned_profile.status != 'paused' %}
+                                            <option value="change_profile">Change request</option>
+                                            <option value="pause_profile">Pause request</option>
+                                            {% else %}
+                                            <option value="resume_profile">Resume request</option>
+                                            {% endif %}
+                                            <option value="retire_profile">Retirement request</option>
+                                        </select>
+                                        <label>
+                                            Desired Schedule
+                                            <input type="text" name="desired_schedule" placeholder="0 14 * * * / Asia/Tokyo">
+                                        </label>
+                                        <label>
+                                            Desired Watch Target
+                                            <input type="text" name="desired_watch_target" placeholder="https://example.test/demoapp.git@main">
+                                        </label>
+                                        <textarea name="note" rows="2" placeholder="What should change, pause reason, or retirement reason">{{ owned_metadata.note }}</textarea>
+                                        <button type="submit" class="btn btn-secondary">Submit Follow-up</button>
+                                    </form>
+                                </details>
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5">No profiles are linked to your request history.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+</section>
 {% else %}
 <div class="request-review-link">
     {% set console_prefix = '/dev2/console' if request.path == '/dev2' or request.path.startswith('/dev2/') else ('/dev/console' if request.path == '/dev' or request.path.startswith('/dev/') else ('/console' if request.path == '/console' or request.path.startswith('/console/') else '')) %}
@@ -277,11 +463,12 @@
                 {% set link = profile_links.get(item.id, {}) if profile_links is mapping else {} %}
                 {% set linked_profile = link.profile if link.profile is mapping else none %}
                 {% set request_type_label = {
-                    'new_profile': 'New profile request',
-                    'change_profile': 'Change request',
-                    'pause_profile': 'Pause request',
-                    'retire_profile': 'Retirement request'
-                }.get(item.request_type, item.request_type | replace('_', ' ')) %}
+                        'new_profile': 'New profile request',
+                        'change_profile': 'Change request',
+                        'pause_profile': 'Pause request',
+                        'resume_profile': 'Resume request',
+                        'retire_profile': 'Retirement request'
+                    }.get(item.request_type, item.request_type | replace('_', ' ')) %}
                 <tr>
                     <td>
                         <span class="request-nowrap">#{{ item.id }} / {{ item.status }}</span>
@@ -290,6 +477,9 @@
                         <span class="request-subline">{{ item.created_at }}</span>
                         {% if item.reviewer_email %}
                         <span class="request-subline">reviewed by {{ item.reviewer_email }}</span>
+                        {% endif %}
+                        {% if not review_mode and item.review_comment %}
+                        <span class="request-subline">Review comment: {{ item.review_comment }}</span>
                         {% endif %}
                     </td>
                     <td>
@@ -323,18 +513,38 @@
                         {% if item.status == 'submitted' %}
                         <form method="POST" action="{{ url_for('admin.review_execution_profile_request', request_id=item.id) }}" class="request-review-form">
                             {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
-                            {% if item.request_type in ['pause_profile', 'retire_profile'] %}
+                            {% if item.request_type in ['pause_profile', 'resume_profile', 'retire_profile'] %}
                             <div class="request-form-wide">
                                 <span class="request-badge {% if item.request_type == 'retire_profile' %}request-badge-danger{% else %}request-badge-warning{% endif %}">{{ request_type_label }}</span>
                                 <div class="request-explainer">
                                     {% if item.request_type == 'pause_profile' %}
                                     Approval disables the source profile and pauses its trigger definitions. It does not delete the profile.
+                                    {% elif item.request_type == 'resume_profile' %}
+                                    Approval enables the source profile and resumes its trigger definitions. Requested schedule or watch changes can be applied below.
                                     {% else %}
                                     Approval marks the source profile retired and disables its trigger definitions. It does not delete stored history.
                                     {% endif %}
                                 </div>
                                 <span class="request-subline">source profile {{ item.source_profile_id or '-' }}</span>
                             </div>
+                            {% if item.request_type == 'resume_profile' and (metadata.desired_schedule or metadata.desired_watch_target) %}
+                            <label>
+                                GitLab Target
+                                <select name="gitlab_target">
+                                    {% if gitlab_targets %}
+                                    {% for target in gitlab_targets %}
+                                    <option value="{{ target.id }}">{{ target.id }}</option>
+                                    {% endfor %}
+                                    {% else %}
+                                    <option value="">default</option>
+                                    {% endif %}
+                                </select>
+                            </label>
+                            <label>
+                                Target Ref
+                                <input type="text" name="target_ref" value="{{ default_target_ref }}">
+                            </label>
+                            {% endif %}
                             {% else %}
                             <label>
                                 Final Profile ID
@@ -369,19 +579,21 @@
                                 <input type="text" name="target_ref" value="{{ default_target_ref }}">
                             </label>
                             {% endif %}
-                            {% if metadata.desired_schedule and item.request_type not in ['pause_profile', 'retire_profile'] %}
-                            <label class="request-form-wide">
-                                <input type="checkbox" name="create_scheduled_trigger">
-                                Create scheduled trigger from requested schedule
-                                <span class="request-field-note">{{ metadata.desired_schedule }}</span>
-                            </label>
-                            {% endif %}
-                            {% if metadata.desired_watch_target and item.request_type not in ['pause_profile', 'retire_profile'] %}
-                            <label class="request-form-wide">
-                                <input type="checkbox" name="create_watch_trigger">
-                                Create repo_ref watch trigger from requested target
-                                <span class="request-field-note">{{ metadata.desired_watch_target }}</span>
-                            </label>
+                            {% if item.request_type not in ['pause_profile', 'retire_profile'] and (metadata.desired_schedule or metadata.desired_watch_target) %}
+                            <div class="request-form-wide request-trigger-preview-list">
+                                {% if metadata.desired_schedule %}
+                                <div class="request-trigger-preview">
+                                    <strong>Approve will create or update a scheduled trigger</strong>
+                                    <span class="request-field-note">{{ metadata.desired_schedule }}</span>
+                                </div>
+                                {% endif %}
+                                {% if metadata.desired_watch_target %}
+                                <div class="request-trigger-preview">
+                                    <strong>Approve will create or update a repo_ref watch trigger</strong>
+                                    <span class="request-field-note">{{ metadata.desired_watch_target }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
                             {% endif %}
                             <textarea class="request-form-wide" name="review_comment" rows="2" placeholder="Review comment"></textarea>
                             <div class="request-actions request-form-wide">
@@ -415,31 +627,67 @@
                         <span class="request-subline">
                             {{ link.enabled_trigger_count or 0 }} / {{ link.trigger_count or 0 }} triggers enabled
                         </span>
-                        <div class="request-followup">
-                            <details>
-                                <summary class="request-followup-summary">Follow-up Request</summary>
-                                <div class="request-explainer">
-                                    Pause disables the profile and its triggers temporarily. Retirement disables them and marks the profile retired; neither action deletes history.
-                                </div>
-                                <form method="POST" action="{{ url_for('profile_requests.submit_execution_profile_followup_request') }}" class="request-followup-form">
-                                    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
-                                    <input type="hidden" name="source_profile_id" value="{{ linked_profile.id }}">
-                                    <select name="request_type">
-                                        <option value="change_profile">Change request</option>
-                                        <option value="pause_profile">Pause request</option>
-                                        <option value="retire_profile">Retirement request</option>
-                                    </select>
-                                    <textarea name="note" rows="2" placeholder="What should change, pause reason, or retirement reason"></textarea>
-                                    <button type="submit" class="btn btn-secondary">Submit Follow-up</button>
-                                </form>
-                            </details>
-                        </div>
                         {% elif link.profile_id %}
                         <span class="request-mono">{{ link.profile_id }}</span>
                         <span class="request-badge request-badge-muted">Unavailable</span>
                         <span class="request-subline">Profile is no longer registered. Submit a new request, or ask an admin to restore or recreate this profile ID.</span>
+                        <form method="POST" action="{{ url_for('profile_requests.remove_execution_profile_request_history', request_id=item.id) }}" class="request-actions request-remove-form" onsubmit="return confirm('Remove request #{{ item.id }} from My Requests?');">
+                            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                            <button type="submit" class="btn btn-secondary">Remove from My Requests</button>
+                        </form>
                         {% else %}
                         -
+                        {% endif %}
+                        {% if item.status == 'changes_requested' and (linked_profile or not link.profile_id) %}
+                        <span class="request-subline">Reviewer requested changes. Update and resubmit this request, or cancel it.</span>
+                        <div class="request-followup">
+                            <details>
+                                <summary class="request-followup-summary">Revise Request</summary>
+                                <form method="POST" action="{{ url_for('profile_requests.resubmit_execution_profile_request', request_id=item.id) }}" class="request-followup-form">
+                                    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                    <input type="hidden" name="profile_id" value="{{ item.profile_id }}">
+                                    <label>
+                                        Application Code
+                                        <input type="text" name="code" required value="{{ profile.code | join(', ') }}">
+                                    </label>
+                                    <label>
+                                        System
+                                        <input type="text" name="system" required value="{{ profile.system | join(', ') }}">
+                                    </label>
+                                    <label>
+                                        Exp Scope / Case
+                                        <textarea name="exp" rows="2">{{ profile.exp | join(', ') }}</textarea>
+                                    </label>
+                                    <label>
+                                        Activity
+                                        <input type="text" name="activity" value="{{ profile.activity }}">
+                                    </label>
+                                    <label>
+                                        Desired Schedule
+                                        <input type="text" name="desired_schedule" value="{{ metadata.desired_schedule }}">
+                                    </label>
+                                    <label>
+                                        Desired Watch Target
+                                        <input type="text" name="desired_watch_target" value="{{ metadata.desired_watch_target }}">
+                                    </label>
+                                    <label>
+                                        Note
+                                        <textarea name="note" rows="2">{{ metadata.note }}</textarea>
+                                    </label>
+                                    <button type="submit" class="btn btn-primary">Revise and Resubmit</button>
+                                </form>
+                            </details>
+                        </div>
+                        <form method="POST" action="{{ url_for('profile_requests.cancel_execution_profile_request', request_id=item.id) }}" class="request-actions request-remove-form" onsubmit="return confirm('Cancel request #{{ item.id }}?');">
+                            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                            <button type="submit" class="btn btn-secondary">Cancel Request</button>
+                        </form>
+                        {% elif not linked_profile and not link.profile_id and item.status in ['rejected', 'cancelled'] %}
+                        <span class="request-subline">Request ended without a linked profile.</span>
+                        <form method="POST" action="{{ url_for('profile_requests.remove_execution_profile_request_history', request_id=item.id) }}" class="request-actions request-remove-form" onsubmit="return confirm('Remove request #{{ item.id }} from My Requests?');">
+                            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                            <button type="submit" class="btn btn-secondary">Remove from My Requests</button>
+                        </form>
                         {% endif %}
                     </td>
                     {% endif %}
