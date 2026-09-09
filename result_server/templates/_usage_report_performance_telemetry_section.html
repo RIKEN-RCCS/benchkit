@@ -6,6 +6,7 @@
     "profiled_result_count": 0,
     "regular_run_timing_count": 0,
     "profiled_run_timing_count": 0,
+    "scheduler_queue_timing_count": 0,
     "estimate_record_count": 0,
     "estimate_timing_record_count": 0,
     "build_cache_record_count": 0,
@@ -14,6 +15,7 @@
     "build_cache_store_count": 0,
     "avg_build_time": "-",
     "avg_queue_time": "-",
+    "avg_scheduler_queue_time": "-",
     "avg_run_time": "-",
     "avg_regular_run_time": "-",
     "avg_profiled_run_time": "-",
@@ -33,7 +35,10 @@
     </div>
     <div class="diagnostic-card">
       <h3>Average Timing</h3>
-      <p>build {{ performance_telemetry.summary.avg_build_time }} / reported queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}</p>
+      <p>
+        build {{ performance_telemetry.summary.avg_build_time }} / reported queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}
+        <span class="profile-usage-subline">scheduler queue {{ performance_telemetry.summary.avg_scheduler_queue_time|default('-') }} / {{ performance_telemetry.summary.scheduler_queue_timing_count|default(0) }} explicit records</span>
+      </p>
     </div>
     <div class="diagnostic-card">
       <h3>Run Split</h3>
@@ -78,11 +83,19 @@
           <td>
             build {{ row.avg_build_time }}
             <span class="profile-usage-subline">reported queue {{ row.avg_queue_time }}</span>
+            <span class="profile-usage-subline">scheduler queue {{ row.avg_scheduler_queue_time|default('-') }} / {{ row.scheduler_queue_timing_count|default(0) }} explicit records</span>
             <span class="profile-usage-subline">run {{ row.avg_run_time }}</span>
           </td>
           <td>
             build {{ row.latest_build_time }}
-            <span class="profile-usage-subline">reported queue {{ row.latest_queue_time }}</span>
+            <span class="profile-usage-subline">
+              reported queue {{ row.latest_queue_time }}
+              {% if row.latest_queue_time_source|default('-') != '-' %}/ {{ row.latest_queue_time_source }}{% endif %}
+            </span>
+            <span class="profile-usage-subline">
+              scheduler queue {{ row.latest_scheduler_queue_time|default('-') }}
+              {% if row.latest_scheduler_queue_time_source|default('-') != '-' %}/ {{ row.latest_scheduler_queue_time_source }}{% endif %}
+            </span>
             <span class="profile-usage-subline">{{ row.latest_run_kind }} run {{ row.latest_run_time }}</span>
           </td>
           <td>

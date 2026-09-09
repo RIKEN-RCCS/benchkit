@@ -541,6 +541,9 @@ write_result_json() {
         queue_time: ((.queue_time // 0) | num),
         run_time: ((.run_time // 0) | num)
       }
+      + (if (.queue_time_source? | type) == "string" then {queue_time_source: .queue_time_source} else {} end)
+      + ((try (.scheduler_queue_time? | tonumber) catch null) as $scheduler_queue_time | if $scheduler_queue_time == null then {} else {scheduler_queue_time: $scheduler_queue_time} end)
+      + (if (.scheduler_queue_time_source? | type) == "string" then {scheduler_queue_time_source: .scheduler_queue_time_source} else {} end)
     ' results/pipeline_timing.json 2>/dev/null || true)
     if [ -z "$pipeline_timing_json" ] || [ "$pipeline_timing_json" = "null" ]; then
       pipeline_timing_json='{"build_time":0,"queue_time":0,"run_time":0}'

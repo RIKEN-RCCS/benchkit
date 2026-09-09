@@ -150,6 +150,8 @@ jq -e '
   (.pipeline_timing | type) == "object" and
   (.pipeline_timing.build_time | type) == "number" and
   (.pipeline_timing.queue_time | type) == "number" and
+  .pipeline_timing.queue_time_source == "not_measured" and
+  (.pipeline_timing.scheduler_queue_time == null or (.pipeline_timing.scheduler_queue_time | type) == "number") and
   (.pipeline_timing.run_time | type) == "number" and
   (.execution_trigger | type) == "object"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null

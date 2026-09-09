@@ -1,9 +1,10 @@
 #!/bin/bash
 # collect_timing.sh - Collect timing information from timestamp files
-# Reads build/run/queue timestamp files and generates results/pipeline_timing.json
+# Reads build/run timestamp files and generates results/pipeline_timing.json
 
 BUILD_TIME=0
 QUEUE_TIME=0
+QUEUE_TIME_SOURCE="not_measured"
 RUN_TIME=0
 
 timestamp_value() {
@@ -42,15 +43,15 @@ if [ -f results/run_start ] && [ -f results/run_end ]; then
   fi
 fi
 
-# Queue time: not measurable with current Jacamar/pjsub architecture
-# (before_script/script all run inside the batch job, so queue_submit
-#  is recorded after the job has already started)
+# Queue time is not measured here. Sites may attach explicit scheduler
+# queue metadata separately as scheduler_queue_time.
 QUEUE_TIME=0
 
 cat > results/pipeline_timing.json <<EOF
 {
   "build_time": $BUILD_TIME,
   "queue_time": $QUEUE_TIME,
+  "queue_time_source": "$QUEUE_TIME_SOURCE",
   "run_time": $RUN_TIME
 }
 EOF

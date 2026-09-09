@@ -50,6 +50,9 @@ cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
 {
   "build_time": "12",
   "queue_time": 0,
+  "queue_time_source": "not_measured",
+  "scheduler_queue_time": 45,
+  "scheduler_queue_time_source": "runner_metadata",
   "run_time": 34
 }
 EOF
@@ -163,6 +166,9 @@ jq -e '
   .input_info.inputs[0].verification_status == "covered_by_source_commit" and
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
+  .pipeline_timing.queue_time_source == "not_measured" and
+  .pipeline_timing.scheduler_queue_time == 45 and
+  .pipeline_timing.scheduler_queue_time_source == "runner_metadata" and
   .pipeline_timing.run_time == 34
 ' "${RESULT_JSON}" >/dev/null
 
