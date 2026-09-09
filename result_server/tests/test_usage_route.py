@@ -271,7 +271,9 @@ class TestUsageRoute:
         assert resp.mimetype == "text/csv"
         assert "attachment; filename=evidence_snapshot_" in resp.headers["Content-Disposition"]
         assert "snapshot_time,benchkit_commit,code,system,configured" in text
+        assert "public_result_available,next_action,missing_reason" in text
         assert "demoapp,DemoSystem" in text
+        assert "Decide whether to add this app/system condition" in text
         assert "hit" in text
         assert "example.com/demoapp.git" not in text
 

@@ -757,6 +757,7 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "input_status": "None",
                         "build_cache_status": "not recorded",
                         "public_result_available": "yes",
+                        "next_action": "Record source provenance",
                         "missing_reason": "no profile; no estimate; source incomplete; input not declared",
                     }
                 ]
@@ -782,6 +783,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in html
     assert "Configured:</strong> yes = enabled and implemented" in html
     assert "Result Quality:</strong> missing = no result" in html
+    assert "Next Action" in html
+    assert "Record source provenance" in html
     assert "Maturity Gaps" in html
     assert "Input Status" in html
     assert "None = no input_info" in html
