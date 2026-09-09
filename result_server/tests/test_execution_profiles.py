@@ -1279,8 +1279,6 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
                     "valid_until": "2027-03-31",
                     "review_comment": "approved for operation",
                     "target_ref": "develop",
-                    "create_scheduled_trigger": "on",
-                    "create_watch_trigger": "on",
                 },
                 follow_redirects=True,
             )
@@ -1289,11 +1287,20 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
         assert resp.status_code == 200
         mine_html = mine_resp.data.decode()
         assert mine_resp.status_code == 200
+        assert "My Profiles" in mine_html
         assert "Linked Profile" in mine_html
         assert "demoapp-demosystem-request" in mine_html
         assert "approved" in mine_html
         assert "2 / 2 triggers enabled" in mine_html
-        assert "Follow-up Request" in mine_html
+        assert "Trigger details" in mine_html
+        assert "demoapp-demosystem-request-scheduled" in mine_html
+        assert "schedule" in mine_html
+        assert "0 14 * * *" in mine_html
+        assert "demoapp-demosystem-request-watch" in mine_html
+        assert "https://example.test/demoapp.git@master" in mine_html
+        assert "target" in mine_html
+        assert "develop" in mine_html
+        assert "Request Profile Change" in mine_html
         assert "Pause request" in mine_html
         result = load_execution_profiles(str(db_path))
         assert len(result.profiles) == 1
@@ -1344,6 +1351,50 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
                 data={"action": "approve", "review_comment": "paused"},
                 follow_redirects=True,
             )
+            paused_mine_resp = client.get("/execution-profile-requests/")
+            paused_result = load_execution_profiles(str(db_path))
+            paused_triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+            paused_mine_html = paused_mine_resp.data.decode()
+            profile_section = paused_mine_html.split("My Profiles", 1)[1].split("My Requests", 1)[0]
+            request_section = paused_mine_html.split("My Requests", 1)[1]
+            repeat_pause_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "demoapp-demosystem-request",
+                    "request_type": "pause_profile",
+                    "note": "pause again",
+                },
+                follow_redirects=True,
+            )
+            change_while_paused_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "demoapp-demosystem-request",
+                    "request_type": "change_profile",
+                    "note": "update while paused",
+                },
+                follow_redirects=True,
+            )
+            resume_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "demoapp-demosystem-request",
+                    "request_type": "resume_profile",
+                    "desired_schedule": "15 14 * * * / Asia/Tokyo",
+                    "note": "resume with a schedule update",
+                },
+                follow_redirects=True,
+            )
+            resume_review_page = client.get("/admin/execution-profile-requests")
+            resume_review_resp = client.post(
+                "/admin/execution-profile-requests/3/review",
+                data={
+                    "action": "approve",
+                    "review_comment": "resumed",
+                    "target_ref": "develop",
+                },
+                follow_redirects=True,
+            )
 
         assert followup_resp.status_code == 200
         assert b"Execution profile follow-up request #2 submitted." in followup_resp.data
@@ -1351,12 +1402,42 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
         assert b"Approval disables the source profile" in pause_review_page.data
         assert b"Allocation Project ID" not in pause_review_page.data
         assert pause_review_resp.status_code == 200
-        paused_result = load_execution_profiles(str(db_path))
         assert paused_result.profiles[0]["id"] == "demoapp-demosystem-request"
         assert paused_result.profiles[0]["status"] == "paused"
         assert paused_result.profiles[0]["enabled"] is False
-        paused_triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
         assert all(not trigger["enabled"] for trigger in paused_triggers)
+        assert profile_section.count("Request Profile Change") == 1
+        assert "2 related requests" in profile_section
+        assert 'value="pause_profile"' not in profile_section
+        assert 'value="resume_profile"' in profile_section
+        assert 'value="change_profile"' not in profile_section
+        assert 'value="retire_profile"' in profile_section
+        assert "Desired Schedule" in profile_section
+        assert "Desired Watch Target" in profile_section
+        assert "Trigger details" in profile_section
+        assert "demoapp-demosystem-request-scheduled" in profile_section
+        assert "disabled" in profile_section
+        assert "Pause request" in request_section
+        assert "Request Profile Change" not in request_section
+        assert b"profile is already paused or disabled" in repeat_pause_resp.data
+        assert b"paused or disabled profile changes should be submitted as a resume request" in change_while_paused_resp.data
+        assert b"Execution profile follow-up request #3 submitted." in resume_resp.data
+        assert b"Resume request" in resume_review_page.data
+        assert b"Approve will create or update a scheduled trigger" in resume_review_page.data
+        assert b'create_scheduled_trigger' not in resume_review_page.data
+        assert resume_review_resp.status_code == 200
+        resumed_result = load_execution_profiles(str(db_path))
+        assert resumed_result.profiles[0]["status"] == "approved"
+        assert resumed_result.profiles[0]["enabled"] is True
+        resumed_triggers = ExecutionProfileStore(str(db_path)).list_trigger_definitions()
+        assert all(trigger["enabled"] for trigger in resumed_triggers)
+        scheduled_trigger = next(
+            trigger
+            for trigger in resumed_triggers
+            if trigger["trigger_type"] == "scheduled"
+        )
+        assert scheduled_trigger["cron_expr"] == "15 14 * * *"
+        assert scheduled_trigger["timezone"] == "Asia/Tokyo"
     finally:
         _cleanup(temp_dirs)
 
@@ -1391,8 +1472,102 @@ def test_execution_profile_requests_show_unavailable_linked_profile(tmp_path):
         assert "Profile is no longer registered." in html
         assert "Submit a new request" in html
         assert "ask an admin to restore or recreate this profile ID" in html
-        assert "Follow-up Request" not in html
+        assert "Remove from My Requests" in html
+        assert "Request Profile Change" not in html
         assert "profile not found or deleted" not in html
+
+        with app.test_client() as client:
+            _login_user(client)
+            remove_resp = client.post(
+                f"/execution-profile-requests/{request_id}/remove",
+                follow_redirects=True,
+            )
+
+        remove_html = remove_resp.data.decode()
+        assert remove_resp.status_code == 200
+        assert f"Execution profile request #{request_id} removed from My Requests." in remove_html
+        assert "removed-profile" not in remove_html
+        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_id) is None
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_remove_terminal_unlinked_requests(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    request_ids = []
+    for action in ("reject", "cancel"):
+        request_id = store.create_profile_request(
+            requested_profile=_profile(id=f"{action}-request", status="draft"),
+            requester_email="applicant@test.com",
+            actor="applicant@test.com",
+        )
+        ok, errors = store.review_profile_request(
+            request_id,
+            action=action,
+            actor="admin@test.com",
+        )
+        assert ok, errors
+        request_ids.append(request_id)
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            page_resp = client.get("/execution-profile-requests/")
+            first_remove_resp = client.post(
+                f"/execution-profile-requests/{request_ids[0]}/remove",
+                follow_redirects=True,
+            )
+            second_remove_resp = client.post(
+                f"/execution-profile-requests/{request_ids[1]}/remove",
+                follow_redirects=True,
+            )
+
+        page_html = page_resp.data.decode()
+        assert page_resp.status_code == 200
+        assert "Request ended without a linked profile." in page_html
+        assert page_html.count("Remove from My Requests") == 2
+        assert first_remove_resp.status_code == 200
+        assert second_remove_resp.status_code == 200
+        assert "reject-request" not in first_remove_resp.data.decode()
+        assert "cancel-request" not in second_remove_resp.data.decode()
+        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_ids[0]) is None
+        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_ids[1]) is None
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_keep_available_linked_profile_history(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    request_id = store.create_profile_request(
+        requested_profile=_profile(id="available-profile", status="draft"),
+        requester_email="applicant@test.com",
+        actor="applicant@test.com",
+    )
+    ok, errors = store.review_profile_request(
+        request_id,
+        action="approve",
+        actor="admin@test.com",
+        profile_overrides={"id": "available-profile"},
+    )
+    assert ok, errors
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            resp = client.post(
+                f"/execution-profile-requests/{request_id}/remove",
+                follow_redirects=True,
+            )
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "only unavailable, rejected, or cancelled history rows can be removed" in html
+        assert "available-profile" in html
+        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_id) is not None
     finally:
         _cleanup(temp_dirs)
 
@@ -1423,6 +1598,178 @@ def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path
         assert "Target Profile: source-system-demoapp-nightly" in html
         assert "change requested in note only" in html
         assert "Requested profile changes" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_resubmit_changes_requested_request(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            create_resp = client.post(
+                "/execution-profile-requests/",
+                data={
+                    "profile_id": "demoapp-review",
+                    "code": "demoapp",
+                    "system": "ReviewSystem",
+                    "desired_schedule": "0 14 * * * / Asia/Tokyo",
+                    "note": "please review",
+                },
+                follow_redirects=True,
+            )
+            assert create_resp.status_code == 200
+
+            _login_admin(client)
+            change_resp = client.post(
+                "/admin/execution-profile-requests/1/review",
+                data={
+                    "action": "request_changes",
+                    "review_comment": "please clarify the schedule",
+                },
+                follow_redirects=True,
+            )
+            assert change_resp.status_code == 200
+
+            _login_user(client)
+            page_resp = client.get("/execution-profile-requests/")
+            page_html = page_resp.data.decode()
+            assert page_resp.status_code == 200
+            assert "Review comment: please clarify the schedule" in page_html
+            assert "Revise Request" in page_html
+            assert "Cancel Request" in page_html
+
+            resubmit_resp = client.post(
+                "/execution-profile-requests/1/resubmit",
+                data={
+                    "profile_id": "demoapp-review",
+                    "code": "demoapp",
+                    "system": "ReviewSystem",
+                    "desired_schedule": "30 14 * * * / Asia/Tokyo",
+                    "note": "schedule clarified",
+                },
+                follow_redirects=True,
+            )
+
+        resubmit_html = resubmit_resp.data.decode()
+        assert resubmit_resp.status_code == 200
+        assert "Execution profile request #1 resubmitted." in resubmit_html
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        assert request_row["status"] == "submitted"
+        assert request_row["reviewer_email"] == ""
+        assert request_row["review_comment"] == ""
+        assert (
+            request_row["requested_profile"]["metadata_json"]["desired_schedule"]
+            == "30 14 * * * / Asia/Tokyo"
+        )
+        assert request_row["requested_profile"]["metadata_json"]["note"] == "schedule clarified"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_resubmit_linked_changes_requested_request(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    source_profile = _profile(id="demoapp-linked-review")
+    store.upsert_profile(source_profile, actor="admin@test.com")
+    requested_profile = dict(source_profile)
+    requested_profile["metadata_json"] = {
+        "desired_schedule": "0 14 * * * / Asia/Tokyo",
+        "note": "change cadence",
+    }
+    request_id = store.create_profile_request(
+        requested_profile=requested_profile,
+        requester_email="applicant@test.com",
+        actor="applicant@test.com",
+        request_type="change_profile",
+        source_profile_id=source_profile["id"],
+    )
+    ok, errors = store.review_profile_request(
+        request_id,
+        action="request_changes",
+        actor="admin@test.com",
+        comment="please clarify cadence",
+    )
+    assert ok, errors
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            page_resp = client.get("/execution-profile-requests/")
+            resubmit_resp = client.post(
+                f"/execution-profile-requests/{request_id}/resubmit",
+                data={
+                    "profile_id": "demoapp-linked-review",
+                    "code": "demoapp",
+                    "system": "SourceSystem",
+                    "desired_schedule": "30 14 * * * / Asia/Tokyo",
+                    "note": "cadence clarified",
+                },
+                follow_redirects=True,
+            )
+
+        page_html = page_resp.data.decode()
+        assert page_resp.status_code == 200
+        assert "demoapp-linked-review" in page_html
+        assert "Review comment: please clarify cadence" in page_html
+        assert "Reviewer requested changes. Update and resubmit this request, or cancel it." in page_html
+        assert "Revise Request" in page_html
+        assert "Cancel Request" in page_html
+        assert resubmit_resp.status_code == 200
+        assert f"Execution profile request #{request_id} resubmitted." in resubmit_resp.data.decode()
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(request_id)
+        assert request_row["request_type"] == "change_profile"
+        assert request_row["source_profile_id"] == "demoapp-linked-review"
+        assert request_row["status"] == "submitted"
+        assert request_row["review_comment"] == ""
+        assert (
+            request_row["requested_profile"]["metadata_json"]["desired_schedule"]
+            == "30 14 * * * / Asia/Tokyo"
+        )
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_requests_cancel_changes_requested_request(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_user(client)
+            create_resp = client.post(
+                "/execution-profile-requests/",
+                data={"profile_id": "demoapp-cancel", "code": "demoapp", "system": "ReviewSystem"},
+                follow_redirects=True,
+            )
+            assert create_resp.status_code == 200
+
+            _login_admin(client)
+            change_resp = client.post(
+                "/admin/execution-profile-requests/1/review",
+                data={
+                    "action": "request_changes",
+                    "review_comment": "please revise",
+                },
+                follow_redirects=True,
+            )
+            assert change_resp.status_code == 200
+
+            _login_user(client)
+            cancel_resp = client.post(
+                "/execution-profile-requests/1/cancel",
+                follow_redirects=True,
+            )
+
+        cancel_html = cancel_resp.data.decode()
+        assert cancel_resp.status_code == 200
+        assert "Execution profile request #1 cancelled." in cancel_html
+        assert "Remove from My Requests" in cancel_html
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        assert request_row["status"] == "cancelled"
+        assert request_row["reviewer_email"] == ""
+        assert request_row["review_comment"] == ""
     finally:
         _cleanup(temp_dirs)
 

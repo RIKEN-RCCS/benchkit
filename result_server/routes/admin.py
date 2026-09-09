@@ -187,11 +187,16 @@ def _parse_execution_profile_request_form():
     return raw_profile, errors
 
 
-def _profile_request_note_metadata(note: str) -> dict:
+def _profile_request_note_metadata(
+    note: str,
+    *,
+    desired_schedule: str = "",
+    desired_watch_target: str = "",
+) -> dict:
     return {
         "note": note.strip(),
-        "desired_schedule": "",
-        "desired_watch_target": "",
+        "desired_schedule": desired_schedule.strip(),
+        "desired_watch_target": desired_watch_target.strip(),
     }
 
 
@@ -353,6 +358,31 @@ def _build_profile_request_links(store, requests):
     return links
 
 
+def _build_owned_profile_rows(profile_links, requests):
+    """Return current profiles represented by the user's request history."""
+    rows = {}
+    for item in requests:
+        link = profile_links.get(item["id"], {}) if profile_links else {}
+        profile = link.get("profile")
+        if not profile:
+            continue
+        profile_id = profile.get("id", "")
+        if not profile_id:
+            continue
+        if profile_id not in rows:
+            rows[profile_id] = {
+                "profile": profile,
+                "triggers": list(link.get("triggers", [])),
+                "trigger_count": link.get("trigger_count", 0),
+                "enabled_trigger_count": link.get("enabled_trigger_count", 0),
+                "latest_request_id": item.get("id"),
+                "latest_request_status": item.get("status", ""),
+                "request_count": 0,
+            }
+        rows[profile_id]["request_count"] += 1
+    return list(rows.values())
+
+
 def _requester_can_follow_profile(store, requester_email, source_profile_id):
     if _session_is_admin():
         return True
@@ -382,8 +412,11 @@ def _create_review_requested_triggers(store, profile_request, profile_id, actor)
     errors = []
     gitlab_target = request.form.get("gitlab_target", "").strip()
     target_ref = request.form.get("target_ref", "").strip() or _default_trigger_ref()
+    request_type = profile_request.get("request_type", "")
+    if request_type in {"pause_profile", "retire_profile"}:
+        return created, errors
 
-    if request.form.get("create_scheduled_trigger") == "on":
+    if metadata.get("desired_schedule", ""):
         cron_expr, timezone = _split_requested_schedule(metadata.get("desired_schedule", ""))
         raw_trigger = {
             "id": _profile_request_slug(profile_id, "scheduled"),
@@ -404,7 +437,7 @@ def _create_review_requested_triggers(store, profile_request, profile_id, actor)
             store.upsert_trigger_definition(trigger, actor=actor)
             created.append(trigger["id"])
 
-    if request.form.get("create_watch_trigger") == "on":
+    if metadata.get("desired_watch_target", ""):
         raw_trigger = {
             "id": _profile_request_slug(profile_id, "watch"),
             "name": _profile_request_slug(profile_id, "watch"),
@@ -598,6 +631,7 @@ def execution_profile_requests():
         "admin_execution_profile_requests.html",
         profile_requests=requests,
         profile_links=profile_links,
+        owned_profiles=[],
         selected_status=selected_status,
         status_options=[
             ("open", "Open"),
@@ -625,10 +659,12 @@ def profile_requests():
     requester_email = session.get("user_email", "")
     requests = store.list_profile_requests(requester_email=requester_email)
     profile_links = _build_profile_request_links(store, requests)
+    owned_profiles = _build_owned_profile_rows(profile_links, requests)
     return render_template(
         "admin_execution_profile_requests.html",
         profile_requests=requests,
         profile_links=profile_links,
+        owned_profiles=owned_profiles,
         selected_status="mine",
         status_options=[],
         today=datetime.now(UTC).date().isoformat(),
@@ -707,7 +743,9 @@ def submit_execution_profile_followup_request():
     source_profile_id = request.form.get("source_profile_id", "").strip()
     request_type = request.form.get("request_type", "").strip()
     note = request.form.get("note", "").strip()
-    if request_type not in {"change_profile", "pause_profile", "retire_profile"}:
+    desired_schedule = request.form.get("desired_schedule", "").strip()
+    desired_watch_target = request.form.get("desired_watch_target", "").strip()
+    if request_type not in {"change_profile", "pause_profile", "resume_profile", "retire_profile"}:
         flash("Execution profile follow-up request was not created: invalid request type")
         return redirect(url_for("profile_requests.profile_requests"))
     store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
@@ -716,6 +754,34 @@ def submit_execution_profile_followup_request():
     if not source_profile:
         flash(f"Execution profile follow-up request was not created: profile not found: {source_profile_id}")
         return redirect(url_for("profile_requests.profile_requests"))
+    if request_type == "change_profile" and source_profile.get("status") == "retired":
+        flash("Execution profile follow-up request was not created: retired profile cannot be changed")
+        return redirect(url_for("profile_requests.profile_requests"))
+    if request_type == "change_profile" and (
+        not source_profile.get("enabled", True)
+        or source_profile.get("status") == "paused"
+    ):
+        flash(
+            "Execution profile follow-up request was not created: "
+            "paused or disabled profile changes should be submitted as a resume request"
+        )
+        return redirect(url_for("profile_requests.profile_requests"))
+    if request_type == "pause_profile" and (
+        not source_profile.get("enabled", True)
+        or source_profile.get("status") == "paused"
+    ):
+        flash("Execution profile follow-up request was not created: profile is already paused or disabled")
+        return redirect(url_for("profile_requests.profile_requests"))
+    if request_type == "resume_profile":
+        if source_profile.get("status") == "retired":
+            flash("Execution profile follow-up request was not created: retired profile cannot be resumed")
+            return redirect(url_for("profile_requests.profile_requests"))
+        if source_profile.get("enabled", True) and source_profile.get("status") != "paused":
+            flash("Execution profile follow-up request was not created: profile is already active")
+            return redirect(url_for("profile_requests.profile_requests"))
+    if request_type == "retire_profile" and source_profile.get("status") == "retired":
+        flash("Execution profile follow-up request was not created: profile is already retired")
+        return redirect(url_for("profile_requests.profile_requests"))
     if not _requester_can_follow_profile(store, requester_email, source_profile_id):
         abort(403)
 
@@ -723,7 +789,11 @@ def submit_execution_profile_followup_request():
     requested_profile["status"] = "draft"
     requested_profile["metadata_json"] = {
         **(source_profile.get("metadata_json") or {}),
-        **_profile_request_note_metadata(note),
+        **_profile_request_note_metadata(
+            note,
+            desired_schedule=desired_schedule,
+            desired_watch_target=desired_watch_target,
+        ),
     }
     try:
         request_id = store.create_profile_request(
@@ -747,6 +817,123 @@ def submit_execution_profile_followup_request():
         details={"request_id": request_id, "request_type": request_type},
     )
     flash(f"Execution profile follow-up request #{request_id} submitted.")
+    return redirect(url_for("profile_requests.profile_requests"))
+
+
+def _get_own_profile_request_or_abort(store, request_id, requester_email):
+    profile_request = store.get_profile_request(request_id)
+    if not profile_request:
+        return None
+    if profile_request.get("requester_email") != requester_email:
+        abort(403)
+    return profile_request
+
+
+@profile_requests_bp.route("/<int:request_id>/resubmit", methods=["POST"])
+@authenticated_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
+def resubmit_execution_profile_request(request_id):
+    """Update an own changes-requested profile request and submit it again."""
+    requester_email = session.get("user_email", "")
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    profile_request = _get_own_profile_request_or_abort(store, request_id, requester_email)
+    if not profile_request:
+        flash(f"Execution profile request #{request_id} was not found.")
+        return redirect(url_for("profile_requests.profile_requests"))
+
+    raw_profile, errors = _parse_execution_profile_request_form()
+    if errors:
+        ok = False
+    else:
+        ok, errors = store.resubmit_profile_request(
+            request_id,
+            requested_profile=raw_profile,
+            actor=requester_email,
+        )
+    audit_event(
+        "execution_profile_request_resubmitted",
+        actor=requester_email,
+        target=str(request_id),
+        result="success" if ok else "failure",
+        details={"errors": errors},
+    )
+    if ok:
+        flash(f"Execution profile request #{request_id} resubmitted.")
+    else:
+        flash("Execution profile request was not resubmitted: " + "; ".join(errors))
+    return redirect(url_for("profile_requests.profile_requests"))
+
+
+@profile_requests_bp.route("/<int:request_id>/cancel", methods=["POST"])
+@authenticated_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
+def cancel_execution_profile_request(request_id):
+    """Cancel an own changes-requested profile request."""
+    requester_email = session.get("user_email", "")
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    profile_request = _get_own_profile_request_or_abort(store, request_id, requester_email)
+    if not profile_request:
+        flash(f"Execution profile request #{request_id} was not found.")
+        return redirect(url_for("profile_requests.profile_requests"))
+
+    ok, errors = store.cancel_profile_request(
+        request_id,
+        actor=requester_email,
+        allowed_statuses={"changes_requested"},
+    )
+    audit_event(
+        "execution_profile_request_cancelled",
+        actor=requester_email,
+        target=str(request_id),
+        result="success" if ok else "failure",
+        details={"errors": errors},
+    )
+    if ok:
+        flash(f"Execution profile request #{request_id} cancelled.")
+    else:
+        flash("Execution profile request was not cancelled: " + "; ".join(errors))
+    return redirect(url_for("profile_requests.profile_requests"))
+
+
+@profile_requests_bp.route("/<int:request_id>/remove", methods=["POST"])
+@authenticated_required
+@rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
+def remove_execution_profile_request_history(request_id):
+    """Remove an own terminal request history row from My Requests."""
+    requester_email = session.get("user_email", "")
+    store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    profile_request = _get_own_profile_request_or_abort(store, request_id, requester_email)
+    if not profile_request:
+        flash(f"Execution profile request #{request_id} was not found.")
+        return redirect(url_for("profile_requests.profile_requests"))
+
+    linked_profile_id = (
+        profile_request.get("created_profile_id")
+        or profile_request.get("source_profile_id")
+        or ""
+    )
+    status = profile_request.get("status")
+    profiles = {profile["id"] for profile in store.list_profiles()}
+    missing_linked_profile = bool(linked_profile_id) and linked_profile_id not in profiles
+    terminal_unlinked_request = not linked_profile_id and status in {"rejected", "cancelled"}
+    if not (missing_linked_profile or terminal_unlinked_request):
+        flash(
+            "Execution profile request was not removed: "
+            "only unavailable, rejected, or cancelled history rows can be removed."
+        )
+        return redirect(url_for("profile_requests.profile_requests"))
+
+    if store.delete_profile_request(request_id):
+        audit_event(
+            "execution_profile_request_removed",
+            actor=requester_email,
+            target=str(request_id),
+            result="success",
+            details={"linked_profile_id": linked_profile_id, "status": status},
+        )
+        flash(f"Execution profile request #{request_id} removed from My Requests.")
+    else:
+        flash(f"Execution profile request #{request_id} was not found.")
     return redirect(url_for("profile_requests.profile_requests"))
 
 

@@ -21,6 +21,7 @@ PROFILE_REQUEST_TYPES = {
     "new_profile",
     "change_profile",
     "pause_profile",
+    "resume_profile",
     "retire_profile",
 }
 PROFILE_REQUEST_STATUSES = {
@@ -1397,6 +1398,118 @@ class ExecutionProfileStore:
             ).fetchone()
         return self._profile_request_from_row(row) if row else None
 
+    def delete_profile_request(self, request_id: int) -> bool:
+        """Delete one execution-profile request and its request event rows."""
+        self.migrate()
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM execution_profile_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+            if not row:
+                return False
+            conn.execute("DELETE FROM execution_profile_requests WHERE id = ?", (request_id,))
+        return True
+
+    def resubmit_profile_request(
+        self,
+        request_id: int,
+        *,
+        requested_profile: dict[str, Any],
+        actor: str = "",
+    ) -> tuple[bool, list[str]]:
+        """Replace a changes-requested profile request and submit it again."""
+        normalized, errors = normalize_profile(requested_profile)
+        if errors or normalized is None:
+            return False, errors
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM execution_profile_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+            if not row:
+                return False, [f"profile request {request_id} was not found"]
+            profile_request = self._profile_request_from_row(row)
+            if profile_request["status"] != "changes_requested":
+                return False, [
+                    "only changes-requested profile requests can be resubmitted"
+                ]
+            conn.execute(
+                """
+                UPDATE execution_profile_requests
+                SET profile_id = ?, requested_profile_json = ?, status = 'submitted',
+                    reviewer_email = '', review_comment = '', updated_at = ?,
+                    submitted_at = ?, reviewed_at = ''
+                WHERE id = ?
+                """,
+                (
+                    normalized["id"],
+                    _json_dump(normalized),
+                    now,
+                    now,
+                    request_id,
+                ),
+            )
+            self._add_profile_request_event(
+                conn,
+                request_id=request_id,
+                actor=actor,
+                event_type="profile_request_resubmitted",
+                payload={
+                    "profile_id": normalized["id"],
+                    "request_type": profile_request["request_type"],
+                },
+                created_at=now,
+            )
+        return True, []
+
+    def cancel_profile_request(
+        self,
+        request_id: int,
+        *,
+        actor: str = "",
+        allowed_statuses: set[str] | None = None,
+    ) -> tuple[bool, list[str]]:
+        """Cancel one profile request without creating or changing a profile."""
+        self.migrate()
+        allowed = allowed_statuses or {"draft", "submitted", "changes_requested"}
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM execution_profile_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+            if not row:
+                return False, [f"profile request {request_id} was not found"]
+            profile_request = self._profile_request_from_row(row)
+            if profile_request["status"] not in allowed:
+                return False, [
+                    f"cannot cancel profile request in status {profile_request['status']}"
+                ]
+            conn.execute(
+                """
+                UPDATE execution_profile_requests
+                SET status = 'cancelled', reviewer_email = '', review_comment = '',
+                    updated_at = ?, reviewed_at = ''
+                WHERE id = ?
+                """,
+                (now, request_id),
+            )
+            self._add_profile_request_event(
+                conn,
+                request_id=request_id,
+                actor=actor,
+                event_type="profile_request_cancelled",
+                payload={
+                    "profile_id": profile_request["profile_id"],
+                    "previous_status": profile_request["status"],
+                },
+                created_at=now,
+            )
+        return True, []
+
     def list_profile_request_events(self, request_id: int) -> list[dict[str, Any]]:
         """Return request review events in chronological order."""
         self.migrate()
@@ -1459,9 +1572,25 @@ class ExecutionProfileStore:
                     for key, value in (profile_overrides or {}).items():
                         if value not in (None, ""):
                             payload[key] = value
-                    if request_type == "change_profile" and profile_request["source_profile_id"]:
-                        payload["id"] = profile_request["source_profile_id"]
-                    payload["status"] = "approved"
+                    if request_type == "change_profile":
+                        source_profile_id = profile_request["source_profile_id"]
+                        if not source_profile_id:
+                            return False, ["change_profile requires source_profile_id"]
+                        source_row = conn.execute(
+                            """
+                            SELECT enabled, status
+                            FROM execution_profiles
+                            WHERE id = ?
+                            """,
+                            (source_profile_id,),
+                        ).fetchone()
+                        if not source_row:
+                            return False, [f"source profile was not found: {source_profile_id}"]
+                        payload["id"] = source_profile_id
+                        payload["enabled"] = bool(source_row["enabled"])
+                        payload["status"] = source_row["status"]
+                    else:
+                        payload["status"] = "approved"
                     payload["approved_by"] = ""
                     payload["approved_at"] = ""
                     allocation_project_id = str(payload.get("allocation_project_id") or "").strip()
@@ -1485,7 +1614,7 @@ class ExecutionProfileStore:
                         payload={"request_id": request_id, "request_type": request_type},
                         created_at=now,
                     )
-                elif request_type in {"pause_profile", "retire_profile"}:
+                elif request_type in {"pause_profile", "resume_profile", "retire_profile"}:
                     source_profile_id = profile_request["source_profile_id"]
                     if not source_profile_id:
                         return False, [f"{request_type} requires source_profile_id"]
@@ -1495,29 +1624,43 @@ class ExecutionProfileStore:
                     ).fetchone()
                     if not row:
                         return False, [f"source profile was not found: {source_profile_id}"]
-                    new_profile_status = "paused" if request_type == "pause_profile" else "retired"
+                    if request_type == "pause_profile":
+                        new_profile_status = "paused"
+                        new_profile_enabled = 0
+                        new_trigger_enabled = 0
+                        profile_event_type = "profile_request_paused"
+                    elif request_type == "resume_profile":
+                        new_profile_status = "approved"
+                        new_profile_enabled = 1
+                        new_trigger_enabled = 1
+                        profile_event_type = "profile_request_resumed"
+                    else:
+                        new_profile_status = "retired"
+                        new_profile_enabled = 0
+                        new_trigger_enabled = 0
+                        profile_event_type = "profile_request_retired"
                     conn.execute(
                         """
                         UPDATE execution_profiles
-                        SET enabled = 0, status = ?, updated_at = ?
+                        SET enabled = ?, status = ?, updated_at = ?
                         WHERE id = ?
                         """,
-                        (new_profile_status, now, source_profile_id),
+                        (new_profile_enabled, new_profile_status, now, source_profile_id),
                     )
                     conn.execute(
                         """
                         UPDATE trigger_definitions
-                        SET enabled = 0, updated_at = ?
+                        SET enabled = ?, updated_at = ?
                         WHERE profile_id = ?
                         """,
-                        (now, source_profile_id),
+                        (new_trigger_enabled, now, source_profile_id),
                     )
                     created_profile_id = source_profile_id
                     self._add_profile_event_in_conn(
                         conn,
                         profile_id=source_profile_id,
                         actor=actor,
-                        event_type=f"profile_request_{new_profile_status}",
+                        event_type=profile_event_type,
                         payload={"request_id": request_id, "request_type": request_type},
                         created_at=now,
                     )
