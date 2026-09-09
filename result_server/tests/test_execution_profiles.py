@@ -1713,7 +1713,8 @@ def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path
     source_profile = _profile()
     store.upsert_profile(source_profile, actor="admin@test.com")
     requested_profile = dict(source_profile)
-    requested_profile["metadata_json"] = {"note": "change requested in note only"}
+    requested_profile["system"] = ["SourceSystem", "PeerSystem"]
+    requested_profile["metadata_json"] = {"note": "change requested in note"}
     store.create_profile_request(
         requested_profile=requested_profile,
         requester_email="applicant@test.com",
@@ -1731,8 +1732,14 @@ def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path
         assert resp.status_code == 200
         assert "Change request" in html
         assert "Target Profile: source-system-demoapp-nightly" in html
-        assert "change requested in note only" in html
-        assert "Requested profile changes" not in html
+        assert "change requested in note" in html
+        assert "Requested Profile Changes" in html
+        assert "System" in html
+        assert "current SourceSystem" in html
+        assert "requested SourceSystem, PeerSystem" in html
+        assert "Note" in html
+        assert "current -" in html
+        assert "requested change requested in note" in html
     finally:
         _cleanup(temp_dirs)
 

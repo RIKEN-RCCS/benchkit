@@ -111,6 +111,26 @@
         display: grid;
         gap: 6px;
     }
+    .request-change-details {
+        margin-top: 8px;
+    }
+    .request-change-details summary {
+        cursor: pointer;
+        color: #0f766e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .request-change-list {
+        display: grid;
+        gap: 7px;
+        margin: 7px 0 0;
+        padding: 0;
+        list-style: none;
+    }
+    .request-change-list li {
+        padding-top: 7px;
+        border-top: 1px solid #dce8ee;
+    }
     .request-actions {
         display: flex;
         flex-wrap: wrap;
@@ -506,6 +526,25 @@
                         <span class="request-subline">{{ profile.activity or '-' }}</span>
                         {% if metadata.note %}
                         <span class="request-subline">{{ metadata.note }}</span>
+                        {% endif %}
+                        {% if item.request_type == 'change_profile' %}
+                        {% set requested_changes = link.requested_changes or [] %}
+                        {% if requested_changes %}
+                        <details class="request-change-details" {% if review_mode %}open{% endif %}>
+                            <summary>Requested Profile Changes</summary>
+                            <ul class="request-change-list">
+                            {% for change in requested_changes %}
+                                <li>
+                                    <strong>{{ change.label }}</strong>
+                                    <span class="request-subline">current {{ change.current }}</span>
+                                    <span class="request-subline">requested {{ change.requested }}</span>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </details>
+                        {% else %}
+                        <span class="request-subline">No profile field changes detected.</span>
+                        {% endif %}
                         {% endif %}
                     </td>
                     {% if review_mode %}
