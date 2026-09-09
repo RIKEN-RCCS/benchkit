@@ -119,7 +119,10 @@ Requests have a `request_type`:
 
 - `new_profile`: creates an approved execution profile after review.
 - `change_profile`: updates an existing linked profile after review.
-- `pause_profile`: disables the linked profile and its trigger definitions.
+- `pause_profile`: disables the linked profile and records which trigger
+  definitions were enabled before the pause.
+- `resume_profile`: enables the linked profile and restores only the trigger
+  definitions that were enabled when the profile was paused.
 - `retire_profile`: marks the linked profile retired and disables its trigger
   definitions.
 

@@ -1053,6 +1053,84 @@ class ExecutionProfileStore:
             )
         return triggers
 
+    def _trigger_enabled_states_in_conn(
+        self,
+        conn: sqlite3.Connection,
+        profile_id: str,
+    ) -> list[dict[str, Any]]:
+        rows = conn.execute(
+            """
+            SELECT id, enabled
+            FROM trigger_definitions
+            WHERE profile_id = ?
+            ORDER BY id COLLATE NOCASE
+            """,
+            (profile_id,),
+        ).fetchall()
+        return [
+            {"id": row["id"], "enabled": bool(row["enabled"])}
+            for row in rows
+        ]
+
+    def _latest_pause_enabled_trigger_ids_in_conn(
+        self,
+        conn: sqlite3.Connection,
+        profile_id: str,
+    ) -> list[str] | None:
+        row = conn.execute(
+            """
+            SELECT payload_json
+            FROM execution_profile_events
+            WHERE profile_id = ?
+              AND event_type = 'profile_request_paused'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (profile_id,),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            payload = json.loads(row["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        states = payload.get("trigger_states")
+        if not isinstance(states, list):
+            return None
+
+        enabled_ids: set[str] = set()
+        for state in states:
+            if not isinstance(state, dict):
+                continue
+            trigger_id = str(state.get("id") or "").strip()
+            if trigger_id and state.get("enabled") is True:
+                enabled_ids.add(trigger_id)
+        return sorted(enabled_ids)
+
+    def _restore_paused_trigger_states_in_conn(
+        self,
+        conn: sqlite3.Connection,
+        profile_id: str,
+        *,
+        now: str,
+    ) -> dict[str, Any]:
+        enabled_ids = self._latest_pause_enabled_trigger_ids_in_conn(conn, profile_id)
+        if enabled_ids is None:
+            return {"mode": "no_pause_snapshot", "enabled_trigger_ids": []}
+
+        for trigger_id in enabled_ids:
+            conn.execute(
+                """
+                UPDATE trigger_definitions
+                SET enabled = 1, updated_at = ?
+                WHERE profile_id = ? AND id = ?
+                """,
+                (now, profile_id, trigger_id),
+            )
+        return {"mode": "pause_snapshot", "enabled_trigger_ids": enabled_ids}
+
     def acquire_trigger_runner_lock(
         self,
         name: str,
@@ -1627,18 +1705,31 @@ class ExecutionProfileStore:
                     if request_type == "pause_profile":
                         new_profile_status = "paused"
                         new_profile_enabled = 0
-                        new_trigger_enabled = 0
                         profile_event_type = "profile_request_paused"
+                        profile_event_payload = {
+                            "request_id": request_id,
+                            "request_type": request_type,
+                            "trigger_states": self._trigger_enabled_states_in_conn(
+                                conn,
+                                source_profile_id,
+                            ),
+                        }
                     elif request_type == "resume_profile":
                         new_profile_status = "approved"
                         new_profile_enabled = 1
-                        new_trigger_enabled = 1
                         profile_event_type = "profile_request_resumed"
+                        profile_event_payload = {
+                            "request_id": request_id,
+                            "request_type": request_type,
+                        }
                     else:
                         new_profile_status = "retired"
                         new_profile_enabled = 0
-                        new_trigger_enabled = 0
                         profile_event_type = "profile_request_retired"
+                        profile_event_payload = {
+                            "request_id": request_id,
+                            "request_type": request_type,
+                        }
                     conn.execute(
                         """
                         UPDATE execution_profiles
@@ -1647,21 +1738,30 @@ class ExecutionProfileStore:
                         """,
                         (new_profile_enabled, new_profile_status, now, source_profile_id),
                     )
-                    conn.execute(
-                        """
-                        UPDATE trigger_definitions
-                        SET enabled = ?, updated_at = ?
-                        WHERE profile_id = ?
-                        """,
-                        (new_trigger_enabled, now, source_profile_id),
-                    )
+                    if request_type == "resume_profile":
+                        profile_event_payload["trigger_restore"] = (
+                            self._restore_paused_trigger_states_in_conn(
+                                conn,
+                                source_profile_id,
+                                now=now,
+                            )
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE trigger_definitions
+                            SET enabled = 0, updated_at = ?
+                            WHERE profile_id = ?
+                            """,
+                            (now, source_profile_id),
+                        )
                     created_profile_id = source_profile_id
                     self._add_profile_event_in_conn(
                         conn,
                         profile_id=source_profile_id,
                         actor=actor,
                         event_type=profile_event_type,
-                        payload={"request_id": request_id, "request_type": request_type},
+                        payload=profile_event_payload,
                         created_at=now,
                     )
 
