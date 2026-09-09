@@ -11,6 +11,12 @@
         gap: 12px;
         margin-top: 14px;
     }
+    .managed-page-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
     .managed-summary-item {
         padding: 12px;
         border: 1px solid #dce8ee;
@@ -103,6 +109,8 @@
     }
 </style>
 
+{% set console_prefix = '/dev2/console' if request.path == '/dev2' or request.path.startswith('/dev2/') else ('/dev/console' if request.path == '/dev' or request.path.startswith('/dev/') else ('/console' if request.path == '/console' or request.path.startswith('/console/') else '')) %}
+
 {% with messages = get_flashed_messages() %}
 {% if messages %}
 <div class="inline-notice">
@@ -120,6 +128,12 @@
         affiliation matches the current session. Use Profile Requests to
         propose changes.
     </p>
+    <div class="managed-page-links">
+        <a class="btn btn-secondary" href="{{ console_prefix }}/execution-profile-requests/">Open Profile Requests</a>
+        {% if is_admin %}
+        <a class="btn btn-secondary" href="{{ console_prefix }}/admin/execution-profile-requests">Open Profile Request Review</a>
+        {% endif %}
+    </div>
     <div class="managed-summary">
         <div class="managed-summary-item">
             <strong>{{ managed_profiles | length }}</strong>

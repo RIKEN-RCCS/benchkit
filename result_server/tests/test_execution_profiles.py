@@ -1365,6 +1365,7 @@ def test_admin_execution_profile_requests_create_and_approve(tmp_path):
             assert "Execution profile request #1 submitted." in html
             assert "Create Request" not in html
             assert "Open Applicant Request View" in html
+            assert "Open Managed Profiles" in html
             assert "FutureSystem-demoapp-DemoSystem" in html
             assert "Request Events" in html
             assert "profile request submitted" in html
@@ -2029,6 +2030,8 @@ def test_admin_can_open_applicant_execution_profile_requests_view(tmp_path):
         assert "Applicant request view" in html
         assert "Create Request" in html
         assert "Open Applicant Request View" not in html
+        assert "Open Managed Profiles" in html
+        assert "Open Profile Request Review" in html
         form_html = html.split('<form method="POST" action="/execution-profile-requests/"', 1)[1].split(
             "</form>",
             1,
@@ -2103,6 +2106,7 @@ def test_managed_execution_profiles_filter_by_activity_manager_affiliation(tmp_p
         assert "No registered profiles match the current session." in activity_member_html
         assert resp.status_code == 200
         assert "Managed Profiles" in html
+        assert "Open Profile Requests" in html
         assert "managed-demoapp-profile" in html
         assert "Managed DemoApp Profile" in html
         assert "matched by activity manager" in html
@@ -2143,6 +2147,7 @@ def test_admin_managed_execution_profiles_show_all_profiles(tmp_path):
         assert "first-demoapp-profile" in html
         assert "second-demoapp-profile" in html
         assert "matched by admin" in html
+        assert "Open Profile Request Review" in html
     finally:
         _cleanup(temp_dirs)
 
@@ -2171,6 +2176,7 @@ def test_execution_profile_requests_page_shows_only_current_user_requests(tmp_pa
         assert "mine" in html
         assert "theirs" not in html
         assert "Review Queue" not in html
+        assert "Open Profile Request Review" not in html
     finally:
         _cleanup(temp_dirs)
 
