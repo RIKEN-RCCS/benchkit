@@ -28,10 +28,6 @@
         width: 100%;
         box-sizing: border-box;
     }
-    .request-form input[type="checkbox"],
-    .request-review-form input[type="checkbox"] {
-        width: auto;
-    }
     .request-review-form {
         display: grid;
         grid-template-columns: repeat(2, minmax(150px, 1fr));
@@ -175,12 +171,37 @@
     .request-mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 13px;
+        overflow-wrap: anywhere;
     }
     .request-subline {
         display: block;
         color: #64748b;
         font-size: 12px;
         margin-top: 3px;
+        overflow-wrap: anywhere;
+    }
+    .request-detail-list {
+        display: grid;
+        gap: 4px;
+        margin: 7px 0 0;
+    }
+    .request-detail-list div {
+        display: grid;
+        grid-template-columns: minmax(64px, max-content) minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+    }
+    .request-detail-list dt {
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    .request-detail-list dd {
+        min-width: 0;
+        margin: 0;
+        color: #334155;
+        font-size: 12px;
+        overflow-wrap: anywhere;
     }
     .request-filter-row {
         display: flex;
@@ -223,7 +244,6 @@
     .request-table.request-table-profile th:nth-child(3) { width: 13%; }
     .request-table.request-table-profile th:nth-child(4) { width: 32%; }
     .request-table.request-table-profile th:nth-child(5) { width: 20%; }
-    .request-mono,
     .request-nowrap {
         display: block;
         overflow: hidden;
@@ -357,28 +377,52 @@
                     <tr>
                         <td>
                             <span class="request-mono">{{ owned_profile.id }}</span>
-                            <span class="request-subline">{{ row.request_count }} related request{% if row.request_count != 1 %}s{% endif %}</span>
-                            <span class="request-subline">latest #{{ row.latest_request_id }} / {{ row.latest_request_status }}</span>
+                            <dl class="request-detail-list">
+                                <div>
+                                    <dt>Requests</dt>
+                                    <dd>{{ row.request_count }} related request{% if row.request_count != 1 %}s{% endif %}</dd>
+                                </div>
+                                <div>
+                                    <dt>Latest</dt>
+                                    <dd>#{{ row.latest_request_id }} / {{ row.latest_request_status }}</dd>
+                                </div>
+                            </dl>
                         </td>
                         <td>
-                            <span class="request-subline">
-                                {{ owned_profile.code | join(', ') or '*' }}
-                                on {{ owned_profile.system | join(', ') or '*' }}
-                                {% if owned_profile.exp %}/ {{ owned_profile.exp | join(', ') }}{% endif %}
-                            </span>
-                            <span class="request-subline">{{ owned_profile.activity or '-' }}</span>
+                            <dl class="request-detail-list">
+                                <div>
+                                    <dt>Scope</dt>
+                                    <dd>
+                                        {{ owned_profile.code | join(', ') or '*' }}
+                                        on {{ owned_profile.system | join(', ') or '*' }}
+                                        {% if owned_profile.exp %}/ {{ owned_profile.exp | join(', ') }}{% endif %}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Activity</dt>
+                                    <dd>{{ owned_profile.activity or '-' }}</dd>
+                                </div>
+                            </dl>
                         </td>
                         <td>
                             <span class="request-badge {% if owned_profile.status == 'retired' %}request-badge-danger{% elif owned_profile.status == 'paused' or not owned_profile.enabled %}request-badge-warning{% endif %}">
                                 {{ owned_profile.status }}
                                 / {% if owned_profile.enabled %}enabled{% else %}disabled{% endif %}
                             </span>
-                            <span class="request-subline">{{ owned_profile.allocation_project_id or '-' }}</span>
+                            <dl class="request-detail-list">
+                                <div>
+                                    <dt>Allocation</dt>
+                                    <dd>{{ owned_profile.allocation_project_id or '-' }}</dd>
+                                </div>
+                            </dl>
                         </td>
                         <td>
-                            <span class="request-subline">
-                                {{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled
-                            </span>
+                            <dl class="request-detail-list">
+                                <div>
+                                    <dt>Enabled</dt>
+                                    <dd>{{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled</dd>
+                                </div>
+                            </dl>
                             {% if row.triggers %}
                             <details class="request-trigger-details">
                                 <summary>Trigger details</summary>
@@ -386,26 +430,27 @@
                                 {% for trigger in row.triggers %}
                                     <li>
                                         <span class="request-mono">{{ trigger.id }}</span>
-                                        <span class="request-subline">
-                                            {{ trigger.trigger_type }}
-                                            / {% if trigger.enabled %}enabled{% else %}disabled{% endif %}
-                                        </span>
+                                        <dl class="request-detail-list">
+                                            <div>
+                                                <dt>Type</dt>
+                                                <dd>{{ trigger.trigger_type }} / {% if trigger.enabled %}enabled{% else %}disabled{% endif %}</dd>
+                                            </div>
                                         {% if trigger.trigger_type == 'scheduled' %}
-                                        <span class="request-subline">
-                                            schedule <span class="request-mono">{{ trigger.cron_expr }}</span>
-                                            / {{ trigger.timezone }}
-                                        </span>
+                                            <div>
+                                                <dt>Schedule</dt>
+                                                <dd><span class="request-mono">{{ trigger.cron_expr }}</span> / {{ trigger.timezone }}</dd>
+                                            </div>
                                         {% elif trigger.trigger_type == 'watch_event' %}
-                                        <span class="request-subline">
-                                            watch {{ trigger.watch_kind }}
-                                            / {{ trigger.match_mode }}
-                                            / <span class="request-mono">{{ trigger.watch_targets | join(', ') }}</span>
-                                        </span>
+                                            <div>
+                                                <dt>Watch</dt>
+                                                <dd>{{ trigger.watch_kind }} / {{ trigger.match_mode }} / <span class="request-mono">{{ trigger.watch_targets | join(', ') }}</span></dd>
+                                            </div>
                                         {% endif %}
-                                        <span class="request-subline">
-                                            target <span class="request-mono">{{ trigger.gitlab_target or 'default' }}</span>
-                                            / <span class="request-mono">{{ trigger.target_ref or default_target_ref }}</span>
-                                        </span>
+                                            <div>
+                                                <dt>Target</dt>
+                                                <dd><span class="request-mono">{{ trigger.gitlab_target or 'default' }}</span> / <span class="request-mono">{{ trigger.target_ref or default_target_ref }}</span></dd>
+                                            </div>
+                                        </dl>
                                         {% if not trigger.target_ref %}
                                         <span class="request-field-note">ref not set</span>
                                         {% endif %}
@@ -512,11 +557,27 @@
                 <tr>
                     <td>
                         <span class="request-nowrap">#{{ item.id }} / {{ item.status }}</span>
-                        <span class="request-subline">{{ request_type_label }}</span>
-                        <span class="request-subline">{{ item.requester_email or '-' }}</span>
-                        <span class="request-subline">{{ item.created_at }}</span>
+                        <dl class="request-detail-list">
+                            <div>
+                                <dt>Type</dt>
+                                <dd>{{ request_type_label }}</dd>
+                            </div>
+                            <div>
+                                <dt>Applicant</dt>
+                                <dd>{{ item.requester_email or '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Created</dt>
+                                <dd>{{ item.created_at }}</dd>
+                            </div>
+                        </dl>
                         {% if item.reviewer_email %}
-                        <span class="request-subline">reviewed by {{ item.reviewer_email }}</span>
+                        <dl class="request-detail-list">
+                            <div>
+                                <dt>Reviewer</dt>
+                                <dd>{{ item.reviewer_email }}</dd>
+                            </div>
+                        </dl>
                         {% endif %}
                         {% if not review_mode and item.review_comment %}
                         <span class="request-subline">Review comment: {{ item.review_comment }}</span>
@@ -539,29 +600,56 @@
                     </td>
                     <td>
                         <span class="request-mono">{{ item.profile_id }}</span>
-                        <span class="request-subline">
-                            {{ profile.code | join(', ') or '*' }}
-                            on {{ profile.system | join(', ') or '*' }}
-                            {% if profile.exp %}/ {{ profile.exp | join(', ') }}{% endif %}
-                        </span>
+                        <dl class="request-detail-list">
+                            <div>
+                                <dt>Scope</dt>
+                                <dd>
+                                    {{ profile.code | join(', ') or '*' }}
+                                    on {{ profile.system | join(', ') or '*' }}
+                                    {% if profile.exp %}/ {{ profile.exp | join(', ') }}{% endif %}
+                                </dd>
+                            </div>
+                        </dl>
                         {% if item.source_profile_id %}
-                        <span class="request-subline">Target Profile: {{ item.source_profile_id }}</span>
+                        <dl class="request-detail-list">
+                            <div>
+                                <dt>Source</dt>
+                                <dd>{{ item.source_profile_id }}</dd>
+                            </div>
+                        </dl>
                         {% endif %}
                     </td>
                     <td>
+                        <dl class="request-detail-list">
                         {% if not metadata.desired_schedule and not metadata.desired_watch_target %}
-                        Manual trigger handled by approver
+                            <div>
+                                <dt>Trigger</dt>
+                                <dd>Manual trigger handled by approver</dd>
+                            </div>
                         {% endif %}
                         {% if metadata.desired_schedule %}
-                        <span class="request-subline">schedule {{ metadata.desired_schedule }}</span>
+                            <div>
+                                <dt>Schedule</dt>
+                                <dd>{{ metadata.desired_schedule }}</dd>
+                            </div>
                         {% endif %}
                         {% if metadata.desired_watch_target %}
-                        <span class="request-subline">watch {{ metadata.desired_watch_target }}</span>
+                            <div>
+                                <dt>Watch</dt>
+                                <dd>{{ metadata.desired_watch_target }}</dd>
+                            </div>
                         {% endif %}
-                        <span class="request-subline">{{ profile.activity or '-' }}</span>
+                            <div>
+                                <dt>Activity</dt>
+                                <dd>{{ profile.activity or '-' }}</dd>
+                            </div>
                         {% if request_note %}
-                        <span class="request-subline">{{ request_note }}</span>
+                            <div>
+                                <dt>Note</dt>
+                                <dd>{{ request_note }}</dd>
+                            </div>
                         {% endif %}
+                        </dl>
                         {% if item.request_type == 'change_profile' %}
                         {% set requested_changes = link.requested_changes or [] %}
                         {% if requested_changes %}
@@ -697,10 +785,16 @@
                             {{ linked_profile.status }}
                             / {% if linked_profile.enabled %}enabled{% else %}disabled{% endif %}
                         </span>
-                        <span class="request-subline">{{ linked_profile.allocation_project_id or '-' }}</span>
-                        <span class="request-subline">
-                            {{ link.enabled_trigger_count or 0 }} / {{ link.trigger_count or 0 }} triggers enabled
-                        </span>
+                        <dl class="request-detail-list">
+                            <div>
+                                <dt>Allocation</dt>
+                                <dd>{{ linked_profile.allocation_project_id or '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Triggers</dt>
+                                <dd>{{ link.enabled_trigger_count or 0 }} / {{ link.trigger_count or 0 }} triggers enabled</dd>
+                            </div>
+                        </dl>
                         {% elif link.profile_id %}
                         <span class="request-mono">{{ link.profile_id }}</span>
                         <span class="request-badge request-badge-muted">Unavailable</span>

@@ -52,6 +52,30 @@
         margin-top: 3px;
         color: #64748b;
         font-size: 12px;
+        overflow-wrap: anywhere;
+    }
+    .managed-detail-list {
+        display: grid;
+        gap: 4px;
+        margin: 7px 0 0;
+    }
+    .managed-detail-list div {
+        display: grid;
+        grid-template-columns: minmax(64px, max-content) minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+    }
+    .managed-detail-list dt {
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    .managed-detail-list dd {
+        min-width: 0;
+        margin: 0;
+        color: #334155;
+        font-size: 12px;
+        overflow-wrap: anywhere;
     }
     .managed-badge {
         display: inline-flex;
@@ -193,38 +217,70 @@
                 <tr>
                     <td>
                         <span class="managed-mono">{{ profile.id }}</span>
-                        <span class="managed-subline">{{ profile.display_name or '-' }}</span>
                         <span class="managed-badge {% if profile.status == 'retired' %}managed-badge-danger{% elif profile.status == 'paused' or not profile.enabled %}managed-badge-warning{% endif %}">
                             {{ profile.status }}
                             / {% if profile.enabled %}enabled{% else %}disabled{% endif %}
                         </span>
-                        <span class="managed-subline">matched by {{ row.match_reasons | join(', ') }}</span>
+                        <dl class="managed-detail-list">
+                            <div>
+                                <dt>Name</dt>
+                                <dd>{{ profile.display_name or '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Visible</dt>
+                                <dd>matched by {{ row.match_reasons | join(', ') }}</dd>
+                            </div>
+                        </dl>
                     </td>
                     <td>
-                        <span class="managed-subline">
-                            <span class="managed-mono">{{ profile.code | join(', ') or '*' }}</span>
-                            on
-                            <span class="managed-mono">{{ profile.system | join(', ') or '*' }}</span>
-                        </span>
+                        <dl class="managed-detail-list">
+                            <div>
+                                <dt>Scope</dt>
+                                <dd>
+                                    <span class="managed-mono">{{ profile.code | join(', ') or '*' }}</span>
+                                    on
+                                    <span class="managed-mono">{{ profile.system | join(', ') or '*' }}</span>
+                                </dd>
+                            </div>
                         {% if profile.exp %}
-                        <span class="managed-subline">exp <span class="managed-mono">{{ profile.exp | join(', ') }}</span></span>
+                            <div>
+                                <dt>Exp</dt>
+                                <dd><span class="managed-mono">{{ profile.exp | join(', ') }}</span></dd>
+                            </div>
                         {% endif %}
-                        <span class="managed-subline">{{ profile.activity or '-' }}</span>
+                            <div>
+                                <dt>Activity</dt>
+                                <dd>{{ profile.activity or '-' }}</dd>
+                            </div>
+                        </dl>
                     </td>
                     <td>
-                        <span class="managed-subline">owner <span class="managed-mono">{{ profile.owner or '-' }}</span></span>
-                        <span class="managed-subline">allocation <span class="managed-mono">{{ profile.allocation_project_id or '-' }}</span></span>
-                        <span class="managed-subline">
-                            valid
-                            <span class="managed-mono">{{ profile.valid_from or 'open' }}</span>
-                            to
-                            <span class="managed-mono">{{ profile.valid_until or 'open' }}</span>
-                        </span>
+                        <dl class="managed-detail-list">
+                            <div>
+                                <dt>Owner</dt>
+                                <dd><span class="managed-mono">{{ profile.owner or '-' }}</span></dd>
+                            </div>
+                            <div>
+                                <dt>Allocation</dt>
+                                <dd><span class="managed-mono">{{ profile.allocation_project_id or '-' }}</span></dd>
+                            </div>
+                            <div>
+                                <dt>Valid</dt>
+                                <dd>
+                                    <span class="managed-mono">{{ profile.valid_from or 'open' }}</span>
+                                    to
+                                    <span class="managed-mono">{{ profile.valid_until or 'open' }}</span>
+                                </dd>
+                            </div>
+                        </dl>
                     </td>
                     <td>
-                        <span class="managed-subline">
-                            {{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled
-                        </span>
+                        <dl class="managed-detail-list">
+                            <div>
+                                <dt>Enabled</dt>
+                                <dd>{{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled</dd>
+                            </div>
+                        </dl>
                         {% if row.triggers %}
                         <ul class="managed-trigger-list">
                         {% for trigger in row.triggers %}
@@ -234,22 +290,23 @@
                                     {{ trigger.trigger_type }}
                                     / {% if trigger.enabled %}enabled{% else %}disabled{% endif %}
                                 </span>
+                                <dl class="managed-detail-list">
                                 {% if trigger.trigger_type == 'scheduled' %}
-                                <span class="managed-subline">
-                                    schedule <span class="managed-mono">{{ trigger.cron_expr or '-' }}</span>
-                                    / {{ trigger.timezone or '-' }}
-                                </span>
+                                    <div>
+                                        <dt>Schedule</dt>
+                                        <dd><span class="managed-mono">{{ trigger.cron_expr or '-' }}</span> / {{ trigger.timezone or '-' }}</dd>
+                                    </div>
                                 {% elif trigger.trigger_type == 'watch_event' %}
-                                <span class="managed-subline">
-                                    watch {{ trigger.watch_kind or '-' }}
-                                    / {{ trigger.match_mode or '-' }}
-                                    / <span class="managed-mono">{{ trigger.watch_targets | join(', ') or '-' }}</span>
-                                </span>
+                                    <div>
+                                        <dt>Watch</dt>
+                                        <dd>{{ trigger.watch_kind or '-' }} / {{ trigger.match_mode or '-' }} / <span class="managed-mono">{{ trigger.watch_targets | join(', ') or '-' }}</span></dd>
+                                    </div>
                                 {% endif %}
-                                <span class="managed-subline">
-                                    target <span class="managed-mono">{{ trigger.gitlab_target or 'default' }}</span>
-                                    / <span class="managed-mono">{{ trigger.target_ref or default_target_ref }}</span>
-                                </span>
+                                    <div>
+                                        <dt>Target</dt>
+                                        <dd><span class="managed-mono">{{ trigger.gitlab_target or 'default' }}</span> / <span class="managed-mono">{{ trigger.target_ref or default_target_ref }}</span></dd>
+                                    </div>
+                                </dl>
                             </li>
                         {% endfor %}
                         </ul>
