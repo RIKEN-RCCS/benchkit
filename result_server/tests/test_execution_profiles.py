@@ -358,6 +358,88 @@ def test_execution_profile_store_creates_watch_event_trigger_definition(tmp_path
     assert triggers[0]["match_mode"] == "any"
 
 
+def test_resume_profile_request_restores_only_previously_enabled_triggers(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    profile = _profile(id="demoapp-profile")
+    store.upsert_profile(profile, actor="admin@test.com")
+    store.upsert_trigger_definition(
+        _scheduled_trigger(
+            id="demoapp-profile-scheduled",
+            profile_id=profile["id"],
+            enabled=True,
+        ),
+        actor="admin@test.com",
+    )
+    store.upsert_trigger_definition(
+        _scheduled_trigger(
+            id="demoapp-profile-watch",
+            profile_id=profile["id"],
+            trigger_type="watch_event",
+            enabled=False,
+            watch_kind="repo_ref",
+            watch_targets=["https://example.test/demoapp.git@main"],
+        ),
+        actor="admin@test.com",
+    )
+    pause_request_id = store.create_profile_request(
+        requested_profile=profile,
+        requester_email="applicant@test.com",
+        request_type="pause_profile",
+        source_profile_id=profile["id"],
+        actor="applicant@test.com",
+    )
+
+    ok, errors = store.review_profile_request(
+        pause_request_id,
+        action="approve",
+        actor="approver@test.com",
+    )
+
+    assert ok, errors
+    assert {
+        trigger["id"]: trigger["enabled"]
+        for trigger in store.list_trigger_definitions()
+    } == {
+        "demoapp-profile-scheduled": False,
+        "demoapp-profile-watch": False,
+    }
+    with sqlite3.connect(db_path) as conn:
+        pause_payload = conn.execute(
+            """
+            SELECT payload_json
+            FROM execution_profile_events
+            WHERE event_type = 'profile_request_paused'
+            """
+        ).fetchone()[0]
+    assert json.loads(pause_payload)["trigger_states"] == [
+        {"id": "demoapp-profile-scheduled", "enabled": True},
+        {"id": "demoapp-profile-watch", "enabled": False},
+    ]
+
+    resume_request_id = store.create_profile_request(
+        requested_profile=profile,
+        requester_email="applicant@test.com",
+        request_type="resume_profile",
+        source_profile_id=profile["id"],
+        actor="applicant@test.com",
+    )
+    ok, errors = store.review_profile_request(
+        resume_request_id,
+        action="approve",
+        actor="approver@test.com",
+    )
+
+    assert ok, errors
+    assert {
+        trigger["id"]: trigger["enabled"]
+        for trigger in store.list_trigger_definitions()
+    } == {
+        "demoapp-profile-scheduled": True,
+        "demoapp-profile-watch": False,
+    }
+
+
 def test_watch_event_trigger_rejects_repo_ref_git_option_target():
     trigger, errors = normalize_trigger_definition(
         {
