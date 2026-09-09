@@ -480,6 +480,7 @@
             {% for item in profile_requests %}
                 {% set profile = item.requested_profile %}
                 {% set metadata = profile.metadata_json if profile.metadata_json is mapping else {} %}
+                {% set request_note = metadata.request_note or metadata.note %}
                 {% set link = profile_links.get(item.id, {}) if profile_links is mapping else {} %}
                 {% set linked_profile = link.profile if link.profile is mapping else none %}
                 {% set request_type_label = {
@@ -524,8 +525,8 @@
                         <span class="request-subline">watch {{ metadata.desired_watch_target }}</span>
                         {% endif %}
                         <span class="request-subline">{{ profile.activity or '-' }}</span>
-                        {% if metadata.note %}
-                        <span class="request-subline">{{ metadata.note }}</span>
+                        {% if request_note %}
+                        <span class="request-subline">{{ request_note }}</span>
                         {% endif %}
                         {% if item.request_type == 'change_profile' %}
                         {% set requested_changes = link.requested_changes or [] %}
@@ -711,7 +712,7 @@
                                     </label>
                                     <label>
                                         Note
-                                        <textarea name="note" rows="2">{{ metadata.note }}</textarea>
+                                        <textarea name="note" rows="2">{{ request_note }}</textarea>
                                     </label>
                                     <button type="submit" class="btn btn-primary">Revise and Resubmit</button>
                                 </form>

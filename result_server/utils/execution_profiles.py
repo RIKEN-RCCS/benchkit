@@ -1735,6 +1735,14 @@ class ExecutionProfileStore:
                         payload["status"] = "approved"
                     payload["approved_by"] = ""
                     payload["approved_at"] = ""
+                    if request_type == "change_profile":
+                        metadata = payload.get("metadata_json")
+                        if isinstance(metadata, dict):
+                            payload["metadata_json"] = {
+                                key: value
+                                for key, value in metadata.items()
+                                if key != "request_note"
+                            }
                     allocation_project_id = str(payload.get("allocation_project_id") or "").strip()
                     systems = _as_text_list(payload.get("system"))
                     if allocation_project_id and len(systems) != 1:
