@@ -354,6 +354,7 @@ def _build_profile_request_links(store, requests):
             "triggers": triggers,
             "trigger_count": len(triggers),
             "enabled_trigger_count": sum(1 for trigger in triggers if trigger.get("enabled")),
+            "requested_changes": _profile_request_change_rows(item, profile),
         }
     return links
 
@@ -366,6 +367,66 @@ def _group_trigger_definitions_by_profile(trigger_definitions):
         if profile_id:
             triggers_by_profile.setdefault(profile_id, []).append(trigger)
     return triggers_by_profile
+
+
+def _profile_request_change_rows(profile_request, source_profile):
+    """Return display-ready field changes requested against a source profile."""
+    if profile_request.get("request_type") != "change_profile" or not source_profile:
+        return []
+    requested_profile = profile_request.get("requested_profile") or {}
+    rows = []
+    field_specs = [
+        ("Application Code", "code"),
+        ("System", "system"),
+        ("Exp Scope", "exp"),
+        ("Activity", "activity"),
+        ("Allocation Project ID", "allocation_project_id"),
+        ("Valid From", "valid_from"),
+        ("Valid Until", "valid_until"),
+    ]
+    for label, key in field_specs:
+        current = source_profile.get(key)
+        requested = requested_profile.get(key)
+        if _profile_request_diff_key(current) != _profile_request_diff_key(requested):
+            rows.append({
+                "label": label,
+                "current": _profile_request_diff_display(current),
+                "requested": _profile_request_diff_display(requested),
+            })
+
+    current_metadata = source_profile.get("metadata_json")
+    current_metadata = current_metadata if isinstance(current_metadata, dict) else {}
+    requested_metadata = requested_profile.get("metadata_json")
+    requested_metadata = requested_metadata if isinstance(requested_metadata, dict) else {}
+    metadata_specs = [
+        ("Desired Schedule", "desired_schedule"),
+        ("Desired Watch Target", "desired_watch_target"),
+        ("Note", "note"),
+    ]
+    for label, key in metadata_specs:
+        current = current_metadata.get(key)
+        requested = requested_metadata.get(key)
+        if _profile_request_diff_key(current) != _profile_request_diff_key(requested):
+            rows.append({
+                "label": label,
+                "current": _profile_request_diff_display(current),
+                "requested": _profile_request_diff_display(requested),
+            })
+    return rows
+
+
+def _profile_request_diff_key(value):
+    if isinstance(value, (list, tuple)):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    return str(value or "").strip()
+
+
+def _profile_request_diff_display(value):
+    if isinstance(value, (list, tuple)):
+        text = ", ".join(str(item).strip() for item in value if str(item).strip())
+    else:
+        text = str(value or "").strip()
+    return text or "-"
 
 
 def _build_owned_profile_rows(profile_links, requests):
