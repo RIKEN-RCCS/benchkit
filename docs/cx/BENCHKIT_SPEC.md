@@ -358,6 +358,14 @@ Execution conditions are mainly formed by app-side `list.csv` and system-side `s
 - input_info
 - 実行環境メタデータ
 
+`pipeline_timing.queue_time` は、Result JSON に報告された queue timing であり、
+必ずしも scheduler 側の実待ち時間を表すとは限らない。
+現在の共通 timing 収集で scheduler 待ち時間を測定できない場合は、
+`queue_time_source` に `not_measured` を入れる。
+site runner や scheduler log などから投入時刻と開始時刻を明示的に取得できる場合は、
+任意の `scheduler_queue_time` と `scheduler_queue_time_source` を追加し、
+reported queue timing とは別の値として扱う。
+
 Benchmark results are produced by normalizing `run.sh` output into Result JSON through `result.sh`.
 
 They may include at least:
@@ -370,6 +378,14 @@ They may include at least:
 - source_info
 - input_info
 - execution-environment metadata
+
+`pipeline_timing.queue_time` is the queue timing reported in Result JSON, and
+does not necessarily represent scheduler-side wait time. When common timing
+collection cannot measure scheduler wait, `queue_time_source` should be
+`not_measured`. If a site runner or scheduler log can explicitly provide submit
+and start timestamps, optional `scheduler_queue_time` and
+`scheduler_queue_time_source` fields may be attached and should be treated as a
+separate measurement from reported queue timing.
 
 ### 7.3 ソース出自情報 / Source Provenance
 
