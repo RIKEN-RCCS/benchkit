@@ -111,23 +111,27 @@
         display: grid;
         gap: 6px;
     }
-    .request-change-details {
+    .request-change-details,
+    .request-event-details {
         margin-top: 8px;
     }
-    .request-change-details summary {
+    .request-change-details summary,
+    .request-event-details summary {
         cursor: pointer;
         color: #0f766e;
         font-size: 12px;
         font-weight: 700;
     }
-    .request-change-list {
+    .request-change-list,
+    .request-event-list {
         display: grid;
         gap: 7px;
         margin: 7px 0 0;
         padding: 0;
         list-style: none;
     }
-    .request-change-list li {
+    .request-change-list li,
+    .request-event-list li {
         padding-top: 7px;
         border-top: 1px solid #dce8ee;
     }
@@ -483,6 +487,7 @@
                 {% set request_note = metadata.request_note or metadata.note %}
                 {% set link = profile_links.get(item.id, {}) if profile_links is mapping else {} %}
                 {% set linked_profile = link.profile if link.profile is mapping else none %}
+                {% set request_events = link.request_events or [] %}
                 {% set request_type_label = {
                         'new_profile': 'New profile request',
                         'change_profile': 'Change request',
@@ -501,6 +506,21 @@
                         {% endif %}
                         {% if not review_mode and item.review_comment %}
                         <span class="request-subline">Review comment: {{ item.review_comment }}</span>
+                        {% endif %}
+                        {% if request_events %}
+                        <details class="request-event-details">
+                            <summary>Request Events</summary>
+                            <ul class="request-event-list">
+                            {% for event in request_events %}
+                                <li>
+                                    <span class="request-mono">{{ event.created_at }}</span>
+                                    <span class="request-subline">{{ event.event_label }}</span>
+                                    <span class="request-subline">actor {{ event.actor }}</span>
+                                    <span class="request-subline">{{ event.detail }}</span>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </details>
                         {% endif %}
                     </td>
                     <td>

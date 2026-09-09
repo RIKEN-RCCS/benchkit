@@ -1667,6 +1667,28 @@ class ExecutionProfileStore:
             ).fetchall()
         return [self._profile_request_event_from_row(row) for row in rows]
 
+    def list_profile_events(
+        self,
+        profile_id: str,
+        *,
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        """Return recent profile lifecycle events, newest first."""
+        self.migrate()
+        row_limit = max(1, int(limit))
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM execution_profile_events
+                WHERE profile_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (profile_id, row_limit),
+            ).fetchall()
+        return [self._profile_event_from_row(row) for row in rows]
+
     def review_profile_request(
         self,
         request_id: int,
@@ -1900,6 +1922,20 @@ class ExecutionProfileStore:
         return {
             "id": row["id"],
             "request_id": row["request_id"],
+            "actor": row["actor"],
+            "event_type": row["event_type"],
+            "payload": payload if isinstance(payload, dict) else {},
+            "created_at": row["created_at"],
+        }
+
+    def _profile_event_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            payload = json.loads(row["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            payload = {"_invalid_payload_json": row["payload_json"]}
+        return {
+            "id": row["id"],
+            "profile_id": row["profile_id"],
             "actor": row["actor"],
             "event_type": row["event_type"],
             "payload": payload if isinstance(payload, dict) else {},
