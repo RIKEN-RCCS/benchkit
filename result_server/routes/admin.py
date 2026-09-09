@@ -971,7 +971,7 @@ def cancel_execution_profile_request(request_id):
 @authenticated_required
 @rate_limited(max_per_minute=20, key_fn=_admin_rate_key, scope="profile_request_write")
 def remove_execution_profile_request_history(request_id):
-    """Remove an own terminal request history row from My Requests."""
+    """Hide an own terminal request history row from My Requests."""
     requester_email = session.get("user_email", "")
     store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
     profile_request = _get_own_profile_request_or_abort(store, request_id, requester_email)
@@ -995,9 +995,9 @@ def remove_execution_profile_request_history(request_id):
         )
         return redirect(url_for("profile_requests.profile_requests"))
 
-    if store.delete_profile_request(request_id):
+    if store.hide_profile_request_for_requester(request_id, actor=requester_email):
         audit_event(
-            "execution_profile_request_removed",
+            "execution_profile_request_hidden",
             actor=requester_email,
             target=str(request_id),
             result="success",

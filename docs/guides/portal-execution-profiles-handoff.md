@@ -131,6 +131,11 @@ history remain in the site-local DB so operators can audit what happened and
 why. Deleting a profile remains an admin operation outside the applicant request
 workflow.
 
+Applicants can remove unavailable, rejected, or cancelled rows from their own
+`My Requests` view. This only hides those rows from the applicant list; the
+request row and request event history remain in the site-local DB for operator
+review.
+
 The applicant page shows each request's linked profile, current profile status,
 enabled state, allocation project ID, and enabled/total trigger counts when a
 profile has been created. Follow-up requests are created from that linked
