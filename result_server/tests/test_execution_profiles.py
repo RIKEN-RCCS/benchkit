@@ -1710,11 +1710,14 @@ def test_execution_profile_requests_keep_available_linked_profile_history(tmp_pa
 def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path):
     db_path = tmp_path / "cx_portal.sqlite3"
     store = ExecutionProfileStore(str(db_path))
-    source_profile = _profile()
+    source_profile = _profile(metadata_json={"note": "profile note"})
     store.upsert_profile(source_profile, actor="admin@test.com")
     requested_profile = dict(source_profile)
     requested_profile["system"] = ["SourceSystem", "PeerSystem"]
-    requested_profile["metadata_json"] = {"note": "change requested in note"}
+    requested_profile["metadata_json"] = {
+        "note": "profile note",
+        "request_note": "change requested in note",
+    }
     store.create_profile_request(
         requested_profile=requested_profile,
         requester_email="applicant@test.com",
@@ -1737,9 +1740,60 @@ def test_admin_execution_profile_requests_show_followup_target_and_note(tmp_path
         assert "System" in html
         assert "current SourceSystem" in html
         assert "requested SourceSystem, PeerSystem" in html
-        assert "Note" in html
-        assert "current -" in html
-        assert "requested change requested in note" in html
+        assert "requested change requested in note" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_execution_profile_change_followup_requires_effective_change(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    source_profile = _profile(
+        id="demoapp-demosystem-request",
+        metadata_json={"note": "profile note"},
+    )
+    store.upsert_profile(source_profile, actor="admin@test.com")
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            note_only_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "demoapp-demosystem-request",
+                    "request_type": "change_profile",
+                    "note": "please change this",
+                },
+                follow_redirects=True,
+            )
+            schedule_resp = client.post(
+                "/execution-profile-requests/follow-up",
+                data={
+                    "source_profile_id": "demoapp-demosystem-request",
+                    "request_type": "change_profile",
+                    "desired_schedule": "15 14 * * * / Asia/Tokyo",
+                    "note": "please change cadence",
+                },
+                follow_redirects=True,
+            )
+            review_resp = client.post(
+                "/admin/execution-profile-requests/1/review",
+                data={"action": "approve", "review_comment": "approved"},
+                follow_redirects=True,
+            )
+
+        assert note_only_resp.status_code == 200
+        assert b"note-only changes are not actionable" in note_only_resp.data
+        assert schedule_resp.status_code == 200
+        assert b"Execution profile follow-up request #1 submitted." in schedule_resp.data
+        request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
+        metadata = request_row["requested_profile"]["metadata_json"]
+        assert metadata["note"] == "profile note"
+        assert metadata["request_note"] == "please change cadence"
+        assert review_resp.status_code == 200
+        result = load_execution_profiles(str(db_path))
+        assert result.profiles[0]["metadata_json"]["note"] == "profile note"
+        assert "request_note" not in result.profiles[0]["metadata_json"]
     finally:
         _cleanup(temp_dirs)
 

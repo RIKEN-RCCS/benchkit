@@ -200,6 +200,33 @@ def _profile_request_note_metadata(
     }
 
 
+def _profile_request_followup_metadata(
+    source_profile: dict,
+    *,
+    note: str,
+    desired_schedule: str = "",
+    desired_watch_target: str = "",
+    preserve_profile_metadata: bool = False,
+) -> dict:
+    source_metadata = source_profile.get("metadata_json") or {}
+    metadata = (
+        dict(source_metadata)
+        if preserve_profile_metadata and isinstance(source_metadata, dict)
+        else {}
+    )
+    metadata.pop("request_note", None)
+    desired_schedule = desired_schedule.strip()
+    desired_watch_target = desired_watch_target.strip()
+    if desired_schedule:
+        metadata["desired_schedule"] = desired_schedule
+    if desired_watch_target:
+        metadata["desired_watch_target"] = desired_watch_target
+    request_note = note.strip()
+    if request_note:
+        metadata["request_note"] = request_note
+    return metadata
+
+
 def _parse_trigger_definition_form():
     """Return a raw trigger definition object from the submitted admin form."""
     actor = session.get("user_email", "")
@@ -401,7 +428,6 @@ def _profile_request_change_rows(profile_request, source_profile):
     metadata_specs = [
         ("Desired Schedule", "desired_schedule"),
         ("Desired Watch Target", "desired_watch_target"),
-        ("Note", "note"),
     ]
     for label, key in metadata_specs:
         current = current_metadata.get(key)
@@ -413,6 +439,18 @@ def _profile_request_change_rows(profile_request, source_profile):
                 "requested": _profile_request_diff_display(requested),
             })
     return rows
+
+
+def _profile_request_has_effective_changes(requested_profile, source_profile):
+    return bool(
+        _profile_request_change_rows(
+            {
+                "request_type": "change_profile",
+                "requested_profile": requested_profile,
+            },
+            source_profile,
+        )
+    )
 
 
 def _profile_request_diff_key(value):
@@ -920,14 +958,23 @@ def submit_execution_profile_followup_request():
 
     requested_profile = dict(source_profile)
     requested_profile["status"] = "draft"
-    requested_profile["metadata_json"] = {
-        **(source_profile.get("metadata_json") or {}),
-        **_profile_request_note_metadata(
-            note,
-            desired_schedule=desired_schedule,
-            desired_watch_target=desired_watch_target,
-        ),
-    }
+    requested_profile["metadata_json"] = _profile_request_followup_metadata(
+        source_profile,
+        note=note,
+        desired_schedule=desired_schedule,
+        desired_watch_target=desired_watch_target,
+        preserve_profile_metadata=request_type == "change_profile",
+    )
+    if request_type == "change_profile" and not _profile_request_has_effective_changes(
+        requested_profile,
+        source_profile,
+    ):
+        flash(
+            "Execution profile follow-up request was not created: "
+            "change request needs a schedule, watch target, or profile field change; "
+            "note-only changes are not actionable"
+        )
+        return redirect(url_for("profile_requests.profile_requests"))
     try:
         request_id = store.create_profile_request(
             requested_profile=requested_profile,
@@ -975,6 +1022,44 @@ def resubmit_execution_profile_request(request_id):
         return redirect(url_for("profile_requests.profile_requests"))
 
     raw_profile, errors = _parse_execution_profile_request_form()
+    source_profile = None
+    source_profile_id = profile_request.get("source_profile_id") or ""
+    if source_profile_id:
+        source_profile = next(
+            (
+                profile
+                for profile in store.list_profiles()
+                if profile["id"] == source_profile_id
+            ),
+            None,
+        )
+    if not errors and source_profile and profile_request.get("request_type") in {
+        "change_profile",
+        "pause_profile",
+        "resume_profile",
+        "retire_profile",
+    }:
+        submitted_metadata = raw_profile.get("metadata_json")
+        submitted_metadata = submitted_metadata if isinstance(submitted_metadata, dict) else {}
+        raw_profile["metadata_json"] = _profile_request_followup_metadata(
+            source_profile,
+            note=str(
+                submitted_metadata.get("note")
+                or submitted_metadata.get("request_note")
+                or ""
+            ),
+            desired_schedule=str(submitted_metadata.get("desired_schedule") or ""),
+            desired_watch_target=str(submitted_metadata.get("desired_watch_target") or ""),
+            preserve_profile_metadata=profile_request.get("request_type") == "change_profile",
+        )
+    if not errors and profile_request.get("request_type") == "change_profile":
+        if not source_profile:
+            errors.append("source profile was not found")
+        elif not _profile_request_has_effective_changes(raw_profile, source_profile):
+            errors.append(
+                "change request needs a schedule, watch target, or profile field change; "
+                "note-only changes are not actionable"
+            )
     if errors:
         ok = False
     else:
