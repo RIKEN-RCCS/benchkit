@@ -339,9 +339,9 @@ def _find_trigger_definition(triggers, trigger_id):
 def _build_profile_request_links(store, requests):
     """Attach approved/source profile and trigger state for request views."""
     profiles_by_id = {profile["id"]: profile for profile in store.list_profiles()}
-    triggers_by_profile: dict[str, list[dict]] = {}
-    for trigger in store.list_trigger_definitions():
-        triggers_by_profile.setdefault(trigger["profile_id"], []).append(trigger)
+    triggers_by_profile = _group_trigger_definitions_by_profile(
+        store.list_trigger_definitions()
+    )
 
     links = {}
     for item in requests:
@@ -356,6 +356,16 @@ def _build_profile_request_links(store, requests):
             "enabled_trigger_count": sum(1 for trigger in triggers if trigger.get("enabled")),
         }
     return links
+
+
+def _group_trigger_definitions_by_profile(trigger_definitions):
+    """Return trigger definitions grouped by their owning profile ID."""
+    triggers_by_profile: dict[str, list[dict]] = {}
+    for trigger in trigger_definitions:
+        profile_id = str(trigger.get("profile_id") or "").strip()
+        if profile_id:
+            triggers_by_profile.setdefault(profile_id, []).append(trigger)
+    return triggers_by_profile
 
 
 def _build_owned_profile_rows(profile_links, requests):
@@ -381,6 +391,48 @@ def _build_owned_profile_rows(profile_links, requests):
             }
         rows[profile_id]["request_count"] += 1
     return list(rows.values())
+
+
+def _profile_management_match_reasons(profile, affiliations):
+    """Return why the current authenticated user can see this managed profile."""
+    if _session_is_admin():
+        return ["admin"]
+    affiliation_set = {
+        str(item).strip()
+        for item in (affiliations or [])
+        if str(item).strip()
+    }
+    activity = str(profile.get("activity") or "").strip()
+    if activity and f"activity-manager:{activity}" in affiliation_set:
+        return ["activity manager"]
+    return []
+
+
+def _build_managed_profile_rows(profiles, trigger_definitions):
+    """Return read-only execution profile rows visible to the current user."""
+    affiliations = session.get("user_affiliations", [])
+    triggers_by_profile = _group_trigger_definitions_by_profile(trigger_definitions)
+    rows = []
+    for profile in profiles:
+        match_reasons = _profile_management_match_reasons(
+            profile,
+            affiliations,
+        )
+        if not match_reasons:
+            continue
+        triggers = triggers_by_profile.get(profile["id"], [])
+        rows.append(
+            {
+                "profile": profile,
+                "triggers": triggers,
+                "trigger_count": len(triggers),
+                "enabled_trigger_count": sum(
+                    1 for trigger in triggers if trigger.get("enabled")
+                ),
+                "match_reasons": match_reasons,
+            }
+        )
+    return rows
 
 
 def _requester_can_follow_profile(store, requester_email, source_profile_id):
@@ -673,6 +725,26 @@ def profile_requests():
         review_mode=False,
         create_endpoint="profile_requests.submit_execution_profile_request",
         current_requester_email=requester_email,
+    )
+
+
+@profile_requests_bp.route("/managed-profiles/", methods=["GET"])
+@authenticated_required
+def managed_profiles():
+    """Render read-only execution profiles visible to the authenticated user."""
+    db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
+    profile_result = load_execution_profiles(db_path)
+    trigger_definitions = _list_trigger_definitions(db_path)
+    return render_template(
+        "managed_execution_profiles.html",
+        profile_result=profile_result,
+        managed_profiles=_build_managed_profile_rows(
+            profile_result.profiles,
+            trigger_definitions,
+        ),
+        is_admin=_session_is_admin(),
+        current_user_affiliations=session.get("user_affiliations", []),
+        default_target_ref=_default_trigger_ref(),
     )
 
 

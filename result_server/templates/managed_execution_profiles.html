@@ -1,0 +1,234 @@
+{% extends "_results_base.html" %}
+
+{% block title %}Managed Profiles{% endblock %}
+{% block page_subtitle %}Review execution profiles and registered triggers connected to your affiliations.{% endblock %}
+
+{% block content %}
+<style>
+    .managed-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+    }
+    .managed-summary-item {
+        padding: 12px;
+        border: 1px solid #dce8ee;
+        border-radius: 8px;
+        background: #f7fbfc;
+    }
+    .managed-summary-item strong {
+        display: block;
+        color: #0f172a;
+        font-size: 22px;
+    }
+    .managed-table {
+        table-layout: fixed;
+        min-width: 1180px;
+    }
+    .managed-table td {
+        vertical-align: top;
+        white-space: normal;
+        line-height: 1.35;
+    }
+    .managed-table th:nth-child(1) { width: 18%; }
+    .managed-table th:nth-child(2) { width: 20%; }
+    .managed-table th:nth-child(3) { width: 20%; }
+    .managed-table th:nth-child(4) { width: 42%; }
+    .managed-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+    }
+    .managed-subline {
+        display: block;
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 12px;
+    }
+    .managed-badge {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: #eef8f7;
+        color: #0f766e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .managed-badge-muted {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .managed-badge-warning {
+        background: #fff7ed;
+        color: #9a3412;
+    }
+    .managed-badge-danger {
+        background: #fef2f2;
+        color: #991b1b;
+    }
+    .managed-trigger-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+    .managed-trigger-list li + li {
+        padding-top: 10px;
+        border-top: 1px solid #dce8ee;
+    }
+</style>
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="inline-notice">
+    {% for message in messages %}
+    <div>{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<section class="page-card">
+    <h2 class="section-title">Managed Profiles</h2>
+    <p class="section-intro">
+        Read-only view of current execution profiles whose activity manager
+        affiliation matches the current session. Use Profile Requests to
+        propose changes.
+    </p>
+    <div class="managed-summary">
+        <div class="managed-summary-item">
+            <strong>{{ managed_profiles | length }}</strong>
+            <span>visible profiles</span>
+        </div>
+        <div class="managed-summary-item">
+            <strong>{{ managed_profiles | sum(attribute='trigger_count') }}</strong>
+            <span>registered triggers</span>
+        </div>
+        <div class="managed-summary-item">
+            <strong>{{ managed_profiles | sum(attribute='enabled_trigger_count') }}</strong>
+            <span>enabled triggers</span>
+        </div>
+        <div class="managed-summary-item">
+            <strong>{% if is_admin %}admin{% else %}{{ current_user_affiliations | length }}{% endif %}</strong>
+            <span>{% if is_admin %}visibility scope{% else %}session affiliations{% endif %}</span>
+        </div>
+    </div>
+    {% if not is_admin %}
+    <p class="section-intro">
+        Matching affiliations:
+        {% if current_user_affiliations %}
+        <span class="managed-mono">{{ current_user_affiliations | join(', ') }}</span>
+        {% else %}
+        none
+        {% endif %}
+    </p>
+    {% endif %}
+    {% if profile_result.errors %}
+    <div class="inline-notice">
+        <strong>Profile registry issues:</strong>
+        <ul>
+            {% for error in profile_result.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+
+<section class="page-card table-card">
+    <h2 class="section-title">Current Profiles</h2>
+    <div class="table-wrap">
+        <table class="managed-table">
+            <thead>
+                <tr>
+                    <th>Profile</th>
+                    <th>Scope</th>
+                    <th>Governance</th>
+                    <th>Registered Triggers</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in managed_profiles %}
+                {% set profile = row.profile %}
+                <tr>
+                    <td>
+                        <span class="managed-mono">{{ profile.id }}</span>
+                        <span class="managed-subline">{{ profile.display_name or '-' }}</span>
+                        <span class="managed-badge {% if profile.status == 'retired' %}managed-badge-danger{% elif profile.status == 'paused' or not profile.enabled %}managed-badge-warning{% endif %}">
+                            {{ profile.status }}
+                            / {% if profile.enabled %}enabled{% else %}disabled{% endif %}
+                        </span>
+                        <span class="managed-subline">matched by {{ row.match_reasons | join(', ') }}</span>
+                    </td>
+                    <td>
+                        <span class="managed-subline">
+                            <span class="managed-mono">{{ profile.code | join(', ') or '*' }}</span>
+                            on
+                            <span class="managed-mono">{{ profile.system | join(', ') or '*' }}</span>
+                        </span>
+                        {% if profile.exp %}
+                        <span class="managed-subline">exp <span class="managed-mono">{{ profile.exp | join(', ') }}</span></span>
+                        {% endif %}
+                        <span class="managed-subline">{{ profile.activity or '-' }}</span>
+                    </td>
+                    <td>
+                        <span class="managed-subline">owner <span class="managed-mono">{{ profile.owner or '-' }}</span></span>
+                        <span class="managed-subline">allocation <span class="managed-mono">{{ profile.allocation_project_id or '-' }}</span></span>
+                        <span class="managed-subline">
+                            valid
+                            <span class="managed-mono">{{ profile.valid_from or 'open' }}</span>
+                            to
+                            <span class="managed-mono">{{ profile.valid_until or 'open' }}</span>
+                        </span>
+                    </td>
+                    <td>
+                        <span class="managed-subline">
+                            {{ row.enabled_trigger_count or 0 }} / {{ row.trigger_count or 0 }} triggers enabled
+                        </span>
+                        {% if row.triggers %}
+                        <ul class="managed-trigger-list">
+                        {% for trigger in row.triggers %}
+                            <li>
+                                <span class="managed-mono">{{ trigger.id }}</span>
+                                <span class="managed-badge {% if not trigger.enabled %}managed-badge-muted{% endif %}">
+                                    {{ trigger.trigger_type }}
+                                    / {% if trigger.enabled %}enabled{% else %}disabled{% endif %}
+                                </span>
+                                {% if trigger.trigger_type == 'scheduled' %}
+                                <span class="managed-subline">
+                                    schedule <span class="managed-mono">{{ trigger.cron_expr or '-' }}</span>
+                                    / {{ trigger.timezone or '-' }}
+                                </span>
+                                {% elif trigger.trigger_type == 'watch_event' %}
+                                <span class="managed-subline">
+                                    watch {{ trigger.watch_kind or '-' }}
+                                    / {{ trigger.match_mode or '-' }}
+                                    / <span class="managed-mono">{{ trigger.watch_targets | join(', ') or '-' }}</span>
+                                </span>
+                                {% endif %}
+                                <span class="managed-subline">
+                                    target <span class="managed-mono">{{ trigger.gitlab_target or 'default' }}</span>
+                                    / <span class="managed-mono">{{ trigger.target_ref or default_target_ref }}</span>
+                                </span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                        {% else %}
+                        <span class="managed-subline">No trigger definitions</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">No registered profiles match the current session.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

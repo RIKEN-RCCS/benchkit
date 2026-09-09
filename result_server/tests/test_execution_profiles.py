@@ -52,11 +52,11 @@ def _login_admin(client):
         sess["user_affiliations"] = ["admin"]
 
 
-def _login_user(client, email="applicant@test.com"):
+def _login_user(client, email="applicant@test.com", affiliations=None):
     with client.session_transaction() as sess:
         sess["authenticated"] = True
         sess["user_email"] = email
-        sess["user_affiliations"] = ["app"]
+        sess["user_affiliations"] = affiliations if affiliations is not None else ["app"]
 
 
 def _admin_app(db_path):
@@ -99,6 +99,24 @@ def _profile(**overrides):
     }
     profile.update(overrides)
     normalized, errors = normalize_profile(profile)
+    assert errors == []
+    assert normalized is not None
+    return normalized
+
+
+def _scheduled_trigger(**overrides):
+    trigger = {
+        "id": "source-system-demoapp-nightly-trigger",
+        "trigger_type": "scheduled",
+        "profile_id": "source-system-demoapp-nightly",
+        "enabled": True,
+        "gitlab_target": "default",
+        "target_ref": "develop",
+        "cron_expr": "0 2 * * *",
+        "timezone": "Asia/Tokyo",
+    }
+    trigger.update(overrides)
+    normalized, errors = normalize_trigger_definition(trigger)
     assert errors == []
     assert normalized is not None
     return normalized
@@ -1841,6 +1859,106 @@ def test_admin_can_open_applicant_execution_profile_requests_view(tmp_path):
         assert submit_resp.status_code == 200
         request_row = ExecutionProfileStore(str(db_path)).get_profile_request(1)
         assert request_row["requester_email"] == "admin@test.com"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_managed_execution_profiles_filter_by_activity_manager_affiliation(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(
+        _profile(
+            id="managed-demoapp-profile",
+            display_name="Managed DemoApp Profile",
+            owner="project-a",
+            activity="ActivityAlpha",
+            allocation_project_id="project00010",
+        ),
+        actor="admin@test.com",
+    )
+    store.upsert_profile(
+        _profile(
+            id="outside-demoapp-profile",
+            display_name="Outside DemoApp Profile",
+            owner="project-b",
+            activity="ActivityBeta",
+            allocation_project_id="project00020",
+            system=["OutsideSystem"],
+        ),
+        actor="admin@test.com",
+    )
+    store.upsert_trigger_definition(
+        _scheduled_trigger(
+            id="managed-demoapp-scheduled",
+            profile_id="managed-demoapp-profile",
+            cron_expr="0 8 * * *",
+        ),
+        actor="admin@test.com",
+    )
+    store.upsert_trigger_definition(
+        _scheduled_trigger(
+            id="outside-demoapp-scheduled",
+            profile_id="outside-demoapp-profile",
+            cron_expr="0 9 * * *",
+        ),
+        actor="admin@test.com",
+    )
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            unauthenticated = client.get("/execution-profile-requests/managed-profiles/")
+            _login_user(client, affiliations=["ActivityAlpha"])
+            activity_member_resp = client.get("/execution-profile-requests/managed-profiles/")
+            _login_user(client, affiliations=["activity-manager:ActivityAlpha"])
+            resp = client.get("/execution-profile-requests/managed-profiles/")
+
+        activity_member_html = activity_member_resp.data.decode()
+        html = resp.data.decode()
+        assert unauthenticated.status_code == 302
+        assert "/auth/login" in unauthenticated.headers["Location"]
+        assert activity_member_resp.status_code == 200
+        assert "managed-demoapp-profile" not in activity_member_html
+        assert "No registered profiles match the current session." in activity_member_html
+        assert resp.status_code == 200
+        assert "Managed Profiles" in html
+        assert "managed-demoapp-profile" in html
+        assert "Managed DemoApp Profile" in html
+        assert "matched by activity manager" in html
+        assert "1 / 1 triggers enabled" in html
+        assert "managed-demoapp-scheduled" in html
+        assert "0 8 * * *" in html
+        assert "Profile Request Review" not in html
+        assert "Approve" not in html
+        assert "outside-demoapp-profile" not in html
+        assert "project00020" not in html
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_admin_managed_execution_profiles_show_all_profiles(tmp_path):
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(
+        _profile(id="first-demoapp-profile", owner="project-a"),
+        actor="admin@test.com",
+    )
+    store.upsert_profile(
+        _profile(id="second-demoapp-profile", owner="project-b"),
+        actor="admin@test.com",
+    )
+
+    app, temp_dirs = _admin_app(db_path)
+    try:
+        with app.test_client() as client:
+            _login_admin(client)
+            resp = client.get("/execution-profile-requests/managed-profiles/")
+
+        html = resp.data.decode()
+        assert resp.status_code == 200
+        assert "first-demoapp-profile" in html
+        assert "second-demoapp-profile" in html
+        assert "matched by admin" in html
     finally:
         _cleanup(temp_dirs)
 
