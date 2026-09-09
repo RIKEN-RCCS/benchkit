@@ -1587,7 +1587,29 @@ def test_execution_profile_requests_show_unavailable_linked_profile(tmp_path):
         assert remove_resp.status_code == 200
         assert f"Execution profile request #{request_id} removed from My Requests." in remove_html
         assert "removed-profile" not in remove_html
-        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_id) is None
+        stored_request = ExecutionProfileStore(str(db_path)).get_profile_request(request_id)
+        assert stored_request is not None
+        assert stored_request["requester_hidden_at"]
+        assert (
+            ExecutionProfileStore(str(db_path)).list_profile_requests(
+                requester_email="applicant@test.com"
+            )
+            == []
+        )
+        assert (
+            ExecutionProfileStore(str(db_path)).list_profile_requests(
+                requester_email="applicant@test.com",
+                include_requester_hidden=True,
+            )[0]["id"]
+            == request_id
+        )
+        hidden_events = ExecutionProfileStore(str(db_path)).list_profile_request_events(request_id)
+        assert hidden_events[-1]["event_type"] == "profile_request_hidden_by_requester"
+
+        all_requests = ExecutionProfileStore(str(db_path)).list_profile_requests(
+            statuses=["approved"]
+        )
+        assert [request["id"] for request in all_requests] == [request_id]
     finally:
         _cleanup(temp_dirs)
 
@@ -1632,8 +1654,21 @@ def test_execution_profile_requests_remove_terminal_unlinked_requests(tmp_path):
         assert second_remove_resp.status_code == 200
         assert "reject-request" not in first_remove_resp.data.decode()
         assert "cancel-request" not in second_remove_resp.data.decode()
-        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_ids[0]) is None
-        assert ExecutionProfileStore(str(db_path)).get_profile_request(request_ids[1]) is None
+        assert (
+            ExecutionProfileStore(str(db_path)).list_profile_requests(
+                requester_email="applicant@test.com"
+            )
+            == []
+        )
+        hidden_requests = ExecutionProfileStore(str(db_path)).list_profile_requests(
+            requester_email="applicant@test.com",
+            include_requester_hidden=True,
+        )
+        assert [request["id"] for request in hidden_requests] == list(reversed(request_ids))
+        for request_id in request_ids:
+            assert ExecutionProfileStore(str(db_path)).get_profile_request(request_id) is not None
+            events = ExecutionProfileStore(str(db_path)).list_profile_request_events(request_id)
+            assert events[-1]["event_type"] == "profile_request_hidden_by_requester"
     finally:
         _cleanup(temp_dirs)
 

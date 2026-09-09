@@ -16,7 +16,7 @@ PROFILE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 ALLOCATION_PROJECT_ID_RE = PROFILE_ID_RE
 TRIGGER_TYPES = {"manual_button", "scheduled", "watch_event"}
 MATCH_MODES = {"any", "all"}
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 PROFILE_REQUEST_TYPES = {
     "new_profile",
     "change_profile",
@@ -371,6 +371,9 @@ class ExecutionProfileStore:
                 current = 10
             if current < 11:
                 self._apply_v11(conn)
+                current = 11
+            if current < 12:
+                self._apply_v12(conn)
 
     def _apply_v1(self, conn: sqlite3.Connection) -> None:
         now = _utc_now_iso()
@@ -665,7 +668,8 @@ class ExecutionProfileStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 submitted_at TEXT NOT NULL DEFAULT '',
-                reviewed_at TEXT NOT NULL DEFAULT ''
+                reviewed_at TEXT NOT NULL DEFAULT '',
+                requester_hidden_at TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS execution_profile_request_events (
@@ -713,6 +717,24 @@ class ExecutionProfileStore:
         conn.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (11, now),
+        )
+
+    def _apply_v12(self, conn: sqlite3.Connection) -> None:
+        now = _utc_now_iso()
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(execution_profile_requests)").fetchall()
+        }
+        if "requester_hidden_at" not in columns:
+            conn.execute(
+                """
+                ALTER TABLE execution_profile_requests
+                ADD COLUMN requester_hidden_at TEXT NOT NULL DEFAULT ''
+                """
+            )
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (12, now),
         )
 
     def upsert_profile(self, profile: dict[str, Any], *, actor: str = "") -> None:
@@ -1444,6 +1466,7 @@ class ExecutionProfileStore:
         *,
         statuses: list[str] | tuple[str, ...] | None = None,
         requester_email: str = "",
+        include_requester_hidden: bool = False,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         """List execution-profile requests ordered by most recent update."""
@@ -1458,6 +1481,8 @@ class ExecutionProfileStore:
         if requester_email:
             clauses.append("requester_email = ?")
             params.append(requester_email)
+            if not include_requester_hidden:
+                clauses.append("requester_hidden_at = ''")
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
@@ -1487,6 +1512,45 @@ class ExecutionProfileStore:
             if not row:
                 return False
             conn.execute("DELETE FROM execution_profile_requests WHERE id = ?", (request_id,))
+        return True
+
+    def hide_profile_request_for_requester(
+        self,
+        request_id: int,
+        *,
+        actor: str = "",
+    ) -> bool:
+        """Hide one execution-profile request from the requester's own list."""
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, requester_hidden_at
+                FROM execution_profile_requests
+                WHERE id = ?
+                """,
+                (request_id,),
+            ).fetchone()
+            if not row:
+                return False
+            if not row["requester_hidden_at"]:
+                conn.execute(
+                    """
+                    UPDATE execution_profile_requests
+                    SET requester_hidden_at = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (now, now, request_id),
+                )
+                self._add_profile_request_event(
+                    conn,
+                    request_id=request_id,
+                    actor=actor,
+                    event_type="profile_request_hidden_by_requester",
+                    payload={},
+                    created_at=now,
+                )
         return True
 
     def resubmit_profile_request(
@@ -1813,6 +1877,11 @@ class ExecutionProfileStore:
             "updated_at": row["updated_at"],
             "submitted_at": row["submitted_at"],
             "reviewed_at": row["reviewed_at"],
+            "requester_hidden_at": (
+                row["requester_hidden_at"]
+                if "requester_hidden_at" in row.keys()
+                else ""
+            ),
         }
 
     def _profile_request_event_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
