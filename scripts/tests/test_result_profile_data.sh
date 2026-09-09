@@ -22,6 +22,7 @@ cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
 {
   "build_time": "12",
   "queue_time": 0,
+  "queue_time_source": "not_measured",
   "run_time": 34
 }
 EOF
@@ -114,6 +115,7 @@ jq -e '
   .profile_data.run_count == 1 and
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
+  .pipeline_timing.queue_time_source == "not_measured" and
   .pipeline_timing.run_time == 34 and
   .pipeline_id == 999 and
   .parent_pipeline_id == 888 and
@@ -159,6 +161,7 @@ test ! -f "${TIMING_TMP}/results/timing.env"
 jq -e '
   .build_time == 15 and
   .queue_time == 0 and
+  .queue_time_source == "not_measured" and
   .run_time == 0
 ' "${TIMING_TMP}/results/pipeline_timing.json" >/dev/null
 

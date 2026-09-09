@@ -15,6 +15,14 @@ from utils.result_records import format_result_timestamp, load_result_json
 TIMING_FIELDS = ("build_time", "queue_time", "run_time")
 CODE_COMPONENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 REPO_ROOT = Path(__file__).resolve().parents[2]
+TIMING_SOURCE_LABELS = {
+    "not_measured": "not measured",
+    "timestamp_files": "timestamp files",
+    "runner_metadata": "runner metadata",
+    "scheduler_metadata": "scheduler metadata",
+    "scheduler_logs": "scheduler logs",
+    "gitlab_metadata": "GitLab metadata",
+}
 
 
 def build_performance_telemetry(received_dir: str, estimated_dir: str | None = None) -> dict[str, Any]:
@@ -25,10 +33,12 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
     regular_run_totals = _empty_scalar_total()
     profiled_run_totals = _empty_scalar_total()
     estimate_totals = _empty_scalar_total()
+    scheduler_queue_totals = _empty_scalar_total()
     summary = {
         "result_count": 0,
         "ignored_result_count": 0,
         "timing_record_count": 0,
+        "scheduler_queue_timing_count": 0,
         "profiled_result_count": 0,
         "regular_run_timing_count": 0,
         "profiled_run_timing_count": 0,
@@ -57,6 +67,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "system": system,
                 "result_count": 0,
                 "timing_count": 0,
+                "scheduler_queue_timing_count": 0,
                 "profiled_count": 0,
                 "regular_run_timing_count": 0,
                 "profiled_run_timing_count": 0,
@@ -70,6 +81,9 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "latest_exp": _clean(data.get("Exp")) or "-",
                 "latest_build_time": "-",
                 "latest_queue_time": "-",
+                "latest_queue_time_source": "-",
+                "latest_scheduler_queue_time": "-",
+                "latest_scheduler_queue_time_source": "-",
                 "latest_run_time": "-",
                 "latest_run_kind": "-",
                 "latest_build_cache_status": "-",
@@ -81,17 +95,25 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "_regular_run_totals": _empty_scalar_total(),
                 "_profiled_run_totals": _empty_scalar_total(),
                 "_estimate_totals": _empty_scalar_total(),
+                "_scheduler_queue_totals": _empty_scalar_total(),
             },
         )
         row["result_count"] += 1
         is_profiled = _has_profile_data(data)
 
-        timing = _timing_values(data.get("pipeline_timing"))
-        if timing:
+        raw_timing = data.get("pipeline_timing")
+        timing = _timing_values(raw_timing)
+        scheduler_queue_time = _scheduler_queue_time(raw_timing)
+        if timing or scheduler_queue_time is not None:
             row["timing_count"] += 1
             summary["timing_record_count"] += 1
             _add_timing_totals(row["_timing_totals"], timing)
             _add_timing_totals(totals, timing)
+            if scheduler_queue_time is not None:
+                row["scheduler_queue_timing_count"] += 1
+                summary["scheduler_queue_timing_count"] += 1
+                _add_scalar_total(row["_scheduler_queue_totals"], scheduler_queue_time)
+                _add_scalar_total(scheduler_queue_totals, scheduler_queue_time)
             run_time = timing.get("run_time")
             if run_time is not None:
                 if is_profiled:
@@ -108,6 +130,13 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
             if row["latest_result_file"] == record["filename"]:
                 row["latest_build_time"] = _format_seconds(timing.get("build_time"))
                 row["latest_queue_time"] = _format_seconds(timing.get("queue_time"))
+                row["latest_queue_time_source"] = _timing_source_label(
+                    _nested_value(raw_timing, "queue_time_source")
+                )
+                row["latest_scheduler_queue_time"] = _format_seconds(scheduler_queue_time)
+                row["latest_scheduler_queue_time_source"] = _timing_source_label(
+                    _nested_value(raw_timing, "scheduler_queue_time_source")
+                )
                 row["latest_run_time"] = _format_seconds(timing.get("run_time"))
                 row["latest_run_kind"] = "profiled" if is_profiled else "regular"
 
@@ -144,6 +173,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
             "total_run_time": _format_seconds(totals["run_time"]["sum"]),
             "avg_build_time": _format_average(totals, "build_time"),
             "avg_queue_time": _format_average(totals, "queue_time"),
+            "avg_scheduler_queue_time": _format_scalar_average(scheduler_queue_totals),
             "avg_run_time": _format_average(totals, "run_time"),
             "avg_regular_run_time": _format_scalar_average(regular_run_totals),
             "avg_profiled_run_time": _format_scalar_average(profiled_run_totals),
@@ -203,6 +233,23 @@ def _timing_values(raw_timing: Any) -> dict[str, float]:
         if value is not None:
             timing[field] = value
     return timing
+
+
+def _scheduler_queue_time(raw_timing: Any) -> float | None:
+    if not isinstance(raw_timing, dict):
+        return None
+    for field in ("scheduler_queue_time", "scheduler_queue_seconds"):
+        value = _as_float(raw_timing.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _timing_source_label(value: Any) -> str:
+    source = _clean(value).lower().replace("-", "_")
+    if not source:
+        return "-"
+    return TIMING_SOURCE_LABELS.get(source, "provided")
 
 
 def _empty_timing_totals() -> dict[str, dict[str, float | int]]:
@@ -265,11 +312,13 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     regular_run_totals = row.pop("_regular_run_totals")
     profiled_run_totals = row.pop("_profiled_run_totals")
     estimate_totals = row.pop("_estimate_totals")
+    scheduler_queue_totals = row.pop("_scheduler_queue_totals")
     row.pop("_estimate_sort_key", None)
     row.update(
         {
             "avg_build_time": _format_average(totals, "build_time"),
             "avg_queue_time": _format_average(totals, "queue_time"),
+            "avg_scheduler_queue_time": _format_scalar_average(scheduler_queue_totals),
             "avg_run_time": _format_average(totals, "run_time"),
             "avg_regular_run_time": _format_scalar_average(regular_run_totals),
             "avg_profiled_run_time": _format_scalar_average(profiled_run_totals),
@@ -333,6 +382,7 @@ def _is_performance_record(data: dict[str, Any]) -> bool:
         return False
     return bool(
         _timing_values(data.get("pipeline_timing"))
+        or _scheduler_queue_time(data.get("pipeline_timing")) is not None
         or _has_profile_data(data)
         or _has_build_cache_data(data)
     )

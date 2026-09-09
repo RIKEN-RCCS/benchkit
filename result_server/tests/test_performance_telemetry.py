@@ -28,7 +28,14 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
             "Exp": "CASE1",
             "FOM": 1.0,
             "profile_data": {"tool": "ncu"},
-            "pipeline_timing": {"build_time": 30, "queue_time": 60, "run_time": 120},
+            "pipeline_timing": {
+                "build_time": 30,
+                "queue_time": 60,
+                "queue_time_source": "not_measured",
+                "scheduler_queue_time": 240,
+                "scheduler_queue_time_source": "runner_metadata",
+                "run_time": 120,
+            },
             "build_cache": {"status": "hit", "stored": False},
         },
     )
@@ -39,7 +46,12 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
             "system": "DemoSystem",
             "Exp": "CASE0",
             "FOM": 1.0,
-            "pipeline_timing": {"build_time": 90, "queue_time": 60, "run_time": 300},
+            "pipeline_timing": {
+                "build_time": 90,
+                "queue_time": 60,
+                "queue_time_source": "not_measured",
+                "run_time": 300,
+            },
             "build_cache": {"status": "miss", "stored": True},
         },
     )
@@ -113,6 +125,7 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert telemetry["summary"]["result_count"] == 2
     assert telemetry["summary"]["ignored_result_count"] == 4
     assert telemetry["summary"]["timing_record_count"] == 2
+    assert telemetry["summary"]["scheduler_queue_timing_count"] == 1
     assert telemetry["summary"]["profiled_result_count"] == 1
     assert telemetry["summary"]["regular_run_timing_count"] == 1
     assert telemetry["summary"]["profiled_run_timing_count"] == 1
@@ -124,6 +137,7 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert telemetry["summary"]["build_cache_store_count"] == 1
     assert telemetry["summary"]["avg_build_time"] == "1m"
     assert telemetry["summary"]["avg_queue_time"] == "1m"
+    assert telemetry["summary"]["avg_scheduler_queue_time"] == "4m"
     assert telemetry["summary"]["avg_run_time"] == "3.5m"
     assert telemetry["summary"]["avg_regular_run_time"] == "5m"
     assert telemetry["summary"]["avg_profiled_run_time"] == "2m"
@@ -134,14 +148,19 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     demoapp = rows[("demoapp", "DemoSystem")]
     assert demoapp["result_count"] == 2
     assert demoapp["timing_count"] == 2
+    assert demoapp["scheduler_queue_timing_count"] == 1
     assert demoapp["profiled_count"] == 1
     assert demoapp["avg_build_time"] == "1m"
+    assert demoapp["avg_scheduler_queue_time"] == "4m"
     assert demoapp["avg_run_time"] == "3.5m"
     assert demoapp["avg_regular_run_time"] == "5m"
     assert demoapp["avg_profiled_run_time"] == "2m"
     assert demoapp["latest_exp"] == "CASE1"
     assert demoapp["latest_build_time"] == "30s"
     assert demoapp["latest_queue_time"] == "1m"
+    assert demoapp["latest_queue_time_source"] == "not measured"
+    assert demoapp["latest_scheduler_queue_time"] == "4m"
+    assert demoapp["latest_scheduler_queue_time_source"] == "runner metadata"
     assert demoapp["latest_run_time"] == "2m"
     assert demoapp["latest_run_kind"] == "profiled"
     assert demoapp["estimate_count"] == 1
@@ -161,8 +180,10 @@ def test_performance_telemetry_handles_missing_directory(tmp_path):
     assert telemetry["summary"]["result_count"] == 0
     assert telemetry["summary"]["ignored_result_count"] == 0
     assert telemetry["summary"]["timing_record_count"] == 0
+    assert telemetry["summary"]["scheduler_queue_timing_count"] == 0
     assert telemetry["summary"]["estimate_record_count"] == 0
     assert telemetry["summary"]["estimate_timing_record_count"] == 0
     assert telemetry["summary"]["avg_build_time"] == "-"
+    assert telemetry["summary"]["avg_scheduler_queue_time"] == "-"
     assert telemetry["summary"]["avg_estimate_time"] == "-"
     assert telemetry["rows"] == []
