@@ -219,6 +219,7 @@ def test_dev2_review_queue_links_to_console_applicant_request_view():
         )
 
     assert 'href="/dev2/console/execution-profile-requests/"' in html
+    assert 'href="/dev2/console/execution-profile-requests/managed-profiles/"' in html
     assert 'href="/dev2/execution-profile-requests/"' not in html
 
 
