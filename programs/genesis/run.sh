@@ -35,6 +35,43 @@ stderr="${resultsdir}/log_${header}_err.txt"
 binary="spdyn"
 inputdir="../../../inputs/apoa1/"
 
+record_public_input_info() {
+    local input_source_commit="$1"
+    {
+        printf '{\n'
+        printf '  "schema_version": 1,\n'
+        printf '  "inputs": [\n'
+        printf '    {\n'
+        printf '      "dataset_id": '
+        bk_json_string "apoa1-p8"
+        printf ',\n'
+        printf '      "dataset_version": '
+        bk_json_string "$BRANCH"
+        printf ',\n'
+        printf '      "kind": "public-git",\n'
+        printf '      "source": "public_url",\n'
+        printf '      "public_url": '
+        bk_json_string "$REPO_URL"
+        printf ',\n'
+        printf '      "source_ref": '
+        bk_json_string "$BRANCH"
+        printf ',\n'
+        printf '      "resolved_commit": '
+        bk_json_string "$input_source_commit"
+        printf ',\n'
+        printf '      "repo_relative_path": '
+        bk_json_string "$dir_path"
+        printf ',\n'
+        printf '      "recipe": '
+        bk_json_string "${input}.sub generated from ${input}"
+        printf ',\n'
+        printf '      "verification_status": "public_source_commit"\n'
+        printf '    }\n'
+        printf '  ]\n'
+        printf '}\n'
+    } | bk_record_input_info
+}
+
 echo "[${REPO_DIR}] Running on system: $system"
 
 if [[ -d "${REPO_DIR}" ]]; then
@@ -51,7 +88,6 @@ echo "System=$system"
 echo "Nodes=$nodes"
 echo "numproc=$numproc"
 echo "nthreads=$nthreads"
-totalcores=$(( numproc * nthreads ))
 
 if [[ ! -d ${REPO_DIR} ]]; then
     git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
@@ -59,6 +95,8 @@ else
     echo "Reposiotry already exists and looks valid. Skipping clone."
 fi
 
+input_source_commit=$(git -C "${REPO_DIR}" rev-parse HEAD)
+record_public_input_info "$input_source_commit"
 
 if [[ ! -f "${artifactsdir}/spdyn" ]]; then
     echo "Error: spdyn does not exist."
@@ -128,6 +166,8 @@ run_genesis_nvidia_gpu() {
     local cuda_visible_devices_var="${env_prefix}_CUDA_VISIBLE_DEVICES"
     local profiler_tool_var="${env_prefix}_PROFILER_TOOL"
     local profiler_level_var="${env_prefix}_PROFILER_LEVEL"
+    local -a nvidia_mpi_cmd
+    local -a nvidia_mpi_args
 
     local module_name="${!module_var:-$default_module}"
     if [ "$module_name" != "none" ] && command -v module >/dev/null 2>&1; then
@@ -135,10 +175,10 @@ run_genesis_nvidia_gpu() {
         module load "${module_names[@]}"
     fi
 
-    read -r -a mpi_cmd <<< "${!mpi_cmd_var:-mpirun -np ${numproc}}"
+    read -r -a nvidia_mpi_cmd <<< "${!mpi_cmd_var:-mpirun -np ${numproc}}"
     if [ -n "${!mpi_args_var:-}" ]; then
         read -r -a nvidia_mpi_args <<< "${!mpi_args_var}"
-        mpi_cmd+=("${nvidia_mpi_args[@]}")
+        nvidia_mpi_cmd+=("${nvidia_mpi_args[@]}")
     fi
 
     export OMP_NUM_THREADS=${nthreads}
@@ -150,8 +190,8 @@ run_genesis_nvidia_gpu() {
     genesis_configure_ncu_profile "$system_name" "$profiler_tool_var" "$profiler_level_var" "$module_var" || return 1
 
     echo "Running ${system_name} as NVIDIA GPU benchmark run without profiler"
-    "${mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
-    genesis_run_configured_ncu_profiles "$system_name" "${mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
+    "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+    genesis_run_configured_ncu_profiles "$system_name" "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
 }
 
 genesis_rikyu_apptainer_run_prefix() {

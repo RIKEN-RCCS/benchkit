@@ -490,6 +490,9 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 この場合、`source_info` が実際に使った app source と repo 内 input の両方の固定点になる。
 `input_info` は省略してもよく、Portal や review で dataset 名を見せたい場合だけ、`kind: "repo-local-input"`、`source: "source_info"`、`repo_relative_path`、`verification_status: "covered_by_source_commit"` などの補助情報を持たせてよい。
 
+入力が別の public input repository や public archive から来る場合は、`input_info` 側に公開URL、ref、resolved commit または digest、取得/生成 recipe を置く。
+この場合も、入力が記録済み source commit で固定されるなら `verification_status: "public_source_commit"` として `Covered` に分類できる。
+
 site-local path は所在情報であり、長期的な input identity ではない。
 巨大データや共同研究由来データを site-local shared storage に置くことは許容されるが、Result provenance では path より dataset identity、recipe、manifest、digest を優先する。
 public surface では、必要がない限り detailed local path を表示しない。
@@ -513,6 +516,9 @@ When an application passes input metadata through the Benchkit input metadata he
 When the input is already stored in the top-level application repository and is fixed by `source_info.resolved_commit`, a separate manifest or content digest is not mandatory.
 In that case, `source_info` is the fixed point for both the application source and the repository-local input actually used.
 `input_info` may be omitted, or it may carry lightweight helper fields such as `kind: "repo-local-input"`, `source: "source_info"`, `repo_relative_path`, and `verification_status: "covered_by_source_commit"` when the dataset name should be visible in the Portal or during review.
+
+When the input comes from a separate public input repository or public archive, `input_info` should carry the public URL, ref, resolved commit or digest, and acquisition or generation recipe.
+If the input is fixed by a recorded source commit, it may use `verification_status: "public_source_commit"` and be classified as `Covered`.
 
 A site-local path is location information, not a durable input identity.
 Large datasets and collaboration-derived inputs may still be staged on site-local shared storage, but Result provenance should prefer dataset identity, recipe, manifest, and digest over paths.

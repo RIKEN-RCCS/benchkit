@@ -193,7 +193,7 @@ Portal の `/results/usage` では、通常の benchmark result に対する入�
 
 - `None`: `input_info` がない
 - `Declared`: `input_info` はあるが、digest 検証や source commit coverage までは示していない
-- `Covered`: repo-local input が `source_info.resolved_commit` で固定されることを示している
+- `Covered`: repo-local input または public input source が記録済み source commit で固定されることを示している
 - `Verified`: manifest / content digest などの証跡と `verification_status: "verified"` がある
 
 `None` や `Declared` はただちに CI failure ではありません。
