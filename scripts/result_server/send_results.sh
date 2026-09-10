@@ -113,7 +113,7 @@ log_result_summary() {
   if ! jq -r '
     def field_value:
       if . == null or . == "" then "-" else tostring end;
-    "Result summary: code=\(.code | field_value) system=\(.system | field_value) mode=\(.execution_mode | field_value) exp=\(.exp | field_value) fom=\(.fom | field_value) pipeline=\(.pipeline_id | field_value)"
+    "Result summary: code=\(.code | field_value) system=\(.system | field_value) mode=\(.execution_mode | field_value) exp=\((.Exp // .exp) | field_value) fom=\((.FOM // .fom) | field_value) pipeline=\(.pipeline_id | field_value)"
   ' "$json_file" 2>/dev/null; then
     echo "Result summary: unavailable"
   fi

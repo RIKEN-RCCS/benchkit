@@ -172,8 +172,7 @@ jq -e '
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null
-grep -q "Result summary: code=qws system=Fugaku mode=cross" "${TMP_DIR}/process.log"
-grep -q "pipeline=12345" "${TMP_DIR}/process.log"
+grep -q "Result summary: code=qws system=Fugaku mode=cross exp=CASE0 fom=1.25 pipeline=12345" "${TMP_DIR}/process.log"
 if grep -q '"environment_snapshot"' "${TMP_DIR}/process.log"; then
   echo "process log should not include full result JSON" >&2
   exit 1
