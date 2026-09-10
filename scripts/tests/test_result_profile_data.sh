@@ -16,6 +16,7 @@ fi
 
 cat > "${TMP_DIR}/results/result" <<'EOF'
 FOM:9.9999999999999995e-07 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:1 nthreads:2
+FOM:1.25 FOM_unit:s FOM_version:test Exp:CASE1 node_count:1 numproc_node:2 nthreads:2
 EOF
 
 cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
@@ -126,6 +127,17 @@ jq -e '
   (.profile_data.report_kinds | index("summary_text") != null)
 ' "${RESULT_JSON}" >/dev/null
 test ! -f "${TMP_DIR}/timing_env_was_sourced"
+
+RESULT_JSON_1="${TMP_DIR}/results/result1.json"
+test -f "${RESULT_JSON_1}"
+jq -e '
+  .Exp == "CASE1" and
+  .numproc_node == "2" and
+  .pipeline_timing.build_time == 12 and
+  .pipeline_timing.queue_time == 0 and
+  .pipeline_timing.queue_time_source == "not_measured" and
+  .pipeline_timing.run_time == 34
+' "${RESULT_JSON_1}" >/dev/null
 
 NCU_RESULT_JSON="${TMP_DIR}/ncu/results/result0.json"
 test -f "${NCU_RESULT_JSON}"

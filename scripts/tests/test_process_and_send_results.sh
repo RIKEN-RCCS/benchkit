@@ -28,6 +28,15 @@ printf '%s\n' 100 > "${TMP_DIR}/project/results/build_start"
 printf '%s\n' 105 > "${TMP_DIR}/project/results/build_end"
 printf '%s\n' 110 > "${TMP_DIR}/project/results/run_start"
 printf '%s\n' 120 > "${TMP_DIR}/project/results/run_end"
+cat > "${TMP_DIR}/project/results/ci_timing_context.json" <<'EOF'
+{
+  "schema_version": 1,
+  "stage": "run",
+  "ci_job_started_at": "1970-01-01T00:01:40Z",
+  "ci_job_started_at_source": "CI_JOB_STARTED_AT",
+  "ci_job_started_epoch": 100
+}
+EOF
 cat > "${TMP_DIR}/project/results/environment_snapshot_run.json" <<'EOF'
 {
   "schema_version": 1,
@@ -151,7 +160,8 @@ jq -e '
   (.pipeline_timing.build_time | type) == "number" and
   (.pipeline_timing.queue_time | type) == "number" and
   .pipeline_timing.queue_time_source == "not_measured" and
-  (.pipeline_timing.scheduler_queue_time == null or (.pipeline_timing.scheduler_queue_time | type) == "number") and
+  .pipeline_timing.scheduler_queue_time == 10 and
+  .pipeline_timing.scheduler_queue_time_source == "gitlab_job_started_at" and
   (.pipeline_timing.run_time | type) == "number" and
   (.execution_trigger | type) == "object"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null

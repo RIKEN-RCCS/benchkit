@@ -365,6 +365,14 @@ Execution conditions are mainly formed by app-side `list.csv` and system-side `s
 site runner や scheduler log などから投入時刻と開始時刻を明示的に取得できる場合は、
 任意の `scheduler_queue_time` と `scheduler_queue_time_source` を追加し、
 reported queue timing とは別の値として扱う。
+`CI_JOB_STARTED_AT` と benchmark script 内の `run_start` の差から得る値は、
+厳密な scheduler 記録の submit/start 差ではないが、GitLab job が runner に拾われてから
+benchmark script が開始するまでの job queue time として読める。
+この場合は `scheduler_queue_time_source` に `gitlab_job_started_at` を入れる。
+1つの run job が複数の FOM block を出して複数の Result JSON を作る場合も、
+各 Result JSON は同じ job-level pipeline timing を持つ。
+これにより Portal の condition-level 表示は
+`Exp / node_count / numproc_node / nthreads / FOM_version` ごとに timing を参照できる。
 
 Benchmark results are produced by normalizing `run.sh` output into Result JSON through `result.sh`.
 
@@ -386,6 +394,14 @@ collection cannot measure scheduler wait, `queue_time_source` should be
 and start timestamps, optional `scheduler_queue_time` and
 `scheduler_queue_time_source` fields may be attached and should be treated as a
 separate measurement from reported queue timing.
+When the value is derived from `CI_JOB_STARTED_AT` and the in-script `run_start`
+timestamp, it is not a scheduler-recorded submit/start delta, but it can be
+read as job queue time from GitLab job pickup to benchmark script start. In that
+case, `scheduler_queue_time_source` should be `gitlab_job_started_at`.
+When one run job emits multiple FOM blocks and produces multiple Result JSON
+files, each Result JSON carries the same job-level pipeline timing. This lets
+Portal condition-level views read timing per
+`Exp / node_count / numproc_node / nthreads / FOM_version` row.
 
 ### 7.3 ソース出自情報 / Source Provenance
 

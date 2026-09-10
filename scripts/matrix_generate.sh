@@ -14,6 +14,7 @@ SYSTEM_INFO_FILE="config/system_info.csv"
 OUTPUT_FILE=".gitlab-ci.generated.yml"
 PARENT_PIPELINE_SOURCE="${CI_PIPELINE_SOURCE:-local}"
 PARENT_PIPELINE_ID="${CI_PIPELINE_ID:-}"
+PARENT_PIPELINE_CREATED_AT="${CI_PIPELINE_CREATED_AT:-}"
 
 source ./scripts/job_functions.sh
 
@@ -45,6 +46,7 @@ stages:
 variables:
   PARENT_PIPELINE_SOURCE: \"$PARENT_PIPELINE_SOURCE\"
   PARENT_PIPELINE_ID: \"$PARENT_PIPELINE_ID\"
+  PARENT_PIPELINE_CREATED_AT: \"$PARENT_PIPELINE_CREATED_AT\"
   BK_ESTIMATE_RUNNER_TAG: \"$ESTIMATE_RUNNER_TAG\"
 " >> "$OUTPUT_FILE"
 
@@ -156,6 +158,7 @@ ${job_prefix}_run:
     - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting job\"
+    - bash scripts/record_ci_timing_context.sh run
     - ls -la $program_path/
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
@@ -204,6 +207,7 @@ ${job_prefix}_build_run:
     - echo \"Pre-created results directory on login node\"
   script:
     - echo \"Starting build and run\"
+    - bash scripts/record_ci_timing_context.sh build_run
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build_run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build_run.json
     - export BK_SYSTEM=\"$system\"
     - export BK_BENCHKIT_ROOT=\"\$PWD\"
