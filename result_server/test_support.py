@@ -60,6 +60,14 @@ def build_portal_shell_app(
     def result_detail(filename):
         return filename
 
+    @results_bp.route("/detail/<filename>/reuse-packet.md")
+    def result_reuse_packet(filename):
+        return filename
+
+    @results_bp.route("/detail/<filename>/reuse-manifest.json")
+    def result_reuse_manifest(filename):
+        return filename
+
     @results_bp.route("/<filename>")
     def show_result(filename):
         return filename

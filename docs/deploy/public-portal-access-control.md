@@ -66,6 +66,8 @@ The initial public allowlist should be deliberately small.
 | `GET /results/` | yes | yes | yes | yes | no | Public results list, rendered with public-safe columns only. |
 | `GET /results/detail/<filename>` | conditional | yes | yes | yes | no | Public only for public results and public-safe detail fields. |
 | `GET /results/detail/<filename>/evidence-packet.md` | no | conditional | conditional | yes | no | Evidence export route. Keep on restricted/console surfaces until public packet release review; follows the same result permission model as raw JSON. |
+| `GET /results/detail/<filename>/reuse-packet.md` | conditional | conditional | conditional | yes | no | Public Markdown reuse packet. Available only when the result itself is public and public source/input bindings are recorded. |
+| `GET /results/detail/<filename>/reuse-manifest.json` | conditional | conditional | conditional | yes | no | Public machine-readable reuse manifest. Uses the same eligibility gate and public-only projection as the Markdown packet. |
 | `GET /results/compare` | conditional | yes | yes | yes | no | Public only when every selected result is public and the rendered fields are public-safe. |
 | `GET /static/*` | yes | yes | yes | yes | no | Static assets only. Keep secrets and generated private files out of static paths. |
 | `GET /results/<filename>` | conditional | conditional | conditional | yes | no | Public only for PA archive downloads that match public result metadata. Raw JSON remains restricted. |

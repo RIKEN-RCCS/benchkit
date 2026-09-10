@@ -524,6 +524,34 @@ A site-local path is location information, not a durable input identity.
 Large datasets and collaboration-derived inputs may still be staged on site-local shared storage, but Result provenance should prefer dataset identity, recipe, manifest, and digest over paths.
 Detailed local paths should not be exposed on the public surface unless they are necessary.
 
+### 7.4.1 Public Reuse Packets
+
+Benchkit は、公開可能な Result JSON から public-only reuse packet を生成できることが望ましい。
+これは raw Result JSON の代替ではなく、AI agent や人間が再利用可否を判断しやすいように、公開できる evidence だけを Markdown と machine-readable manifest へ投影するものである。
+
+Public reuse packet の対象は、少なくとも次の条件を満たす result に限定する。
+
+- result 自体が public surface で閲覧可能である
+- `source_info` が public Git URL、ref、resolved commit を持つ
+- `input_info` が public input source commit、public archive digest、DOI、または public source commit で固定される repo-local input を示す
+
+Public reuse packet には、benchmark condition、FOM、source commit、public input binding、build-cache digest、profile artifact reference、estimation package binding など、公開可能な再利用情報だけを入れる。
+raw Result JSON、local path、allocation detail、operator-only environment detail、非公開 input/source は含めない。
+同じ内容は JSON manifest としても取得でき、Markdown packet はこの manifest の人間・AI向け表現とする。
+
+Benchkit should preferably be able to generate public-only reuse packets from publishable Result JSON records.
+This is not a replacement for raw Result JSON; it is a public evidence projection that helps humans and AI agents decide how a benchmark result can be reused.
+
+A public reuse packet should be limited to results that satisfy at least:
+
+- the result itself is visible on the public surface
+- `source_info` records a public Git URL, ref, and resolved commit
+- `input_info` records a public input source commit, public archive digest, DOI, or repository-local input fixed by a public source commit
+
+The packet should include only public reuse information such as benchmark condition, FOM, source commit, public input binding, build-cache digests, profile artifact references, and estimation package bindings.
+It must not include raw Result JSON, local paths, allocation details, operator-only environment details, or non-public input/source information.
+The same projection may be exposed as a JSON manifest, with the Markdown packet acting as the human- and AI-friendly rendering of that manifest.
+
 ### 7.5 推定結果 / Estimation Results
 
 推定結果は、実測結果やモデルに基づいて生成される Estimate JSON である。

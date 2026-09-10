@@ -94,6 +94,13 @@
           <td>
             <span class="evidence-snapshot-label">Reuse</span> {{ row.reuse_package_status }}
             <span class="profile-usage-subline">Public packet: {{ row.public_packet_status }}</span>
+            {% if row.public_packet_status == 'eligible' and row.latest_result_file %}
+            <span class="profile-usage-subline">
+              <a href="{{ url_for('results.result_reuse_packet', filename=row.latest_result_file) }}">Markdown packet</a>
+              /
+              <a href="{{ url_for('results.result_reuse_manifest', filename=row.latest_result_file) }}">Manifest</a>
+            </span>
+            {% endif %}
             <span class="profile-usage-subline">{{ row.public_packet_next_action }}</span>
             <span class="evidence-snapshot-value">{{ row.next_action }}</span>
             <span class="profile-usage-subline">Maturity Gaps: {{ row.missing_reason }}</span>
