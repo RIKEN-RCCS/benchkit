@@ -21,6 +21,7 @@ TIMING_SOURCE_LABELS = {
     "runner_metadata": "runner metadata",
     "scheduler_metadata": "scheduler metadata",
     "scheduler_logs": "scheduler logs",
+    "gitlab_job_started_at": "GitLab job queue",
     "gitlab_metadata": "GitLab metadata",
 }
 

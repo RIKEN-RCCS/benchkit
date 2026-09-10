@@ -29,7 +29,7 @@
 
 <section class="page-card table-card">
   <h2 class="section-title">Execution Timing Overview</h2>
-  <p class="section-intro">Operator view for choosing trigger scope/frequency and improving CI and build-cache flow. It summarizes observed timing and build-cache telemetry from benchmark Result JSON; reported queue values may not include scheduler-side wait on every site.</p>
+  <p class="section-intro">Operator view for choosing trigger scope/frequency and improving CI and build-cache flow. It summarizes observed timing and build-cache telemetry from benchmark Result JSON; reported queue values may not include scheduler-side wait on every site. Explicit scheduler queue values may be read as job queue time when sourced from GitLab job start to benchmark script start.</p>
 
   <div class="diagnostic-grid">
     <div class="diagnostic-card">
@@ -40,7 +40,7 @@
       <h3>Average Timing</h3>
       <p>
         build {{ performance_telemetry.summary.avg_build_time }} / reported queue {{ performance_telemetry.summary.avg_queue_time }} / run {{ performance_telemetry.summary.avg_run_time }}
-        <span class="profile-usage-subline">scheduler queue {{ performance_telemetry.summary.avg_scheduler_queue_time|default('-') }} / {{ performance_telemetry.summary.scheduler_queue_timing_count|default(0) }} explicit records</span>
+        <span class="profile-usage-subline">scheduler/job queue {{ performance_telemetry.summary.avg_scheduler_queue_time|default('-') }} / {{ performance_telemetry.summary.scheduler_queue_timing_count|default(0) }} explicit records</span>
       </p>
     </div>
     <div class="diagnostic-card">
@@ -89,7 +89,7 @@
           <td>
             build {{ row.avg_build_time }}
             <span class="profile-usage-subline">reported queue {{ row.avg_queue_time }}</span>
-            <span class="profile-usage-subline">scheduler queue {{ row.avg_scheduler_queue_time|default('-') }} / {{ row.scheduler_queue_timing_count|default(0) }} explicit records</span>
+            <span class="profile-usage-subline">scheduler/job queue {{ row.avg_scheduler_queue_time|default('-') }} / {{ row.scheduler_queue_timing_count|default(0) }} explicit records</span>
             <span class="profile-usage-subline">run {{ row.avg_run_time }}</span>
           </td>
           <td>
@@ -99,7 +99,7 @@
               {% if row.latest_queue_time_source|default('-') != '-' %}/ {{ row.latest_queue_time_source }}{% endif %}
             </span>
             <span class="profile-usage-subline">
-              scheduler queue {{ row.latest_scheduler_queue_time|default('-') }}
+              scheduler/job queue {{ row.latest_scheduler_queue_time|default('-') }}
               {% if row.latest_scheduler_queue_time_source|default('-') != '-' %}/ {{ row.latest_scheduler_queue_time_source }}{% endif %}
             </span>
             <span class="profile-usage-subline">{{ row.latest_run_kind }} run {{ row.latest_run_time }}</span>

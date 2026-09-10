@@ -529,10 +529,10 @@ write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
 
-  # Build pipeline_timing block if pipeline_timing.json exists (only for first result to avoid duplication).
+  # Build pipeline_timing block if pipeline_timing.json exists.
   # Treat the file as data; never source generated timing files as shell.
   local timing_block=""
-  if [ "$idx" = "0" ] && [ -f results/pipeline_timing.json ]; then
+  if [ -f results/pipeline_timing.json ]; then
     local pipeline_timing_json
     pipeline_timing_json=$(jq -c '
       def num: if type == "number" then . else (tonumber? // 0) end;

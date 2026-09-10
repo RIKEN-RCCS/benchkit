@@ -786,8 +786,9 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Execution Timing Overview" in html
     assert "Operator view for choosing trigger scope/frequency and improving CI and build-cache flow" in html
     assert "reported queue values may not include scheduler-side wait" in html
+    assert "may be read as job queue time" in html
     assert "build 30s / reported queue 1m / run 2m" in html
-    assert "scheduler queue - / 0 explicit records" in html
+    assert "scheduler/job queue - / 0 explicit records" in html
     assert "reported queue 1m" in html
     assert "not measured" in html
     assert "regular 2m / profiled -" in html
