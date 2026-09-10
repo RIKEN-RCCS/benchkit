@@ -75,6 +75,8 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert snapshot["summary"]["result_count"] == 1
     assert snapshot["summary"]["profiled_count"] == 1
     assert snapshot["summary"]["estimated_count"] == 1
+    assert snapshot["summary"]["public_packet_eligible_count"] == 1
+    assert snapshot["summary"]["reuse_package_complete_count"] == 1
 
     demosystem = next(row for row in snapshot["rows"] if row["system"] == "DemoSystem")
     assert demosystem["configured"] == "yes"
@@ -88,9 +90,76 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert demosystem["input_status"] == "Covered"
     assert demosystem["build_cache_status"] == "hit"
     assert demosystem["public_result_available"] == "yes"
+    assert demosystem["reuse_package_status"] == "complete"
+    assert demosystem["public_packet_status"] == "eligible"
+    assert demosystem["public_packet_next_action"] == "Prepare public Markdown packet"
     assert demosystem["next_action"] == "Ready for review"
     assert demosystem["missing_reason"] == "none"
     assert all(row["system"] != "FutureSystem" for row in snapshot["rows"])
+
+
+def test_evidence_snapshot_requires_public_source_for_public_packet(tmp_path):
+    received_dir = tmp_path / "received"
+    estimated_dir = tmp_path / "estimated"
+    received_dir.mkdir()
+    estimated_dir.mkdir()
+
+    _write_json(
+        received_dir / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "git@example.com:demoapp.git",
+                "ref_name": "main",
+                "resolved_commit": "abcdef1234567890",
+            },
+            "input_info": {
+                "inputs": [
+                    {
+                        "repo_relative_path": "benchmarks/case0",
+                        "source": "source_info",
+                        "verification_status": "covered_by_source_commit",
+                    }
+                ],
+            },
+            "profile_data": {"tool": "ncu", "level": "kernel"},
+        },
+    )
+    _write_json(
+        estimated_dir / "estimate_20260902_020202_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "exp": "CASE0",
+            "current_system": {"system": "DemoSystem"},
+            "future_system": {"system": "FutureSystem"},
+            "applicability": {"status": "applicable"},
+        },
+    )
+
+    snapshot = build_evidence_snapshot(
+        str(received_dir),
+        str(estimated_dir),
+        generated_at="2026-09-07T00:00:00Z",
+        app_support_rows=[
+            {
+                "app": "demoapp",
+                "systems": {
+                    "DemoSystem": {"status": "enabled"},
+                },
+            }
+        ],
+    )
+
+    row = snapshot["rows"][0]
+    assert row["source_status"] == "tracked"
+    assert row["input_status"] == "Covered"
+    assert row["public_packet_status"] == "needs public source"
+    assert row["public_packet_next_action"] == "Record public source provenance"
+    assert row["reuse_package_status"] == "needs public evidence"
 
 
 def test_evidence_snapshot_uses_estimate_benchmark_systems_without_future_target_rows(tmp_path):
