@@ -754,6 +754,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "result_count": 1,
                     "profiled_count": 0,
                     "estimated_count": 0,
+                    "public_packet_eligible_count": 0,
+                    "reuse_package_complete_count": 0,
                 },
                 "rows": [
                     {
@@ -775,6 +777,9 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "input_status": "None",
                         "build_cache_status": "not recorded",
                         "public_result_available": "yes",
+                        "reuse_package_status": "needs evidence",
+                        "public_packet_status": "needs public source",
+                        "public_packet_next_action": "Record public source provenance",
                         "next_action": "Record source provenance",
                         "missing_reason": "no profile; no estimate; source incomplete; input not declared",
                     }
@@ -809,7 +814,11 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in html
     assert "Configured:</strong> yes = enabled and implemented" in html
     assert "Result Quality:</strong> missing = no result" in html
+    assert "Reuse Package:</strong> complete = public packet eligible" in html
+    assert "Public Packet:</strong> eligible = public result with public source provenance" in html
     assert "Next Action" in html
+    assert "Reuse / Next Action" in html
+    assert "needs public source" in html
     assert "Record source provenance" in html
     assert "Maturity Gaps" in html
     assert "Input Status" in html

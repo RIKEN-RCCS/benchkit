@@ -112,6 +112,7 @@ class TestUsageRoute:
         assert "Result Evidence" in text
         assert "Profile / Estimate" in text
         assert "Provenance" in text
+        assert "Reuse / Next Action" in text
         assert "Application/System Coverage" not in text
         assert "Latest Result Quality Details" not in text
         assert "Maturity Gaps" in text
@@ -195,6 +196,8 @@ class TestUsageRoute:
                         "result_count": 0,
                         "profiled_count": 0,
                         "estimated_count": 0,
+                        "public_packet_eligible_count": 0,
+                        "reuse_package_complete_count": 0,
                     },
                     "rows": [],
                 },
@@ -225,6 +228,7 @@ class TestUsageRoute:
         assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in text
         assert "reported queue values may not include scheduler-side wait" in text
         assert "Input Status:</strong> None = no input_info" in text
+        assert "Public Packet:</strong> eligible = public result with public source provenance" in text
         assert "/results/usage/evidence-snapshot.csv" in text
 
     def test_usage_evidence_snapshot_csv_requires_admin(self, client):
@@ -274,7 +278,8 @@ class TestUsageRoute:
         assert resp.mimetype == "text/csv"
         assert "attachment; filename=evidence_snapshot_" in resp.headers["Content-Disposition"]
         assert "snapshot_time,benchkit_commit,code,system,configured" in text
-        assert "public_result_available,next_action,missing_reason" in text
+        assert "public_result_available,reuse_package_status" in text
+        assert "public_packet_status,public_packet_next_action,next_action,missing_reason" in text
         assert "demoapp,DemoSystem" in text
         assert "Decide whether to add this app/system condition" in text
         assert "hit" in text
