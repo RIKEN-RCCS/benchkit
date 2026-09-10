@@ -88,7 +88,8 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 - `result_server/routes/results_list_routes.py`
   Public and confidential result list pages.
 - `result_server/routes/results_detail_routes.py`
-  Result detail, compare, downloads, and related views.
+  Result detail, compare, evidence packet, public reuse packet, public reuse
+  manifest, downloads, and related views.
 - `result_server/routes/results_usage_routes.py`
   Usage reporting pages.
 - `result_server/routes/estimated.py`

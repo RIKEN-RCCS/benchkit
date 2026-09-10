@@ -825,3 +825,57 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "None = no input_info" in html
     assert "Covered = input fixed by a recorded source commit" in html
     assert "no profile; no estimate; source incomplete; input not declared" in html
+
+
+def test_usage_report_links_public_reuse_packet_for_eligible_rows():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results/usage"):
+        from flask import render_template
+
+        html = render_template(
+            "_usage_report_evidence_snapshot_section.html",
+            evidence_snapshot={
+                "summary": {
+                    "row_count": 1,
+                    "result_count": 1,
+                    "profiled_count": 1,
+                    "estimated_count": 1,
+                    "public_packet_eligible_count": 1,
+                    "reuse_package_complete_count": 1,
+                },
+                "rows": [
+                    {
+                        "code": "demoapp",
+                        "system": "DemoSystem",
+                        "configured": "yes",
+                        "configured_status": "enabled and implemented",
+                        "latest_result_file": "result0.json",
+                        "latest_result_time": "2026-04-13 12:00:00",
+                        "latest_result_exp": "CASE0",
+                        "latest_result_status": "rich",
+                        "profiled": "yes",
+                        "latest_profile_time": "2026-04-13 12:00:00",
+                        "latest_estimate_file": "estimate0.json",
+                        "estimated": "yes",
+                        "latest_estimate_time": "2026-04-14 12:00:00",
+                        "estimate_applicability": "applicable",
+                        "source_status": "tracked",
+                        "input_status": "Covered",
+                        "build_cache_status": "hit",
+                        "public_result_available": "yes",
+                        "reuse_package_status": "complete",
+                        "public_packet_status": "eligible",
+                        "public_packet_next_action": "Prepare public Markdown packet",
+                        "next_action": "Ready for review",
+                        "missing_reason": "none",
+                    }
+                ],
+            },
+        )
+
+    assert "/results/detail/result0.json/reuse-packet.md" in html
+    assert "/results/detail/result0.json/reuse-manifest.json" in html
+    assert "Markdown packet" in html
+    assert "Manifest" in html

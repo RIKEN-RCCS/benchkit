@@ -58,6 +58,8 @@ def test_representative_route_access_classes():
     assert classify_endpoint("systemlist") == ACCESS_PUBLIC
     assert classify_endpoint("results.results") == ACCESS_PUBLIC
     assert classify_endpoint("results.result_detail") == ACCESS_PUBLIC_CONDITIONAL
+    assert classify_endpoint("results.result_reuse_packet") == ACCESS_PUBLIC_CONDITIONAL
+    assert classify_endpoint("results.result_reuse_manifest") == ACCESS_PUBLIC_CONDITIONAL
     assert classify_endpoint("results.show_result") == ACCESS_PUBLIC_CONDITIONAL
     assert classify_endpoint("results.results_confidential") == ACCESS_RESTRICTED_VIEWER
     assert classify_endpoint("results.result_evidence_packet") == ACCESS_RESTRICTED_VIEWER

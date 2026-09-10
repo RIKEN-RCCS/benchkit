@@ -49,13 +49,25 @@
 
     <a href="{{ url_for('results.results') }}" class="back-link">&larr; Back to Results</a>
 
-    {% if evidence_packet_url %}
+    {% if evidence_packet_url or reuse_packet_url or reuse_manifest_url %}
     <div class="detail-actions">
+        {% if reuse_packet_url %}
+        <a class="detail-download-link" href="{{ reuse_packet_url }}">Download Reuse Packet</a>
+        {% endif %}
+        {% if reuse_manifest_url %}
+        <a class="detail-download-link" href="{{ reuse_manifest_url }}">Download Manifest</a>
+        {% endif %}
+        {% if evidence_packet_url %}
         <a class="detail-download-link" href="{{ evidence_packet_url }}">Download Evidence Packet</a>
+        {% endif %}
     </div>
     {% endif %}
 
     {{ render_titled_key_value_table("Meta Information", meta_rows, "meta-table") }}
+
+{% if reuse_packet_rows %}
+{{ render_titled_key_value_table("Reuse Package", reuse_packet_rows, "meta-table") }}
+{% endif %}
 
 {% if profile_rows %}
 {{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}

@@ -35,6 +35,8 @@ PUBLIC_CONDITIONAL_ENDPOINTS = frozenset(
     {
         "results.result_compare",
         "results.result_detail",
+        "results.result_reuse_manifest",
+        "results.result_reuse_packet",
         "results.show_result",
     }
 )

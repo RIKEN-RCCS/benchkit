@@ -1,3 +1,4 @@
+import json
 import os
 
 from flask import abort, current_app, render_template, request, url_for
@@ -12,11 +13,21 @@ from utils.evidence_packet import (
     build_result_evidence_packet,
     evidence_packet_download_name,
 )
+from utils.public_reuse import (
+    build_public_reuse_manifest,
+    build_public_reuse_markdown_packet,
+    build_reuse_detail_rows,
+    evaluate_public_reuse_packet,
+    public_reuse_manifest_download_name,
+    public_reuse_packet_download_name,
+)
 from utils.result_compare_view import load_result_compare_context
 from utils.result_detail_view import build_result_detail_context
 from utils.result_file import (
+    get_file_confidential_tags,
     load_public_result_json,
     load_permitted_result_json,
+    padata_matches_public_result,
     serve_permitted_result_file,
     serve_public_padata_file,
 )
@@ -64,13 +75,31 @@ def register_results_detail_routes(results_bp):
             )
         quality = summarize_result_quality(result)
         padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
-        padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]
+        padata_filenames = _list_public_padata_filenames(padata_dir) if is_public_surface else [
+            name for name in os.listdir(padata_dir) if name.endswith(".tgz")
+        ]
         detail_context = build_result_detail_context(
             result,
             quality,
             load_trigger_run_lookup(current_app.config.get("EXECUTION_PROFILE_DB_PATH")),
             padata_filenames,
             public_surface=is_public_surface,
+        )
+        public_result = not get_file_confidential_tags(filename, current_app.config["RECEIVED_DIR"])
+        reuse_eligibility = evaluate_public_reuse_packet(result, public_result=public_result)
+        detail_context["reuse_packet_rows"] = build_reuse_detail_rows(
+            result,
+            public_result=public_result,
+        )
+        detail_context["reuse_packet_url"] = (
+            url_for("results.result_reuse_packet", filename=filename)
+            if reuse_eligibility["eligible"]
+            else ""
+        )
+        detail_context["reuse_manifest_url"] = (
+            url_for("results.result_reuse_manifest", filename=filename)
+            if reuse_eligibility["eligible"]
+            else ""
         )
         if detail_context.get("environment_snapshot_hash") and not is_public_surface:
             detail_context["environment_snapshot_results_url"] = url_for(
@@ -119,6 +148,51 @@ def register_results_detail_routes(results_bp):
         )
         response.headers["Content-Disposition"] = (
             f"attachment; filename={evidence_packet_download_name(filename)}"
+        )
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
+
+    @results_bp.route("/detail/<filename>/reuse-packet.md")
+    def result_reuse_packet(filename):
+        result = load_public_result_json(
+            filename,
+            current_app.config["RECEIVED_DIR"],
+            not_found_message="Result file not found",
+        )
+        manifest = _build_public_reuse_manifest_for_route(result, filename)
+        if not manifest["eligibility"]["eligible"]:
+            abort(404, "Result file not found")
+
+        packet = build_public_reuse_markdown_packet(manifest)
+        response = current_app.response_class(
+            packet,
+            content_type="text/markdown; charset=utf-8",
+        )
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={public_reuse_packet_download_name(filename)}"
+        )
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
+
+    @results_bp.route("/detail/<filename>/reuse-manifest.json")
+    def result_reuse_manifest(filename):
+        result = load_public_result_json(
+            filename,
+            current_app.config["RECEIVED_DIR"],
+            not_found_message="Result file not found",
+        )
+        manifest = _build_public_reuse_manifest_for_route(result, filename)
+        if not manifest["eligibility"]["eligible"]:
+            abort(404, "Result file not found")
+
+        response = current_app.response_class(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+            content_type="application/json; charset=utf-8",
+        )
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={public_reuse_manifest_download_name(filename)}"
         )
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
@@ -194,3 +268,28 @@ def register_results_detail_routes(results_bp):
                 current_app.config["RECEIVED_PADATA_DIR"],
             )
         return serve_permitted_result_file(filename, current_app.config["RECEIVED_DIR"])
+
+    def _build_public_reuse_manifest_for_route(result, filename):
+        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
+        padata_filenames = _list_public_padata_filenames(padata_dir)
+        padata_urls = {
+            name: url_for("results.show_result", filename=name)
+            for name in padata_filenames
+        }
+        return build_public_reuse_manifest(
+            result,
+            filename,
+            detail_url=url_for("results.result_detail", filename=filename),
+            packet_url=url_for("results.result_reuse_packet", filename=filename),
+            manifest_url=url_for("results.result_reuse_manifest", filename=filename),
+            padata_filenames=padata_filenames,
+            padata_url_by_filename=padata_urls,
+        )
+
+    def _list_public_padata_filenames(padata_dir):
+        return [
+            name
+            for name in os.listdir(padata_dir)
+            if name.endswith(".tgz")
+            and padata_matches_public_result(name, current_app.config["RECEIVED_DIR"])
+        ]

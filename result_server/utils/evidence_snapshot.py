@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from ipaddress import ip_address
 from typing import Any
-from urllib.parse import urlsplit
 
 from utils.app_support_matrix import load_app_system_support_matrix
 from utils.node_hours import extract_timestamp_from_filename
+from utils.public_reuse import has_public_input_info, has_public_source_info
 from utils.result_file import get_file_confidential_tags
 from utils.result_records import (
     format_result_timestamp,
@@ -145,8 +144,8 @@ def _merge_latest_results(
         quality = summarize_result_quality(data)
         stats = quality["stats"]
         has_profile_data = _has_profile_data(data)
-        public_source_available = _has_public_source_info(data.get("source_info"))
-        public_input_available = _has_public_input_info(
+        public_source_available = has_public_source_info(data.get("source_info"))
+        public_input_available = has_public_input_info(
             data.get("input_info"),
             public_source_available,
         )
@@ -390,120 +389,6 @@ def _public_packet_next_action(row: dict[str, Any]) -> str:
     if not row.get("_public_input_available"):
         return "Record public input binding"
     return "Prepare public Markdown packet"
-
-
-def _has_public_source_info(source_info: Any) -> bool:
-    if not isinstance(source_info, dict):
-        return False
-    if _clean(source_info.get("source_type")).lower() != "git":
-        return False
-    if not _is_public_http_url(source_info.get("repo_url")):
-        return False
-    if not (_clean(source_info.get("ref_name")) or _clean(source_info.get("branch"))):
-        return False
-    return bool(
-        _clean(source_info.get("resolved_commit"))
-        or _clean(source_info.get("commit_hash"))
-    )
-
-
-def _has_public_input_info(input_info: Any, public_source_available: bool) -> bool:
-    input_items = _input_info_items(input_info)
-    if not input_items:
-        return False
-    return all(_has_public_input_item(item, public_source_available) for item in input_items)
-
-
-def _input_info_items(input_info: Any) -> list[Any]:
-    if not isinstance(input_info, dict) or not input_info:
-        return []
-    inputs = input_info.get("inputs")
-    if isinstance(inputs, list) and inputs:
-        return inputs
-    return [input_info]
-
-
-def _has_public_input_item(item: Any, public_source_available: bool) -> bool:
-    if not isinstance(item, dict):
-        return False
-
-    source = _clean(item.get("source")).lower()
-    verification_status = _clean(item.get("verification_status")).lower()
-    repo_relative_path = _clean(item.get("repo_relative_path"))
-    if repo_relative_path and public_source_available:
-        if source == "source_info" or verification_status == "covered_by_source_commit":
-            return True
-
-    if _clean(item.get("doi")):
-        return True
-
-    public_url = next(
-        (
-            item.get(key)
-            for key in ("public_url", "source_url", "archive_url")
-            if _is_public_http_url(item.get(key))
-        ),
-        None,
-    )
-    if not public_url:
-        return False
-
-    return _has_input_digest(item) or _has_input_revision(item)
-
-
-def _has_input_digest(item: dict[str, Any]) -> bool:
-    digest_fields = (
-        "manifest_digest",
-        "content_digest",
-        "sha256",
-        "sha256sum",
-        "digest",
-    )
-    return any(_clean(item.get(field)) for field in digest_fields)
-
-
-def _has_input_revision(item: dict[str, Any]) -> bool:
-    revision_fields = (
-        "resolved_commit",
-        "commit_hash",
-        "source_commit",
-        "revision",
-        "dataset_revision",
-    )
-    return any(_clean(item.get(field)) for field in revision_fields)
-
-
-def _is_public_http_url(value: Any) -> bool:
-    text = _clean(value)
-    if not text or "\\" in text or any(char.isspace() for char in text):
-        return False
-    try:
-        parsed = urlsplit(text)
-    except ValueError:
-        return False
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return False
-    if "@" in parsed.netloc:
-        return False
-    hostname = parsed.hostname
-    if not hostname:
-        return False
-    return _is_public_hostname(hostname)
-
-
-def _is_public_hostname(hostname: str) -> bool:
-    host = hostname.strip().strip("[]").lower().rstrip(".")
-    if (
-        not host
-        or host == "localhost"
-        or host.endswith((".local", ".localhost", ".internal", ".private"))
-    ):
-        return False
-    try:
-        address = ip_address(host)
-    except ValueError:
-        return True
-    return address.is_global
 
 
 def _build_cache_status(build_cache: Any) -> str:
