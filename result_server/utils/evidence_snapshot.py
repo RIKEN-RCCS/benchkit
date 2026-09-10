@@ -36,6 +36,8 @@ EVIDENCE_SNAPSHOT_CSV_COLUMNS = [
     "input_status",
     "build_cache_status",
     "public_result_available",
+    "latest_public_packet_file",
+    "latest_public_packet_time",
     "reuse_package_status",
     "public_packet_status",
     "public_packet_next_action",
@@ -82,6 +84,9 @@ def build_evidence_snapshot(
             "profiled_count": sum(1 for row in rows if row["profiled"] == "yes"),
             "estimated_count": sum(1 for row in rows if row["estimated"] == "yes"),
             "public_result_count": sum(1 for row in rows if row["public_result_available"] == "yes"),
+            "public_packet_available_count": sum(
+                1 for row in rows if row["latest_public_packet_file"]
+            ),
             "public_packet_eligible_count": sum(
                 1 for row in rows if row["public_packet_status"] == "eligible"
             ),
@@ -137,6 +142,23 @@ def _merge_latest_results(
         system = _clean(data.get("system")) or "unknown"
         row = _ensure_row(rows_by_key, code, system, snapshot_time, benchkit_commit)
 
+        public_source_available = has_public_source_info(data.get("source_info"))
+        public_input_available = has_public_input_info(
+            data.get("input_info"),
+            public_source_available,
+        )
+        public_result_available = not get_file_confidential_tags(record["filename"], received_dir)
+        if public_result_available and public_source_available and public_input_available:
+            packet_sort_key = row.get("_latest_public_packet_sort_key")
+            if packet_sort_key is None or packet_sort_key < record["sort_key"]:
+                row.update(
+                    {
+                        "_latest_public_packet_sort_key": record["sort_key"],
+                        "latest_public_packet_file": record["filename"],
+                        "latest_public_packet_time": record["timestamp"],
+                    }
+                )
+
         current_sort_key = row.get("_result_sort_key")
         if current_sort_key is not None and current_sort_key >= record["sort_key"]:
             continue
@@ -144,11 +166,6 @@ def _merge_latest_results(
         quality = summarize_result_quality(data)
         stats = quality["stats"]
         has_profile_data = _has_profile_data(data)
-        public_source_available = has_public_source_info(data.get("source_info"))
-        public_input_available = has_public_input_info(
-            data.get("input_info"),
-            public_source_available,
-        )
         row.update(
             {
                 "_result_sort_key": record["sort_key"],
@@ -163,11 +180,7 @@ def _merge_latest_results(
                 "source_status": "tracked" if stats.get("source_info_complete") else "incomplete",
                 "input_status": stats.get("input_info_label") or "None",
                 "build_cache_status": _build_cache_status(data.get("build_cache")),
-                "public_result_available": (
-                    "no"
-                    if get_file_confidential_tags(record["filename"], received_dir)
-                    else "yes"
-                ),
+                "public_result_available": "yes" if public_result_available else "no",
             }
         )
 
@@ -267,6 +280,8 @@ def _ensure_row(
             "input_status": "None",
             "build_cache_status": "not recorded",
             "public_result_available": "no",
+            "latest_public_packet_file": "",
+            "latest_public_packet_time": "-",
             "reuse_package_status": "not ready",
             "public_packet_status": "not exportable",
             "public_packet_next_action": "Trigger a benchmark run",
@@ -388,7 +403,7 @@ def _public_packet_next_action(row: dict[str, Any]) -> str:
         return "Declare public input binding"
     if not row.get("_public_input_available"):
         return "Record public input binding"
-    return "Prepare public Markdown packet"
+    return "Review public reuse packet"
 
 
 def _build_cache_status(build_cache: Any) -> str:

@@ -754,6 +754,7 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "result_count": 1,
                     "profiled_count": 0,
                     "estimated_count": 0,
+                    "public_packet_available_count": 0,
                     "public_packet_eligible_count": 0,
                     "reuse_package_complete_count": 0,
                 },
@@ -777,6 +778,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "input_status": "None",
                         "build_cache_status": "not recorded",
                         "public_result_available": "yes",
+                        "latest_public_packet_file": "",
+                        "latest_public_packet_time": "-",
                         "reuse_package_status": "needs evidence",
                         "public_packet_status": "needs public source",
                         "public_packet_next_action": "Record public source provenance",
@@ -815,7 +818,7 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Configured:</strong> yes = enabled and implemented" in html
     assert "Result Quality:</strong> missing = no result" in html
     assert "Reuse Package:</strong> complete = public packet eligible" in html
-    assert "Public Packet:</strong> eligible = public result with public source provenance" in html
+    assert "Public Packet:</strong> current latest result status" in html
     assert "Next Action" in html
     assert "Reuse / Next Action" in html
     assert "needs public source" in html
@@ -842,6 +845,7 @@ def test_usage_report_links_public_reuse_packet_for_eligible_rows():
                     "result_count": 1,
                     "profiled_count": 1,
                     "estimated_count": 1,
+                    "public_packet_available_count": 1,
                     "public_packet_eligible_count": 1,
                     "reuse_package_complete_count": 1,
                 },
@@ -865,9 +869,11 @@ def test_usage_report_links_public_reuse_packet_for_eligible_rows():
                         "input_status": "Covered",
                         "build_cache_status": "hit",
                         "public_result_available": "yes",
+                        "latest_public_packet_file": "result0.json",
+                        "latest_public_packet_time": "2026-04-13 12:00:00",
                         "reuse_package_status": "complete",
                         "public_packet_status": "eligible",
-                        "public_packet_next_action": "Prepare public Markdown packet",
+                        "public_packet_next_action": "Review public reuse packet",
                         "next_action": "Ready for review",
                         "missing_reason": "none",
                     }
@@ -877,5 +883,65 @@ def test_usage_report_links_public_reuse_packet_for_eligible_rows():
 
     assert "/results/detail/result0.json/reuse-packet.md" in html
     assert "/results/detail/result0.json/reuse-manifest.json" in html
+    assert "Latest packet" in html
     assert "Markdown packet" in html
     assert "Manifest" in html
+
+
+def test_usage_report_links_latest_available_public_reuse_packet():
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
+    )
+    with app.test_request_context("/results/usage"):
+        from flask import render_template
+
+        html = render_template(
+            "_usage_report_evidence_snapshot_section.html",
+            evidence_snapshot={
+                "summary": {
+                    "row_count": 1,
+                    "result_count": 1,
+                    "profiled_count": 0,
+                    "estimated_count": 0,
+                    "public_packet_available_count": 1,
+                    "public_packet_eligible_count": 0,
+                    "reuse_package_complete_count": 0,
+                },
+                "rows": [
+                    {
+                        "code": "demoapp",
+                        "system": "DemoSystem",
+                        "configured": "yes",
+                        "configured_status": "enabled and implemented",
+                        "latest_result_file": "latest.json",
+                        "latest_result_time": "2026-04-14 12:00:00",
+                        "latest_result_exp": "CASE0",
+                        "latest_result_status": "basic",
+                        "profiled": "no",
+                        "latest_profile_time": "-",
+                        "latest_estimate_file": "",
+                        "estimated": "no",
+                        "latest_estimate_time": "-",
+                        "estimate_applicability": "-",
+                        "source_status": "tracked",
+                        "input_status": "None",
+                        "build_cache_status": "hit",
+                        "public_result_available": "yes",
+                        "latest_public_packet_file": "eligible.json",
+                        "latest_public_packet_time": "2026-04-13 12:00:00",
+                        "reuse_package_status": "needs evidence",
+                        "public_packet_status": "needs public input",
+                        "public_packet_next_action": "Declare public input binding",
+                        "next_action": "Declare input metadata",
+                        "missing_reason": "no profile; no estimate; input not declared",
+                    }
+                ],
+            },
+        )
+
+    assert "1 packet available / 0 complete" in html
+    assert "Public packet: needs public input" in html
+    assert "/results/detail/eligible.json/reuse-packet.md" in html
+    assert "/results/detail/eligible.json/reuse-manifest.json" in html
+    assert "/results/detail/latest.json/reuse-packet.md" not in html
+    assert "2026-04-13 12:00:00" in html

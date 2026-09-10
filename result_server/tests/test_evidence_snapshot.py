@@ -75,6 +75,7 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert snapshot["summary"]["result_count"] == 1
     assert snapshot["summary"]["profiled_count"] == 1
     assert snapshot["summary"]["estimated_count"] == 1
+    assert snapshot["summary"]["public_packet_available_count"] == 1
     assert snapshot["summary"]["public_packet_eligible_count"] == 1
     assert snapshot["summary"]["reuse_package_complete_count"] == 1
 
@@ -90,9 +91,14 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
     assert demosystem["input_status"] == "Covered"
     assert demosystem["build_cache_status"] == "hit"
     assert demosystem["public_result_available"] == "yes"
+    assert (
+        demosystem["latest_public_packet_file"]
+        == "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
+    )
+    assert demosystem["latest_public_packet_time"] == "2026-09-01 01:01:01"
     assert demosystem["reuse_package_status"] == "complete"
     assert demosystem["public_packet_status"] == "eligible"
-    assert demosystem["public_packet_next_action"] == "Prepare public Markdown packet"
+    assert demosystem["public_packet_next_action"] == "Review public reuse packet"
     assert demosystem["next_action"] == "Ready for review"
     assert demosystem["missing_reason"] == "none"
     assert all(row["system"] != "FutureSystem" for row in snapshot["rows"])
@@ -214,8 +220,87 @@ def test_evidence_snapshot_accepts_public_input_commit_for_public_packet(tmp_pat
 
     row = snapshot["rows"][0]
     assert row["input_status"] == "Covered"
+    assert (
+        row["latest_public_packet_file"]
+        == "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
+    )
     assert row["public_packet_status"] == "eligible"
     assert row["reuse_package_status"] == "public packet eligible"
+
+
+def test_evidence_snapshot_keeps_latest_available_public_packet(tmp_path):
+    received_dir = tmp_path / "received"
+    estimated_dir = tmp_path / "estimated"
+    received_dir.mkdir()
+    estimated_dir.mkdir()
+
+    public_source_info = {
+        "source_type": "git",
+        "repo_url": "https://example.com/demoapp.git",
+        "ref_name": "main",
+        "resolved_commit": "abcdef1234567890",
+    }
+    _write_json(
+        received_dir / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "source_info": public_source_info,
+            "input_info": {
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "kind": "public-git",
+                        "source": "public_url",
+                        "public_url": "https://example.com/input.git",
+                        "source_ref": "main",
+                        "resolved_commit": "1234567890abcdef",
+                        "repo_relative_path": "benchmarks/case0",
+                        "verification_status": "public_source_commit",
+                    }
+                ],
+            },
+        },
+    )
+    _write_json(
+        received_dir / "result_20260902_020202_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE0",
+            "FOM": 1.1,
+            "source_info": public_source_info,
+        },
+    )
+
+    snapshot = build_evidence_snapshot(
+        str(received_dir),
+        str(estimated_dir),
+        generated_at="2026-09-07T00:00:00Z",
+        app_support_rows=[
+            {
+                "app": "demoapp",
+                "systems": {
+                    "DemoSystem": {"status": "enabled"},
+                },
+            }
+        ],
+    )
+
+    row = snapshot["rows"][0]
+    assert row["latest_result_time"] == "2026-09-02 02:02:02"
+    assert row["input_status"] == "None"
+    assert row["public_packet_status"] == "needs public input"
+    assert row["public_packet_next_action"] == "Declare public input binding"
+    assert snapshot["summary"]["public_packet_available_count"] == 1
+    assert snapshot["summary"]["public_packet_eligible_count"] == 0
+    assert (
+        row["latest_public_packet_file"]
+        == "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
+    )
+    assert row["latest_public_packet_time"] == "2026-09-01 01:01:01"
 
 
 def test_evidence_snapshot_uses_estimate_benchmark_systems_without_future_target_rows(tmp_path):
