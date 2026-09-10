@@ -43,7 +43,7 @@ def evaluate_public_reuse_packet(
         next_action = "Record public input binding"
     else:
         status = "eligible"
-        next_action = "Prepare public Markdown packet"
+        next_action = "Review public reuse packet"
 
     return {
         "eligible": status == "eligible",

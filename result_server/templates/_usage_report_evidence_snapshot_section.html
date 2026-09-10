@@ -1,12 +1,13 @@
 {% set evidence_snapshot = evidence_snapshot|default({
-  "summary": {
-    "row_count": 0,
-    "result_count": 0,
-    "profiled_count": 0,
-    "estimated_count": 0,
-    "public_packet_eligible_count": 0,
-    "reuse_package_complete_count": 0
-  },
+    "summary": {
+      "row_count": 0,
+      "result_count": 0,
+      "profiled_count": 0,
+      "estimated_count": 0,
+      "public_packet_available_count": 0,
+      "public_packet_eligible_count": 0,
+      "reuse_package_complete_count": 0
+    },
   "rows": []
 }, true) %}
 
@@ -19,7 +20,7 @@
     <span><strong>Result Quality:</strong> missing = no result; basic = core result only; ready = estimation bindings present; rich = source provenance and artifacts present.</span>
     <span><strong>Input Status:</strong> None = no input_info; Declared = input_info only; Covered = input fixed by a recorded source commit; Verified = digest-backed input verification.</span>
     <span><strong>Reuse Package:</strong> complete = public packet eligible with profile and estimate evidence; public packet eligible = source material is ready for a public Markdown reuse packet.</span>
-    <span><strong>Public Packet:</strong> eligible = public result with public source provenance and public input binding.</span>
+    <span><strong>Public Packet:</strong> current latest result status; Latest packet links to the newest eligible public reuse packet if available.</span>
     <span><strong>Next Action:</strong> the first practical follow-up suggested by the current evidence state.</span>
   </div>
 
@@ -34,7 +35,7 @@
     </div>
     <div class="diagnostic-card">
       <h3>Reuse</h3>
-      <p>{{ evidence_snapshot.summary.public_packet_eligible_count|default(0) }} packet eligible / {{ evidence_snapshot.summary.reuse_package_complete_count|default(0) }} complete</p>
+      <p>{{ evidence_snapshot.summary.public_packet_available_count|default(evidence_snapshot.summary.public_packet_eligible_count|default(0)) }} packet available / {{ evidence_snapshot.summary.reuse_package_complete_count|default(0) }} complete</p>
     </div>
     <div class="diagnostic-card">
       <h3>Export</h3>
@@ -94,11 +95,15 @@
           <td>
             <span class="evidence-snapshot-label">Reuse</span> {{ row.reuse_package_status }}
             <span class="profile-usage-subline">Public packet: {{ row.public_packet_status }}</span>
-            {% if row.public_packet_status == 'eligible' and row.latest_result_file %}
+            {% if row.latest_public_packet_file|default('') %}
             <span class="profile-usage-subline">
-              <a href="{{ url_for('results.result_reuse_packet', filename=row.latest_result_file) }}">Markdown packet</a>
+              <span class="evidence-snapshot-label">Latest packet</span>
+              <a href="{{ url_for('results.result_reuse_packet', filename=row.latest_public_packet_file) }}">Markdown packet</a>
               /
-              <a href="{{ url_for('results.result_reuse_manifest', filename=row.latest_result_file) }}">Manifest</a>
+              <a href="{{ url_for('results.result_reuse_manifest', filename=row.latest_public_packet_file) }}">Manifest</a>
+              {% if row.latest_public_packet_time|default('-') != row.latest_result_time %}
+              <span>({{ row.latest_public_packet_time }})</span>
+              {% endif %}
             </span>
             {% endif %}
             <span class="profile-usage-subline">{{ row.public_packet_next_action }}</span>
