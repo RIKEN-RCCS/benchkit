@@ -6,6 +6,7 @@
     "profiled_result_count": 0,
     "regular_run_timing_count": 0,
     "profiled_run_timing_count": 0,
+    "profiled_job_timing_count": 0,
     "profile_overhead_pair_count": 0,
     "scheduler_queue_timing_count": 0,
     "estimate_record_count": 0,
@@ -109,6 +110,9 @@
             <span class="profile-usage-subline">{{ row.regular_run_timing_count }} timing records</span>
             <span class="profile-usage-subline">profiled {{ row.avg_profiled_run_time }}</span>
             <span class="profile-usage-subline">{{ row.profiled_run_timing_count }} timing records</span>
+            {% if row.profiled_job_timing_count|default(0) %}
+            <span class="profile-usage-subline">profiled job-only {{ row.profiled_job_timing_count }} timing records</span>
+            {% endif %}
             <span class="profile-usage-subline">overhead pairs {{ row.profile_overhead_pair_count|default(0) }}</span>
             <span class="profile-usage-subline">observed overhead {{ row.avg_profile_overhead_delta|default('-') }} / {{ row.avg_profile_overhead_ratio|default('-') }}</span>
             <span class="profile-usage-subline">{{ row.profile_overhead_status|default('-') }}</span>
@@ -118,6 +122,9 @@
               regular {{ condition.avg_regular_run_time }} ({{ condition.regular_run_timing_count }}/{{ condition.regular_result_count }} timed) /
               profiled {{ condition.avg_profiled_run_time }} ({{ condition.profiled_run_timing_count }}/{{ condition.profiled_result_count }} timed)
             </span>
+            {% if condition.profiled_job_timing_count|default(0) %}
+            <span class="profile-usage-subline">profiled job-only timing {{ condition.profiled_job_timing_count }}</span>
+            {% endif %}
             <span class="profile-usage-subline">observed overhead {{ condition.avg_profile_overhead_delta }} / {{ condition.avg_profile_overhead_ratio }}</span>
             <span class="profile-usage-subline">{{ condition.profile_overhead_status }}</span>
             {% endfor %}
