@@ -169,7 +169,9 @@ jq -e '
   .pipeline_timing.queue_time_source == "not_measured" and
   .pipeline_timing.scheduler_queue_time == 45 and
   .pipeline_timing.scheduler_queue_time_source == "runner_metadata" and
-  .pipeline_timing.run_time == 34
+  .pipeline_timing.run_time == 34 and
+  .pipeline_timing.run_time_scope == "job" and
+  (.pipeline_timing | has("profiled_run_included") | not)
 ' "${RESULT_JSON}" >/dev/null
 
 jq -e '

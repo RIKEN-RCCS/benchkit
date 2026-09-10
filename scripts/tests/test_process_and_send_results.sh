@@ -163,6 +163,8 @@ jq -e '
   .pipeline_timing.scheduler_queue_time == 10 and
   .pipeline_timing.scheduler_queue_time_source == "gitlab_job_started_at" and
   (.pipeline_timing.run_time | type) == "number" and
+  .pipeline_timing.run_time_scope == "job" and
+  (.pipeline_timing | has("profiled_run_included") | not) and
   (.execution_trigger | type) == "object"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '

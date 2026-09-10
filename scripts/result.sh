@@ -74,6 +74,16 @@ build_profile_data_summary() {
   ' 2>/dev/null || true
 }
 
+has_profiler_archive() {
+  local archive
+  for archive in results/padata*.tgz; do
+    if [[ -f "$archive" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 decode_base64_value() {
   if base64 --decode >/dev/null 2>&1 </dev/null; then
     base64 --decode
@@ -523,6 +533,11 @@ if ! input_info_block=$(build_input_info_block); then
   exit 1
 fi
 
+profiled_run_included=false
+if has_profiler_archive; then
+  profiled_run_included=true
+fi
+
 # Function to write a Result_JSON file for one FOM block
 # Arguments: $1=index, uses global vars: code, system, fom, fom_unit, fom_version, exp, node_count, numproc_node, description, confidential, sections_json, overlaps_json
 write_result_json() {
@@ -534,19 +549,25 @@ write_result_json() {
   local timing_block=""
   if [ -f results/pipeline_timing.json ]; then
     local pipeline_timing_json
-    pipeline_timing_json=$(jq -c '
+    pipeline_timing_json=$(jq -c --argjson profiled_run_included "$profiled_run_included" '
       def num: if type == "number" then . else (tonumber? // 0) end;
       {
         build_time: ((.build_time // 0) | num),
         queue_time: ((.queue_time // 0) | num),
-        run_time: ((.run_time // 0) | num)
+        run_time: ((.run_time // 0) | num),
+        run_time_scope: "job"
       }
       + (if (.queue_time_source? | type) == "string" then {queue_time_source: .queue_time_source} else {} end)
       + ((try (.scheduler_queue_time? | tonumber) catch null) as $scheduler_queue_time | if $scheduler_queue_time == null then {} else {scheduler_queue_time: $scheduler_queue_time} end)
       + (if (.scheduler_queue_time_source? | type) == "string" then {scheduler_queue_time_source: .scheduler_queue_time_source} else {} end)
+      + (if $profiled_run_included then {profiled_run_included: true} else {} end)
     ' results/pipeline_timing.json 2>/dev/null || true)
     if [ -z "$pipeline_timing_json" ] || [ "$pipeline_timing_json" = "null" ]; then
-      pipeline_timing_json='{"build_time":0,"queue_time":0,"run_time":0}'
+      if [ "$profiled_run_included" = true ]; then
+        pipeline_timing_json='{"build_time":0,"queue_time":0,"run_time":0,"run_time_scope":"job","profiled_run_included":true}'
+      else
+        pipeline_timing_json='{"build_time":0,"queue_time":0,"run_time":0,"run_time_scope":"job"}'
+      fi
     fi
     timing_block=",
   \"pipeline_timing\": $pipeline_timing_json"

@@ -44,6 +44,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
         "profiled_result_count": 0,
         "regular_run_timing_count": 0,
         "profiled_run_timing_count": 0,
+        "profiled_job_timing_count": 0,
         "profile_overhead_pair_count": 0,
         "estimate_record_count": 0,
         "estimate_timing_record_count": 0,
@@ -74,6 +75,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "profiled_count": 0,
                 "regular_run_timing_count": 0,
                 "profiled_run_timing_count": 0,
+                "profiled_job_timing_count": 0,
                 "profile_overhead_pair_count": 0,
                 "profile_overhead_status": "-",
                 "avg_profile_overhead_delta": "-",
@@ -108,9 +110,9 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
             },
         )
         row["result_count"] += 1
-        is_profiled = _has_profile_data(data)
-        run_kind = "profiled" if is_profiled else "regular"
-        _add_run_condition_result(row["_run_conditions"], data, run_kind)
+        has_profile_data = _has_profile_data(data)
+        result_kind = "profiled" if has_profile_data else "regular"
+        _add_run_condition_result(row["_run_conditions"], data, result_kind)
 
         raw_timing = data.get("pipeline_timing")
         timing = _timing_values(raw_timing)
@@ -127,13 +129,20 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 _add_scalar_total(scheduler_queue_totals, scheduler_queue_time)
             run_time = timing.get("run_time")
             if run_time is not None:
-                _add_run_condition_timing(row["_run_conditions"], data, run_kind, run_time)
-                if is_profiled:
+                timing_kind = _run_timing_kind(data, raw_timing)
+                if timing_kind == "profiled_job":
+                    row["profiled_job_timing_count"] += 1
+                    summary["profiled_job_timing_count"] += 1
+                    _add_run_condition_profiled_job_timing(row["_run_conditions"], data)
+                else:
+                    _add_run_condition_timing(row["_run_conditions"], data, timing_kind, run_time)
+
+                if timing_kind == "profiled":
                     row["profiled_run_timing_count"] += 1
                     summary["profiled_run_timing_count"] += 1
                     _add_scalar_total(row["_profiled_run_totals"], run_time)
                     _add_scalar_total(profiled_run_totals, run_time)
-                else:
+                elif timing_kind == "regular":
                     row["regular_run_timing_count"] += 1
                     summary["regular_run_timing_count"] += 1
                     _add_scalar_total(row["_regular_run_totals"], run_time)
@@ -150,9 +159,9 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                     _nested_value(raw_timing, "scheduler_queue_time_source")
                 )
                 row["latest_run_time"] = _format_seconds(timing.get("run_time"))
-                row["latest_run_kind"] = run_kind
+                row["latest_run_kind"] = _run_timing_label(_run_timing_kind(data, raw_timing))
 
-        if is_profiled:
+        if has_profile_data:
             row["profiled_count"] += 1
             summary["profiled_result_count"] += 1
 
@@ -398,6 +407,14 @@ def _add_run_condition_timing(
     _add_scalar_total(condition[f"_{run_kind}_run_totals"], run_time)
 
 
+def _add_run_condition_profiled_job_timing(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+    data: dict[str, Any],
+) -> None:
+    condition = _ensure_run_condition(run_conditions, data)
+    condition["profiled_job_timing_count"] += 1
+
+
 def _ensure_run_condition(
     run_conditions: dict[tuple[str, ...], dict[str, Any]],
     data: dict[str, Any],
@@ -415,6 +432,7 @@ def _ensure_run_condition(
             "profiled_result_count": 0,
             "regular_run_timing_count": 0,
             "profiled_run_timing_count": 0,
+            "profiled_job_timing_count": 0,
             "_regular_run_totals": _empty_scalar_total(),
             "_profiled_run_totals": _empty_scalar_total(),
         }
@@ -464,6 +482,7 @@ def _run_condition_rows(run_conditions: dict[tuple[str, ...], dict[str, Any]]) -
                 "profiled_result_count": condition["profiled_result_count"],
                 "regular_run_timing_count": condition["regular_run_timing_count"],
                 "profiled_run_timing_count": condition["profiled_run_timing_count"],
+                "profiled_job_timing_count": condition["profiled_job_timing_count"],
                 "avg_regular_run_time": _format_seconds(regular_avg),
                 "avg_profiled_run_time": _format_seconds(profiled_avg),
                 "avg_profile_overhead_delta": _format_overhead_delta(overhead),
@@ -499,6 +518,10 @@ def _run_condition_status(
 ) -> str:
     if regular_avg is not None and profiled_avg is not None:
         return "observed from matching dimensions"
+    if condition["profiled_job_timing_count"] and regular_avg is not None:
+        return "needs profiled result timing"
+    if condition["profiled_job_timing_count"]:
+        return "needs unprofiled run timing"
     if condition["profiled_run_timing_count"] and condition["regular_result_count"]:
         return "needs regular run timing"
     if condition["regular_run_timing_count"] and condition["profiled_result_count"]:
@@ -543,6 +566,10 @@ def _numeric_sort_value(value: str) -> tuple[int, float | str]:
 def _profile_overhead_status(row: dict[str, Any], pair_count: int) -> str:
     if pair_count:
         return "observed from matching dimensions"
+    if row["profiled_job_timing_count"] and row["regular_run_timing_count"]:
+        return "needs profiled result timing"
+    if row["profiled_job_timing_count"]:
+        return "profiled job timing only"
     if row["regular_run_timing_count"] and row["profiled_run_timing_count"]:
         return "needs matching run dimensions"
     if row["regular_run_timing_count"]:
@@ -616,6 +643,44 @@ def _as_float(value: Any) -> float | None:
 def _has_profile_data(data: dict[str, Any]) -> bool:
     profile_data = data.get("profile_data")
     return isinstance(profile_data, dict) and bool(profile_data)
+
+
+def _run_timing_kind(data: dict[str, Any], raw_timing: Any) -> str:
+    includes_profiled_run = _timing_includes_profiled_run(raw_timing)
+    has_profile_data = _has_profile_data(data)
+    if includes_profiled_run is True and not has_profile_data:
+        return "profiled_job"
+    if includes_profiled_run is True or has_profile_data:
+        return "profiled"
+    return "regular"
+
+
+def _run_timing_label(timing_kind: str) -> str:
+    if timing_kind == "profiled_job":
+        return "profiled job"
+    return timing_kind
+
+
+def _timing_includes_profiled_run(raw_timing: Any) -> bool | None:
+    if not isinstance(raw_timing, dict):
+        return None
+    for field in ("profiled_run_included", "profiled_job"):
+        value = _as_bool(raw_timing.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _as_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
 
 
 def _is_performance_record(data: dict[str, Any]) -> bool:

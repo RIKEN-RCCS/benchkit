@@ -118,6 +118,8 @@ jq -e '
   .pipeline_timing.queue_time == 0 and
   .pipeline_timing.queue_time_source == "not_measured" and
   .pipeline_timing.run_time == 34 and
+  .pipeline_timing.run_time_scope == "job" and
+  .pipeline_timing.profiled_run_included == true and
   .pipeline_id == 999 and
   .parent_pipeline_id == 888 and
   .execution_trigger.id == "qws-fugaku-watch" and
@@ -136,7 +138,10 @@ jq -e '
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
   .pipeline_timing.queue_time_source == "not_measured" and
-  .pipeline_timing.run_time == 34
+  .pipeline_timing.run_time == 34 and
+  .pipeline_timing.run_time_scope == "job" and
+  .pipeline_timing.profiled_run_included == true and
+  (.profile_data | type) == "null"
 ' "${RESULT_JSON_1}" >/dev/null
 
 NCU_RESULT_JSON="${TMP_DIR}/ncu/results/result0.json"

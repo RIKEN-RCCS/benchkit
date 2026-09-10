@@ -251,11 +251,88 @@ def test_performance_telemetry_counts_profile_overhead_pairs(tmp_path, monkeypat
             "profiled_result_count": 1,
             "regular_run_timing_count": 1,
             "profiled_run_timing_count": 1,
+            "profiled_job_timing_count": 0,
             "avg_regular_run_time": "5m",
             "avg_profiled_run_time": "6m",
             "avg_profile_overhead_delta": "1m",
             "avg_profile_overhead_ratio": "1.2x",
             "profile_overhead_status": "observed from matching dimensions",
+        }
+    ]
+
+
+def test_performance_telemetry_excludes_profiled_job_timing_from_regular_baseline(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "programs" / "demoapp").mkdir(parents=True)
+    monkeypatch.setattr(performance_telemetry, "REPO_ROOT", repo_root)
+
+    common = {
+        "code": "demoapp",
+        "system": "DemoSystem",
+        "Exp": "CASE1",
+        "node_count": 1,
+        "numproc_node": 2,
+        "nthreads": 12,
+        "FOM_version": "solver-v1",
+        "FOM": 1.0,
+    }
+    _write_json(
+        tmp_path / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            **common,
+            "pipeline_timing": {"run_time": 300, "run_time_scope": "job"},
+        },
+    )
+    _write_json(
+        tmp_path / "result_20260902_010101_bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            **common,
+            "pipeline_timing": {
+                "run_time": 360,
+                "run_time_scope": "job",
+                "profiled_run_included": True,
+            },
+        },
+    )
+
+    telemetry = build_performance_telemetry(str(tmp_path))
+
+    assert telemetry["summary"]["result_count"] == 2
+    assert telemetry["summary"]["timing_record_count"] == 2
+    assert telemetry["summary"]["regular_run_timing_count"] == 1
+    assert telemetry["summary"]["profiled_run_timing_count"] == 0
+    assert telemetry["summary"]["profiled_job_timing_count"] == 1
+    assert telemetry["summary"]["profile_overhead_pair_count"] == 0
+    assert telemetry["summary"]["avg_regular_run_time"] == "5m"
+    assert telemetry["summary"]["avg_profiled_run_time"] == "-"
+    assert telemetry["summary"]["avg_profile_overhead_delta"] == "-"
+    assert telemetry["summary"]["avg_profile_overhead_ratio"] == "-"
+
+    row = telemetry["rows"][0]
+    assert row["regular_run_timing_count"] == 1
+    assert row["profiled_run_timing_count"] == 0
+    assert row["profiled_job_timing_count"] == 1
+    assert row["profile_overhead_pair_count"] == 0
+    assert row["profile_overhead_status"] == "needs profiled result timing"
+    assert row["latest_run_kind"] == "profiled job"
+    assert row["run_conditions"] == [
+        {
+            "label": "CASE1 / N1 P2 T12 / solver-v1",
+            "exp": "CASE1",
+            "node_count": "1",
+            "numproc_node": "2",
+            "nthreads": "12",
+            "fom_version": "solver-v1",
+            "regular_result_count": 2,
+            "profiled_result_count": 0,
+            "regular_run_timing_count": 1,
+            "profiled_run_timing_count": 0,
+            "profiled_job_timing_count": 1,
+            "avg_regular_run_time": "5m",
+            "avg_profiled_run_time": "-",
+            "avg_profile_overhead_delta": "-",
+            "avg_profile_overhead_ratio": "-",
+            "profile_overhead_status": "needs profiled result timing",
         }
     ]
 
@@ -299,6 +376,7 @@ def test_performance_telemetry_keeps_benchmark_conditions_without_timing(tmp_pat
             "profiled_result_count": 0,
             "regular_run_timing_count": 0,
             "profiled_run_timing_count": 0,
+            "profiled_job_timing_count": 0,
             "avg_regular_run_time": "-",
             "avg_profiled_run_time": "-",
             "avg_profile_overhead_delta": "-",

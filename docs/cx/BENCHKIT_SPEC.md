@@ -373,6 +373,10 @@ benchmark script が開始するまでの job queue time として読める。
 各 Result JSON は同じ job-level pipeline timing を持つ。
 これにより Portal の condition-level 表示は
 `Exp / node_count / numproc_node / nthreads / FOM_version` ごとに timing を参照できる。
+`pipeline_timing.run_time_scope` はこの粒度を示し、現在の共通収集では `job` である。
+同じ job に profiler 実行が含まれる場合は、`pipeline_timing.profiled_run_included`
+を `true` にできる。これは profiler artifact が個々の Result JSON に付くこととは別の
+job-level timing marker であり、通常実行の baseline timing と混同しない。
 
 Benchmark results are produced by normalizing `run.sh` output into Result JSON through `result.sh`.
 
@@ -402,6 +406,11 @@ When one run job emits multiple FOM blocks and produces multiple Result JSON
 files, each Result JSON carries the same job-level pipeline timing. This lets
 Portal condition-level views read timing per
 `Exp / node_count / numproc_node / nthreads / FOM_version` row.
+`pipeline_timing.run_time_scope` identifies that granularity; the current common
+collector uses `job`. When the same job includes a profiler run,
+`pipeline_timing.profiled_run_included` may be set to `true`. This is a
+job-level timing marker, separate from attaching a profiler artifact to an
+individual Result JSON, and should not be mixed into unprofiled baseline timing.
 
 ### 7.3 ソース出自情報 / Source Provenance
 
