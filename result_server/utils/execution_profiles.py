@@ -1501,19 +1501,6 @@ class ExecutionProfileStore:
             ).fetchone()
         return self._profile_request_from_row(row) if row else None
 
-    def delete_profile_request(self, request_id: int) -> bool:
-        """Delete one execution-profile request and its request event rows."""
-        self.migrate()
-        with self.connect() as conn:
-            row = conn.execute(
-                "SELECT id FROM execution_profile_requests WHERE id = ?",
-                (request_id,),
-            ).fetchone()
-            if not row:
-                return False
-            conn.execute("DELETE FROM execution_profile_requests WHERE id = ?", (request_id,))
-        return True
-
     def hide_profile_request_for_requester(
         self,
         request_id: int,
