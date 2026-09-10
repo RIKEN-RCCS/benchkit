@@ -252,7 +252,7 @@ def summarize_input_info(data):
     }
     summaries = {
         "declared": "input_info is present, but digest or source-commit coverage is not declared as verified.",
-        "covered": "input_info declares repository-local input covered by source_info.resolved_commit.",
+        "covered": "input_info declares input covered by a recorded source commit.",
         "verified": "input_info declares verified input with digest evidence.",
     }
     return {
@@ -277,6 +277,14 @@ def _classify_input_info_item(item, has_source_commit):
         "digest",
     )
     has_digest = any(item.get(field) for field in digest_fields)
+    revision_fields = (
+        "resolved_commit",
+        "commit_hash",
+        "source_commit",
+        "revision",
+        "dataset_revision",
+    )
+    has_input_revision = any(item.get(field) for field in revision_fields)
 
     if verification_status == "verified" and has_digest:
         return "verified"
@@ -287,6 +295,19 @@ def _classify_input_info_item(item, has_source_commit):
         and (source == "source_info" or verification_status == "covered_by_source_commit")
     )
     if repo_local_covered:
+        return "covered"
+
+    public_source_covered = (
+        has_input_revision
+        and verification_status in {"public_source_commit", "covered_by_public_source_commit"}
+        and (
+            source in {"public_url", "public_git", "public-git"}
+            or item.get("public_url")
+            or item.get("source_url")
+            or item.get("archive_url")
+        )
+    )
+    if public_source_covered:
         return "covered"
 
     return "declared"

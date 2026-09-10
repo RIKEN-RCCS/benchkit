@@ -504,6 +504,28 @@ class TestSummarizeResultQuality:
         })
         assert covered["stats"]["input_info_status"] == "covered"
 
+        public_source_covered = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0",
+                        "kind": "public-git",
+                        "source": "public_url",
+                        "public_url": "https://example.com/input.git",
+                        "source_ref": "main",
+                        "resolved_commit": "abcdef1234567890",
+                        "repo_relative_path": "benchmarks/case0",
+                        "verification_status": "public_source_commit",
+                    }
+                ],
+            },
+        })
+        assert public_source_covered["stats"]["input_info_status"] == "covered"
+
         missing_source_commit = summarize_result_quality({
             "code": "test",
             "system": "sys",

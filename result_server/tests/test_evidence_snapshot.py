@@ -162,6 +162,62 @@ def test_evidence_snapshot_requires_public_source_for_public_packet(tmp_path):
     assert row["reuse_package_status"] == "needs public evidence"
 
 
+def test_evidence_snapshot_accepts_public_input_commit_for_public_packet(tmp_path):
+    received_dir = tmp_path / "received"
+    estimated_dir = tmp_path / "estimated"
+    received_dir.mkdir()
+    estimated_dir.mkdir()
+
+    _write_json(
+        received_dir / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "source_info": {
+                "source_type": "git",
+                "repo_url": "https://example.com/demoapp.git",
+                "ref_name": "main",
+                "resolved_commit": "abcdef1234567890",
+            },
+            "input_info": {
+                "inputs": [
+                    {
+                        "dataset_id": "apoa1-p8",
+                        "kind": "public-git",
+                        "source": "public_url",
+                        "public_url": "https://example.com/input.git",
+                        "source_ref": "main",
+                        "resolved_commit": "1234567890abcdef",
+                        "repo_relative_path": "npt/apoa1",
+                        "verification_status": "public_source_commit",
+                    }
+                ],
+            },
+        },
+    )
+
+    snapshot = build_evidence_snapshot(
+        str(received_dir),
+        str(estimated_dir),
+        generated_at="2026-09-07T00:00:00Z",
+        app_support_rows=[
+            {
+                "app": "demoapp",
+                "systems": {
+                    "DemoSystem": {"status": "enabled"},
+                },
+            }
+        ],
+    )
+
+    row = snapshot["rows"][0]
+    assert row["input_status"] == "Covered"
+    assert row["public_packet_status"] == "eligible"
+    assert row["reuse_package_status"] == "public packet eligible"
+
+
 def test_evidence_snapshot_uses_estimate_benchmark_systems_without_future_target_rows(tmp_path):
     received_dir = tmp_path / "received"
     estimated_dir = tmp_path / "estimated"
