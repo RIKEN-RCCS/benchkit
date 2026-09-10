@@ -142,6 +142,8 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert telemetry["summary"]["avg_run_time"] == "3.5m"
     assert telemetry["summary"]["avg_regular_run_time"] == "5m"
     assert telemetry["summary"]["avg_profiled_run_time"] == "2m"
+    assert telemetry["summary"]["avg_profile_overhead_delta"] == "-"
+    assert telemetry["summary"]["avg_profile_overhead_ratio"] == "-"
     assert telemetry["summary"]["avg_estimate_time"] == "42s"
 
     rows = {(row["code"], row["system"]): row for row in telemetry["rows"]}
@@ -158,6 +160,25 @@ def test_performance_telemetry_summarizes_timing_and_build_cache(tmp_path, monke
     assert demoapp["avg_profiled_run_time"] == "2m"
     assert demoapp["profile_overhead_pair_count"] == 0
     assert demoapp["profile_overhead_status"] == "needs matching run dimensions"
+    assert demoapp["avg_profile_overhead_delta"] == "-"
+    assert demoapp["avg_profile_overhead_ratio"] == "-"
+    conditions = {condition["exp"]: condition for condition in demoapp["run_conditions"]}
+    assert set(conditions) == {"CASE0", "CASE1"}
+    assert conditions["CASE0"]["label"] == "CASE0 / N- P- T- / -"
+    assert conditions["CASE0"]["regular_result_count"] == 1
+    assert conditions["CASE0"]["profiled_result_count"] == 0
+    assert conditions["CASE0"]["regular_run_timing_count"] == 1
+    assert conditions["CASE0"]["profiled_run_timing_count"] == 0
+    assert conditions["CASE0"]["avg_regular_run_time"] == "5m"
+    assert conditions["CASE0"]["avg_profiled_run_time"] == "-"
+    assert conditions["CASE0"]["profile_overhead_status"] == "needs matching profiled run"
+    assert conditions["CASE1"]["regular_result_count"] == 0
+    assert conditions["CASE1"]["profiled_result_count"] == 1
+    assert conditions["CASE1"]["regular_run_timing_count"] == 0
+    assert conditions["CASE1"]["profiled_run_timing_count"] == 1
+    assert conditions["CASE1"]["avg_regular_run_time"] == "-"
+    assert conditions["CASE1"]["avg_profiled_run_time"] == "2m"
+    assert conditions["CASE1"]["profile_overhead_status"] == "needs matching regular run"
     assert demoapp["latest_exp"] == "CASE1"
     assert demoapp["latest_build_time"] == "30s"
     assert demoapp["latest_queue_time"] == "1m"
@@ -212,8 +233,79 @@ def test_performance_telemetry_counts_profile_overhead_pairs(tmp_path, monkeypat
     telemetry = build_performance_telemetry(str(tmp_path))
 
     assert telemetry["summary"]["profile_overhead_pair_count"] == 1
+    assert telemetry["summary"]["avg_profile_overhead_delta"] == "1m"
+    assert telemetry["summary"]["avg_profile_overhead_ratio"] == "1.2x"
     assert telemetry["rows"][0]["profile_overhead_pair_count"] == 1
-    assert telemetry["rows"][0]["profile_overhead_status"] == "paired data available"
+    assert telemetry["rows"][0]["profile_overhead_status"] == "observed from matching dimensions"
+    assert telemetry["rows"][0]["avg_profile_overhead_delta"] == "1m"
+    assert telemetry["rows"][0]["avg_profile_overhead_ratio"] == "1.2x"
+    assert telemetry["rows"][0]["run_conditions"] == [
+        {
+            "label": "CASE0 / N1 P4 T8 / region-v1",
+            "exp": "CASE0",
+            "node_count": "1",
+            "numproc_node": "4",
+            "nthreads": "8",
+            "fom_version": "region-v1",
+            "regular_result_count": 1,
+            "profiled_result_count": 1,
+            "regular_run_timing_count": 1,
+            "profiled_run_timing_count": 1,
+            "avg_regular_run_time": "5m",
+            "avg_profiled_run_time": "6m",
+            "avg_profile_overhead_delta": "1m",
+            "avg_profile_overhead_ratio": "1.2x",
+            "profile_overhead_status": "observed from matching dimensions",
+        }
+    ]
+
+
+def test_performance_telemetry_keeps_benchmark_conditions_without_timing(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "programs" / "demoapp").mkdir(parents=True)
+    monkeypatch.setattr(performance_telemetry, "REPO_ROOT", repo_root)
+
+    _write_json(
+        tmp_path / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
+        {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "Exp": "CASE1",
+            "node_count": 1,
+            "numproc_node": 2,
+            "nthreads": 12,
+            "FOM_version": "solver-v1",
+            "FOM": 0.425,
+        },
+    )
+
+    telemetry = build_performance_telemetry(str(tmp_path))
+
+    assert telemetry["summary"]["result_count"] == 1
+    assert telemetry["summary"]["timing_record_count"] == 0
+    assert telemetry["summary"]["regular_run_timing_count"] == 0
+    assert telemetry["summary"]["profiled_run_timing_count"] == 0
+    row = telemetry["rows"][0]
+    assert row["profile_overhead_status"] == "-"
+    assert row["run_conditions"] == [
+        {
+            "label": "CASE1 / N1 P2 T12 / solver-v1",
+            "exp": "CASE1",
+            "node_count": "1",
+            "numproc_node": "2",
+            "nthreads": "12",
+            "fom_version": "solver-v1",
+            "regular_result_count": 1,
+            "profiled_result_count": 0,
+            "regular_run_timing_count": 0,
+            "profiled_run_timing_count": 0,
+            "avg_regular_run_time": "-",
+            "avg_profiled_run_time": "-",
+            "avg_profile_overhead_delta": "-",
+            "avg_profile_overhead_ratio": "-",
+            "profile_overhead_status": "regular run timing not recorded",
+        }
+    ]
 
 
 def test_performance_telemetry_handles_missing_directory(tmp_path):
@@ -228,5 +320,7 @@ def test_performance_telemetry_handles_missing_directory(tmp_path):
     assert telemetry["summary"]["estimate_timing_record_count"] == 0
     assert telemetry["summary"]["avg_build_time"] == "-"
     assert telemetry["summary"]["avg_scheduler_queue_time"] == "-"
+    assert telemetry["summary"]["avg_profile_overhead_delta"] == "-"
+    assert telemetry["summary"]["avg_profile_overhead_ratio"] == "-"
     assert telemetry["summary"]["avg_estimate_time"] == "-"
     assert telemetry["rows"] == []

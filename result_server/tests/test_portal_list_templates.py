@@ -688,6 +688,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                     "avg_run_time": "2m",
                     "avg_regular_run_time": "2m",
                     "avg_profiled_run_time": "-",
+                    "avg_profile_overhead_delta": "-",
+                    "avg_profile_overhead_ratio": "-",
                     "avg_estimate_time": "42s",
                 },
                 "rows": [
@@ -701,6 +703,22 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
                         "profiled_run_timing_count": 0,
                         "profile_overhead_pair_count": 0,
                         "profile_overhead_status": "needs matching profiled run",
+                        "avg_profile_overhead_delta": "-",
+                        "avg_profile_overhead_ratio": "-",
+                        "run_conditions": [
+                            {
+                                "label": "CASE0 / N1 P1 T12 / DemoFOM",
+                                "regular_result_count": 1,
+                                "profiled_result_count": 0,
+                                "regular_run_timing_count": 1,
+                                "profiled_run_timing_count": 0,
+                                "avg_regular_run_time": "2m",
+                                "avg_profiled_run_time": "-",
+                                "avg_profile_overhead_delta": "-",
+                                "avg_profile_overhead_ratio": "-",
+                                "profile_overhead_status": "needs matching profiled run",
+                            }
+                        ],
                         "scheduler_queue_timing_count": 0,
                         "estimate_count": 1,
                         "estimate_timing_count": 1,
@@ -773,7 +791,12 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "reported queue 1m" in html
     assert "not measured" in html
     assert "regular 2m / profiled -" in html
+    assert "observed overhead - / - across 0 pairs" in html
     assert "overhead pairs 0" in html
+    assert "observed overhead - / -" in html
+    assert "CASE0 / N1 P1 T12 / DemoFOM" in html
+    assert "regular 2m (1/1 timed) /" in html
+    assert "profiled - (0/0 timed)" in html
     assert "needs matching profiled run" in html
     assert "1 with timing / 1 estimates; avg 42s" in html
     assert "1 hit / 0 miss" in html

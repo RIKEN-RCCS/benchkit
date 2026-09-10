@@ -34,6 +34,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
     profiled_run_totals = _empty_scalar_total()
     estimate_totals = _empty_scalar_total()
     scheduler_queue_totals = _empty_scalar_total()
+    profile_overhead_totals = _empty_overhead_total()
     summary = {
         "result_count": 0,
         "ignored_result_count": 0,
@@ -74,6 +75,9 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "profiled_run_timing_count": 0,
                 "profile_overhead_pair_count": 0,
                 "profile_overhead_status": "-",
+                "avg_profile_overhead_delta": "-",
+                "avg_profile_overhead_ratio": "-",
+                "run_conditions": [],
                 "estimate_count": 0,
                 "estimate_timing_count": 0,
                 "build_cache_hit_count": 0,
@@ -99,12 +103,13 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 "_profiled_run_totals": _empty_scalar_total(),
                 "_estimate_totals": _empty_scalar_total(),
                 "_scheduler_queue_totals": _empty_scalar_total(),
-                "_run_pair_kinds": {},
+                "_run_conditions": {},
             },
         )
         row["result_count"] += 1
         is_profiled = _has_profile_data(data)
         run_kind = "profiled" if is_profiled else "regular"
+        _add_run_condition_result(row["_run_conditions"], data, run_kind)
 
         raw_timing = data.get("pipeline_timing")
         timing = _timing_values(raw_timing)
@@ -121,7 +126,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 _add_scalar_total(scheduler_queue_totals, scheduler_queue_time)
             run_time = timing.get("run_time")
             if run_time is not None:
-                row["_run_pair_kinds"].setdefault(_run_pair_key(data), set()).add(run_kind)
+                _add_run_condition_timing(row["_run_conditions"], data, run_kind, run_time)
                 if is_profiled:
                     row["profiled_run_timing_count"] += 1
                     summary["profiled_run_timing_count"] += 1
@@ -169,7 +174,11 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
     if estimated_dir:
         _merge_estimate_timing(rows_by_key, estimated_dir, summary, estimate_totals)
 
-    rows = [_finalize_row(row) for row in rows_by_key.values()]
+    rows = []
+    for row in rows_by_key.values():
+        finalized_row = _finalize_row(row)
+        _add_overhead_total(profile_overhead_totals, finalized_row)
+        rows.append(_strip_temporary_fields(finalized_row))
     rows.sort(key=lambda row: (row["code"].lower(), row["system"].lower()))
     summary["profile_overhead_pair_count"] = sum(row["profile_overhead_pair_count"] for row in rows)
 
@@ -184,6 +193,8 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
             "avg_run_time": _format_average(totals, "run_time"),
             "avg_regular_run_time": _format_scalar_average(regular_run_totals),
             "avg_profiled_run_time": _format_scalar_average(profiled_run_totals),
+            "avg_profile_overhead_delta": _format_overhead_delta(profile_overhead_totals),
+            "avg_profile_overhead_ratio": _format_overhead_ratio(profile_overhead_totals),
             "avg_estimate_time": _format_scalar_average(estimate_totals),
         }
     )
@@ -278,6 +289,19 @@ def _add_scalar_total(total: dict[str, float | int], value: float) -> None:
     total["count"] = int(total["count"]) + 1
 
 
+def _empty_overhead_total() -> dict[str, float | int]:
+    return {"delta_sum": 0.0, "ratio_sum": 0.0, "count": 0}
+
+
+def _add_overhead_total(total: dict[str, float | int], row: dict[str, Any]) -> None:
+    count = int(row.get("_profile_overhead_metric_count") or 0)
+    if count == 0:
+        return
+    total["delta_sum"] = float(total["delta_sum"]) + float(row["_profile_overhead_delta_sum"])
+    total["ratio_sum"] = float(total["ratio_sum"]) + float(row["_profile_overhead_ratio_sum"])
+    total["count"] = int(total["count"]) + count
+
+
 def _merge_estimate_timing(
     rows_by_key: dict[tuple[str, str], dict[str, Any]],
     estimated_dir: str,
@@ -320,8 +344,9 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     profiled_run_totals = row.pop("_profiled_run_totals")
     estimate_totals = row.pop("_estimate_totals")
     scheduler_queue_totals = row.pop("_scheduler_queue_totals")
-    run_pair_kinds = row.pop("_run_pair_kinds")
-    profile_overhead_pair_count = _profile_overhead_pair_count(run_pair_kinds)
+    run_conditions = row.pop("_run_conditions")
+    profile_overhead_pair_count = _profile_overhead_pair_count(run_conditions)
+    profile_overhead = _profile_overhead_metrics(run_conditions)
     row.pop("_estimate_sort_key", None)
     row.update(
         {
@@ -334,6 +359,12 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
             "avg_estimate_time": _format_scalar_average(estimate_totals),
             "profile_overhead_pair_count": profile_overhead_pair_count,
             "profile_overhead_status": _profile_overhead_status(row, profile_overhead_pair_count),
+            "avg_profile_overhead_delta": _format_overhead_delta(profile_overhead),
+            "avg_profile_overhead_ratio": _format_overhead_ratio(profile_overhead),
+            "run_conditions": _run_condition_rows(run_conditions),
+            "_profile_overhead_metric_count": profile_overhead["count"],
+            "_profile_overhead_delta_sum": profile_overhead["delta_sum"],
+            "_profile_overhead_ratio_sum": profile_overhead["ratio_sum"],
         }
     )
     return row
@@ -346,13 +377,171 @@ def _run_pair_key(data: dict[str, Any]) -> tuple[str, str, str, str, str]:
     )
 
 
-def _profile_overhead_pair_count(run_pair_kinds: dict[tuple[str, ...], set[str]]) -> int:
-    return sum(1 for kinds in run_pair_kinds.values() if {"regular", "profiled"} <= kinds)
+def _add_run_condition_result(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+    data: dict[str, Any],
+    run_kind: str,
+) -> None:
+    condition = _ensure_run_condition(run_conditions, data)
+    condition[f"{run_kind}_result_count"] += 1
+
+
+def _add_run_condition_timing(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+    data: dict[str, Any],
+    run_kind: str,
+    run_time: float,
+) -> None:
+    condition = _ensure_run_condition(run_conditions, data)
+    condition[f"{run_kind}_run_timing_count"] += 1
+    _add_scalar_total(condition[f"_{run_kind}_run_totals"], run_time)
+
+
+def _ensure_run_condition(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    key = _run_pair_key(data)
+    if key not in run_conditions:
+        exp, node_count, numproc_node, nthreads, fom_version = key
+        run_conditions[key] = {
+            "exp": exp,
+            "node_count": node_count,
+            "numproc_node": numproc_node,
+            "nthreads": nthreads,
+            "fom_version": fom_version,
+            "regular_result_count": 0,
+            "profiled_result_count": 0,
+            "regular_run_timing_count": 0,
+            "profiled_run_timing_count": 0,
+            "_regular_run_totals": _empty_scalar_total(),
+            "_profiled_run_totals": _empty_scalar_total(),
+        }
+    return run_conditions[key]
+
+
+def _profile_overhead_pair_count(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+) -> int:
+    return sum(
+        1
+        for condition in run_conditions.values()
+        if int(condition["regular_run_timing_count"]) and int(condition["profiled_run_timing_count"])
+    )
+
+
+def _profile_overhead_metrics(
+    run_conditions: dict[tuple[str, ...], dict[str, Any]],
+) -> dict[str, float | int]:
+    metrics = _empty_overhead_total()
+    for condition in run_conditions.values():
+        regular_avg = _scalar_average(condition["_regular_run_totals"])
+        profiled_avg = _scalar_average(condition["_profiled_run_totals"])
+        if regular_avg is None or profiled_avg is None or regular_avg <= 0:
+            continue
+        metrics["delta_sum"] = float(metrics["delta_sum"]) + (profiled_avg - regular_avg)
+        metrics["ratio_sum"] = float(metrics["ratio_sum"]) + (profiled_avg / regular_avg)
+        metrics["count"] = int(metrics["count"]) + 1
+    return metrics
+
+
+def _run_condition_rows(run_conditions: dict[tuple[str, ...], dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for condition in run_conditions.values():
+        regular_avg = _scalar_average(condition["_regular_run_totals"])
+        profiled_avg = _scalar_average(condition["_profiled_run_totals"])
+        overhead = _condition_overhead_metrics(regular_avg, profiled_avg)
+        rows.append(
+            {
+                "label": _run_condition_label(condition),
+                "exp": condition["exp"],
+                "node_count": condition["node_count"],
+                "numproc_node": condition["numproc_node"],
+                "nthreads": condition["nthreads"],
+                "fom_version": condition["fom_version"],
+                "regular_result_count": condition["regular_result_count"],
+                "profiled_result_count": condition["profiled_result_count"],
+                "regular_run_timing_count": condition["regular_run_timing_count"],
+                "profiled_run_timing_count": condition["profiled_run_timing_count"],
+                "avg_regular_run_time": _format_seconds(regular_avg),
+                "avg_profiled_run_time": _format_seconds(profiled_avg),
+                "avg_profile_overhead_delta": _format_overhead_delta(overhead),
+                "avg_profile_overhead_ratio": _format_overhead_ratio(overhead),
+                "profile_overhead_status": _run_condition_status(
+                    condition,
+                    regular_avg,
+                    profiled_avg,
+                ),
+            }
+        )
+    rows.sort(key=_run_condition_sort_key)
+    return rows
+
+
+def _condition_overhead_metrics(
+    regular_avg: float | None,
+    profiled_avg: float | None,
+) -> dict[str, float | int]:
+    metrics = _empty_overhead_total()
+    if regular_avg is None or profiled_avg is None or regular_avg <= 0:
+        return metrics
+    metrics["delta_sum"] = profiled_avg - regular_avg
+    metrics["ratio_sum"] = profiled_avg / regular_avg
+    metrics["count"] = 1
+    return metrics
+
+
+def _run_condition_status(
+    condition: dict[str, Any],
+    regular_avg: float | None,
+    profiled_avg: float | None,
+) -> str:
+    if regular_avg is not None and profiled_avg is not None:
+        return "observed from matching dimensions"
+    if condition["profiled_run_timing_count"] and condition["regular_result_count"]:
+        return "needs regular run timing"
+    if condition["regular_run_timing_count"] and condition["profiled_result_count"]:
+        return "needs profiled run timing"
+    if condition["profiled_run_timing_count"]:
+        return "needs matching regular run"
+    if condition["regular_run_timing_count"]:
+        return "needs matching profiled run"
+    if condition["regular_result_count"] and condition["profiled_result_count"]:
+        return "needs run timing"
+    if condition["regular_result_count"]:
+        return "regular run timing not recorded"
+    if condition["profiled_result_count"]:
+        return "profiled run timing not recorded"
+    return "-"
+
+
+def _run_condition_label(condition: dict[str, Any]) -> str:
+    return (
+        f"{condition['exp']} / N{condition['node_count']} "
+        f"P{condition['numproc_node']} T{condition['nthreads']} / {condition['fom_version']}"
+    )
+
+
+def _run_condition_sort_key(condition: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        condition["exp"].lower(),
+        _numeric_sort_value(condition["node_count"]),
+        _numeric_sort_value(condition["numproc_node"]),
+        _numeric_sort_value(condition["nthreads"]),
+        condition["fom_version"].lower(),
+    )
+
+
+def _numeric_sort_value(value: str) -> tuple[int, float | str]:
+    try:
+        return (0, float(value))
+    except ValueError:
+        return (1, value.lower())
 
 
 def _profile_overhead_status(row: dict[str, Any], pair_count: int) -> str:
     if pair_count:
-        return "paired data available"
+        return "observed from matching dimensions"
     if row["regular_run_timing_count"] and row["profiled_run_timing_count"]:
         return "needs matching run dimensions"
     if row["regular_run_timing_count"]:
@@ -371,22 +560,45 @@ def _format_average(totals: dict[str, dict[str, float | int]], field: str) -> st
 
 
 def _format_scalar_average(total: dict[str, float | int]) -> str:
+    value = _scalar_average(total)
+    if value is None:
+        return "-"
+    return _format_seconds(value)
+
+
+def _scalar_average(total: dict[str, float | int]) -> float | None:
+    count = int(total["count"])
+    if count == 0:
+        return None
+    return float(total["sum"]) / count
+
+
+def _format_overhead_delta(total: dict[str, float | int]) -> str:
     count = int(total["count"])
     if count == 0:
         return "-"
-    return _format_seconds(float(total["sum"]) / count)
+    return _format_seconds(float(total["delta_sum"]) / count)
+
+
+def _format_overhead_ratio(total: dict[str, float | int]) -> str:
+    count = int(total["count"])
+    if count == 0:
+        return "-"
+    return f"{_trim_decimal(float(total['ratio_sum']) / count, digits=2)}x"
 
 
 def _format_seconds(value: float | None) -> str:
     if value is None:
         return "-"
+    sign = "-" if value < 0 else ""
+    value = abs(value)
     if value < 60:
-        return f"{_trim_decimal(value)}s"
+        return f"{sign}{_trim_decimal(value)}s"
     minutes = value / 60
     if minutes < 60:
-        return f"{_trim_decimal(minutes)}m"
+        return f"{sign}{_trim_decimal(minutes)}m"
     hours = minutes / 60
-    return f"{_trim_decimal(hours, digits=2)}h"
+    return f"{sign}{_trim_decimal(hours, digits=2)}h"
 
 
 def _trim_decimal(value: float, *, digits: int = 1) -> str:
@@ -419,6 +631,7 @@ def _is_performance_record(data: dict[str, Any]) -> bool:
         or _scheduler_queue_time(data.get("pipeline_timing")) is not None
         or _has_profile_data(data)
         or _has_build_cache_data(data)
+        or "FOM" in data
     )
 
 
@@ -456,6 +669,10 @@ def _estimate_elapsed_time(data: dict[str, Any]) -> float | None:
 def _has_build_cache_data(data: dict[str, Any]) -> bool:
     build_cache = data.get("build_cache")
     return isinstance(build_cache, dict) and bool(build_cache)
+
+
+def _strip_temporary_fields(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in row.items() if not key.startswith("_")}
 
 
 def _nested_value(data: dict[str, Any], *path: str) -> Any:
