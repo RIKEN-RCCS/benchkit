@@ -20,6 +20,8 @@
     "avg_run_time": "-",
     "avg_regular_run_time": "-",
     "avg_profiled_run_time": "-",
+    "avg_profile_overhead_delta": "-",
+    "avg_profile_overhead_ratio": "-",
     "avg_estimate_time": "-"
   },
   "rows": []
@@ -45,7 +47,7 @@
       <h3>Run Split</h3>
       <p>
         regular {{ performance_telemetry.summary.avg_regular_run_time }} / profiled {{ performance_telemetry.summary.avg_profiled_run_time }}
-        <span class="profile-usage-subline">overhead pairs {{ performance_telemetry.summary.profile_overhead_pair_count|default(0) }}</span>
+        <span class="profile-usage-subline">observed overhead {{ performance_telemetry.summary.avg_profile_overhead_delta|default('-') }} / {{ performance_telemetry.summary.avg_profile_overhead_ratio|default('-') }} across {{ performance_telemetry.summary.profile_overhead_pair_count|default(0) }} pairs</span>
       </p>
     </div>
     <div class="diagnostic-card">
@@ -108,7 +110,17 @@
             <span class="profile-usage-subline">profiled {{ row.avg_profiled_run_time }}</span>
             <span class="profile-usage-subline">{{ row.profiled_run_timing_count }} timing records</span>
             <span class="profile-usage-subline">overhead pairs {{ row.profile_overhead_pair_count|default(0) }}</span>
+            <span class="profile-usage-subline">observed overhead {{ row.avg_profile_overhead_delta|default('-') }} / {{ row.avg_profile_overhead_ratio|default('-') }}</span>
             <span class="profile-usage-subline">{{ row.profile_overhead_status|default('-') }}</span>
+            {% for condition in row.run_conditions|default([]) %}
+            <span class="profile-usage-subline"><strong>{{ condition.label }}</strong></span>
+            <span class="profile-usage-subline">
+              regular {{ condition.avg_regular_run_time }} ({{ condition.regular_run_timing_count }}/{{ condition.regular_result_count }} timed) /
+              profiled {{ condition.avg_profiled_run_time }} ({{ condition.profiled_run_timing_count }}/{{ condition.profiled_result_count }} timed)
+            </span>
+            <span class="profile-usage-subline">observed overhead {{ condition.avg_profile_overhead_delta }} / {{ condition.avg_profile_overhead_ratio }}</span>
+            <span class="profile-usage-subline">{{ condition.profile_overhead_status }}</span>
+            {% endfor %}
           </td>
           <td>
             {{ row.estimate_count }} estimates
