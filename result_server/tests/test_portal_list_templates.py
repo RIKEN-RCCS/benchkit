@@ -826,7 +826,7 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     assert "Maturity Gaps" in html
     assert "Input Status" in html
     assert "None = no input_info" in html
-    assert "Covered = input fixed by a recorded source commit" in html
+    assert "Covered = input fixed by source commit or self-contained runtime parameters" in html
     assert "no profile; no estimate; source incomplete; input not declared" in html
 
 

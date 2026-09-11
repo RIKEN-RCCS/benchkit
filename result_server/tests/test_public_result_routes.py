@@ -292,6 +292,8 @@ def test_console_detail_links_download_packets(tmp_path):
     assert "Reuse Package" in text
     assert "Public packet" in text
     assert "Review public reuse packet" in text
+    assert "Profile evidence" in text
+    assert "recorded; 1 linked artifact" in text
     assert "Download Evidence Packet" in text
     assert "evidence-packet.md" in text
     assert "Download Reuse Packet" in text
@@ -364,12 +366,39 @@ def test_console_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert manifest["eligibility"]["status"] == "eligible"
     assert manifest["result"]["experiment"] == "CASE1"
     assert manifest["source"]["repository_url"] == "https://example.org/repo.git"
+    assert manifest["input"]["summary"] == "input_info declares input fixed by a public source commit."
     assert manifest["input"]["items"][0]["public_url"] == "https://example.org/inputs.git"
     assert manifest["build"]["cache_entry"]["digests"]["artifacts"] == "sha256:artifacts"
     assert manifest["estimation"]["package_bindings"][0]["estimation_package"] == "demo-kernel-package"
     assert "environment_snapshot" not in manifest
     assert "pipeline_id" not in json.dumps(manifest)
     assert "local-input-placeholder" not in json.dumps(manifest)
+
+
+def test_console_reuse_packet_omits_placeholder_values(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    payload = _eligible_public_result_payload()
+    payload["FOM_version"] = "null"
+    payload["fom_breakdown"] = {"sections": [], "overlaps": []}
+    payload["build_cache"]["stored"] = True
+    _write_result(received_dir, filename, payload)
+
+    with app.test_client() as client:
+        packet_response = client.get(f"/results/detail/{filename}/reuse-packet.md")
+        manifest_response = client.get(f"/results/detail/{filename}/reuse-manifest.json")
+
+    assert packet_response.status_code == 200
+    packet_text = packet_response.get_data(as_text=True)
+    assert "FOM version" not in packet_text
+    assert "| Stored fresh entry | yes |" in packet_text
+    assert "| Stored fresh entry | True |" not in packet_text
+    assert "| Sections | 0 |" not in packet_text
+    assert "0/0 sections" not in packet_text
+
+    manifest = manifest_response.get_json()
+    assert "fom_version" not in manifest["result"]
+    assert manifest["estimation"] == {"status": "not recorded"}
 
 
 def test_console_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
@@ -417,6 +446,11 @@ def test_console_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
     assert manifest_response.status_code == 200
     manifest = manifest_response.get_json()
     assert manifest["eligibility"]["status"] == "eligible"
+    assert manifest["input"]["summary"] == "input_info declares self-contained runtime parameters."
+    assert (
+        "Use the recorded source commit and runtime parameters as the starting point for reuse."
+        in manifest["reuse"]["notes"]
+    )
     assert manifest["input"]["items"] == [
         {
             "dataset_id": "qws-case1-parameters",
@@ -435,6 +469,9 @@ def test_console_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
 
     packet_text = packet_response.get_data(as_text=True)
     assert packet_response.status_code == 200
+    assert "input_info declares self-contained runtime parameters." in packet_text
+    assert "source commit and runtime parameters" in packet_text
+    assert "source and input commits" not in packet_text
     assert "dataset_id: qws-case1-parameters" in packet_text
     assert "dataset_id: qws-case0-parameters" not in packet_text
 
