@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 from flask import abort, current_app, render_template, request, url_for
 from werkzeug.exceptions import Forbidden, NotFound
@@ -27,7 +28,6 @@ from utils.result_file import (
     get_file_confidential_tags,
     load_public_result_json,
     load_permitted_result_json,
-    padata_matches_public_result,
     serve_permitted_result_file,
     serve_public_padata_file,
 )
@@ -37,6 +37,11 @@ from utils.result_records import (
     summarize_result_quality,
 )
 from utils.trigger_display import load_trigger_run_lookup, summarize_execution_trigger
+
+
+PADATA_ARTIFACT_BASENAME_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)"
+)
 
 
 def register_results_detail_routes(results_bp):
@@ -75,7 +80,7 @@ def register_results_detail_routes(results_bp):
             )
         quality = summarize_result_quality(result)
         padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
-        padata_filenames = _list_public_padata_filenames(padata_dir) if is_public_surface else [
+        padata_filenames = _list_result_padata_filenames(result, padata_dir) if is_public_surface else [
             name for name in os.listdir(padata_dir) if name.endswith(".tgz")
         ]
         detail_context = build_result_detail_context(
@@ -281,7 +286,7 @@ def register_results_detail_routes(results_bp):
 
     def _build_public_reuse_manifest_for_route(result, filename):
         padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
-        padata_filenames = _list_public_padata_filenames(padata_dir)
+        padata_filenames = _list_result_padata_filenames(result, padata_dir)
         padata_urls = {
             name: url_for("results.show_result", filename=name)
             for name in padata_filenames
@@ -296,10 +301,52 @@ def register_results_detail_routes(results_bp):
             padata_url_by_filename=padata_urls,
         )
 
-    def _list_public_padata_filenames(padata_dir):
-        return [
-            name
-            for name in os.listdir(padata_dir)
-            if name.endswith(".tgz")
-            and padata_matches_public_result(name, current_app.config["RECEIVED_DIR"])
-        ]
+
+def _list_result_padata_filenames(result, padata_dir):
+    result_uuid = _clean_result_value(result.get("_server_uuid"))
+    timestamp = _clean_result_value(result.get("_server_timestamp"))
+    if not result_uuid or not timestamp:
+        return []
+
+    filenames = []
+    seen = set()
+    for artifact_path in _iter_result_padata_artifact_paths(result):
+        artifact_slug = _padata_artifact_slug(artifact_path)
+        if not artifact_slug:
+            continue
+        filename = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
+        if filename in seen:
+            continue
+        seen.add(filename)
+        if os.path.isfile(os.path.join(padata_dir, filename)):
+            filenames.append(filename)
+    return filenames
+
+
+def _iter_result_padata_artifact_paths(result):
+    breakdown = result.get("fom_breakdown")
+    if not isinstance(breakdown, dict):
+        return
+    for collection_name in ("sections", "overlaps"):
+        for item in breakdown.get(collection_name) or []:
+            if not isinstance(item, dict):
+                continue
+            for artifact in item.get("artifacts") or []:
+                if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
+                    continue
+                path = _clean_result_value(artifact.get("path"))
+                if path:
+                    yield path
+
+
+def _padata_artifact_slug(artifact_path):
+    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
+        return ""
+    basename = os.path.basename(artifact_path)
+    if not PADATA_ARTIFACT_BASENAME_RE.fullmatch(basename):
+        return ""
+    return basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
+
+
+def _clean_result_value(value):
+    return str(value or "").strip()

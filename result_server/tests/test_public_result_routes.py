@@ -275,6 +275,35 @@ def test_public_portal_detail_does_not_link_download_packets(tmp_path):
     assert "reuse-manifest.json" not in text
 
 
+def test_public_portal_detail_links_current_result_padata_without_archive_scan(tmp_path, monkeypatch):
+    app, received_dir = _build_public_app(tmp_path)
+    padata_dir = tmp_path / "padata"
+    padata_dir.mkdir()
+    app.config["RECEIVED_PADATA_DIR"] = str(padata_dir)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    payload = _eligible_public_result_payload()
+    archive = "padata_20260824_090000_11111111-2222-3333-4444-555555555555_demo-profile.tgz"
+    _write_result(received_dir, filename, payload)
+    (padata_dir / archive).write_bytes(b"public profile archive placeholder")
+
+    original_listdir = os.listdir
+
+    def guarded_listdir(path):
+        if os.path.abspath(os.fspath(path)) == os.path.abspath(os.fspath(padata_dir)):
+            raise AssertionError("Result Detail should not scan every PA archive")
+        return original_listdir(path)
+
+    monkeypatch.setattr(os, "listdir", guarded_listdir)
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}")
+
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert archive in text
+    assert f'href="/results/{archive}"' in text
+
+
 def test_console_detail_links_download_packets(tmp_path):
     app, received_dir = _build_console_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
@@ -315,7 +344,7 @@ def test_public_portal_reuse_packet_routes_are_blocked_until_release_review(tmp_
     assert manifest_response.status_code == 404
 
 
-def test_console_reuse_packet_exports_only_public_projection(tmp_path):
+def test_console_reuse_packet_exports_only_public_projection(tmp_path, monkeypatch):
     app, received_dir = _build_console_app(tmp_path)
     padata_dir = tmp_path / "padata"
     padata_dir.mkdir()
@@ -325,6 +354,15 @@ def test_console_reuse_packet_exports_only_public_projection(tmp_path):
     archive = "padata_20260824_090000_11111111-2222-3333-4444-555555555555_demo-profile.tgz"
     _write_result(received_dir, filename, payload)
     (padata_dir / archive).write_bytes(b"public profile archive placeholder")
+
+    original_listdir = os.listdir
+
+    def guarded_listdir(path):
+        if os.path.abspath(os.fspath(path)) == os.path.abspath(os.fspath(padata_dir)):
+            raise AssertionError("Reuse Packet should not scan every PA archive")
+        return original_listdir(path)
+
+    monkeypatch.setattr(os, "listdir", guarded_listdir)
 
     with app.test_client() as client:
         response = client.get(f"/results/detail/{filename}/reuse-packet.md")
