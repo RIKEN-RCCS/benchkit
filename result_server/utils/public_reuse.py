@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from ipaddress import ip_address
@@ -11,13 +12,14 @@ from urllib.parse import urlsplit
 from utils.result_records import (
     format_numeric_value,
     format_result_timestamp,
+    input_info_items_for_result,
     summarize_input_info,
     summarize_result_quality,
 )
 
 
 PUBLIC_REUSE_MANIFEST_SCHEMA_VERSION = 1
-PUBLIC_REUSE_MANIFEST_KIND = "benchkit_public_reuse_packet"
+PUBLIC_REUSE_MANIFEST_KIND = "cx_public_reuse_packet"
 
 
 def evaluate_public_reuse_packet(
@@ -27,7 +29,12 @@ def evaluate_public_reuse_packet(
 ) -> dict[str, Any]:
     """Return the public reuse packet status for one Result JSON."""
     public_source = has_public_source_info(result.get("source_info"))
-    public_input = has_public_input_info(result.get("input_info"), public_source)
+    input_items = input_info_items_for_result(result)
+    public_input = has_public_input_info(
+        result.get("input_info"),
+        public_source,
+        result=result,
+    )
 
     if not public_result:
         status = "not exportable"
@@ -35,7 +42,7 @@ def evaluate_public_reuse_packet(
     elif not public_source:
         status = "needs public source"
         next_action = "Record public source provenance"
-    elif not result.get("input_info"):
+    elif not input_items:
         status = "needs public input"
         next_action = "Declare public input binding"
     elif not public_input:
@@ -113,7 +120,7 @@ def build_public_reuse_manifest(
         ),
         "result": _result_summary(result, filename),
         "source": _source_summary(result.get("source_info")),
-        "input": _input_summary(result.get("input_info"), input_summary),
+        "input": _input_summary(result, input_summary),
         "build": _build_summary(result.get("build_cache")),
         "profile": _profile_summary(
             result,
@@ -143,12 +150,12 @@ def build_public_reuse_markdown_packet(manifest: dict[str, Any]) -> str:
         _clean(result.get("experiment")),
     ]
     title_suffix = " / ".join(part for part in title_parts if part)
-    packet.heading(1, "Benchkit Public Reuse Packet")
+    packet.heading(1, "CX Public Reuse Packet")
     if title_suffix:
         packet.paragraph(f"Target: {title_suffix}")
     packet.paragraph(
-        "This packet summarizes a public Benchkit benchmark result for reuse. "
-        "It includes public result metadata, public source provenance, public "
+        "This packet summarizes a public benchmark result for reuse. It "
+        "includes public result metadata, public source provenance, public "
         "input binding, and reusable build, profile, and estimation evidence."
     )
 
@@ -278,8 +285,17 @@ def has_public_source_info(source_info: Any) -> bool:
     )
 
 
-def has_public_input_info(input_info: Any, public_source_available: bool) -> bool:
-    input_items = _input_info_items(input_info)
+def has_public_input_info(
+    input_info: Any,
+    public_source_available: bool,
+    *,
+    result: dict[str, Any] | None = None,
+) -> bool:
+    input_items = (
+        input_info_items_for_result(result)
+        if result is not None
+        else _input_info_items(input_info)
+    )
     if not input_items:
         return False
     return all(_has_public_input_item(item, public_source_available) for item in input_items)
@@ -341,9 +357,9 @@ def _source_summary(source_info: Any) -> dict[str, Any]:
     )
 
 
-def _input_summary(input_info: Any, input_summary: dict[str, Any]) -> dict[str, Any]:
+def _input_summary(result: dict[str, Any], input_summary: dict[str, Any]) -> dict[str, Any]:
     items = []
-    for item in _input_info_items(input_info):
+    for item in input_info_items_for_result(result):
         public_item = _public_input_item_summary(item)
         if public_item:
             items.append(public_item)
@@ -364,6 +380,11 @@ def _public_input_item_summary(item: Any) -> dict[str, Any]:
         "dataset_version": item.get("dataset_version"),
         "kind": item.get("kind"),
         "source": item.get("source"),
+        "parameter_set_id": item.get("parameter_set_id"),
+        "result_exp": item.get("result_exp"),
+        "command": item.get("command"),
+        "arguments": item.get("arguments"),
+        "parameters": item.get("parameters"),
         "source_ref": item.get("source_ref"),
         "resolved_commit": item.get("resolved_commit"),
         "commit_hash": item.get("commit_hash"),
@@ -553,12 +574,22 @@ def _has_public_input_item(item: Any, public_source_available: bool) -> bool:
     if not isinstance(item, dict):
         return False
 
+    kind = _clean(item.get("kind")).lower()
     source = _clean(item.get("source")).lower()
     verification_status = _clean(item.get("verification_status")).lower()
     repo_relative_path = _clean(item.get("repo_relative_path"))
     if repo_relative_path and public_source_available:
         if source == "source_info" or verification_status == "covered_by_source_commit":
             return True
+
+    if (
+        kind in {"runtime-parameters", "inline-parameters"}
+        and source in {"inline", "self-contained", "self_contained"}
+        and verification_status in {"self_contained", "self-contained"}
+        and _clean(item.get("command"))
+        and isinstance(item.get("arguments"), list)
+    ):
+        return True
 
     if _clean(item.get("doi")):
         return True
@@ -655,6 +686,11 @@ def _format_input_item(item: dict[str, Any]) -> str:
         "dataset_version",
         "kind",
         "source",
+        "parameter_set_id",
+        "result_exp",
+        "command",
+        "arguments",
+        "parameters",
         "public_url",
         "source_url",
         "archive_url",
@@ -674,8 +710,18 @@ def _format_input_item(item: dict[str, Any]) -> str:
         "recipe",
         "doi",
     )
-    parts = [f"{key}: {item[key]}" for key in keys if item.get(key) not in (None, "", [], {})]
+    parts = [
+        f"{key}: {_format_input_value(item[key])}"
+        for key in keys
+        if item.get(key) not in (None, "", [], {})
+    ]
     return "; ".join(parts)
+
+
+def _format_input_value(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return str(value)
 
 
 def _format_profile_artifact(artifact: dict[str, Any]) -> str:

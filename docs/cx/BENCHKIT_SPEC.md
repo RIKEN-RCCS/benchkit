@@ -484,6 +484,7 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 - manifest digest または content digest
 - 生成 recipe または取得 recipe
 - 公開 URL または archive reference
+- self-contained な runtime parameters
 - 検証状態
 
 入力が top-level app repository 内に含まれ、その repository の `source_info.resolved_commit` で固定される場合は、別の manifest や content digest を必須にしない。
@@ -492,6 +493,9 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 
 入力が別の public input repository や public archive から来る場合は、`input_info` 側に公開URL、ref、resolved commit または digest、取得/生成 recipe を置く。
 この場合も、入力が記録済み source commit で固定されるなら `verification_status: "public_source_commit"` として `Covered` に分類できる。
+
+入力が実ファイルではなく、公開可能な command と arguments だけで完全に表せる場合は、`kind: "runtime-parameters"`、`source: "inline"`、`arguments`、`verification_status: "self_contained"` を使える。
+同じ job から複数 result が出る場合は、`result_exp` などの result scope を添えて、各 result と対応する入力指定を明示してよい。
 
 site-local path は所在情報であり、長期的な input identity ではない。
 巨大データや共同研究由来データを site-local shared storage に置くことは許容されるが、Result provenance では path より dataset identity、recipe、manifest、digest を優先する。
@@ -511,6 +515,7 @@ When an application passes input metadata through the Benchkit input metadata he
 - manifest digest or content digest
 - generation or acquisition recipe
 - public URL or archive reference
+- self-contained runtime parameters
 - verification status
 
 When the input is already stored in the top-level application repository and is fixed by `source_info.resolved_commit`, a separate manifest or content digest is not mandatory.
@@ -519,6 +524,9 @@ In that case, `source_info` is the fixed point for both the application source a
 
 When the input comes from a separate public input repository or public archive, `input_info` should carry the public URL, ref, resolved commit or digest, and acquisition or generation recipe.
 If the input is fixed by a recorded source commit, it may use `verification_status: "public_source_commit"` and be classified as `Covered`.
+
+When the input is not a file and can be fully represented by public command arguments, `input_info` may use `kind: "runtime-parameters"`, `source: "inline"`, `arguments`, and `verification_status: "self_contained"`.
+When one job emits multiple results, a result scope such as `result_exp` may be attached so each Result JSON is evaluated against the matching input declaration.
 
 A site-local path is location information, not a durable input identity.
 Large datasets and collaboration-derived inputs may still be staged on site-local shared storage, but Result provenance should prefer dataset identity, recipe, manifest, and digest over paths.

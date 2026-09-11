@@ -146,6 +146,7 @@ def _merge_latest_results(
         public_input_available = has_public_input_info(
             data.get("input_info"),
             public_source_available,
+            result=data,
         )
         public_result_available = not get_file_confidential_tags(record["filename"], received_dir)
         if public_result_available and public_source_available and public_input_available:

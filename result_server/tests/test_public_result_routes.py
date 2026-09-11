@@ -255,7 +255,7 @@ def test_public_reuse_packet_exports_only_public_projection(tmp_path):
     text = response.get_data(as_text=True)
     assert response.status_code == 200
     assert response.content_type == "text/markdown; charset=utf-8"
-    assert "Benchkit Public Reuse Packet" in text
+    assert "CX Public Reuse Packet" in text
     assert "demoapp / DemoSystem / CASE1" in text
     assert "https://example.test/repo.git" in text
     assert "abcdef1234567890" in text
@@ -285,7 +285,7 @@ def test_public_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert response.content_type == "application/json; charset=utf-8"
     manifest = response.get_json()
     assert manifest["schema_version"] == 1
-    assert manifest["kind"] == "benchkit_public_reuse_packet"
+    assert manifest["kind"] == "cx_public_reuse_packet"
     assert manifest["eligibility"]["status"] == "eligible"
     assert manifest["result"]["experiment"] == "CASE1"
     assert manifest["source"]["repository_url"] == "https://example.test/repo.git"
@@ -295,6 +295,73 @@ def test_public_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert "environment_snapshot" not in manifest
     assert "pipeline_id" not in json.dumps(manifest)
     assert "local-input-placeholder" not in json.dumps(manifest)
+
+
+def test_public_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    payload = _eligible_public_result_payload()
+    payload["Exp"] = "CASE1"
+    payload["input_info"] = {
+        "schema_version": 1,
+        "inputs": [
+            {
+                "dataset_id": "qws-case0-parameters",
+                "kind": "runtime-parameters",
+                "source": "inline",
+                "parameter_set_id": "CASE0",
+                "result_exp": "CASE0",
+                "command": "./main",
+                "arguments": [
+                    "32", "6", "4", "3", "1", "1",
+                    "1", "1", "-1", "-1", "6", "50",
+                ],
+                "verification_status": "self_contained",
+            },
+            {
+                "dataset_id": "qws-case1-parameters",
+                "kind": "runtime-parameters",
+                "source": "inline",
+                "parameter_set_id": "CASE1",
+                "result_exp": "CASE1",
+                "command": "./main",
+                "arguments": [
+                    "32", "6", "4", "3", "1", "1",
+                    "1", "2", "-1", "-1", "6", "50",
+                ],
+                "verification_status": "self_contained",
+            },
+        ],
+    }
+    _write_result(received_dir, filename, payload)
+
+    with app.test_client() as client:
+        manifest_response = client.get(f"/results/detail/{filename}/reuse-manifest.json")
+        packet_response = client.get(f"/results/detail/{filename}/reuse-packet.md")
+
+    assert manifest_response.status_code == 200
+    manifest = manifest_response.get_json()
+    assert manifest["eligibility"]["status"] == "eligible"
+    assert manifest["input"]["items"] == [
+        {
+            "dataset_id": "qws-case1-parameters",
+            "kind": "runtime-parameters",
+            "source": "inline",
+            "parameter_set_id": "CASE1",
+            "result_exp": "CASE1",
+            "command": "./main",
+            "arguments": [
+                "32", "6", "4", "3", "1", "1",
+                "1", "2", "-1", "-1", "6", "50",
+            ],
+            "verification_status": "self_contained",
+        }
+    ]
+
+    packet_text = packet_response.get_data(as_text=True)
+    assert packet_response.status_code == 200
+    assert "dataset_id: qws-case1-parameters" in packet_text
+    assert "dataset_id: qws-case0-parameters" not in packet_text
 
 
 def test_public_reuse_packet_requires_public_input_binding(tmp_path):
@@ -316,6 +383,38 @@ def test_public_reuse_packet_requires_public_input_binding(tmp_path):
     assert "Public packet" in text
     assert "needs public input" in text
     assert "Download Reuse Packet" not in text
+
+
+def test_public_reuse_packet_requires_matching_scoped_input(tmp_path):
+    app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    payload = _eligible_public_result_payload()
+    payload["Exp"] = "CASE1"
+    payload["input_info"] = {
+        "schema_version": 1,
+        "inputs": [
+            {
+                "dataset_id": "qws-case0-parameters",
+                "kind": "runtime-parameters",
+                "source": "inline",
+                "parameter_set_id": "CASE0",
+                "result_exp": "CASE0",
+                "command": "./main",
+                "arguments": ["32"],
+                "verification_status": "self_contained",
+            }
+        ],
+    }
+    _write_result(received_dir, filename, payload)
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}/reuse-packet.md")
+        detail_response = client.get(f"/results/detail/{filename}")
+
+    assert response.status_code == 404
+    text = detail_response.get_data(as_text=True)
+    assert detail_response.status_code == 200
+    assert "needs public input" in text
 
 
 def test_public_portal_evidence_packet_route_is_blocked_until_release_review(tmp_path):
@@ -393,8 +492,8 @@ def test_console_evidence_packet_uses_result_permissions(tmp_path):
 
     assert response.status_code == 200
     text = response.get_data(as_text=True)
-    assert "portable review note for one Benchkit benchmark result" in text
-    assert "readers who may not know the surrounding Benchkit operation" in text
+    assert "portable review note for one benchmark result" in text
+    assert "readers who may not know the surrounding benchmark operation" in text
     assert "does not guarantee independent reproduction" in text
     assert "Pipeline ID" not in text
     assert "Raw Result JSON" in text

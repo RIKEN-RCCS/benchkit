@@ -533,6 +533,53 @@ if ! input_info_block=$(build_input_info_block); then
   exit 1
 fi
 
+filter_input_info_block_for_result() {
+  local result_exp="$1"
+
+  if [ -z "$input_info_block" ]; then
+    printf '%s' ""
+    return 0
+  fi
+  if [ -z "$result_exp" ] || [ "$result_exp" = "null" ]; then
+    printf '%s' "$input_info_block"
+    return 0
+  fi
+
+  printf '%s' "$input_info_block" | jq -cS --arg exp "$result_exp" '
+    def scope_values:
+      [
+        .result_exp?,
+        .Exp?,
+        .exp?,
+        .result_scope?.Exp?,
+        .result_scope?.exp?,
+        .result_scope?.experiment?,
+        .result?.Exp?,
+        .result?.exp?,
+        .result?.experiment?
+      ]
+      | map(select(. != null and . != "") | tostring);
+
+    if (.inputs | type) == "array" then
+      (.inputs | map(select((scope_values | length) == 0 or (scope_values | index($exp))))) as $items
+      | (.inputs | map(select((scope_values | length) > 0)) | length) as $scoped_count
+      | if ($items | length) > 0 then
+          .inputs = $items
+        elif $scoped_count > 0 then
+          empty
+        else
+          .
+        end
+    else
+      if (scope_values | length) == 0 or (scope_values | index($exp)) then
+        .
+      else
+        empty
+      end
+    end
+  ' 2>/dev/null || true
+}
+
 profiled_run_included=false
 if has_profiler_archive; then
   profiled_run_included=true
@@ -635,9 +682,11 @@ write_result_json() {
   fi
 
   local input_info_json_block=""
-  if [ -n "$input_info_block" ]; then
+  local result_input_info_block=""
+  result_input_info_block=$(filter_input_info_block_for_result "$exp")
+  if [ -n "$result_input_info_block" ]; then
     input_info_json_block=",
-  \"input_info\": ${input_info_block}"
+  \"input_info\": ${result_input_info_block}"
   fi
 
   # Attach the profiler summary that matches this FOM index. fapp exposes

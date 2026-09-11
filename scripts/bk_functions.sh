@@ -978,6 +978,54 @@ bk_json_string_array() {
   printf ']'
 }
 
+bk_decode_base64_value() {
+  if command -v base64 >/dev/null 2>&1; then
+    base64 --decode 2>/dev/null || base64 -d 2>/dev/null
+    return $?
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    openssl base64 -d -A
+    return $?
+  fi
+  return 1
+}
+
+bk_env_file_value() {
+  _bk_env_file="$1"
+  _bk_env_key="$2"
+  _bk_env_line=""
+
+  [ -f "$_bk_env_file" ] || return 0
+
+  _bk_env_line=$(awk -F= -v k="${_bk_env_key}_B64" '$1 == k {print substr($0, length(k) + 2); exit}' "$_bk_env_file")
+  if [ -n "$_bk_env_line" ]; then
+    printf '%s' "$_bk_env_line" | bk_decode_base64_value 2>/dev/null || true
+    return 0
+  fi
+
+  _bk_env_line=$(awk -F= -v k="$_bk_env_key" '
+    $1 == k {
+      print substr($0, length(k) + 2)
+      exit
+    }
+  ' "$_bk_env_file")
+  if [ -n "$_bk_env_line" ]; then
+    printf '%s' "$_bk_env_line"
+    return 0
+  fi
+
+  awk -v key="$_bk_env_key" '
+    index($0, "export " key "=\"") == 1 && substr($0, length($0), 1) == "\"" {
+      prefix = "export " key "=\""
+      value = substr($0, length(prefix) + 1, length($0) - length(prefix) - 1)
+      if (value !~ /[`$\\]/) {
+        print value
+      }
+      exit
+    }
+  ' "$_bk_env_file"
+}
+
 # bk_record_input_info - Pass benchmark input metadata to Benchkit.
 #
 # Usage:
@@ -1033,6 +1081,137 @@ bk_record_input_info() {
     rm -f "$_bk_input_info_tmp"
     return 1
   fi
+}
+
+bk_record_runtime_parameter_input() {
+  _bk_rt_dataset_id=""
+  _bk_rt_dataset_version=""
+  _bk_rt_parameter_set_id=""
+  _bk_rt_result_exp=""
+  _bk_rt_command=""
+  _bk_rt_recipe=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dataset-id)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --dataset-id requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_dataset_id="$1"
+        ;;
+      --dataset-version)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --dataset-version requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_dataset_version="$1"
+        ;;
+      --parameter-set-id)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --parameter-set-id requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_parameter_set_id="$1"
+        ;;
+      --result-exp)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --result-exp requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_result_exp="$1"
+        ;;
+      --command)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --command requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_command="$1"
+        ;;
+      --recipe)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_runtime_parameter_input: --recipe requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_rt_recipe="$1"
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        echo "bk_record_runtime_parameter_input: unknown option: $1" >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
+
+  if [ -z "$_bk_rt_command" ]; then
+    echo "bk_record_runtime_parameter_input: --command is required" >&2
+    return 1
+  fi
+  if [ -z "$_bk_rt_parameter_set_id" ]; then
+    _bk_rt_parameter_set_id="runtime-parameters"
+  fi
+  if [ -z "$_bk_rt_dataset_id" ]; then
+    _bk_rt_dataset_id="runtime-parameters-${_bk_rt_parameter_set_id}"
+  fi
+
+  _bk_rt_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
+  _bk_rt_item_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
+  mkdir -p "$(dirname "$_bk_rt_item_file")" || return 1
+
+  {
+    printf '{'
+    printf '"dataset_id":'
+    bk_json_string "$_bk_rt_dataset_id"
+    if [ -n "$_bk_rt_dataset_version" ]; then
+      printf ',"dataset_version":'
+      bk_json_string "$_bk_rt_dataset_version"
+    fi
+    printf ',"kind":"runtime-parameters"'
+    printf ',"source":"inline"'
+    printf ',"parameter_set_id":'
+    bk_json_string "$_bk_rt_parameter_set_id"
+    if [ -n "$_bk_rt_result_exp" ]; then
+      printf ',"result_exp":'
+      bk_json_string "$_bk_rt_result_exp"
+    fi
+    printf ',"command":'
+    bk_json_string "$_bk_rt_command"
+    printf ',"arguments":'
+    bk_json_string_array "$@"
+    if [ -n "$_bk_rt_recipe" ]; then
+      printf ',"recipe":'
+      bk_json_string "$_bk_rt_recipe"
+    fi
+    printf ',"verification_status":"self_contained"}\n'
+  } >> "$_bk_rt_item_file"
+
+  {
+    printf '{\n'
+    printf '  "schema_version": 1,\n'
+    printf '  "inputs": [\n'
+    _bk_rt_first=1
+    while IFS= read -r _bk_rt_item; do
+      [ -n "$_bk_rt_item" ] || continue
+      if [ "$_bk_rt_first" -eq 0 ]; then
+        printf ',\n'
+      fi
+      printf '    %s' "$_bk_rt_item"
+      _bk_rt_first=0
+    done < "$_bk_rt_item_file"
+    printf '\n'
+    printf '  ]\n'
+    printf '}\n'
+  } | BK_INPUT_INFO_FILE="$_bk_rt_info_file" bk_record_input_info
 }
 
 # Write a compact, tool-neutral manifest for the profiler archive. Result JSON
@@ -2102,14 +2281,16 @@ bk_fetch_source() {
     fi
 
     if [ -n "$_bk_expected_commit" ]; then
-      if ! git -C "$_bk_dest" cat-file -e "${_bk_expected_commit}^{commit}" 2>/dev/null; then
-        git -C "$_bk_dest" fetch origin "$_bk_expected_commit" 2>/dev/null || true
+      if [ "$BK_COMMIT_HASH" != "$_bk_expected_commit" ]; then
+        if ! git -C "$_bk_dest" cat-file -e "${_bk_expected_commit}^{commit}" 2>/dev/null; then
+          git -C "$_bk_dest" fetch origin "$_bk_expected_commit" 2>/dev/null || true
+        fi
+        if ! git -C "$_bk_dest" checkout --detach "$_bk_expected_commit" 2>&1; then
+          echo "bk_fetch_source: expected commit not available: $_bk_expected_commit" >&2
+          return 1
+        fi
+        BK_COMMIT_HASH=$(git -C "$_bk_dest" rev-parse HEAD 2>/dev/null || echo "")
       fi
-      if ! git -C "$_bk_dest" checkout --detach "$_bk_expected_commit" 2>&1; then
-        echo "bk_fetch_source: expected commit not available: $_bk_expected_commit" >&2
-        return 1
-      fi
-      BK_COMMIT_HASH=$(git -C "$_bk_dest" rev-parse HEAD 2>/dev/null || echo "")
       if [ "$BK_COMMIT_HASH" != "$_bk_expected_commit" ]; then
         echo "bk_fetch_source: commit mismatch for '$_bk_src'" >&2
         echo "  expected: $_bk_expected_commit" >&2
@@ -2153,4 +2334,44 @@ bk_fetch_source() {
   fi
 
   return 0
+}
+
+bk_fetch_recorded_source() {
+  if [ $# -lt 2 ]; then
+    echo "bk_fetch_recorded_source: requires <source> and <dest_dir> arguments" >&2
+    return 1
+  fi
+
+  _bk_recorded_src="$1"
+  _bk_recorded_dest="$2"
+  _bk_recorded_ref="${3:-}"
+  _bk_recorded_expected="${4:-}"
+  _bk_recorded_info_file="${5:-results/source_info.env}"
+
+  if [ -f "$_bk_recorded_info_file" ]; then
+    _bk_recorded_type=$(bk_env_file_value "$_bk_recorded_info_file" BK_SOURCE_TYPE)
+    if [ "$_bk_recorded_type" = "git" ]; then
+      _bk_recorded_repo_url=$(bk_env_file_value "$_bk_recorded_info_file" BK_REPO_URL)
+      _bk_recorded_source_ref=$(bk_env_file_value "$_bk_recorded_info_file" BK_SOURCE_REF_NAME)
+      if [ -z "$_bk_recorded_source_ref" ]; then
+        _bk_recorded_source_ref=$(bk_env_file_value "$_bk_recorded_info_file" BK_BRANCH)
+      fi
+      _bk_recorded_commit=$(bk_env_file_value "$_bk_recorded_info_file" BK_SOURCE_RESOLVED_COMMIT)
+      if [ -z "$_bk_recorded_commit" ]; then
+        _bk_recorded_commit=$(bk_env_file_value "$_bk_recorded_info_file" BK_COMMIT_HASH)
+      fi
+
+      if [ -n "$_bk_recorded_repo_url" ]; then
+        _bk_recorded_src="$_bk_recorded_repo_url"
+      fi
+      if [ -n "$_bk_recorded_source_ref" ]; then
+        _bk_recorded_ref="$_bk_recorded_source_ref"
+      fi
+      if [ -n "$_bk_recorded_commit" ]; then
+        _bk_recorded_expected="$_bk_recorded_commit"
+      fi
+    fi
+  fi
+
+  bk_fetch_source "$_bk_recorded_src" "$_bk_recorded_dest" "$_bk_recorded_ref" "$_bk_recorded_expected"
 }
