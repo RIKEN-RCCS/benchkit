@@ -257,16 +257,11 @@ def summarize_input_info(data):
         "covered": "Covered",
         "verified": "Verified",
     }
-    summaries = {
-        "declared": "input_info is present, but digest or source-commit coverage is not declared as verified.",
-        "covered": "input_info declares input covered by a recorded source commit.",
-        "verified": "input_info declares verified input with digest evidence.",
-    }
     return {
         "present": True,
         "status": status,
         "label": labels[status],
-        "summary": summaries[status],
+        "summary": _summarize_input_info_status(status, input_items, has_source_commit),
     }
 
 
@@ -323,9 +318,6 @@ def _classify_input_info_item(item, has_source_commit):
     if not isinstance(item, dict):
         return "declared"
 
-    verification_status = str(item.get("verification_status") or "").strip().lower()
-    source = str(item.get("source") or "").strip().lower()
-    kind = str(item.get("kind") or "").strip().lower()
     digest_fields = (
         "manifest_digest",
         "content_digest",
@@ -342,42 +334,105 @@ def _classify_input_info_item(item, has_source_commit):
         "dataset_revision",
     )
     has_input_revision = any(item.get(field) for field in revision_fields)
+    verification_status = _input_value_lower(item.get("verification_status"))
 
     if verification_status == "verified" and has_digest:
         return "verified"
 
-    repo_local_covered = (
-        has_source_commit
-        and item.get("repo_relative_path")
-        and (source == "source_info" or verification_status == "covered_by_source_commit")
-    )
-    if repo_local_covered:
+    if _is_repo_local_input_covered(item, has_source_commit):
         return "covered"
 
-    runtime_parameters_covered = (
+    if _is_runtime_parameter_input_covered(item):
+        return "covered"
+
+    if _is_public_source_input_covered(item, has_input_revision):
+        return "covered"
+
+    return "declared"
+
+
+def _summarize_input_info_status(status, input_items, has_source_commit):
+    if status == "verified":
+        return "input_info declares verified input with digest evidence."
+
+    if status == "declared":
+        return "input_info is present, but digest or source-commit coverage is not declared as verified."
+
+    if all(_is_runtime_parameter_input_covered(item) for item in input_items):
+        return "input_info declares self-contained runtime parameters."
+
+    public_revision_items = [
+        item
+        for item in input_items
+        if isinstance(item, dict)
+        and _is_public_source_input_covered(item, _has_input_revision(item))
+    ]
+    if public_revision_items and len(public_revision_items) == len(input_items):
+        return "input_info declares input fixed by a public source commit."
+
+    if all(_is_repo_local_input_covered(item, has_source_commit) for item in input_items):
+        return "input_info declares repository-local input fixed by the result source commit."
+
+    return "input_info declares covered input evidence."
+
+
+def _is_repo_local_input_covered(item, has_source_commit):
+    if not isinstance(item, dict):
+        return False
+    verification_status = _input_value_lower(item.get("verification_status"))
+    source = _input_value_lower(item.get("source"))
+    return (
+        has_source_commit
+        and bool(item.get("repo_relative_path"))
+        and (source == "source_info" or verification_status == "covered_by_source_commit")
+    )
+
+
+def _is_runtime_parameter_input_covered(item):
+    if not isinstance(item, dict):
+        return False
+    verification_status = _input_value_lower(item.get("verification_status"))
+    source = _input_value_lower(item.get("source"))
+    kind = _input_value_lower(item.get("kind"))
+    return (
         kind in {"runtime-parameters", "inline-parameters"}
         and source in {"inline", "self-contained", "self_contained"}
         and verification_status in {"self_contained", "self-contained"}
         and bool(item.get("command"))
         and isinstance(item.get("arguments"), list)
     )
-    if runtime_parameters_covered:
-        return "covered"
 
-    public_source_covered = (
+
+def _is_public_source_input_covered(item, has_input_revision):
+    if not isinstance(item, dict):
+        return False
+    verification_status = _input_value_lower(item.get("verification_status"))
+    source = _input_value_lower(item.get("source"))
+    return (
         has_input_revision
         and verification_status in {"public_source_commit", "covered_by_public_source_commit"}
         and (
             source in {"public_url", "public_git", "public-git"}
-            or item.get("public_url")
-            or item.get("source_url")
-            or item.get("archive_url")
+            or bool(item.get("public_url"))
+            or bool(item.get("source_url"))
+            or bool(item.get("archive_url"))
         )
     )
-    if public_source_covered:
-        return "covered"
 
-    return "declared"
+
+def _has_input_revision(item):
+    revision_fields = (
+        "resolved_commit",
+        "commit_hash",
+        "source_commit",
+        "revision",
+        "dataset_revision",
+    )
+    return any(item.get(field) for field in revision_fields)
+
+
+def _input_value_lower(value):
+    return str(value or "").strip().lower()
 
 
 def _dedupe_preserve_order(values):

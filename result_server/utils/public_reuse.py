@@ -34,6 +34,7 @@ _NON_PUBLIC_DNS_SUFFIXES = (
     ".private",
     ".test",
 )
+_EMPTY_PUBLIC_STRINGS = {"n/a", "nan", "null"}
 
 
 def evaluate_public_reuse_packet(
@@ -93,16 +94,8 @@ def build_reuse_detail_rows(
         ("Public source", "yes" if eligibility["public_source"] else "no"),
         ("Public input", "yes" if eligibility["public_input"] else "no"),
         ("Input status", input_summary["label"]),
-        (
-            "Estimation bindings",
-            _format_binding_count(
-                stats.get("section_package_count", 0),
-                stats.get("section_count", 0),
-                stats.get("overlap_package_count", 0),
-                stats.get("overlap_count", 0),
-            ),
-        ),
-        ("Profile artifacts", stats.get("artifact_count", 0)),
+        ("Estimation bindings", _format_reuse_estimation_bindings(stats)),
+        ("Profile evidence", _format_reuse_profile_evidence(result, stats)),
     ]
     return [{"label": label, "value": value} for label, value in rows]
 
@@ -144,11 +137,7 @@ def build_public_reuse_manifest(
         "estimation": _estimation_summary(result, quality),
         "reuse": {
             "status": "eligible" if eligibility["eligible"] else eligibility["status"],
-            "notes": [
-                "This manifest includes public result, source, and input evidence only.",
-                "Use the recorded source and input commits as the starting point for reuse.",
-                "Site access, queue access, and local software setup are outside this packet.",
-            ],
+            "notes": _reuse_notes(result),
         },
     }
     return _strip_empty(manifest)
@@ -520,7 +509,7 @@ def _estimation_summary(result: dict[str, Any], quality: dict[str, Any]) -> dict
     binding_count = stats.get("section_package_count", 0) + stats.get("overlap_package_count", 0)
     expected_count = section_count + overlap_count
     if expected_count == 0:
-        status = "not recorded"
+        return {"status": "not recorded"}
     elif binding_count == expected_count:
         status = "ready"
     else:
@@ -573,6 +562,33 @@ def _format_binding_count(
         f"{section_package_count}/{section_count} sections; "
         f"{overlap_package_count}/{overlap_count} overlaps"
     )
+
+
+def _format_reuse_estimation_bindings(stats: dict[str, Any]) -> str:
+    section_count = stats.get("section_count", 0)
+    overlap_count = stats.get("overlap_count", 0)
+    if section_count + overlap_count == 0:
+        return "not recorded"
+    return _format_binding_count(
+        stats.get("section_package_count", 0),
+        section_count,
+        stats.get("overlap_package_count", 0),
+        overlap_count,
+    )
+
+
+def _format_reuse_profile_evidence(result: dict[str, Any], stats: dict[str, Any]) -> str:
+    profile_data = result.get("profile_data")
+    has_profile_data = isinstance(profile_data, dict) and bool(profile_data)
+    artifact_count = stats.get("artifact_count", 0)
+    artifact_text = "linked artifact" if artifact_count == 1 else "linked artifacts"
+    if has_profile_data and artifact_count:
+        return f"recorded; {artifact_count} {artifact_text}"
+    if has_profile_data:
+        return "recorded; no linked artifacts"
+    if artifact_count:
+        return f"{artifact_count} {artifact_text}"
+    return "not recorded"
 
 
 def _input_info_items(input_info: Any) -> list[Any]:
@@ -749,6 +765,50 @@ def _format_profile_artifact(artifact: dict[str, Any]) -> str:
     return _join_nonempty(artifact.get("section"), archive_text)
 
 
+def _reuse_notes(result: dict[str, Any]) -> list[str]:
+    input_items = input_info_items_for_result(result)
+    notes = [
+        "This manifest includes public result, source, and input evidence only.",
+        _reuse_input_note(input_items),
+        "Site access, queue access, and local software setup are outside this packet.",
+    ]
+    return [note for note in notes if note]
+
+
+def _reuse_input_note(input_items: list[Any]) -> str:
+    if input_items and all(_is_runtime_parameter_input_item(item) for item in input_items):
+        return "Use the recorded source commit and runtime parameters as the starting point for reuse."
+    if input_items and all(_is_repo_local_input_item(item) for item in input_items):
+        return "Use the recorded source commit; repository-local input paths are fixed by that commit."
+    return "Use the recorded source and input revisions or digests as the starting point for reuse."
+
+
+def _is_runtime_parameter_input_item(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    kind = _clean(item.get("kind")).lower()
+    source = _clean(item.get("source")).lower()
+    verification_status = _clean(item.get("verification_status")).lower()
+    return (
+        kind in {"runtime-parameters", "inline-parameters"}
+        and source in {"inline", "self-contained", "self_contained"}
+        and verification_status in {"self_contained", "self-contained"}
+        and bool(_clean(item.get("command")))
+        and isinstance(item.get("arguments"), list)
+    )
+
+
+def _is_repo_local_input_item(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    source = _clean(item.get("source")).lower()
+    verification_status = _clean(item.get("verification_status")).lower()
+    return (
+        bool(_clean(item.get("repo_relative_path")))
+        and (source == "source_info" or verification_status == "covered_by_source_commit")
+    )
+
+
 def _format_package_binding(item: dict[str, Any]) -> str:
     return _join_nonempty(
         item.get("kind"),
@@ -775,8 +835,10 @@ def _escape_link_target(value: str) -> str:
 
 
 def _inline(value: Any) -> str:
-    if value in (None, "", [], {}):
+    if _is_empty_public_value(value):
         return "-"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     if isinstance(value, (list, tuple, set)):
         value = ", ".join(str(item) for item in value)
     text = str(value).replace("\r\n", " ").replace("\n", " ").strip()
@@ -788,6 +850,8 @@ def _join_nonempty(*values: Any) -> str:
 
 
 def _clean(value: Any) -> str:
+    if _is_empty_public_value(value):
+        return ""
     return str(value or "").strip()
 
 
@@ -797,16 +861,22 @@ def _strip_empty(value: Any) -> Any:
             key: cleaned
             for key, item in value.items()
             for cleaned in [_strip_empty(item)]
-            if cleaned not in (None, "", [], {})
+            if not _is_empty_public_value(cleaned)
         }
     if isinstance(value, list):
         return [
             cleaned
             for item in value
             for cleaned in [_strip_empty(item)]
-            if cleaned not in (None, "", [], {})
+            if not _is_empty_public_value(cleaned)
         ]
     return value
+
+
+def _is_empty_public_value(value: Any) -> bool:
+    if value in (None, "", [], {}):
+        return True
+    return isinstance(value, str) and value.strip().lower() in _EMPTY_PUBLIC_STRINGS
 
 
 class _MarkdownBuilder:
@@ -824,7 +894,11 @@ class _MarkdownBuilder:
         self._lines.append("")
 
     def table(self, rows: list[tuple[str, Any]]) -> None:
-        visible_rows = [(label, value) for label, value in rows if value not in (None, "", [], {})]
+        visible_rows = [
+            (label, value)
+            for label, value in rows
+            if not _is_empty_public_value(value)
+        ]
         if not visible_rows:
             self._lines.append("_No public evidence recorded._")
             self._lines.append("")
@@ -836,7 +910,7 @@ class _MarkdownBuilder:
         self._lines.append("")
 
     def bullets(self, values: Any) -> None:
-        visible_values = [value for value in values if value not in (None, "", [], {})]
+        visible_values = [value for value in values if not _is_empty_public_value(value)]
         if not visible_values:
             self._lines.append("- none")
             self._lines.append("")
