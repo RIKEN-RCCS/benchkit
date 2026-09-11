@@ -18,6 +18,7 @@ ARTIFACT="${PWD}/artifacts/GMRES-PETSc"
 RESULTS_DIR="${PWD}/results"
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
+bk_reset_input_info
 
 if [[ ! -x "${ARTIFACT}" ]]; then
   echo "Required artifact not found or not executable: ${ARTIFACT}" >&2
@@ -115,6 +116,15 @@ if [[ ! -f "${DATA}" ]]; then
   exit 1
 fi
 
+matrix_name="$(basename "${DATA}" .dat)"
+bk_record_input \
+  --dataset-id "petsc-gmres-${matrix_name}" \
+  --version "${matrix_name}" \
+  --type matrix \
+  --result-exp "${matrix_name}" \
+  --parameter ksp_gmres_restart "${KSP_RESTART}" \
+  --recipe "Stokes flow saddle-point matrix generated with Gmsh/FreeFEM and stored in PETSc binary format."
+
 if ! grep -q "^FOM: ranks=" "${logfile}" 2>/dev/null; then
   echo "petsc-gmres success marker not found" >&2
   echo "---- ${logfile} tail ----" >&2
@@ -132,7 +142,7 @@ bk_emit_result \
   --fom "${ksp_iter_time}" \
   --fom-unit s \
   --fom-version ksp_iter_time \
-  --exp "$(basename "${DATA}" .dat)" \
+  --exp "${matrix_name}" \
   --nodes "${nodes}" \
   --numproc-node "${numproc_node}" \
   --nthreads "${nthreads}" >> "${RESULTS_DIR}/result"

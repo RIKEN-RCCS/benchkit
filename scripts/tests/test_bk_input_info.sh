@@ -48,7 +48,7 @@ if command -v jq >/dev/null 2>&1; then
 fi
 
 rm -f results/input_info.json results/.input_info_items.jsonl
-bk_record_runtime_parameter_input \
+bk_record_input \
   --dataset-id demo-case0-parameters \
   --dataset-version v1 \
   --parameter-set-id CASE0 \
@@ -56,7 +56,7 @@ bk_record_runtime_parameter_input \
   --command ./main \
   --recipe "run ./main with recorded arguments" \
   -- 32 6 4 3 1 1 1 1 -1 -1 6 50
-bk_record_runtime_parameter_input \
+bk_record_input \
   --dataset-id demo-case1-parameters \
   --parameter-set-id CASE1 \
   --result-exp CASE1 \
@@ -79,6 +79,75 @@ if command -v jq >/dev/null 2>&1; then
     .inputs[1].parameter_set_id == "CASE1"
   ' results/input_info.json >/dev/null
 fi
+
+bk_reset_input_info
+bk_record_input \
+  --dataset-id demo-prestaged-input \
+  --version v2 \
+  --type file \
+  --result-exp CASE0 \
+  --parameter restart 100 \
+  --recipe "declared pre-staged benchmark input"
+bk_record_input \
+  --dataset-id demo-source-config \
+  --result-exp CASE0 \
+  --path test/case0 \
+  --recipe "configuration covered by source provenance"
+bk_record_input \
+  --dataset-id demo-source-input \
+  --repo-url https://example.org/input.git \
+  --ref main \
+  --commit 1234567890abcdef1234567890abcdef12345678 \
+  --path input/case0 \
+  --parameter case CASE0 \
+  --recipe "input fixed by source commit with runtime selector" \
+  --command ./prepare-input \
+  -- --case CASE0
+bk_record_input \
+  --parameter-set-id CASE2 \
+  --result-exp CASE2 \
+  --parameter size small \
+  --parameter iterations 10
+test -s results/input_info.json
+if command -v jq >/dev/null 2>&1; then
+  jq -e '
+    .schema_version == 1 and
+    (.inputs | length) == 4 and
+    .inputs[0].dataset_id == "demo-prestaged-input" and
+    .inputs[0].dataset_version == "v2" and
+    .inputs[0].kind == "pre-staged-file" and
+    .inputs[0].source == "site-local" and
+    .inputs[0].parameters.restart == "100" and
+    .inputs[0].verification_status == "declared" and
+    .inputs[1].dataset_id == "demo-source-config" and
+    .inputs[1].kind == "repo-local-input" and
+    .inputs[1].source == "source_info" and
+    .inputs[1].repo_relative_path == "test/case0" and
+    .inputs[1].verification_status == "covered_by_source_commit" and
+    .inputs[2].dataset_id == "demo-source-input" and
+    .inputs[2].kind == "git-repository" and
+    .inputs[2].source == "source_url" and
+    .inputs[2].source_url == "https://example.org/input.git" and
+    .inputs[2].source_ref == "main" and
+    .inputs[2].resolved_commit == "1234567890abcdef1234567890abcdef12345678" and
+    .inputs[2].repo_relative_path == "input/case0" and
+    .inputs[2].parameters.case == "CASE0" and
+    .inputs[2].command == "./prepare-input" and
+    .inputs[2].arguments == ["--case", "CASE0"] and
+    .inputs[2].verification_status == "source_commit" and
+    .inputs[3].dataset_id == "runtime-parameters-CASE2" and
+    .inputs[3].kind == "inline-parameters" and
+    .inputs[3].source == "inline" and
+    .inputs[3].parameter_set_id == "CASE2" and
+    .inputs[3].parameters.size == "small" and
+    .inputs[3].parameters.iterations == "10" and
+    .inputs[3].verification_status == "self_contained"
+  ' results/input_info.json >/dev/null
+fi
+
+bk_reset_input_info
+test ! -e results/input_info.json
+test ! -e results/.input_info_items.jsonl
 
 bk_write_source_info_env \
   git \

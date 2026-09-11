@@ -44,20 +44,30 @@ def _eligible_public_result_payload():
         "_server_timestamp": "20260824_090000",
         "source_info": {
             "source_type": "git",
-            "repo_url": "https://example.org/repo.git",
+            "repo_url": "https://github.com/example-owner/repo.git",
             "ref_name": "main",
             "resolved_commit": "abcdef1234567890",
+            "public_access_check": {
+                "confirmed": True,
+                "method": "github_rest_api_anonymous",
+                "host": "github.com",
+            },
         },
         "input_info": {
             "dataset_id": "demoapp-small",
             "dataset_version": "v1",
             "kind": "public-git",
             "source": "public_url",
-            "public_url": "https://example.org/inputs.git",
+            "public_url": "https://github.com/example-owner/inputs.git",
             "source_ref": "main",
             "resolved_commit": "1234567890abcdef",
             "repo_relative_path": "inputs/demoapp-small",
             "verification_status": "public_source_commit",
+            "public_access_check": {
+                "confirmed": True,
+                "method": "github_rest_api_anonymous",
+                "host": "github.com",
+            },
             "local_path": "local-input-placeholder",
         },
         "profile_data": {
@@ -157,6 +167,67 @@ def test_public_reuse_url_filter_rejects_internal_hostnames():
         "https://repo_with_underscore.example.org/project.git",
     ):
         assert not is_public_http_url(value)
+
+
+def test_public_reuse_requires_access_confirmation():
+    from utils.public_reuse import has_public_input_info, has_public_source_info
+
+    source_info = {
+        "source_type": "git",
+        "repo_url": "https://example.org/repo.git",
+        "ref_name": "main",
+        "resolved_commit": "abcdef1234567890",
+        "public_access_confirmed": True,
+        "visibility": "public",
+    }
+    assert not has_public_source_info(source_info)
+
+    source_info["public_access_check"] = {
+        "confirmed": True,
+        "method": "github_rest_api_anonymous",
+        "host": "github.com",
+    }
+    assert not has_public_source_info(source_info)
+
+    source_info["repo_url"] = "https://github.com/example-owner/repo.git"
+    assert has_public_source_info(source_info)
+
+    source_info["repo_url"] = "https://gitlab.com/example-group/subgroup/repo.git"
+    source_info["public_access_check"] = {
+        "confirmed": True,
+        "method": "gitlab_rest_api_anonymous",
+        "host": "gitlab.com",
+    }
+    assert has_public_source_info(source_info)
+
+    input_info = {
+        "dataset_id": "demoapp-small",
+        "source": "source_url",
+        "source_url": "https://example.org/inputs.git",
+        "resolved_commit": "1234567890abcdef",
+        "verification_status": "source_commit",
+        "public_access_confirmed": True,
+        "visibility": "public",
+    }
+    assert not has_public_input_info(input_info, public_source_available=True)
+
+    input_info["public_access_check"] = {
+        "confirmed": True,
+        "method": "github_rest_api_anonymous",
+        "host": "github.com",
+    }
+    assert not has_public_input_info(input_info, public_source_available=True)
+
+    input_info["source_url"] = "https://github.com/example-owner/inputs.git"
+    assert has_public_input_info(input_info, public_source_available=True)
+
+    input_info["source_url"] = "https://gitlab.com/example-group/subgroup/inputs.git"
+    input_info["public_access_check"] = {
+        "confirmed": True,
+        "method": "gitlab_rest_api_anonymous",
+        "host": "gitlab.com",
+    }
+    assert has_public_input_info(input_info, public_source_available=True)
 
 
 def test_public_portal_detail_hides_confidential_result_for_authorized_session(tmp_path):
@@ -372,7 +443,7 @@ def test_console_reuse_packet_exports_only_public_projection(tmp_path, monkeypat
     assert response.content_type == "text/markdown; charset=utf-8"
     assert "CX Public Reuse Packet" in text
     assert "demoapp / DemoSystem / CASE1" in text
-    assert "https://example.org/repo.git" in text
+    assert "https://github.com/example-owner/repo.git" in text
     assert "abcdef1234567890" in text
     assert "dataset_id: demoapp-small" in text
     assert "resolved_commit: 1234567890abcdef" in text
@@ -403,9 +474,9 @@ def test_console_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert manifest["kind"] == "cx_public_reuse_packet"
     assert manifest["eligibility"]["status"] == "eligible"
     assert manifest["result"]["experiment"] == "CASE1"
-    assert manifest["source"]["repository_url"] == "https://example.org/repo.git"
-    assert manifest["input"]["summary"] == "input_info declares input fixed by a public source commit."
-    assert manifest["input"]["items"][0]["public_url"] == "https://example.org/inputs.git"
+    assert manifest["source"]["repository_url"] == "https://github.com/example-owner/repo.git"
+    assert manifest["input"]["summary"] == "input_info declares input fixed by a recorded input source commit."
+    assert manifest["input"]["items"][0]["public_url"] == "https://github.com/example-owner/inputs.git"
     assert manifest["build"]["cache_entry"]["digests"]["artifacts"] == "sha256:artifacts"
     assert manifest["estimation"]["package_bindings"][0]["estimation_package"] == "demo-kernel-package"
     assert "environment_snapshot" not in manifest
@@ -512,6 +583,42 @@ def test_console_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
     assert "source and input commits" not in packet_text
     assert "dataset_id: qws-case1-parameters" in packet_text
     assert "dataset_id: qws-case0-parameters" not in packet_text
+
+
+def test_console_reuse_manifest_accepts_inline_parameters_without_command(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    payload = _eligible_public_result_payload()
+    payload["input_info"] = {
+        "schema_version": 1,
+        "inputs": [
+            {
+                "dataset_id": "demoapp-case1-parameters",
+                "kind": "inline-parameters",
+                "source": "inline",
+                "parameter_set_id": "CASE1",
+                "result_exp": "CASE1",
+                "parameters": {"case": "CASE1", "size": "small"},
+                "verification_status": "self_contained",
+            }
+        ],
+    }
+    _write_result(received_dir, filename, payload)
+
+    with app.test_client() as client:
+        manifest_response = client.get(f"/results/detail/{filename}/reuse-manifest.json")
+        packet_response = client.get(f"/results/detail/{filename}/reuse-packet.md")
+
+    assert manifest_response.status_code == 200
+    manifest = manifest_response.get_json()
+    assert manifest["eligibility"]["status"] == "eligible"
+    assert manifest["input"]["summary"] == "input_info declares self-contained runtime parameters."
+    assert manifest["input"]["items"][0]["parameters"] == {"case": "CASE1", "size": "small"}
+
+    packet_text = packet_response.get_data(as_text=True)
+    assert packet_response.status_code == 200
+    assert "dataset_id: demoapp-case1-parameters" in packet_text
+    assert 'parameters: {"case": "CASE1", "size": "small"}' in packet_text
 
 
 def test_console_reuse_packet_requires_public_input_binding(tmp_path):

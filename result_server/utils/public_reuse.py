@@ -35,6 +35,10 @@ _NON_PUBLIC_DNS_SUFFIXES = (
     ".test",
 )
 _EMPTY_PUBLIC_STRINGS = {"n/a", "nan", "null"}
+_PUBLIC_ACCESS_CHECKS = {
+    ("github_rest_api_anonymous", "github.com"),
+    ("gitlab_rest_api_anonymous", "gitlab.com"),
+}
 
 
 def evaluate_public_reuse_packet(
@@ -276,9 +280,12 @@ def public_reuse_manifest_download_name(filename: str) -> str:
 def has_public_source_info(source_info: Any) -> bool:
     if not isinstance(source_info, dict):
         return False
+    repo_url = source_info.get("repo_url")
+    if not _has_public_access_confirmation(source_info, repo_url):
+        return False
     if _clean(source_info.get("source_type")).lower() != "git":
         return False
-    if not is_public_http_url(source_info.get("repo_url")):
+    if not is_public_http_url(repo_url):
         return False
     if not (_clean(source_info.get("ref_name")) or _clean(source_info.get("branch"))):
         return False
@@ -322,6 +329,32 @@ def is_public_http_url(value: Any) -> bool:
     return _is_public_hostname(hostname)
 
 
+def _has_public_access_confirmation(value: Any, url: Any = None) -> bool:
+    if not isinstance(value, dict):
+        return False
+    check = value.get("public_access_check")
+    if not isinstance(check, dict):
+        return False
+    method = _clean(check.get("method")).lower()
+    host = _clean(check.get("host")).lower()
+    if check.get("confirmed") is not True or (method, host) not in _PUBLIC_ACCESS_CHECKS:
+        return False
+    if url is None:
+        return True
+    return _url_hostname(url) == host
+
+
+def _url_hostname(value: Any) -> str:
+    text = _clean(value)
+    if not text:
+        return ""
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        return ""
+    return (parsed.hostname or "").lower().rstrip(".")
+
+
 def _result_summary(result: dict[str, Any], filename: str) -> dict[str, Any]:
     fom = format_numeric_value(result.get("FOM"))
     unit = _clean(result.get("FOM_unit"))
@@ -345,11 +378,12 @@ def _source_summary(source_info: Any) -> dict[str, Any]:
     if not isinstance(source_info, dict) or not source_info:
         return {"status": "not recorded"}
     repo_url = _clean(source_info.get("repo_url"))
+    public_source = has_public_source_info(source_info)
     return _strip_empty(
         {
-            "status": "public" if has_public_source_info(source_info) else "not public",
+            "status": "public" if public_source else "not public",
             "type": _clean(source_info.get("source_type")) or "unknown",
-            "repository_url": repo_url if is_public_http_url(repo_url) else "",
+            "repository_url": repo_url if public_source else "",
             "reference": _join_nonempty(
                 source_info.get("ref_kind"),
                 source_info.get("ref_name") or source_info.get("branch"),
@@ -405,7 +439,10 @@ def _public_input_item_summary(item: Any) -> dict[str, Any]:
         "doi": item.get("doi"),
     }
     for key in ("public_url", "source_url", "archive_url"):
-        if is_public_http_url(item.get(key)):
+        if (
+            is_public_http_url(item.get(key))
+            and _has_public_access_confirmation(item, item.get(key))
+        ):
             values[key] = item.get(key)
     return _strip_empty(values)
 
@@ -452,7 +489,7 @@ def _cache_source_summary(source: Any) -> dict[str, Any]:
         "sha256": source.get("sha256sum") or source.get("sha256"),
     }
     repo_url = source.get("repo_url") or source.get("url")
-    if is_public_http_url(repo_url):
+    if is_public_http_url(repo_url) and _has_public_access_confirmation(source, repo_url):
         summary["repository_url"] = repo_url
     return _strip_empty(summary)
 
@@ -616,8 +653,10 @@ def _has_public_input_item(item: Any, public_source_available: bool) -> bool:
         kind in {"runtime-parameters", "inline-parameters"}
         and source in {"inline", "self-contained", "self_contained"}
         and verification_status in {"self_contained", "self-contained"}
-        and _clean(item.get("command"))
-        and isinstance(item.get("arguments"), list)
+        and (
+            (_clean(item.get("command")) and isinstance(item.get("arguments"), list))
+            or (isinstance(item.get("parameters"), dict) and bool(item.get("parameters")))
+        )
     ):
         return True
 
@@ -628,7 +667,10 @@ def _has_public_input_item(item: Any, public_source_available: bool) -> bool:
         (
             item.get(key)
             for key in ("public_url", "source_url", "archive_url")
-            if is_public_http_url(item.get(key))
+            if (
+                is_public_http_url(item.get(key))
+                and _has_public_access_confirmation(item, item.get(key))
+            )
         ),
         None,
     )
@@ -789,12 +831,13 @@ def _is_runtime_parameter_input_item(item: Any) -> bool:
     kind = _clean(item.get("kind")).lower()
     source = _clean(item.get("source")).lower()
     verification_status = _clean(item.get("verification_status")).lower()
+    has_arguments = bool(_clean(item.get("command"))) and isinstance(item.get("arguments"), list)
+    has_parameters = isinstance(item.get("parameters"), dict) and bool(item.get("parameters"))
     return (
         kind in {"runtime-parameters", "inline-parameters"}
         and source in {"inline", "self-contained", "self_contained"}
         and verification_status in {"self_contained", "self-contained"}
-        and bool(_clean(item.get("command")))
-        and isinstance(item.get("arguments"), list)
+        and (has_arguments or has_parameters)
     )
 
 

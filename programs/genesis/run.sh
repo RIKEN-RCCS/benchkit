@@ -28,49 +28,15 @@ input=${header}.inp
 resultsdir=${SCRIPT_DIR}/results
 artifactsdir=${SCRIPT_DIR}/artifacts
 mkdir -p ${resultsdir}
+export BK_INPUT_INFO_FILE="${resultsdir}/input_info.json"
+export BK_INPUT_INFO_ITEMS_FILE="${resultsdir}/.input_info_items.jsonl"
+bk_reset_input_info
 #tmpdir="/vol0003/share/rccs-sdt/TMP_FugakuNEXT_CICD_LOG/${system}"
 #mkdir -p ${tmpdir}
 output="${resultsdir}/log_${header}.txt"
 stderr="${resultsdir}/log_${header}_err.txt"
 binary="spdyn"
 inputdir="../../../inputs/apoa1/"
-
-record_public_input_info() {
-    local input_source_commit="$1"
-    {
-        printf '{\n'
-        printf '  "schema_version": 1,\n'
-        printf '  "inputs": [\n'
-        printf '    {\n'
-        printf '      "dataset_id": '
-        bk_json_string "apoa1-p8"
-        printf ',\n'
-        printf '      "dataset_version": '
-        bk_json_string "$BRANCH"
-        printf ',\n'
-        printf '      "kind": "public-git",\n'
-        printf '      "source": "public_url",\n'
-        printf '      "public_url": '
-        bk_json_string "$REPO_URL"
-        printf ',\n'
-        printf '      "source_ref": '
-        bk_json_string "$BRANCH"
-        printf ',\n'
-        printf '      "resolved_commit": '
-        bk_json_string "$input_source_commit"
-        printf ',\n'
-        printf '      "repo_relative_path": '
-        bk_json_string "$dir_path"
-        printf ',\n'
-        printf '      "recipe": '
-        bk_json_string "${input}.sub generated from ${input}"
-        printf ',\n'
-        printf '      "verification_status": "public_source_commit"\n'
-        printf '    }\n'
-        printf '  ]\n'
-        printf '}\n'
-    } | bk_record_input_info
-}
 
 echo "[${REPO_DIR}] Running on system: $system"
 
@@ -96,7 +62,13 @@ else
 fi
 
 input_source_commit=$(git -C "${REPO_DIR}" rev-parse HEAD)
-record_public_input_info "$input_source_commit"
+bk_record_input \
+    --dataset-id apoa1-p8 \
+    --repo-url "$REPO_URL" \
+    --ref "$BRANCH" \
+    --commit "$input_source_commit" \
+    --path "$dir_path" \
+    --recipe "${input}.sub generated from ${input}"
 
 if [[ ! -f "${artifactsdir}/spdyn" ]]; then
     echo "Error: spdyn does not exist."

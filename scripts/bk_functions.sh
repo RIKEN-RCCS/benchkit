@@ -1083,135 +1083,518 @@ bk_record_input_info() {
   fi
 }
 
-bk_record_runtime_parameter_input() {
-  _bk_rt_dataset_id=""
-  _bk_rt_dataset_version=""
-  _bk_rt_parameter_set_id=""
-  _bk_rt_result_exp=""
-  _bk_rt_command=""
-  _bk_rt_recipe=""
+bk_reset_input_info() {
+  _bk_reset_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
+  _bk_reset_items_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
+  rm -f "$_bk_reset_info_file" "$_bk_reset_items_file"
+}
+
+_bk_record_input_info_items_file() {
+  _bk_items_info_file="$1"
+  _bk_items_jsonl_file="$2"
+
+  {
+    printf '{\n'
+    printf '  "schema_version": 1,\n'
+    printf '  "inputs": [\n'
+    _bk_items_first=1
+    while IFS= read -r _bk_items_item; do
+      [ -n "$_bk_items_item" ] || continue
+      if [ "$_bk_items_first" -eq 0 ]; then
+        printf ',\n'
+      fi
+      printf '    %s' "$_bk_items_item"
+      _bk_items_first=0
+    done < "$_bk_items_jsonl_file"
+    printf '\n'
+    printf '  ]\n'
+    printf '}\n'
+  } | BK_INPUT_INFO_FILE="$_bk_items_info_file" bk_record_input_info
+}
+
+_bk_input_item_string_field() {
+  _bk_field_name="$1"
+  _bk_field_value="$2"
+  [ -n "$_bk_field_value" ] || return 0
+  if [ "$_bk_input_item_first" -eq 0 ]; then
+    printf ','
+  fi
+  bk_json_string "$_bk_field_name"
+  printf ':'
+  bk_json_string "$_bk_field_value"
+  _bk_input_item_first=0
+}
+
+_bk_record_input_item() {
+  _bk_item_dataset_id=""
+  _bk_item_dataset_version=""
+  _bk_item_kind=""
+  _bk_item_source=""
+  _bk_item_parameter_set_id=""
+  _bk_item_result_exp=""
+  _bk_item_repo_relative_path=""
+  _bk_item_public_url=""
+  _bk_item_source_url=""
+  _bk_item_source_ref=""
+  _bk_item_resolved_commit=""
+  _bk_item_verification_status=""
+  _bk_item_recipe=""
+  _bk_item_command=""
+  _bk_item_arguments=()
+  _bk_item_parameter_keys=()
+  _bk_item_parameter_values=()
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --dataset-id)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --dataset-id requires a value" >&2
+          echo "bk_record_input_item: --dataset-id requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_dataset_id="$1"
+        _bk_item_dataset_id="$1"
         ;;
       --dataset-version)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --dataset-version requires a value" >&2
+          echo "bk_record_input_item: --dataset-version requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_dataset_version="$1"
+        _bk_item_dataset_version="$1"
+        ;;
+      --kind)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --kind requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_kind="$1"
+        ;;
+      --source)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --source requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_source="$1"
         ;;
       --parameter-set-id)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --parameter-set-id requires a value" >&2
+          echo "bk_record_input_item: --parameter-set-id requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_parameter_set_id="$1"
+        _bk_item_parameter_set_id="$1"
         ;;
       --result-exp)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --result-exp requires a value" >&2
+          echo "bk_record_input_item: --result-exp requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_result_exp="$1"
+        _bk_item_result_exp="$1"
         ;;
-      --command)
+      --repo-relative-path)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --command requires a value" >&2
+          echo "bk_record_input_item: --repo-relative-path requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_command="$1"
+        _bk_item_repo_relative_path="$1"
+        ;;
+      --public-url)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --public-url requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_public_url="$1"
+        ;;
+      --source-url)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --source-url requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_source_url="$1"
+        ;;
+      --source-ref)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --source-ref requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_source_ref="$1"
+        ;;
+      --resolved-commit)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --resolved-commit requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_resolved_commit="$1"
+        ;;
+      --verification-status)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --verification-status requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_verification_status="$1"
         ;;
       --recipe)
         if [ $# -lt 2 ]; then
-          echo "bk_record_runtime_parameter_input: --recipe requires a value" >&2
+          echo "bk_record_input_item: --recipe requires a value" >&2
           return 1
         fi
         shift
-        _bk_rt_recipe="$1"
+        _bk_item_recipe="$1"
+        ;;
+      --command)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: --command requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_command="$1"
+        ;;
+      --parameter)
+        if [ $# -lt 3 ]; then
+          echo "bk_record_input_item: --parameter requires a key and value" >&2
+          return 1
+        fi
+        shift
+        _bk_item_parameter_keys+=("$1")
+        shift
+        _bk_item_parameter_values+=("$1")
         ;;
       --)
         shift
+        _bk_item_arguments=("$@")
         break
         ;;
       *)
-        echo "bk_record_runtime_parameter_input: unknown option: $1" >&2
+        echo "bk_record_input_item: unknown option: $1" >&2
         return 1
         ;;
     esac
     shift
   done
 
-  if [ -z "$_bk_rt_command" ]; then
-    echo "bk_record_runtime_parameter_input: --command is required" >&2
+  if [ -z "$_bk_item_dataset_id" ]; then
+    echo "bk_record_input_item: --dataset-id is required" >&2
     return 1
   fi
-  if [ -z "$_bk_rt_parameter_set_id" ]; then
-    _bk_rt_parameter_set_id="runtime-parameters"
+  if [ -z "$_bk_item_kind" ]; then
+    echo "bk_record_input_item: --kind is required" >&2
+    return 1
   fi
-  if [ -z "$_bk_rt_dataset_id" ]; then
-    _bk_rt_dataset_id="runtime-parameters-${_bk_rt_parameter_set_id}"
+  if [ -z "$_bk_item_source" ]; then
+    echo "bk_record_input_item: --source is required" >&2
+    return 1
+  fi
+  if [ -z "$_bk_item_verification_status" ]; then
+    _bk_item_verification_status="declared"
   fi
 
-  _bk_rt_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
-  _bk_rt_item_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
-  mkdir -p "$(dirname "$_bk_rt_item_file")" || return 1
+  _bk_item_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
+  _bk_item_items_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
+  mkdir -p "$(dirname "$_bk_item_items_file")" || return 1
 
   {
+    _bk_input_item_first=1
     printf '{'
-    printf '"dataset_id":'
-    bk_json_string "$_bk_rt_dataset_id"
-    if [ -n "$_bk_rt_dataset_version" ]; then
-      printf ',"dataset_version":'
-      bk_json_string "$_bk_rt_dataset_version"
-    fi
-    printf ',"kind":"runtime-parameters"'
-    printf ',"source":"inline"'
-    printf ',"parameter_set_id":'
-    bk_json_string "$_bk_rt_parameter_set_id"
-    if [ -n "$_bk_rt_result_exp" ]; then
-      printf ',"result_exp":'
-      bk_json_string "$_bk_rt_result_exp"
-    fi
-    printf ',"command":'
-    bk_json_string "$_bk_rt_command"
-    printf ',"arguments":'
-    bk_json_string_array "$@"
-    if [ -n "$_bk_rt_recipe" ]; then
-      printf ',"recipe":'
-      bk_json_string "$_bk_rt_recipe"
-    fi
-    printf ',"verification_status":"self_contained"}\n'
-  } >> "$_bk_rt_item_file"
-
-  {
-    printf '{\n'
-    printf '  "schema_version": 1,\n'
-    printf '  "inputs": [\n'
-    _bk_rt_first=1
-    while IFS= read -r _bk_rt_item; do
-      [ -n "$_bk_rt_item" ] || continue
-      if [ "$_bk_rt_first" -eq 0 ]; then
-        printf ',\n'
+    _bk_input_item_string_field "dataset_id" "$_bk_item_dataset_id"
+    _bk_input_item_string_field "dataset_version" "$_bk_item_dataset_version"
+    _bk_input_item_string_field "kind" "$_bk_item_kind"
+    _bk_input_item_string_field "source" "$_bk_item_source"
+    _bk_input_item_string_field "parameter_set_id" "$_bk_item_parameter_set_id"
+    _bk_input_item_string_field "result_exp" "$_bk_item_result_exp"
+    _bk_input_item_string_field "repo_relative_path" "$_bk_item_repo_relative_path"
+    _bk_input_item_string_field "public_url" "$_bk_item_public_url"
+    _bk_input_item_string_field "source_url" "$_bk_item_source_url"
+    _bk_input_item_string_field "source_ref" "$_bk_item_source_ref"
+    _bk_input_item_string_field "resolved_commit" "$_bk_item_resolved_commit"
+    _bk_input_item_string_field "verification_status" "$_bk_item_verification_status"
+    _bk_input_item_string_field "recipe" "$_bk_item_recipe"
+    if [ -n "$_bk_item_command" ]; then
+      _bk_input_item_string_field "command" "$_bk_item_command"
+      if [ "$_bk_input_item_first" -eq 0 ]; then
+        printf ','
       fi
-      printf '    %s' "$_bk_rt_item"
-      _bk_rt_first=0
-    done < "$_bk_rt_item_file"
-    printf '\n'
-    printf '  ]\n'
+      printf '"arguments":'
+      bk_json_string_array "${_bk_item_arguments[@]}"
+      _bk_input_item_first=0
+    fi
+    if [ "${#_bk_item_parameter_keys[@]}" -gt 0 ]; then
+      if [ "$_bk_input_item_first" -eq 0 ]; then
+        printf ','
+      fi
+      printf '"parameters":{'
+      _bk_param_first=1
+      for _bk_param_index in "${!_bk_item_parameter_keys[@]}"; do
+        if [ "$_bk_param_first" -eq 0 ]; then
+          printf ','
+        fi
+        bk_json_string "${_bk_item_parameter_keys[$_bk_param_index]}"
+        printf ':'
+        bk_json_string "${_bk_item_parameter_values[$_bk_param_index]}"
+        _bk_param_first=0
+      done
+      printf '}'
+      _bk_input_item_first=0
+    fi
     printf '}\n'
-  } | BK_INPUT_INFO_FILE="$_bk_rt_info_file" bk_record_input_info
+  } >> "$_bk_item_items_file"
+
+  _bk_record_input_info_items_file "$_bk_item_info_file" "$_bk_item_items_file"
+}
+
+bk_record_input() {
+  _bk_input_dataset_id=""
+  _bk_input_dataset_version=""
+  _bk_input_type=""
+  _bk_input_repo_url=""
+  _bk_input_ref=""
+  _bk_input_commit=""
+  _bk_input_result_exp=""
+  _bk_input_path=""
+  _bk_input_parameter_set_id=""
+  _bk_input_command=""
+  _bk_input_recipe=""
+  _bk_input_arguments=()
+  _bk_input_parameter_args=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dataset-id)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --dataset-id requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_dataset_id="$1"
+        ;;
+      --version|--dataset-version)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_dataset_version="$1"
+        ;;
+      --type)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --type requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_type="$1"
+        ;;
+      --repo-url|--source-url|--public-url)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_repo_url="$1"
+        ;;
+      --ref|--source-ref)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_ref="$1"
+        ;;
+      --commit|--resolved-commit)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_commit="$1"
+        ;;
+      --result-exp)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --result-exp requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_result_exp="$1"
+        ;;
+      --path|--repo-relative-path)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_path="$1"
+        ;;
+      --parameter-set-id)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --parameter-set-id requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_parameter_set_id="$1"
+        ;;
+      --command)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --command requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_command="$1"
+        ;;
+      --recipe)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: --recipe requires a value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_recipe="$1"
+        ;;
+      --parameter)
+        if [ $# -lt 3 ]; then
+          echo "bk_record_input: --parameter requires a key and value" >&2
+          return 1
+        fi
+        shift
+        _bk_input_parameter_args+=(--parameter "$1")
+        shift
+        _bk_input_parameter_args+=("$1")
+        ;;
+      --)
+        shift
+        _bk_input_arguments=("$@")
+        break
+        ;;
+      *)
+        echo "bk_record_input: unknown option: $1" >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
+
+  _bk_input_has_parameters=0
+  if [ "${#_bk_input_parameter_args[@]}" -gt 0 ]; then
+    _bk_input_has_parameters=1
+  fi
+
+  if [ -n "$_bk_input_type" ]; then
+    case "$_bk_input_type" in
+      archive|tar|tgz)
+        _bk_input_kind="pre-staged-archive"
+        ;;
+      file|matrix)
+        _bk_input_kind="pre-staged-file"
+        ;;
+      input|dataset)
+        _bk_input_kind="pre-staged-input"
+        ;;
+      restart)
+        _bk_input_kind="pre-staged-restart"
+        ;;
+      *)
+        echo "bk_record_input: unsupported --type: $_bk_input_type" >&2
+        return 1
+        ;;
+    esac
+  elif [ -n "$_bk_input_repo_url" ]; then
+    _bk_input_kind="git-repository"
+  elif [ -n "$_bk_input_path" ]; then
+    _bk_input_kind="repo-local-input"
+  elif [ -n "$_bk_input_command" ]; then
+    _bk_input_kind="runtime-parameters"
+  elif [ "$_bk_input_has_parameters" -eq 1 ]; then
+    _bk_input_kind="inline-parameters"
+  else
+    echo "bk_record_input: cannot infer input; pass --parameter, --command, --repo-url, --type, or --path" >&2
+    return 1
+  fi
+
+  if [ -n "$_bk_input_repo_url" ]; then
+    _bk_input_source="source_url"
+  elif [ -n "$_bk_input_path" ] && [ -z "$_bk_input_type" ]; then
+    _bk_input_source="source_info"
+  elif [ -n "$_bk_input_type" ]; then
+    _bk_input_source="site-local"
+  elif [ -n "$_bk_input_command" ] || [ "$_bk_input_has_parameters" -eq 1 ]; then
+    _bk_input_source="inline"
+  else
+    _bk_input_source="declared"
+  fi
+
+  if [ -n "$_bk_input_repo_url" ] && [ -n "$_bk_input_commit" ]; then
+    _bk_input_verification_status="source_commit"
+  elif [ -n "$_bk_input_path" ] && [ -z "$_bk_input_repo_url" ] && [ -z "$_bk_input_type" ]; then
+    _bk_input_verification_status="covered_by_source_commit"
+  elif [ -z "$_bk_input_repo_url" ] \
+    && [ -z "$_bk_input_path" ] \
+    && [ -z "$_bk_input_type" ] \
+    && { [ -n "$_bk_input_command" ] || [ "$_bk_input_has_parameters" -eq 1 ]; }; then
+    _bk_input_verification_status="self_contained"
+  else
+    _bk_input_verification_status="declared"
+  fi
+
+  if [ -z "$_bk_input_dataset_version" ] && [ -n "$_bk_input_ref" ]; then
+    _bk_input_dataset_version="$_bk_input_ref"
+  fi
+  if [ -z "$_bk_input_parameter_set_id" ] && [ -n "$_bk_input_command" ]; then
+    _bk_input_parameter_set_id="runtime-parameters"
+  fi
+  if [ -z "$_bk_input_dataset_id" ]; then
+    if [ -n "$_bk_input_command" ] || [ "$_bk_input_has_parameters" -eq 1 ]; then
+      _bk_input_dataset_id="runtime-parameters-${_bk_input_parameter_set_id:-inline}"
+    else
+      echo "bk_record_input: --dataset-id is required for file or repository inputs" >&2
+      return 1
+    fi
+  fi
+
+  _bk_input_call=(
+    --dataset-id "$_bk_input_dataset_id"
+    --kind "$_bk_input_kind"
+    --source "$_bk_input_source"
+    --verification-status "$_bk_input_verification_status"
+  )
+  if [ -n "$_bk_input_dataset_version" ]; then
+    _bk_input_call+=(--dataset-version "$_bk_input_dataset_version")
+  fi
+  if [ -n "$_bk_input_parameter_set_id" ]; then
+    _bk_input_call+=(--parameter-set-id "$_bk_input_parameter_set_id")
+  fi
+  if [ -n "$_bk_input_result_exp" ]; then
+    _bk_input_call+=(--result-exp "$_bk_input_result_exp")
+  fi
+  if [ -n "$_bk_input_path" ]; then
+    _bk_input_call+=(--repo-relative-path "$_bk_input_path")
+  fi
+  if [ -n "$_bk_input_repo_url" ]; then
+    _bk_input_call+=(--source-url "$_bk_input_repo_url")
+  fi
+  if [ -n "$_bk_input_ref" ]; then
+    _bk_input_call+=(--source-ref "$_bk_input_ref")
+  fi
+  if [ -n "$_bk_input_commit" ]; then
+    _bk_input_call+=(--resolved-commit "$_bk_input_commit")
+  fi
+  if [ -n "$_bk_input_recipe" ]; then
+    _bk_input_call+=(--recipe "$_bk_input_recipe")
+  fi
+  _bk_input_call+=("${_bk_input_parameter_args[@]}")
+  if [ -n "$_bk_input_command" ]; then
+    _bk_input_call+=(--command "$_bk_input_command" -- "${_bk_input_arguments[@]}")
+  fi
+
+  _bk_record_input_item "${_bk_input_call[@]}"
+}
+
+bk_record_runtime_parameter_input() {
+  bk_record_input "$@"
 }
 
 # Write a compact, tool-neutral manifest for the profiler archive. Result JSON

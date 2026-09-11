@@ -25,22 +25,22 @@ qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
 mkdir -p results && : > results/result
 
 record_qws_runtime_parameter_inputs() {
-    rm -f results/.input_info_items.jsonl
-    bk_record_runtime_parameter_input \
+    bk_reset_input_info
+    bk_record_input \
         --dataset-id qws-case0-parameters \
         --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
         --parameter-set-id CASE0 \
         --result-exp CASE0 \
         --command ./main \
         -- "${qws_case0_args[@]}"
-    bk_record_runtime_parameter_input \
+    bk_record_input \
         --dataset-id qws-case1-parameters \
         --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
         --parameter-set-id CASE1 \
         --result-exp CASE1 \
         --command ./main \
         -- "${qws_case1_args[@]}"
-    bk_record_runtime_parameter_input \
+    bk_record_input \
         --dataset-id qws-case7-parameters \
         --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
         --parameter-set-id CASE7 \
