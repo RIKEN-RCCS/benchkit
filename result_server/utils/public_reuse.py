@@ -20,6 +20,20 @@ from utils.result_records import (
 
 PUBLIC_REUSE_MANIFEST_SCHEMA_VERSION = 1
 PUBLIC_REUSE_MANIFEST_KIND = "cx_public_reuse_packet"
+_NON_PUBLIC_DNS_SUFFIXES = (
+    ".corp",
+    ".example",
+    ".home",
+    ".internal",
+    ".intranet",
+    ".invalid",
+    ".lan",
+    ".local",
+    ".localdomain",
+    ".localhost",
+    ".private",
+    ".test",
+)
 
 
 def evaluate_public_reuse_packet(
@@ -667,17 +681,21 @@ def _safe_relative_path(value: Any) -> str:
 
 def _is_public_hostname(hostname: str) -> bool:
     host = hostname.strip().strip("[]").lower().rstrip(".")
-    if (
-        not host
-        or host == "localhost"
-        or host.endswith((".local", ".localhost", ".internal", ".private"))
-    ):
+    if not host or host == "localhost":
         return False
     try:
         address = ip_address(host)
     except ValueError:
-        return True
-    return address.is_global
+        pass
+    else:
+        return address.is_global
+    if "." not in host or host.endswith(_NON_PUBLIC_DNS_SUFFIXES):
+        return False
+    labels = host.split(".")
+    return all(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    )
 
 
 def _format_input_item(item: dict[str, Any]) -> str:
