@@ -87,18 +87,22 @@ def register_results_detail_routes(results_bp):
         )
         public_result = not get_file_confidential_tags(filename, current_app.config["RECEIVED_DIR"])
         reuse_eligibility = evaluate_public_reuse_packet(result, public_result=public_result)
-        detail_context["reuse_packet_rows"] = build_reuse_detail_rows(
-            result,
-            public_result=public_result,
+        detail_context["reuse_packet_rows"] = (
+            []
+            if is_public_surface
+            else build_reuse_detail_rows(
+                result,
+                public_result=public_result,
+            )
         )
         detail_context["reuse_packet_url"] = (
             url_for("results.result_reuse_packet", filename=filename)
-            if reuse_eligibility["eligible"]
+            if reuse_eligibility["eligible"] and not is_public_surface
             else ""
         )
         detail_context["reuse_manifest_url"] = (
             url_for("results.result_reuse_manifest", filename=filename)
-            if reuse_eligibility["eligible"]
+            if reuse_eligibility["eligible"] and not is_public_surface
             else ""
         )
         if detail_context.get("environment_snapshot_hash") and not is_public_surface:
@@ -155,6 +159,9 @@ def register_results_detail_routes(results_bp):
 
     @results_bp.route("/detail/<filename>/reuse-packet.md")
     def result_reuse_packet(filename):
+        if public_surface():
+            abort(404, "Result file not found")
+
         result = load_public_result_json(
             filename,
             current_app.config["RECEIVED_DIR"],
@@ -178,6 +185,9 @@ def register_results_detail_routes(results_bp):
 
     @results_bp.route("/detail/<filename>/reuse-manifest.json")
     def result_reuse_manifest(filename):
+        if public_surface():
+            abort(404, "Result file not found")
+
         result = load_public_result_json(
             filename,
             current_app.config["RECEIVED_DIR"],

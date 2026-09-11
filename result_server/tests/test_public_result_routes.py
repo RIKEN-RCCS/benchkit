@@ -44,7 +44,7 @@ def _eligible_public_result_payload():
         "_server_timestamp": "20260824_090000",
         "source_info": {
             "source_type": "git",
-            "repo_url": "https://example.test/repo.git",
+            "repo_url": "https://example.org/repo.git",
             "ref_name": "main",
             "resolved_commit": "abcdef1234567890",
         },
@@ -53,7 +53,7 @@ def _eligible_public_result_payload():
             "dataset_version": "v1",
             "kind": "public-git",
             "source": "public_url",
-            "public_url": "https://example.test/inputs.git",
+            "public_url": "https://example.org/inputs.git",
             "source_ref": "main",
             "resolved_commit": "1234567890abcdef",
             "repo_relative_path": "inputs/demoapp-small",
@@ -118,10 +118,45 @@ def _build_public_app(tmp_path):
     return app, received_dir
 
 
+def _build_console_app(tmp_path):
+    received_dir = tmp_path / "received"
+    received_dir.mkdir()
+    app = build_results_route_app(received_dir=str(received_dir))
+    _add_navigation_routes(app)
+    app.config["USER_STORE"] = StaticAffiliationUserStore({"dev@example.test": ["dev"]})
+    return app, received_dir
+
+
 def _authenticate_dev(client):
     with client.session_transaction() as sess:
         sess["authenticated"] = True
         sess["user_email"] = "dev@example.test"
+
+
+def test_public_reuse_url_filter_rejects_internal_hostnames():
+    from utils.public_reuse import is_public_http_url
+
+    assert is_public_http_url("https://github.com/RIKEN-LQCD/qws.git")
+    assert is_public_http_url("https://example.org/inputs.git")
+
+    for value in (
+        "http://gitlab/repo.git",
+        "https://localhost/repo.git",
+        "https://repo.local/project.git",
+        "https://repo.localdomain/project.git",
+        "https://repo.internal/project.git",
+        "https://repo.private/project.git",
+        "https://repo.test/project.git",
+        "https://repo.invalid/project.git",
+        "https://repo.corp/project.git",
+        "https://repo.lan/project.git",
+        "http://127.0.0.1/repo.git",
+        "http://10.0.0.1/repo.git",
+        "http://192.168.0.1/repo.git",
+        "http://[fd00::1]/repo.git",
+        "https://repo_with_underscore.example.org/project.git",
+    ):
+        assert not is_public_http_url(value)
 
 
 def test_public_portal_detail_hides_confidential_result_for_authorized_session(tmp_path):
@@ -196,7 +231,7 @@ def test_public_portal_compare_explains_operator_evidence_is_omitted(tmp_path):
                 "FOM": fom,
                 "source_info": {
                     "source_type": "git",
-                    "repo_url": "https://example.test/repo.git",
+                    "repo_url": "https://example.org/repo.git",
                     "ref_name": "main",
                     "resolved_commit": "abcdef1234567890",
                 },
@@ -215,7 +250,7 @@ def test_public_portal_compare_explains_operator_evidence_is_omitted(tmp_path):
     assert "Build Cache" not in text
 
 
-def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
+def test_public_portal_detail_does_not_link_download_packets(tmp_path):
     app, received_dir = _build_public_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
     _write_result(
@@ -231,15 +266,55 @@ def test_public_portal_detail_does_not_link_evidence_packet(tmp_path):
     text = response.get_data(as_text=True)
     assert "Download Evidence Packet" not in text
     assert "evidence-packet.md" not in text
+    assert "Reuse Package" not in text
+    assert "Public packet" not in text
+    assert "Review public reuse packet" not in text
+    assert "Download Reuse Packet" not in text
+    assert "Download Manifest" not in text
+    assert "reuse-packet.md" not in text
+    assert "reuse-manifest.json" not in text
+
+
+def test_console_detail_links_download_packets(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(
+        received_dir,
+        filename,
+        _eligible_public_result_payload(),
+    )
+
+    with app.test_client() as client:
+        response = client.get(f"/results/detail/{filename}")
+
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
     assert "Reuse Package" in text
+    assert "Public packet" in text
+    assert "Review public reuse packet" in text
+    assert "Download Evidence Packet" in text
+    assert "evidence-packet.md" in text
     assert "Download Reuse Packet" in text
     assert "Download Manifest" in text
     assert "reuse-packet.md" in text
     assert "reuse-manifest.json" in text
 
 
-def test_public_reuse_packet_exports_only_public_projection(tmp_path):
+def test_public_portal_reuse_packet_routes_are_blocked_until_release_review(tmp_path):
     app, received_dir = _build_public_app(tmp_path)
+    filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
+    _write_result(received_dir, filename, _eligible_public_result_payload())
+
+    with app.test_client() as client:
+        packet_response = client.get(f"/results/detail/{filename}/reuse-packet.md")
+        manifest_response = client.get(f"/results/detail/{filename}/reuse-manifest.json")
+
+    assert packet_response.status_code == 404
+    assert manifest_response.status_code == 404
+
+
+def test_console_reuse_packet_exports_only_public_projection(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
     padata_dir = tmp_path / "padata"
     padata_dir.mkdir()
     app.config["RECEIVED_PADATA_DIR"] = str(padata_dir)
@@ -257,7 +332,7 @@ def test_public_reuse_packet_exports_only_public_projection(tmp_path):
     assert response.content_type == "text/markdown; charset=utf-8"
     assert "CX Public Reuse Packet" in text
     assert "demoapp / DemoSystem / CASE1" in text
-    assert "https://example.test/repo.git" in text
+    assert "https://example.org/repo.git" in text
     assert "abcdef1234567890" in text
     assert "dataset_id: demoapp-small" in text
     assert "resolved_commit: 1234567890abcdef" in text
@@ -273,8 +348,8 @@ def test_public_reuse_packet_exports_only_public_projection(tmp_path):
     assert "omitted-r" not in text
 
 
-def test_public_reuse_manifest_exports_machine_readable_projection(tmp_path):
-    app, received_dir = _build_public_app(tmp_path)
+def test_console_reuse_manifest_exports_machine_readable_projection(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
     _write_result(received_dir, filename, _eligible_public_result_payload())
 
@@ -288,8 +363,8 @@ def test_public_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert manifest["kind"] == "cx_public_reuse_packet"
     assert manifest["eligibility"]["status"] == "eligible"
     assert manifest["result"]["experiment"] == "CASE1"
-    assert manifest["source"]["repository_url"] == "https://example.test/repo.git"
-    assert manifest["input"]["items"][0]["public_url"] == "https://example.test/inputs.git"
+    assert manifest["source"]["repository_url"] == "https://example.org/repo.git"
+    assert manifest["input"]["items"][0]["public_url"] == "https://example.org/inputs.git"
     assert manifest["build"]["cache_entry"]["digests"]["artifacts"] == "sha256:artifacts"
     assert manifest["estimation"]["package_bindings"][0]["estimation_package"] == "demo-kernel-package"
     assert "environment_snapshot" not in manifest
@@ -297,8 +372,8 @@ def test_public_reuse_manifest_exports_machine_readable_projection(tmp_path):
     assert "local-input-placeholder" not in json.dumps(manifest)
 
 
-def test_public_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
-    app, received_dir = _build_public_app(tmp_path)
+def test_console_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
     payload = _eligible_public_result_payload()
     payload["Exp"] = "CASE1"
@@ -364,8 +439,8 @@ def test_public_reuse_manifest_accepts_scoped_runtime_parameters(tmp_path):
     assert "dataset_id: qws-case0-parameters" not in packet_text
 
 
-def test_public_reuse_packet_requires_public_input_binding(tmp_path):
-    app, received_dir = _build_public_app(tmp_path)
+def test_console_reuse_packet_requires_public_input_binding(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
     payload = _eligible_public_result_payload()
     payload["input_info"] = {"dataset_id": "demoapp-small", "verification_status": "declared"}
@@ -385,8 +460,8 @@ def test_public_reuse_packet_requires_public_input_binding(tmp_path):
     assert "Download Reuse Packet" not in text
 
 
-def test_public_reuse_packet_requires_matching_scoped_input(tmp_path):
-    app, received_dir = _build_public_app(tmp_path)
+def test_console_reuse_packet_requires_matching_scoped_input(tmp_path):
+    app, received_dir = _build_console_app(tmp_path)
     filename = "result_20260824_090000_11111111-2222-3333-4444-555555555555.json"
     payload = _eligible_public_result_payload()
     payload["Exp"] = "CASE1"
@@ -476,7 +551,7 @@ def test_console_evidence_packet_uses_result_permissions(tmp_path):
             "confidential": ["dev"],
             "source_info": {
                 "source_type": "git",
-                "repo_url": "https://example.test/demoapp.git",
+                "repo_url": "https://example.org/demoapp.git",
                 "ref_name": "main",
                 "resolved_commit": "abcdef1234567890",
             },
@@ -497,4 +572,4 @@ def test_console_evidence_packet_uses_result_permissions(tmp_path):
     assert "does not guarantee independent reproduction" in text
     assert "Pipeline ID" not in text
     assert "Raw Result JSON" in text
-    assert "https://example.test/demoapp.git" in text
+    assert "https://example.org/demoapp.git" in text
