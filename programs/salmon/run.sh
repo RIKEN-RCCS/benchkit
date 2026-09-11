@@ -42,6 +42,7 @@ FUGAKU_RESTART_NML="Si-3-3-3-tddft.nml"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
+bk_reset_input_info
 
 if [[ ! -x artifacts/salmon ]]; then
   echo "Required artifact not found or not executable: artifacts/salmon" >&2
@@ -103,6 +104,26 @@ if uses_prestaged_restart "${system}"; then
   # I/O instead of the benchmark itself.
   ln -s "${restart_dir}/restart" "${WORK_DIR}/restart"
   grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/${tddft_nml}" >&2 || true
+  case "${tddft_nml}" in
+    Si-3-3-3-tddft.nml)
+      salmon_dataset_id="salmon-si-3x3x3-folded-restart"
+      salmon_dataset_version="Si-3-3-3-tddft"
+      ;;
+    Si-2-2-2-tddft.nml)
+      salmon_dataset_id="salmon-si-2x2x2-folded-restart"
+      salmon_dataset_version="Si-2-2-2-tddft"
+      ;;
+    *)
+      salmon_dataset_id="salmon-folded-restart"
+      salmon_dataset_version="${tddft_nml%.nml}"
+      ;;
+  esac
+  bk_record_input \
+    --dataset-id "${salmon_dataset_id}" \
+    --version "${salmon_dataset_version}" \
+    --type restart \
+    --parameter input_set "${tddft_nml}" \
+    --recipe "Offline ground-state data folded to a complex Gamma-point TDDFT restart; the run consumes the restart, pseudopotentials, and TDDFT input."
 else
   case "${system}" in
     RC_GH200|RC_GENOA)
@@ -137,6 +158,12 @@ else
   chmod +x "${WORK_DIR}/salmon"
   cp "${input_dir}"/* "${WORK_DIR}/"
   grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/Si-1-1-1.nml" "${WORK_DIR}/Si-1-1-1-tddft.nml" >&2 || true
+  bk_record_input \
+    --dataset-id salmon-si-1x1x1-archive \
+    --version Si-1-1-1 \
+    --type archive \
+    --parameter input_set "Si-1-1-1 GS/RT inputs" \
+    --recipe "Archive containing SALMON ground-state and TDDFT input files; the run generates the restart consumed by TDDFT."
 fi
 cd "${WORK_DIR}"
 
@@ -311,8 +338,6 @@ if uses_prestaged_restart "${system}"; then
   run_rt_once () {
     local label="$1" logfile="rt_$1.log"
     touch .rt_start_marker
-    local t0 t1
-    t0=$(date +%s.%N)
     if uses_stdin_input "${system}"; then
       run_salmon_or_diagnose RT .rt_start_marker "${logfile}" ./salmon < "${tddft_nml}"
     else
@@ -321,7 +346,6 @@ if uses_prestaged_restart "${system}"; then
       # under pjsub's mpiexec, not all ranks.
       run_salmon_or_diagnose RT .rt_start_marker "${logfile}" -stdin "${tddft_nml}" ./salmon
     fi
-    t1=$(date +%s.%N)
     cp "${logfile}" "${RESULTS_DIR}/"
     if ! salmon_output_has_marker_since "${logfile}" .rt_start_marker; then
       echo "SALMON RT run failed (${label})" >&2

@@ -361,14 +361,14 @@ def _summarize_input_info_status(status, input_items, has_source_commit):
     if all(_is_runtime_parameter_input_covered(item) for item in input_items):
         return "input_info declares self-contained runtime parameters."
 
-    public_revision_items = [
+    source_revision_items = [
         item
         for item in input_items
         if isinstance(item, dict)
         and _is_public_source_input_covered(item, _has_input_revision(item))
     ]
-    if public_revision_items and len(public_revision_items) == len(input_items):
-        return "input_info declares input fixed by a public source commit."
+    if source_revision_items and len(source_revision_items) == len(input_items):
+        return "input_info declares input fixed by a recorded input source commit."
 
     if all(_is_repo_local_input_covered(item, has_source_commit) for item in input_items):
         return "input_info declares repository-local input fixed by the result source commit."
@@ -394,12 +394,13 @@ def _is_runtime_parameter_input_covered(item):
     verification_status = _input_value_lower(item.get("verification_status"))
     source = _input_value_lower(item.get("source"))
     kind = _input_value_lower(item.get("kind"))
+    has_arguments = bool(item.get("command")) and isinstance(item.get("arguments"), list)
+    has_parameters = isinstance(item.get("parameters"), dict) and bool(item.get("parameters"))
     return (
         kind in {"runtime-parameters", "inline-parameters"}
         and source in {"inline", "self-contained", "self_contained"}
         and verification_status in {"self_contained", "self-contained"}
-        and bool(item.get("command"))
-        and isinstance(item.get("arguments"), list)
+        and (has_arguments or has_parameters)
     )
 
 
@@ -410,7 +411,13 @@ def _is_public_source_input_covered(item, has_input_revision):
     source = _input_value_lower(item.get("source"))
     return (
         has_input_revision
-        and verification_status in {"public_source_commit", "covered_by_public_source_commit"}
+        and verification_status
+        in {
+            "source_commit",
+            "covered_by_source_commit",
+            "public_source_commit",
+            "covered_by_public_source_commit",
+        }
         and (
             source in {"public_url", "public_git", "public-git"}
             or bool(item.get("public_url"))

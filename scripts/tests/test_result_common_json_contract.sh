@@ -242,4 +242,156 @@ jq -e '
   .execution_trigger.reason == "repo_ref:https://example.test/demoapp.git@main"
 ' "${RESULT_JSON}" >/dev/null
 
+PUBLIC_TMP_DIR="${TMP_DIR}/public-access"
+FAKE_BIN="${PUBLIC_TMP_DIR}/bin"
+mkdir -p "${PUBLIC_TMP_DIR}/results" "${FAKE_BIN}"
+cat > "${FAKE_BIN}/curl" <<'EOF'
+#!/bin/bash
+for arg in "$@"; do
+  case "$arg" in
+    Authorization:*|authorization:*) exit 9 ;;
+  esac
+done
+url="${!#}"
+case "$url" in
+  https://api.github.com/repos/example-owner/example-repo)
+    printf '{"private":false,"visibility":"public"}'
+    ;;
+  https://api.github.com/repos/example-owner/input-repo)
+    printf '{"private":false,"visibility":"public"}'
+    ;;
+  https://gitlab.com/api/v4/projects/example-group%2Fsubgroup%2Fexample-repo)
+    printf '{"visibility":"public"}'
+    ;;
+  https://gitlab.com/api/v4/projects/example-group%2Fsubgroup%2Finput-repo)
+    printf '{"visibility":"public"}'
+    ;;
+  *)
+    exit 22
+    ;;
+esac
+EOF
+chmod +x "${FAKE_BIN}/curl"
+
+cat > "${PUBLIC_TMP_DIR}/results/result" <<'EOF'
+FOM:1.00 FOM_unit:s FOM_version:contract-v1 Exp:CASE0 node_count:1 numproc_node:1 nthreads:1 description:smoke confidential:false
+FOM:2.00 FOM_unit:s FOM_version:contract-v1 Exp:CASE1 node_count:1 numproc_node:1 nthreads:1 description:smoke confidential:false
+EOF
+
+cat > "${PUBLIC_TMP_DIR}/results/source_info.env" <<'EOF'
+BK_SOURCE_TYPE=git
+BK_REPO_URL=https://github.com/example-owner/example-repo.git
+BK_BRANCH=main
+BK_COMMIT_HASH=abcdef1234567890
+BK_SOURCE_REF_NAME=main
+BK_SOURCE_REF_KIND=branch
+BK_SOURCE_RESOLVED_COMMIT=abcdef1234567890abcdef1234567890abcdef12
+EOF
+
+cat > "${PUBLIC_TMP_DIR}/results/input_info.json" <<'EOF'
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "dataset_id": "case0-input",
+      "kind": "git-repository",
+      "source": "source_url",
+      "source_url": "https://github.com/example-owner/input-repo.git",
+      "source_ref": "main",
+      "resolved_commit": "1234567890abcdef",
+      "result_exp": "CASE0",
+      "verification_status": "source_commit",
+      "public_access_check": {
+        "confirmed": false,
+        "method": "app_supplied",
+        "host": "github.com"
+      }
+    },
+    {
+      "dataset_id": "case1-input",
+      "kind": "git-repository",
+      "source": "source_url",
+      "source_url": "https://example.org/not-confirmed.git",
+      "source_ref": "main",
+      "resolved_commit": "1234567890abcdef",
+      "result_exp": "CASE1",
+      "verification_status": "source_commit",
+      "public_access_check": {
+        "confirmed": true,
+        "method": "app_supplied",
+        "host": "example.org"
+      }
+    }
+  ]
+}
+EOF
+
+pushd "${PUBLIC_TMP_DIR}" >/dev/null
+PATH="${FAKE_BIN}:$PATH" bash "${REPO_DIR}/scripts/result.sh" demoapp DemoSystem cross build_job run_job 4242 >/dev/null
+popd >/dev/null
+
+PUBLIC_RESULT_JSON="${PUBLIC_TMP_DIR}/results/result0.json"
+PUBLIC_RESULT_JSON1="${PUBLIC_TMP_DIR}/results/result1.json"
+jq -e '
+  .source_info.public_access_check.confirmed == true and
+  .source_info.public_access_check.method == "github_rest_api_anonymous" and
+  .source_info.public_access_check.host == "github.com" and
+  .input_info.inputs[0].public_access_check.confirmed == true and
+  .input_info.inputs[0].public_access_check.method == "github_rest_api_anonymous" and
+  .input_info.inputs[0].public_access_check.host == "github.com"
+' "${PUBLIC_RESULT_JSON}" >/dev/null
+jq -e '
+  .source_info.public_access_check.confirmed == true and
+  (.input_info.inputs[0] | has("public_access_check") | not)
+' "${PUBLIC_RESULT_JSON1}" >/dev/null
+
+GITLAB_TMP_DIR="${TMP_DIR}/gitlab-public-access"
+mkdir -p "${GITLAB_TMP_DIR}/results"
+
+cat > "${GITLAB_TMP_DIR}/results/result" <<'EOF'
+FOM:3.00 FOM_unit:s FOM_version:contract-v1 Exp:CASE0 node_count:1 numproc_node:1 nthreads:1 description:smoke confidential:false
+EOF
+
+cat > "${GITLAB_TMP_DIR}/results/source_info.env" <<'EOF'
+BK_SOURCE_TYPE=git
+BK_REPO_URL=https://gitlab.com/example-group/subgroup/example-repo.git
+BK_BRANCH=main
+BK_COMMIT_HASH=abcdef1234567890
+BK_SOURCE_REF_NAME=main
+BK_SOURCE_REF_KIND=branch
+BK_SOURCE_RESOLVED_COMMIT=abcdef1234567890abcdef1234567890abcdef12
+EOF
+
+cat > "${GITLAB_TMP_DIR}/results/input_info.json" <<'EOF'
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "dataset_id": "gitlab-input",
+      "kind": "git-repository",
+      "source": "source_url",
+      "source_url": "https://gitlab.com/example-group/subgroup/input-repo.git",
+      "source_ref": "main",
+      "resolved_commit": "1234567890abcdef",
+      "result_exp": "CASE0",
+      "verification_status": "source_commit"
+    }
+  ]
+}
+EOF
+
+pushd "${GITLAB_TMP_DIR}" >/dev/null
+PATH="${FAKE_BIN}:$PATH" bash "${REPO_DIR}/scripts/result.sh" demoapp DemoSystem cross build_job run_job 4242 >/dev/null
+popd >/dev/null
+
+GITLAB_RESULT_JSON="${GITLAB_TMP_DIR}/results/result0.json"
+jq -e '
+  .source_info.public_access_check.confirmed == true and
+  .source_info.public_access_check.method == "gitlab_rest_api_anonymous" and
+  .source_info.public_access_check.host == "gitlab.com" and
+  .input_info.inputs[0].public_access_check.confirmed == true and
+  .input_info.inputs[0].public_access_check.method == "gitlab_rest_api_anonymous" and
+  .input_info.inputs[0].public_access_check.host == "gitlab.com"
+' "${GITLAB_RESULT_JSON}" >/dev/null
+
 echo "result common JSON contract test passed"

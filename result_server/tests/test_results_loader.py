@@ -513,18 +513,37 @@ class TestSummarizeResultQuality:
                 "inputs": [
                     {
                         "dataset_id": "case0",
-                        "kind": "public-git",
-                        "source": "public_url",
-                        "public_url": "https://example.com/input.git",
+                        "kind": "git-repository",
+                        "source": "source_url",
+                        "source_url": "https://example.com/input.git",
                         "source_ref": "main",
                         "resolved_commit": "abcdef1234567890",
                         "repo_relative_path": "benchmarks/case0",
-                        "verification_status": "public_source_commit",
+                        "verification_status": "source_commit",
                     }
                 ],
             },
         })
         assert public_source_covered["stats"]["input_info_status"] == "covered"
+
+        inline_parameters_covered = summarize_result_quality({
+            "code": "test",
+            "system": "sys",
+            "FOM": 1.0,
+            "input_info": {
+                "schema_version": 1,
+                "inputs": [
+                    {
+                        "dataset_id": "case0-parameters",
+                        "kind": "inline-parameters",
+                        "source": "inline",
+                        "parameters": {"case": "CASE0", "size": "small"},
+                        "verification_status": "self_contained",
+                    }
+                ],
+            },
+        })
+        assert inline_parameters_covered["stats"]["input_info_status"] == "covered"
 
         missing_source_commit = summarize_result_quality({
             "code": "test",

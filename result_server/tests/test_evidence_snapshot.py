@@ -27,9 +27,14 @@ def test_evidence_snapshot_builds_flat_review_rows(tmp_path):
             "FOM": 1.0,
             "source_info": {
                 "source_type": "git",
-                "repo_url": "https://example.com/demoapp.git",
+                "repo_url": "https://github.com/example-owner/demoapp.git",
                 "ref_name": "main",
                 "resolved_commit": "abcdef1234567890",
+                "public_access_check": {
+                    "confirmed": True,
+                    "method": "github_rest_api_anonymous",
+                    "host": "github.com",
+                },
             },
             "input_info": {
                 "inputs": [
@@ -183,9 +188,14 @@ def test_evidence_snapshot_accepts_public_input_commit_for_public_packet(tmp_pat
             "FOM": 1.0,
             "source_info": {
                 "source_type": "git",
-                "repo_url": "https://example.com/demoapp.git",
+                "repo_url": "https://github.com/example-owner/demoapp.git",
                 "ref_name": "main",
                 "resolved_commit": "abcdef1234567890",
+                "public_access_check": {
+                    "confirmed": True,
+                    "method": "github_rest_api_anonymous",
+                    "host": "github.com",
+                },
             },
             "input_info": {
                 "inputs": [
@@ -193,11 +203,16 @@ def test_evidence_snapshot_accepts_public_input_commit_for_public_packet(tmp_pat
                         "dataset_id": "apoa1-p8",
                         "kind": "public-git",
                         "source": "public_url",
-                        "public_url": "https://example.com/input.git",
+                        "public_url": "https://github.com/example-owner/input.git",
                         "source_ref": "main",
                         "resolved_commit": "1234567890abcdef",
                         "repo_relative_path": "npt/apoa1",
                         "verification_status": "public_source_commit",
+                        "public_access_check": {
+                            "confirmed": True,
+                            "method": "github_rest_api_anonymous",
+                            "host": "github.com",
+                        },
                     }
                 ],
             },
@@ -236,9 +251,14 @@ def test_evidence_snapshot_keeps_latest_available_public_packet(tmp_path):
 
     public_source_info = {
         "source_type": "git",
-        "repo_url": "https://example.com/demoapp.git",
+        "repo_url": "https://github.com/example-owner/demoapp.git",
         "ref_name": "main",
         "resolved_commit": "abcdef1234567890",
+        "public_access_check": {
+            "confirmed": True,
+            "method": "github_rest_api_anonymous",
+            "host": "github.com",
+        },
     }
     _write_json(
         received_dir / "result_20260901_010101_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json",
@@ -254,11 +274,16 @@ def test_evidence_snapshot_keeps_latest_available_public_packet(tmp_path):
                         "dataset_id": "case0",
                         "kind": "public-git",
                         "source": "public_url",
-                        "public_url": "https://example.com/input.git",
+                        "public_url": "https://github.com/example-owner/input.git",
                         "source_ref": "main",
                         "resolved_commit": "1234567890abcdef",
                         "repo_relative_path": "benchmarks/case0",
                         "verification_status": "public_source_commit",
+                        "public_access_check": {
+                            "confirmed": True,
+                            "method": "github_rest_api_anonymous",
+                            "host": "github.com",
+                        },
                     }
                 ],
             },

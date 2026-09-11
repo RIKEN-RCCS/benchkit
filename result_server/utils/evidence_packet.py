@@ -232,11 +232,13 @@ def _input_rows(result: dict[str, Any]) -> list[str]:
             "recipe",
             "doi",
             "public_url",
+            "source_url",
+            "archive_url",
         ):
             value = item.get(key)
             if value in (None, "", [], {}):
                 continue
-            if key == "public_url":
+            if key in {"public_url", "source_url", "archive_url"}:
                 value = _safe_url_or_placeholder(str(value))
             parts.append(f"{key}: {_inline(value)}")
         if parts:

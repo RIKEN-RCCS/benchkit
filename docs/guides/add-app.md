@@ -127,23 +127,30 @@ portal の `/results/usage` では、この source provenance が各 app / syste
 
 入力ファイルが app repository 内に既にあり、そのまま使う場合は、`source_info.resolved_commit` が app source と repo 内 input の固定点になります。
 この場合、別 manifest や input digest を必須にする必要はありません。
-Portal や review で dataset 名を見せたい場合だけ、任意の入力metadataで repo-relative path を補足できます。
+入力metadataは optional な推奨機能です。
+無い result も正常に扱われますが、Portal や review で dataset 名を見せたい場合だけ、任意の入力metadataで repo-relative path を補足できます。
 
 ```bash
-bk_record_input_info <<'EOF'
-{
-  "schema_version": 1,
-  "inputs": [
-    {
-      "dataset_id": "myapp-case0",
-      "kind": "repo-local-input",
-      "source": "source_info",
-      "repo_relative_path": "benchmarks/case0/input.dat",
-      "verification_status": "covered_by_source_commit"
-    }
-  ]
-}
-EOF
+bk_record_input \
+  --dataset-id myapp-case0 \
+  --path benchmarks/case0/input.dat
+```
+
+入力が別の Git repository にあり、app が clone / ref 解決を行っている場合は、URL・ref・resolved commit・repo-relative path だけを `bk_record_input` へ渡せます。
+`--repo-url` は入力sourceの記録であり、それだけでは public reuse packet の公開条件にはなりません。
+public reuse packet へ含めるには、共通層が生成する `public_access_check` metadata が必要です。
+現在は `github.com` と `gitlab.com` の repository URL を共通層が匿名 provider API で確認します。
+app 側で `public_access_check` を書く必要はありません。
+書かれていても Result JSON 生成時に破棄され、共通層の確認結果だけが採用されます。
+
+```bash
+input_source_commit=$(git -C "${INPUT_REPO_DIR}" rev-parse HEAD)
+bk_record_input \
+  --dataset-id myapp-input-case0 \
+  --repo-url "$INPUT_REPO_URL" \
+  --ref "$INPUT_BRANCH" \
+  --commit "$input_source_commit" \
+  --path benchmarks/case0
 ```
 
 ### pre-staged input と site-local 情報の扱い
@@ -163,29 +170,53 @@ site-local path や allocation / project ID は、それ自体を一律に secre
 
 pre-staged input を使う app では、「正しい場所にファイルがある」だけでは再現性の説明として不足します。
 可能であれば input directory と同じ場所に manifest を置き、run 前に manifest / digest を検証して、Result metadata へ dataset identity を残してください。
-app から実行時の入力metadataを渡す場合は、`scripts/bk_functions.sh` を source して `bk_record_input_info` を使ってください。
-app 側は共通層の受け渡し file path を意識せず、入力metadataの中身だけを定義します。
+ただし、これは app 実装の必須条件ではありません。
+入力の素性が分かっていて、後から結果を再利用・レビューしやすくしたい場合に追加する補助記録です。
+
+app から実行時の入力metadataを渡す場合は、`scripts/bk_functions.sh` を source して `bk_record_input` を使ってください。
+`bk_record_input` は渡された引数から入力metadataを組み立てます。
+app 側は `schema_version` や `inputs` 配列の形を組み立てず、分かっている事実だけを渡します。
+例えば `--repo-url`、`--path`、`--parameter`、`--command` は同時に渡せます。
 
 最小例:
 
 ```bash
-bk_record_input_info <<'EOF'
-{
-  "schema_version": 1,
-  "inputs": [
-    {
-      "dataset_id": "myapp-case0",
-      "dataset_version": "2026-09",
-      "kind": "benchmark-input",
-      "manifest_digest": "sha256:<manifest-sha256>",
-      "verification_status": "verified"
-    }
-  ]
-}
-EOF
+bk_record_input \
+  --dataset-id myapp-case0 \
+  --version 2026-09 \
+  --type file \
+  --recipe "how the benchmark input was prepared"
 ```
 
-ここで `manifest_digest` は manifest file だけの hash ではなく、manifest の中で dataset ID、version/revision、生成 recipe、期待 file list、size/hash などを説明できるようにしておくと後から追跡しやすくなります。
+入力が実ファイルではなく実行引数だけで表せる場合は、`--command` と `--` 以降の引数を渡します。
+この場合も共通層で `input_info` schema を組み立てるため、app 側で JSON を直書きする必要はありません。
+
+```bash
+case0_args=(32 6 4 3 1 1 1 1 -1 -1 6 50)
+bk_record_input \
+  --dataset-id myapp-case0-parameters \
+  --parameter-set-id CASE0 \
+  --result-exp CASE0 \
+  --command ./main \
+  -- "${case0_args[@]}"
+```
+
+入力が repository と実行時 parameter の両方を持つ場合も、1つの record として書けます。
+
+```bash
+bk_record_input \
+  --dataset-id myapp-case0-input \
+  --repo-url https://example.org/myapp-inputs.git \
+  --ref main \
+  --commit 0123456789abcdef0123456789abcdef01234567 \
+  --path cases/case0 \
+  --parameter mesh small \
+  --command ./run_case \
+  -- --case CASE0
+```
+
+`Verified` へ進める場合は、manifest file だけの hash ではなく、manifest の中で dataset ID、version/revision、生成 recipe、期待 file list、size/hash などを説明できるようにしておくと後から追跡しやすくなります。
+digest や source URL などの field が必要になった場合は、app 側に Result JSON schema を直書きさせるより、共通helperまたは共通の受け渡し形式を拡張します。
 公開 surface では detailed local path を出さず、dataset identity と検証状態を優先して見せる前提で設計してください。
 
 Portal の `/results/usage` では、通常の benchmark result に対する入力出自の状態を `Input Status` として表示します。

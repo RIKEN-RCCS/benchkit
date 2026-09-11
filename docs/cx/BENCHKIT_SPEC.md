@@ -483,7 +483,7 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 - input kind
 - manifest digest または content digest
 - 生成 recipe または取得 recipe
-- 公開 URL または archive reference
+- source URL または archive reference
 - self-contained な runtime parameters
 - 検証状態
 
@@ -491,10 +491,10 @@ Benchkit は、pre-staged input、restart、学習済みモデル、公開 archi
 この場合、`source_info` が実際に使った app source と repo 内 input の両方の固定点になる。
 `input_info` は省略してもよく、Portal や review で dataset 名を見せたい場合だけ、`kind: "repo-local-input"`、`source: "source_info"`、`repo_relative_path`、`verification_status: "covered_by_source_commit"` などの補助情報を持たせてよい。
 
-入力が別の public input repository や public archive から来る場合は、`input_info` 側に公開URL、ref、resolved commit または digest、取得/生成 recipe を置く。
-この場合も、入力が記録済み source commit で固定されるなら `verification_status: "public_source_commit"` として `Covered` に分類できる。
+入力が別の input repository や archive から来る場合は、`input_info` 側に source URL、ref、resolved commit または digest、取得/生成 recipe を置く。
+この場合も、入力が記録済み source commit で固定されるなら `verification_status: "source_commit"` として `Covered` に分類できる。
 
-入力が実ファイルではなく、公開可能な command と arguments だけで完全に表せる場合は、`kind: "runtime-parameters"`、`source: "inline"`、`arguments`、`verification_status: "self_contained"` を使える。
+入力が実ファイルではなく、command / arguments / parameters だけで完全に表せる場合は、`kind: "runtime-parameters"` または `kind: "inline-parameters"`、`source: "inline"`、`arguments` または `parameters`、`verification_status: "self_contained"` を使える。
 同じ job から複数 result が出る場合は、`result_exp` などの result scope を添えて、各 result と対応する入力指定を明示してよい。
 
 site-local path は所在情報であり、長期的な input identity ではない。
@@ -514,7 +514,7 @@ When an application passes input metadata through the Benchkit input metadata he
 - input kind
 - manifest digest or content digest
 - generation or acquisition recipe
-- public URL or archive reference
+- source URL or archive reference
 - self-contained runtime parameters
 - verification status
 
@@ -522,10 +522,10 @@ When the input is already stored in the top-level application repository and is 
 In that case, `source_info` is the fixed point for both the application source and the repository-local input actually used.
 `input_info` may be omitted, or it may carry lightweight helper fields such as `kind: "repo-local-input"`, `source: "source_info"`, `repo_relative_path`, and `verification_status: "covered_by_source_commit"` when the dataset name should be visible in the Portal or during review.
 
-When the input comes from a separate public input repository or public archive, `input_info` should carry the public URL, ref, resolved commit or digest, and acquisition or generation recipe.
-If the input is fixed by a recorded source commit, it may use `verification_status: "public_source_commit"` and be classified as `Covered`.
+When the input comes from a separate input repository or archive, `input_info` should carry the source URL, ref, resolved commit or digest, and acquisition or generation recipe.
+If the input is fixed by a recorded source commit, it may use `verification_status: "source_commit"` and be classified as `Covered`.
 
-When the input is not a file and can be fully represented by public command arguments, `input_info` may use `kind: "runtime-parameters"`, `source: "inline"`, `arguments`, and `verification_status: "self_contained"`.
+When the input is not a file and can be fully represented by command arguments or parameters, `input_info` may use `kind: "runtime-parameters"` or `kind: "inline-parameters"`, `source: "inline"`, `arguments` or `parameters`, and `verification_status: "self_contained"`.
 When one job emits multiple results, a result scope such as `result_exp` may be attached so each Result JSON is evaluated against the matching input declaration.
 
 A site-local path is location information, not a durable input identity.
@@ -540,8 +540,13 @@ Benchkit は、公開可能な Result JSON から public-only reuse packet を�
 Public reuse packet の対象は、少なくとも次の条件を満たす result に限定する。
 
 - result 自体が public surface で閲覧可能である
-- `source_info` が public Git URL、ref、resolved commit を持つ
-- `input_info` が public input source commit、public archive digest、DOI、または public source commit で固定される repo-local input を示す
+- `source_info` が public access confirmed な Git URL、ref、resolved commit を持つ
+- `input_info` が public access confirmed な input source commit、archive digest、DOI、または public source commit で固定される repo-local input を示す
+
+URL 文字列だけでは public access confirmed と見なさない。
+未確認の source/input URL は public reuse packet では非公開扱いにする。
+public access の確認は CI pipeline や公開前監査で実施し、Portal 表示時には外部到達性を確認しない。
+現在は `github.com` と `gitlab.com` の repository URL を provider API で匿名確認した場合だけ `public_access_check` として扱う。
 
 Public reuse packet には、benchmark condition、FOM、source commit、public input binding、build-cache digest、profile artifact reference、estimation package binding など、公開可能な再利用情報だけを入れる。
 raw Result JSON、local path、allocation detail、operator-only environment detail、非公開 input/source は含めない。
@@ -554,8 +559,13 @@ This is not a replacement for raw Result JSON; it is a public evidence projectio
 A public reuse packet should be limited to results that satisfy at least:
 
 - the result itself is visible on the public surface
-- `source_info` records a public Git URL, ref, and resolved commit
-- `input_info` records a public input source commit, public archive digest, DOI, or repository-local input fixed by a public source commit
+- `source_info` records a public-access-confirmed Git URL, ref, and resolved commit
+- `input_info` records a public-access-confirmed input source commit, archive digest, DOI, or repository-local input fixed by a public source commit
+
+A URL string alone is not treated as public-access confirmed.
+Unconfirmed source/input URLs are treated as non-public for public reuse packets.
+Public-access checks should run in a CI pipeline or publication review step, not during Portal page rendering.
+Currently, only `github.com` and `gitlab.com` repository URLs confirmed through anonymous provider APIs are treated as `public_access_check` evidence.
 
 The packet should include only public reuse information such as benchmark condition, FOM, source commit, public input binding, build-cache digests, profile artifact references, and estimation package bindings.
 It must not include raw Result JSON, local paths, allocation details, operator-only environment details, or non-public input/source information.

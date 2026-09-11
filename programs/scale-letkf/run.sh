@@ -1,10 +1,15 @@
 #!/bin/bash
+# shellcheck disable=SC2155
 set -e
 system="$1"
 nodes="$2"
-mkdir -p results && > results/result
+TOPDIR="${PWD}"
+mkdir -p results && : > results/result
 
 source "${PWD}/scripts/bk_functions.sh"
+export BK_INPUT_INFO_FILE="${TOPDIR}/results/input_info.json"
+export BK_INPUT_INFO_ITEMS_FILE="${TOPDIR}/results/.input_info_items.jsonl"
+bk_reset_input_info
 
 case "$system" in
   Fugaku|FugakuCN)
@@ -60,6 +65,22 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-128x128-fugaku-config \
+          --result-exp SC23_128x128 \
+          --path test/benchmark.Fugaku_128x128 \
+          --recipe "Benchmark configuration copied from the source repository artifacts."
+        bk_record_input \
+          --dataset-id scale-letkf-scale-database \
+          --type archive \
+          --result-exp SC23_128x128 \
+          --recipe "SCALE database archive expanded before the benchmark run."
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-part1-20240410 \
+          --version 20240410 \
+          --type archive \
+          --result-exp SC23_128x128 \
+          --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
         bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes"  --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
       75)
@@ -102,6 +123,22 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-1280x1280-fugaku-config \
+          --result-exp SC23_1280x1280 \
+          --path test/benchmark.Fugaku_1280x1280 \
+          --recipe "Benchmark configuration copied from the source repository artifacts."
+        bk_record_input \
+          --dataset-id scale-letkf-scale-database \
+          --type archive \
+          --result-exp SC23_1280x1280 \
+          --recipe "SCALE database archive expanded before the benchmark run."
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-part1-20240410 \
+          --version 20240410 \
+          --type archive \
+          --result-exp SC23_1280x1280 \
+          --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
         bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
     esac
@@ -160,6 +197,22 @@ case "$system" in
         elapse_letkf=$elapse
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-128x128-rc-gh200-config \
+          --result-exp SC23_128x128 \
+          --path test/benchmark.RC_GH200_128x128 \
+          --recipe "Benchmark configuration copied from the source repository artifacts."
+        bk_record_input \
+          --dataset-id scale-letkf-scale-database \
+          --type archive \
+          --result-exp SC23_128x128 \
+          --recipe "SCALE database archive expanded before the benchmark run."
+        bk_record_input \
+          --dataset-id scale-letkf-sc23-part1-20240410 \
+          --version 20240410 \
+          --type archive \
+          --result-exp SC23_128x128 \
+          --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
         bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" --numproc-node 12 --nthreads 1 >> ../results/result
       ;;
     esac

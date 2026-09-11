@@ -201,9 +201,232 @@ build_source_info_block() {
   printf '%s' "null"
 }
 
+github_owner_repo_from_url() {
+  local url="$1"
+  local path
+  local owner
+  local repo
+  local rest
+
+  case "$url" in
+    https://github.com/*) ;;
+    *) return 1 ;;
+  esac
+
+  path="${url#https://github.com/}"
+  path="${path%%\?*}"
+  path="${path%%#*}"
+  path="${path%/}"
+  path="${path%.git}"
+  IFS=/ read -r owner repo rest <<< "$path"
+
+  if [ -z "$owner" ] || [ -z "$repo" ] || [ -n "$rest" ]; then
+    return 1
+  fi
+  case "$owner" in
+    *[!A-Za-z0-9.-]*|.*|*..*|*-) return 1 ;;
+  esac
+  case "$repo" in
+    *[!A-Za-z0-9._-]*|.*|*..*) return 1 ;;
+  esac
+
+  printf '%s/%s' "$owner" "$repo"
+}
+
+github_public_repo_confirmed() {
+  local url="$1"
+  local owner_repo
+  local response
+
+  if [ "${BK_PUBLIC_ACCESS_CHECK:-1}" = "0" ]; then
+    return 1
+  fi
+  command -v curl >/dev/null 2>&1 || return 1
+  owner_repo=$(github_owner_repo_from_url "$url") || return 1
+
+  response=$(
+    curl -q -f -sS \
+      --connect-timeout "${BK_PUBLIC_ACCESS_CHECK_CONNECT_TIMEOUT:-5}" \
+      --max-time "${BK_PUBLIC_ACCESS_CHECK_TIMEOUT:-15}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "https://api.github.com/repos/${owner_repo}" 2>/dev/null
+  ) || return 1
+
+  printf '%s' "$response" | jq -e '
+    type == "object"
+    and .private == false
+    and ((.visibility // "public") == "public")
+  ' >/dev/null 2>&1
+}
+
+gitlab_project_path_from_url() {
+  local url="$1"
+  local path
+  local segment
+  local -a segments
+
+  case "$url" in
+    https://gitlab.com/*) ;;
+    *) return 1 ;;
+  esac
+
+  path="${url#https://gitlab.com/}"
+  path="${path%%\?*}"
+  path="${path%%#*}"
+  path="${path%/}"
+  path="${path%.git}"
+  IFS=/ read -r -a segments <<< "$path"
+
+  if [ "${#segments[@]}" -lt 2 ]; then
+    return 1
+  fi
+  for segment in "${segments[@]}"; do
+    if [ -z "$segment" ]; then
+      return 1
+    fi
+    case "$segment" in
+      "."|".."|"-"|*[!A-Za-z0-9._-]*|.*|*..*) return 1 ;;
+    esac
+  done
+
+  printf '%s' "$path"
+}
+
+gitlab_project_api_id_from_url() {
+  local url="$1"
+  local project_path
+
+  project_path=$(gitlab_project_path_from_url "$url") || return 1
+  jq -nr --arg project_path "$project_path" '$project_path | @uri'
+}
+
+gitlab_public_repo_confirmed() {
+  local url="$1"
+  local project_id
+  local response
+
+  if [ "${BK_PUBLIC_ACCESS_CHECK:-1}" = "0" ]; then
+    return 1
+  fi
+  command -v curl >/dev/null 2>&1 || return 1
+  project_id=$(gitlab_project_api_id_from_url "$url") || return 1
+
+  response=$(
+    curl -q -f -sS \
+      --connect-timeout "${BK_PUBLIC_ACCESS_CHECK_CONNECT_TIMEOUT:-5}" \
+      --max-time "${BK_PUBLIC_ACCESS_CHECK_TIMEOUT:-15}" \
+      "https://gitlab.com/api/v4/projects/${project_id}" 2>/dev/null
+  ) || return 1
+
+  printf '%s' "$response" | jq -e '
+    type == "object"
+    and .visibility == "public"
+  ' >/dev/null 2>&1
+}
+
+strip_public_access_checks() {
+  jq -cS '
+    def strip_check:
+      del(
+        .public_access_check,
+        .public_access_confirmed,
+        .public_access_verified,
+        .publicly_accessible
+      );
+    strip_check
+    | if (.inputs | type) == "array" then
+        .inputs |= map(if type == "object" then strip_check else . end)
+      else
+        .
+      end
+  '
+}
+
+public_access_check_for_url() {
+  local url="$1"
+
+  if github_public_repo_confirmed "$url"; then
+    jq -cn '{confirmed: true, method: "github_rest_api_anonymous", host: "github.com"}'
+    return 0
+  fi
+  if gitlab_public_repo_confirmed "$url"; then
+    jq -cn '{confirmed: true, method: "gitlab_rest_api_anonymous", host: "gitlab.com"}'
+    return 0
+  fi
+  return 1
+}
+
+annotate_public_access_for_source_info() {
+  local json="$1"
+  local repo_url
+  local public_access_check
+
+  if [ -z "$json" ] || [ "$json" = "null" ]; then
+    printf '%s' "$json"
+    return 0
+  fi
+
+  json=$(printf '%s' "$json" | strip_public_access_checks) || return 1
+  repo_url=$(printf '%s' "$json" | jq -r '
+    if type == "object" and .source_type == "git" then (.repo_url // "") else "" end
+  ')
+  if public_access_check=$(public_access_check_for_url "$repo_url"); then
+    printf '%s' "$json" | jq -cS --argjson check "$public_access_check" \
+      '. + {public_access_check: $check}'
+    return 0
+  fi
+
+  printf '%s' "$json"
+}
+
+annotate_public_access_for_input_info() {
+  local json="$1"
+  local input_count
+  local index
+  local input_url
+  local public_access_check
+
+  if [ -z "$json" ] || [ "$json" = "null" ]; then
+    printf '%s' "$json"
+    return 0
+  fi
+
+  json=$(printf '%s' "$json" | strip_public_access_checks) || return 1
+
+  input_url=$(printf '%s' "$json" | jq -r '
+    if type == "object" and (.inputs | type) != "array" then
+      (.public_url // .source_url // .archive_url // "")
+    else
+      ""
+    end
+  ')
+  if public_access_check=$(public_access_check_for_url "$input_url"); then
+    json=$(printf '%s' "$json" | jq -cS --argjson check "$public_access_check" \
+      '. + {public_access_check: $check}') || return 1
+  fi
+
+  input_count=$(printf '%s' "$json" | jq -r 'if (.inputs | type) == "array" then (.inputs | length) else 0 end')
+  for (( index=0; index<input_count; index++ )); do
+    input_url=$(printf '%s' "$json" | jq -r --argjson index "$index" '
+      .inputs[$index] | (.public_url // .source_url // .archive_url // "")
+    ')
+    if public_access_check=$(public_access_check_for_url "$input_url"); then
+      json=$(printf '%s' "$json" | jq -cS --argjson index "$index" --argjson check "$public_access_check" \
+        '.inputs[$index] += {public_access_check: $check}') || return 1
+    fi
+  done
+
+  printf '%s' "$json"
+}
+
 # Read source_info.env if it exists (written by bk_fetch_source in build stage).
 # It is parsed as data and converted with jq; it is never sourced as shell.
 source_info_block=$(build_source_info_block)
+if ! source_info_block=$(annotate_public_access_for_source_info "$source_info_block"); then
+  echo "ERROR: failed to annotate source_info public access metadata" >&2
+  exit 1
+fi
 
 build_cache_field() {
   local prefix="$1"
@@ -526,7 +749,7 @@ build_input_info_block() {
     return 1
   fi
 
-  printf '%s' "$input_info_json"
+  annotate_public_access_for_input_info "$input_info_json"
 }
 
 if ! input_info_block=$(build_input_info_block); then
