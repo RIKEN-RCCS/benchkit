@@ -11,7 +11,11 @@ from utils.result_detail_view import (
     build_cache_digest_help,
     build_cache_host_environment_help,
 )
-from utils.result_records import format_numeric_value, summarize_input_info
+from utils.result_records import (
+    format_numeric_value,
+    input_info_items_for_result,
+    summarize_input_info,
+)
 from utils.trigger_display import summarize_execution_trigger
 
 
@@ -28,15 +32,15 @@ def build_result_evidence_packet(
 ) -> str:
     """Build a Markdown evidence packet for one Result JSON."""
     packet = _MarkdownBuilder()
-    packet.heading(1, "Benchkit Result Evidence Packet")
+    packet.heading(1, "CX Result Evidence Packet")
     packet.paragraph(
-        "This Evidence Packet is a portable review note for one Benchkit "
-        "benchmark result. Use it as the starting point for investigating "
-        "reproducibility, unexpected performance changes, source and input "
-        "provenance, build-cache reuse, and profiling or estimation evidence."
+        "This Evidence Packet is a portable review note for one benchmark "
+        "result. Use it as the starting point for investigating reproducibility, "
+        "unexpected performance changes, source and input provenance, "
+        "build-cache reuse, and profiling or estimation evidence."
     )
     packet.paragraph(
-        "It is written for readers who may not know the surrounding Benchkit "
+        "It is written for readers who may not know the surrounding benchmark "
         "operation. Start from the Result, Source, Input, Quality, Profiling, "
         "and Build Cache sections below. Treat missing, declared-only, or "
         "unverifiable evidence as follow-up questions for the application or "
@@ -87,7 +91,7 @@ def build_result_evidence_packet(
         ("Input status", input_summary["label"]),
         ("Summary", input_summary["summary"]),
     ])
-    input_rows = _input_rows(result.get("input_info"))
+    input_rows = _input_rows(result)
     if input_rows:
         packet.bullets(input_rows)
 
@@ -201,12 +205,8 @@ def _safe_url_or_placeholder(value: str) -> str:
     return value
 
 
-def _input_rows(input_info: Any) -> list[str]:
-    if not isinstance(input_info, dict) or not input_info:
-        return []
-    inputs = input_info.get("inputs")
-    input_items = inputs if isinstance(inputs, list) and inputs else [input_info]
-
+def _input_rows(result: dict[str, Any]) -> list[str]:
+    input_items = input_info_items_for_result(result)
     rows = []
     for index, item in enumerate(input_items, start=1):
         if not isinstance(item, dict):
@@ -217,6 +217,11 @@ def _input_rows(input_info: Any) -> list[str]:
             "dataset_version",
             "kind",
             "source",
+            "parameter_set_id",
+            "result_exp",
+            "command",
+            "arguments",
+            "parameters",
             "repo_relative_path",
             "verification_status",
             "manifest_digest",

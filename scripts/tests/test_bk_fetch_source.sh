@@ -75,6 +75,28 @@ jq -e --arg commit "$commit_one" '
 ' results/result0.json >/dev/null
 popd >/dev/null
 
+mkdir -p "${TMP_DIR}/git-recorded-work"
+pushd "${TMP_DIR}/git-recorded-work" >/dev/null
+write_minimal_result
+bk_write_source_info_env \
+  git \
+  "${TMP_DIR}/origin.git" \
+  main \
+  "$commit_one" \
+  "" "" "" "" "" \
+  main \
+  branch \
+  "$commit_one"
+bk_fetch_recorded_source "${TMP_DIR}/origin.git" checkout main
+test "$(git -C checkout rev-parse HEAD)" = "$commit_one"
+bash "${REPO_DIR}/scripts/result.sh" app TestSystem native build run 123 >/dev/null
+jq -e --arg commit "$commit_one" '
+  .source_info.source_type == "git" and
+  .source_info.branch == "main" and
+  .source_info.resolved_commit == $commit
+' results/result0.json >/dev/null
+popd >/dev/null
+
 mkdir -p "${TMP_DIR}/git-mismatch"
 pushd "${TMP_DIR}/git-mismatch" >/dev/null
 write_minimal_result

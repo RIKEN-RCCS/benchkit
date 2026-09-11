@@ -19,6 +19,7 @@ FOM:1.25 FOM_unit:s FOM_version:contract-v1 Exp:CASE0 node_count:2 numproc_node:
 SECTION:solve time:1.0
 SECTION:io time:0.25
 OVERLAP:solve,io time:0.10
+FOM:2.50 FOM_unit:s FOM_version:contract-v1 Exp:CASE1 node_count:2 numproc_node:4 nthreads:8 description:smoke confidential:false
 EOF
 
 cat > "${TMP_DIR}/results/source_info.env" <<'EOF'
@@ -39,8 +40,20 @@ cat > "${TMP_DIR}/results/input_info.json" <<'EOF'
       "dataset_id": "demo-case0",
       "dataset_version": "2026-09",
       "kind": "repo-local-input",
+      "result_exp": "CASE0",
       "verification_status": "covered_by_source_commit",
       "repo_relative_path": "inputs/demo-case0"
+    },
+    {
+      "dataset_id": "demo-case1",
+      "dataset_version": "2026-09",
+      "kind": "runtime-parameters",
+      "source": "inline",
+      "parameter_set_id": "CASE1",
+      "result_exp": "CASE1",
+      "command": "./demo",
+      "arguments": ["--case", "1"],
+      "verification_status": "self_contained"
     }
   ]
 }
@@ -132,6 +145,7 @@ bash "${REPO_DIR}/scripts/result.sh" demoapp DemoSystem cross demoapp_DemoSystem
 popd >/dev/null
 
 RESULT_JSON="${TMP_DIR}/results/result0.json"
+RESULT_JSON1="${TMP_DIR}/results/result1.json"
 test -f "${RESULT_JSON}"
 
 jq -e '
@@ -162,7 +176,9 @@ jq -e '
   .source_info.ref_kind == "branch" and
   .source_info.resolved_commit == "abcdef1234567890abcdef1234567890abcdef12" and
   .input_info.schema_version == 1 and
+  (.input_info.inputs | length) == 1 and
   .input_info.inputs[0].dataset_id == "demo-case0" and
+  .input_info.inputs[0].result_exp == "CASE0" and
   .input_info.inputs[0].verification_status == "covered_by_source_commit" and
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
@@ -173,6 +189,15 @@ jq -e '
   .pipeline_timing.run_time_scope == "job" and
   (.pipeline_timing | has("profiled_run_included") | not)
 ' "${RESULT_JSON}" >/dev/null
+
+jq -e '
+  .Exp == "CASE1" and
+  .input_info.schema_version == 1 and
+  (.input_info.inputs | length) == 1 and
+  .input_info.inputs[0].dataset_id == "demo-case1" and
+  .input_info.inputs[0].kind == "runtime-parameters" and
+  .input_info.inputs[0].arguments == ["--case", "1"]
+' "${RESULT_JSON1}" >/dev/null
 
 jq -e '
   .fom_breakdown.sections[0].name == "solve" and

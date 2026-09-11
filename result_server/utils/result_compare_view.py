@@ -6,6 +6,7 @@ from utils.result_records import (
     build_compare_headline,
     format_numeric_value,
     format_result_timestamp,
+    input_info_items_for_result,
     load_result_json_batch,
     short_identifier,
     summarize_result_quality,
@@ -250,19 +251,15 @@ def _source_summary(source_info):
 def _input_summary(data, stats):
     status = stats.get("input_info_status") or "none"
     label = stats.get("input_info_label") or "None"
-    input_info = data.get("input_info")
-    descriptors = _input_descriptors(input_info)
+    descriptors = _input_descriptors(data)
     display = label if not descriptors else f"{label}: {'; '.join(descriptors[:2])}"
     if len(descriptors) > 2:
         display = f"{display}; +{len(descriptors) - 2} more"
     return {"display": display, "key": (status, tuple(descriptors))}
 
 
-def _input_descriptors(input_info):
-    if not isinstance(input_info, dict) or not input_info:
-        return []
-    inputs = input_info.get("inputs")
-    items = inputs if isinstance(inputs, list) and inputs else [input_info]
+def _input_descriptors(data):
+    items = input_info_items_for_result(data)
     descriptors = []
     for item in items:
         if not isinstance(item, dict):

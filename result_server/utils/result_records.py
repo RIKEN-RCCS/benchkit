@@ -228,8 +228,15 @@ def summarize_input_info(data):
             "summary": "No input_info object is stored for this result.",
         }
 
-    inputs = input_info.get("inputs")
-    input_items = inputs if isinstance(inputs, list) and inputs else [input_info]
+    input_items = input_info_items_for_result(data)
+    if not input_items:
+        return {
+            "present": False,
+            "status": "none",
+            "label": "None",
+            "summary": "No matching input_info item is stored for this result.",
+        }
+
     ranks = {
         "declared": 1,
         "covered": 2,
@@ -263,12 +270,62 @@ def summarize_input_info(data):
     }
 
 
+def input_info_items_for_result(data):
+    if not isinstance(data, dict):
+        return []
+    input_info = data.get("input_info")
+    if not isinstance(input_info, dict) or not input_info:
+        return []
+
+    inputs = input_info.get("inputs")
+    input_items = inputs if isinstance(inputs, list) and inputs else [input_info]
+    result_exp = str(data.get("Exp") or data.get("exp") or "").strip()
+
+    scoped_items = []
+    matching_or_unscoped_items = []
+    for item in input_items:
+        scope_values = _input_item_result_scope_values(item)
+        if scope_values:
+            scoped_items.append(item)
+            if result_exp and result_exp in scope_values:
+                matching_or_unscoped_items.append(item)
+        else:
+            matching_or_unscoped_items.append(item)
+
+    if scoped_items:
+        return matching_or_unscoped_items
+    return input_items
+
+
+def _input_item_result_scope_values(item):
+    if not isinstance(item, dict):
+        return []
+
+    values = []
+    for key in ("result_exp", "Exp", "exp"):
+        value = item.get(key)
+        if value not in (None, ""):
+            values.append(str(value).strip())
+
+    for key in ("result_scope", "result"):
+        scope = item.get(key)
+        if not isinstance(scope, dict):
+            continue
+        for scope_key in ("Exp", "exp", "experiment"):
+            value = scope.get(scope_key)
+            if value not in (None, ""):
+                values.append(str(value).strip())
+
+    return [value for value in values if value]
+
+
 def _classify_input_info_item(item, has_source_commit):
     if not isinstance(item, dict):
         return "declared"
 
     verification_status = str(item.get("verification_status") or "").strip().lower()
     source = str(item.get("source") or "").strip().lower()
+    kind = str(item.get("kind") or "").strip().lower()
     digest_fields = (
         "manifest_digest",
         "content_digest",
@@ -295,6 +352,16 @@ def _classify_input_info_item(item, has_source_commit):
         and (source == "source_info" or verification_status == "covered_by_source_commit")
     )
     if repo_local_covered:
+        return "covered"
+
+    runtime_parameters_covered = (
+        kind in {"runtime-parameters", "inline-parameters"}
+        and source in {"inline", "self-contained", "self_contained"}
+        and verification_status in {"self_contained", "self-contained"}
+        and bool(item.get("command"))
+        and isinstance(item.get("arguments"), list)
+    )
+    if runtime_parameters_covered:
         return "covered"
 
     public_source_covered = (
