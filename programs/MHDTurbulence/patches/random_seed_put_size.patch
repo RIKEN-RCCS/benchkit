@@ -1,0 +1,50 @@
+diff --git a/src_f90_acc_device/main.f90 b/src_f90_acc_device/main.f90
+index 669188c..c808716 100644
+--- a/src_f90_acc_device/main.f90
++++ b/src_f90_acc_device/main.f90
+@@ -123,7 +123,7 @@ subroutine GenerateProblem
+   real(8):: pi
+   real(8):: den, B0, rho1, rho2, dv, wid, sig
+  
+-  integer,dimension(2) :: seed
++  integer,dimension(8) :: seed
+   real(8),dimension(1) :: rnum
+   real(8),parameter :: rrv =0.0d-2
+   real(8):: dv_harm
+@@ -169,9 +169,10 @@ subroutine GenerateProblem
+ 
+   if(myid_w == 0) write(6,*) rrv*100.0d0 &
+        & , "% of Randam Perturbation imposed on velocity"
++  seed = 0
+   seed(1) = 1
+   seed(2) = 1 + myid_w*in*jn*kn
+-  call random_seed(PUT=seed(1:2))
++  call random_seed(PUT=seed)
+   
+ ! pert     
+   do k=ks,ke 
+diff --git a/src_f90_omp_host/main.f90 b/src_f90_omp_host/main.f90
+index 62cc30b..d27d395 100644
+--- a/src_f90_omp_host/main.f90
++++ b/src_f90_omp_host/main.f90
+@@ -120,7 +120,7 @@ subroutine GenerateProblem
+   real(8):: pi
+   real(8):: den, B0, rho1, rho2, dv, wid, sig
+  
+-  integer,dimension(2) :: seed
++  integer,dimension(8) :: seed
+   real(8),dimension(1) :: rnum
+   real(8),parameter :: rrv =0.0d-2
+   
+@@ -163,9 +163,10 @@ subroutine GenerateProblem
+ 
+   if(myid_w == 0) write(6,*) rrv*100.0d0 &
+        & , "% of Randam Perturbation imposed on velocity"
++  seed = 0
+   seed(1) = 1
+   seed(2) = 1 + myid_w*in*jn*kn
+-  call random_seed(PUT=seed(1:2))
++  call random_seed(PUT=seed)
+   
+ ! pert     
+   do k=ks,ke 

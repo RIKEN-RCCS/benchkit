@@ -36,6 +36,23 @@ case "$system" in
 	echo "Executable is "${BIN}" and copied to "${artdir}
 	cp ../exe/$BIN ../../${artdir}
 	;;
+    RIKYU)
+	module load nvhpc-hpcx-cuda13/26.5
+	# Portability fixes; skipped when already upstream
+	grep -q "integer,dimension(8) :: seed" src_f90_omp_host/main.f90 || \
+	    patch -p1 < ../programs/${code}/patches/random_seed_put_size.patch
+	grep -q "acc_init(acc_device_nvidia)" src_f90_acc_device/main.f90 || \
+	    patch -p1 < ../programs/${code}/patches/acc_init_before_mpi.patch
+	# ntiles is compile-time: one binary per list.csv rank count
+	cd src_f90_acc_device
+	for tiles in 1 4 8; do
+	    make clean >/dev/null 2>&1 || true
+	    sed -i "s/ntiles(3) = \[.*,.*,.*\]/ntiles(3) = [ ${tiles},1,1 ]/" config.f90
+	    make > /dev/null
+	    echo "Executable is "${BIN}".t"${tiles}" and copied to "${artdir}
+	    cp ../exe/$BIN ../../${artdir}/${BIN}.t${tiles}
+	done
+	;;
 # in the future, we may add this
 #    MiyabiG/OpenMP)
 #	cd src_f90_omp_device
