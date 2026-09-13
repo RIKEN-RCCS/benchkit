@@ -208,6 +208,10 @@
 </div>
 {% endif %}
 
+{% if timing_observation_rows %}
+{{ render_titled_key_value_table("Timing Observations", timing_observation_rows, "meta-table") }}
+{% endif %}
+
 {% if build_rows %}
 {{ render_titled_key_value_table("Build Information", build_rows, "build-table") }}
 {% endif %}

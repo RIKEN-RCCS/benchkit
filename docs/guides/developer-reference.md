@@ -279,4 +279,8 @@ Portal quality visibility currently lives in:
 - result detail quality rows
 - `/results/usage` current-state quality summaries
 
-Treat missing `source_info`, `fom_breakdown`, or artifact references as internal improvement candidates, not upload-time or pull-request gates.
+Treat missing `source_info`, `fom_breakdown`, or artifact references as follow-up improvement candidates, not upload-time or pull-request gates.
+Detailed timing artifacts may be recorded through `timing_observations` before
+they are promoted to `fom_breakdown`; do not treat every detailed timer or
+profiler region as an additive estimation section without an app-specific
+mapping review.

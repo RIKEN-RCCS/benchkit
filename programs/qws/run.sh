@@ -15,6 +15,7 @@ qws_case1_args=(32 6 4 3 1 1 1 2 -1 -1 6 50)
 qws_case7_args=(32 6 4 3 1 2 2 2 -1 -1 6 50)
 
 source "${PWD}/scripts/bk_functions.sh"
+source "${PWD}/programs/qws/parse_timing.sh"
 qws_profiler_tool=$(bk_resolve_profiler_tool fapp QWS_PROFILER_TOOL)
 qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
 # QWS synthetic estimation metadata is disabled for production runs. Keep
@@ -23,6 +24,7 @@ qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
 # source "${PWD}/programs/qws/estimate.sh"
 
 mkdir -p results && : > results/result
+bk_reset_timing_observations
 
 record_qws_runtime_parameter_inputs() {
     bk_reset_input_info
@@ -54,9 +56,21 @@ print_results() {
     local outfile=$1
     local exp=$2
     local np=$3
+    local artifact_file="../results/qws_timing_${exp}.json"
+    local artifact_path="results/qws_timing_${exp}.json"
     ./check.sh "$outfile" "data/$exp"
     local fom
-    fom=$(grep etime "$outfile" | awk 'NR==2{printf("%5.3f\n",$5)}')
+    fom=$(qws_extract_fom_from_log "$outfile")
+    qws_write_timing_artifact "$outfile" "$exp" "$artifact_file" "$fom"
+    if [[ -f "$artifact_file" ]]; then
+        BK_TIMING_OBSERVATIONS_FILE="../results/timing_observations.json" \
+        BK_TIMING_OBSERVATION_ITEMS_FILE="../results/.timing_observation_items.jsonl" \
+            bk_record_timing_observation \
+                --artifact "$artifact_path" \
+                --artifact-file "$artifact_file" \
+                --result-exp "$exp" \
+                --producer qws
+    fi
     bk_emit_result --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
     # Disabled: this emitted synthetic section timings and dummy estimation
     # artifacts. Re-enable only after QWS provides real app-side timings.

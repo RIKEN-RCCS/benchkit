@@ -119,6 +119,28 @@ FULL_RESULT = {
             "container image SHA-256 matched",
         ],
     },
+    "timing_observations": {
+        "schema_version": 1,
+        "observations": [
+            {
+                "id": "qws-case0-timers",
+                "kind": "detailed-timing",
+                "producer": "qws",
+                "format": "qws_timing_observation/v1",
+                "result_exp": "CASE0",
+                "artifact": {
+                    "type": "file_reference",
+                    "path": "results/qws_timing_CASE0.json",
+                },
+                "summary": {
+                    "timer_count": 14,
+                    "schema_record_count": 3,
+                    "has_overlap_probe_schema": True,
+                },
+                "note": "not projected to fom_breakdown",
+            }
+        ],
+    },
 }
 
 FULL_QUALITY = {
@@ -182,6 +204,12 @@ class TestResultDetailTemplate:
         assert "build inputs hash matched" in html
         assert "rccs-cloud" in html
         assert "slurm" in html
+        assert "Timing Observations" in html
+        assert "qws-case0-timers" in html
+        assert "producer=qws" in html
+        assert "artifact=results/qws_timing_CASE0.json" in html
+        assert "timers=14" in html
+        assert "overlap probe schema=yes" in html
         assert "Build Tools" in html
         assert "gcc (GCC) 11.5.0" in html
         assert "Back to Results" in html
@@ -205,6 +233,8 @@ class TestResultDetailTemplate:
         assert "Cached Binary Created At" not in html
         assert "Allocation Project ID" not in html
         assert "Runner" not in html
+        assert "Timing Observations" not in html
+        assert "qws_timing_CASE0" not in html
         assert "rccs-cloud" not in html
         assert "gh200-runner" not in html
 

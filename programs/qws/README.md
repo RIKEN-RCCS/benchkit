@@ -10,6 +10,12 @@ depend on QWS-local variables or dummy section names.
 the section names and the section-package mapping locally. QWS production runs
 do not emit section timing metadata until those timings are measured by QWS
 itself.
+`parse_timing.sh` records the current QWS timing table and optional
+`QWS_TIMER_SCHEMA_*` markers as `results/qws_timing_<Exp>.json` artifacts when
+they are present, then registers them through Benchkit's common
+`timing_observations` manifest. These artifacts are measurement evidence only;
+they are not converted into `SECTION:` / `OVERLAP:` records until the QWS-owned
+timer IDs and overlap windows are reviewed as reusable section metadata.
 
 Current reference sections are:
 
@@ -48,3 +54,7 @@ Common Benchkit code should handle:
 - section and overlap composition
 - current/future system Estimate JSON construction
 - result-server artifact upload and portal rendering
+
+Benchkit-local QWS glue may normalize QWS output into app artifacts, but should
+not decide that a nested or inclusive timer is an additive section without a
+QWS-side mapping.
