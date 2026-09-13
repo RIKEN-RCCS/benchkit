@@ -59,6 +59,44 @@ cat > "${TMP_DIR}/results/input_info.json" <<'EOF'
 }
 EOF
 
+cat > "${TMP_DIR}/results/timing_observations.json" <<'EOF'
+{
+  "schema_version": 1,
+  "observations": [
+    {
+      "id": "demo-case0-timers",
+      "kind": "detailed-timing",
+      "producer": "demoapp",
+      "format": "demo_timer_table/v1",
+      "result_exp": "CASE0",
+      "artifact": {
+        "type": "file_reference",
+        "path": "results/demo_timing_CASE0.json"
+      },
+      "summary": {
+        "timer_count": 3,
+        "schema_record_count": 1
+      }
+    },
+    {
+      "id": "demo-case1-timers",
+      "kind": "detailed-timing",
+      "producer": "demoapp",
+      "format": "demo_timer_table/v1",
+      "result_exp": "CASE1",
+      "artifact": {
+        "type": "file_reference",
+        "path": "results/demo_timing_CASE1.json"
+      },
+      "summary": {
+        "timer_count": 4,
+        "schema_record_count": 0
+      }
+    }
+  ]
+}
+EOF
+
 cat > "${TMP_DIR}/results/pipeline_timing.json" <<'EOF'
 {
   "build_time": "12",
@@ -180,6 +218,11 @@ jq -e '
   .input_info.inputs[0].dataset_id == "demo-case0" and
   .input_info.inputs[0].result_exp == "CASE0" and
   .input_info.inputs[0].verification_status == "covered_by_source_commit" and
+  .timing_observations.schema_version == 1 and
+  (.timing_observations.observations | length) == 1 and
+  .timing_observations.observations[0].id == "demo-case0-timers" and
+  .timing_observations.observations[0].artifact.path == "results/demo_timing_CASE0.json" and
+  .timing_observations.observations[0].summary.timer_count == 3 and
   .pipeline_timing.build_time == 12 and
   .pipeline_timing.queue_time == 0 and
   .pipeline_timing.queue_time_source == "not_measured" and
@@ -196,7 +239,10 @@ jq -e '
   (.input_info.inputs | length) == 1 and
   .input_info.inputs[0].dataset_id == "demo-case1" and
   .input_info.inputs[0].kind == "runtime-parameters" and
-  .input_info.inputs[0].arguments == ["--case", "1"]
+  .input_info.inputs[0].arguments == ["--case", "1"] and
+  (.timing_observations.observations | length) == 1 and
+  .timing_observations.observations[0].id == "demo-case1-timers" and
+  .timing_observations.observations[0].summary.timer_count == 4
 ' "${RESULT_JSON1}" >/dev/null
 
 jq -e '
@@ -241,6 +287,30 @@ jq -e '
   .execution_trigger.type == "watch_event" and
   .execution_trigger.reason == "repo_ref:https://example.test/demoapp.git@main"
 ' "${RESULT_JSON}" >/dev/null
+
+cat > "${TMP_DIR}/results/timing_observations.json" <<'EOF'
+{
+  "schema_version": 1,
+  "observations": [
+    {
+      "id": "unsafe-timing",
+      "artifact": {
+        "type": "file_reference",
+        "path": "../outside-timing.json"
+      },
+      "summary": {}
+    }
+  ]
+}
+EOF
+
+pushd "${TMP_DIR}" >/dev/null
+if bash "${REPO_DIR}/scripts/result.sh" demoapp DemoSystem cross demoapp_DemoSystem_build demoapp_DemoSystem_run 4242 >/dev/null 2>result-error.log; then
+  echo "result.sh accepted an unsafe timing observation artifact path" >&2
+  exit 1
+fi
+grep -q "safe results/.*\\.json artifacts" result-error.log
+popd >/dev/null
 
 PUBLIC_TMP_DIR="${TMP_DIR}/public-access"
 FAKE_BIN="${PUBLIC_TMP_DIR}/bin"

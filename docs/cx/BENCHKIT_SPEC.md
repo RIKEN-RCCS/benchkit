@@ -532,7 +532,32 @@ A site-local path is location information, not a durable input identity.
 Large datasets and collaboration-derived inputs may still be staged on site-local shared storage, but Result provenance should prefer dataset identity, recipe, manifest, and digest over paths.
 Detailed local paths should not be exposed on the public surface unless they are necessary.
 
-### 7.4.1 Public Reuse Packets
+### 7.4.1 Detailed Timing Observations
+
+Benchkit は、アプリが出力する詳細 timer table や profiler から得た timing evidence を、任意の `timing_observations` として Result JSON に保持できることが望ましい。
+これは `fom_breakdown` とは別の観測レイヤである。
+`fom_breakdown.sections` / `fom_breakdown.overlaps` は、推定や reuse に使うと決めた section / overlap 投影を表す。
+一方、`timing_observations` は、その前段の詳細測定 artifact と要約を表し、未レビューの nested timer、inclusive timer、overlap window を additive section として扱わない。
+
+`timing_observations` は最初の段階では任意項目であり、存在しない result を ingest failure として扱わない。
+同じ job から複数 result が出る場合は、各 observation に `result_exp` などの result scope を添えてよい。
+Result JSON には小さな summary と file reference を置き、巨大な profiler report や詳細 table は artifact として保持する。
+
+将来、アプリ変更なしで詳細 timing を採取する場合は、profiler adapter が同じ `timing_observations` 経路へ summary と artifact reference を渡す。
+その observation を `fom_breakdown` へ昇格するかどうかは、app / profiler ごとの mapping review によって決める。
+
+Benchkit should also preferably be able to retain detailed timer tables and profiler-derived timing evidence as optional `timing_observations` in Result JSON.
+This is an observation layer separate from `fom_breakdown`.
+`fom_breakdown.sections` and `fom_breakdown.overlaps` represent section or overlap projections intentionally selected for estimation or reuse, while `timing_observations` records detailed measurement artifacts and summaries before that projection is reviewed.
+
+At the initial stage, `timing_observations` is optional, and results without it are not treated as ingest failures.
+When one job emits multiple results, each observation may carry a result scope such as `result_exp`.
+Result JSON should keep a compact summary and file reference; large profiler reports or full timer tables should remain artifacts.
+
+For app-change-free collection, profiler adapters may feed summaries and artifact references into the same `timing_observations` path.
+Promoting an observation into `fom_breakdown` remains a separate mapping review for the app or profiler output.
+
+### 7.4.2 Public Reuse Packets
 
 Benchkit は、公開可能な Result JSON から public-only reuse packet を生成できることが望ましい。
 これは raw Result JSON の代替ではなく、AI agent や人間が再利用可否を判断しやすいように、公開できる evidence だけを Markdown と machine-readable manifest へ投影するものである。

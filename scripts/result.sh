@@ -756,6 +756,51 @@ if ! input_info_block=$(build_input_info_block); then
   exit 1
 fi
 
+build_timing_observations_block() {
+  local timing_observations_file="results/timing_observations.json"
+
+  if [ ! -f "$timing_observations_file" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local timing_observations_json
+  if ! timing_observations_json=$(jq -cS '
+    def safe_artifact_path:
+      type == "string"
+      and startswith("results/")
+      and endswith(".json")
+      and (contains("\\") | not)
+      and (contains("/../") | not)
+      and (startswith("../") | not)
+      and (endswith("/..") | not);
+
+    if type == "object"
+      and (.observations | type) == "array"
+      and all(.observations[]; type == "object")
+      and all(.observations[]; (.artifact.path? | safe_artifact_path))
+    then
+      .
+    else
+      error("timing_observations must be a JSON object with safe observations")
+    end
+  ' "$timing_observations_file" 2>/dev/null); then
+    echo "ERROR: results/timing_observations.json must be a valid timing observations object with safe results/*.json artifacts" >&2
+    return 1
+  fi
+
+  if [ -z "$timing_observations_json" ] || [ "$timing_observations_json" = "null" ]; then
+    echo "ERROR: results/timing_observations.json must not be empty" >&2
+    return 1
+  fi
+
+  printf '%s' "$timing_observations_json"
+}
+
+if ! timing_observations_block=$(build_timing_observations_block); then
+  exit 1
+fi
+
 filter_input_info_block_for_result() {
   local result_exp="$1"
 
@@ -800,6 +845,45 @@ filter_input_info_block_for_result() {
         empty
       end
     end
+  ' 2>/dev/null || true
+}
+
+filter_timing_observations_block_for_result() {
+  local result_exp="$1"
+
+  if [ -z "$timing_observations_block" ]; then
+    printf '%s' ""
+    return 0
+  fi
+  if [ -z "$result_exp" ] || [ "$result_exp" = "null" ]; then
+    printf '%s' "$timing_observations_block"
+    return 0
+  fi
+
+  printf '%s' "$timing_observations_block" | jq -cS --arg exp "$result_exp" '
+    def scope_values:
+      [
+        .result_exp?,
+        .Exp?,
+        .exp?,
+        .result_scope?.Exp?,
+        .result_scope?.exp?,
+        .result_scope?.experiment?,
+        .result?.Exp?,
+        .result?.exp?,
+        .result?.experiment?
+      ]
+      | map(select(. != null and . != "") | tostring);
+
+    (.observations | map(select((scope_values | length) == 0 or (scope_values | index($exp))))) as $items
+    | (.observations | map(select((scope_values | length) > 0)) | length) as $scoped_count
+    | if ($items | length) > 0 then
+        .observations = $items
+      elif $scoped_count > 0 then
+        empty
+      else
+        .
+      end
   ' 2>/dev/null || true
 }
 
@@ -912,6 +996,14 @@ write_result_json() {
   \"input_info\": ${result_input_info_block}"
   fi
 
+  local timing_observations_json_block=""
+  local result_timing_observations_block=""
+  result_timing_observations_block=$(filter_timing_observations_block_for_result "$exp")
+  if [ -n "$result_timing_observations_block" ]; then
+    timing_observations_json_block=",
+  \"timing_observations\": ${result_timing_observations_block}"
+  fi
+
   # Attach the profiler summary that matches this FOM index. fapp exposes
   # counter events, while ncu exposes the Nsight Compute option preset.
   local profile_data_block=""
@@ -963,7 +1055,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${input_info_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}
+  "source_info": $source_info_block${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}
 }
 EOF
 

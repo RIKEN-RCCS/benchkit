@@ -111,6 +111,9 @@ def build_result_detail_context(
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": [] if public_surface else _build_quality_rows(quality),
         "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
+        "timing_observation_rows": (
+            [] if public_surface else _build_timing_observation_rows(result.get("timing_observations"))
+        ),
         "build_cache_rows": [] if public_surface else _build_build_cache_rows(result.get("build_cache")),
         "environment_rows": (
             [] if public_surface else _build_environment_rows(result.get("environment_snapshot"))
@@ -371,6 +374,60 @@ def _environment_snapshot_hash(environment_snapshot):
     if not isinstance(environment_snapshot, dict):
         return ""
     return str(environment_snapshot.get("hash") or "").strip()
+
+
+def _build_timing_observation_rows(timing_observations):
+    if not isinstance(timing_observations, dict):
+        return []
+
+    observations = timing_observations.get("observations")
+    if not isinstance(observations, list):
+        return []
+
+    rows = []
+    for index, observation in enumerate(observations, start=1):
+        if not isinstance(observation, dict):
+            continue
+        label = str(observation.get("id") or f"Observation {index}")
+        rows.append({"label": label, "value": _format_timing_observation(observation)})
+    return rows
+
+
+def _format_timing_observation(observation):
+    parts = []
+    for label, value in (
+        ("producer", observation.get("producer")),
+        ("kind", observation.get("kind")),
+        ("format", observation.get("format")),
+    ):
+        value = str(value or "").strip()
+        if value:
+            parts.append(f"{label}={value}")
+
+    artifact = observation.get("artifact")
+    artifact = artifact if isinstance(artifact, dict) else {}
+    artifact_path = str(artifact.get("path") or "").strip()
+    if artifact_path:
+        parts.append(f"artifact={artifact_path}")
+
+    summary = observation.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    timer_count = summary.get("timer_count")
+    schema_record_count = summary.get("schema_record_count")
+    if timer_count not in (None, ""):
+        parts.append(f"timers={timer_count}")
+    if schema_record_count not in (None, ""):
+        parts.append(f"schema records={schema_record_count}")
+    if summary.get("has_overlap_probe_schema") is True:
+        parts.append("overlap probe schema=yes")
+    elif summary.get("has_overlap_probe_schema") is False:
+        parts.append("overlap probe schema=no")
+
+    note = str(observation.get("note") or "").strip()
+    if note:
+        parts.append(note)
+
+    return "; ".join(parts) if parts else "recorded"
 
 
 def _build_scalar_rows(scalar_metrics):
