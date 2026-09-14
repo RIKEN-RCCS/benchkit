@@ -119,11 +119,20 @@ log_result_summary() {
   fi
 }
 
-is_safe_local_padata_path() {
+is_profile_archive_path() {
   local artifact_path="$1"
 
   case "$artifact_path" in
-    results/*.tgz|results/*.tar.gz) ;;
+    *.tgz|*.tar.gz) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_safe_local_measurement_artifact_path() {
+  local artifact_path="$1"
+
+  case "$artifact_path" in
+    results/*.tgz|results/*.tar.gz|results/*.json) ;;
     *) return 1 ;;
   esac
 
@@ -134,64 +143,65 @@ is_safe_local_padata_path() {
   [[ -f "$artifact_path" ]]
 }
 
-collect_padata_archives_for_result() {
+collect_measurement_artifacts_for_result() {
   local json_file="$1"
   local legacy_tgz_file="$2"
-  declare -A seen_archives=()
+  declare -A seen_artifacts=()
 
   if [[ -f "$legacy_tgz_file" ]]; then
-    seen_archives["$legacy_tgz_file"]=1
+    seen_artifacts["$legacy_tgz_file"]=1
     printf '%s\t%s\n' "$legacy_tgz_file" ""
   fi
 
   while IFS= read -r artifact_path; do
     [[ -n "$artifact_path" ]] || continue
-    if is_safe_local_padata_path "$artifact_path" && [[ -z "${seen_archives[$artifact_path]:-}" ]]; then
-      seen_archives["$artifact_path"]=1
+    if is_safe_local_measurement_artifact_path "$artifact_path" && [[ -z "${seen_artifacts[$artifact_path]:-}" ]]; then
+      seen_artifacts["$artifact_path"]=1
       printf '%s\t%s\n' "$artifact_path" "$artifact_path"
     fi
   done < <(jq -r '
-    (.fom_breakdown.sections // [])[]?
-    | (.artifacts // [])[]?
-    | select(.type == "file_reference")
-    | .path // empty
+    def file_reference_paths:
+      ((.fom_breakdown.sections // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
+      ((.fom_breakdown.overlaps // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
+      ((.timing_observations.observations // [])[]? | .artifact? | select(.type == "file_reference") | .path // empty);
+    file_reference_paths
   ' "$json_file" 2>/dev/null || true)
 }
 
-upload_padata_archive() {
-  local tgz_file="$1"
+upload_measurement_artifact() {
+  local artifact_file="$1"
   local uuid="$2"
   local timestamp="$3"
   local artifact_path="${4:-}"
   local response
 
-  echo "Uploading $tgz_file with UUID $uuid"
+  echo "Uploading measurement artifact $artifact_file with UUID $uuid"
   local curl_auth_args=()
   local curl_form_args=(
     -F "id=${uuid}"
     -F "timestamp=${timestamp}"
-    -F "file=@${tgz_file}"
+    -F "file=@${artifact_file}"
   )
   if [[ -n "$artifact_path" ]]; then
     curl_form_args+=(-F "artifact_path=${artifact_path}")
   fi
   bk_result_server_set_curl_args
-  if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/padata" \
+  if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/measurement-artifact" \
     "${curl_form_args[@]}" 2>&1); then
     if [[ -n "$response" ]]; then
       echo "$response"
     fi
-    echo "Uploaded $tgz_file"
+    echo "Uploaded measurement artifact $artifact_file"
     return 0
   fi
 
   if printf '%s\n' "$response" | grep -q '413'; then
-    echo "WARNING: Skipping padata upload because the server rejected ${tgz_file} as too large (HTTP 413)." >&2
-    echo "WARNING: Result JSON was already ingested; the padata archive remains available as a GitLab artifact for downstream jobs." >&2
+    echo "WARNING: Skipping measurement artifact upload because the server rejected ${artifact_file} as too large (HTTP 413)." >&2
+    echo "WARNING: Result JSON was already ingested; the measurement artifact remains available as a CI artifact for downstream jobs." >&2
     return 0
   fi
 
-  echo "ERROR: Failed to upload ${tgz_file}" >&2
+  echo "ERROR: Failed to upload measurement artifact ${artifact_file}" >&2
   echo "$response" >&2
   return 1
 }
@@ -212,15 +222,17 @@ for json_file in results/result*.json; do
 
   echo tgz_file "$tgz_file"
 
-  padata_archive_paths=()
-  padata_archive_specs=()
-  while IFS=$'\t' read -r archive_path artifact_path; do
-    [[ -n "$archive_path" ]] || continue
-    padata_archive_paths+=("$archive_path")
-    padata_archive_specs+=("${archive_path}"$'\t'"${artifact_path}")
-  done < <(collect_padata_archives_for_result "$json_file" "$tgz_file")
+  profile_archive_paths=()
+  measurement_artifact_specs=()
+  while IFS=$'\t' read -r artifact_file artifact_path; do
+    [[ -n "$artifact_file" ]] || continue
+    if is_profile_archive_path "$artifact_file"; then
+      profile_archive_paths+=("$artifact_file")
+    fi
+    measurement_artifact_specs+=("${artifact_file}"$'\t'"${artifact_path}")
+  done < <(collect_measurement_artifacts_for_result "$json_file" "$tgz_file")
 
-  profile_data_summary=$(build_profile_data_summary_for_archives "${padata_archive_paths[@]}")
+  profile_data_summary=$(build_profile_data_summary_for_archives "${profile_archive_paths[@]}")
   if [[ -n "$profile_data_summary" ]]; then
     tmp_file="${json_file}.tmp"
     jq --argjson profile_data "$profile_data_summary" \
@@ -281,16 +293,16 @@ for json_file in results/result*.json; do
   echo "Updated result metadata manifest: $meta_file"
 
   
-  # Upload matching profiler archives. Legacy resultN.json/padataN.tgz pairs are
-  # kept, and section artifact archives are sent with artifact_path so the server
-  # can keep multiple archives for the same result UUID.
-  if [[ "${#padata_archive_specs[@]}" -gt 0 ]]; then
-    for archive_spec in "${padata_archive_specs[@]}"; do
-      IFS=$'\t' read -r archive_path artifact_path <<< "$archive_spec"
-      upload_padata_archive "$archive_path" "$uuid" "$timestamp" "$artifact_path"
+  # Upload matching measurement artifacts. Legacy resultN.json/padataN.tgz pairs
+  # are kept, and referenced artifacts are sent with artifact_path so the server
+  # can keep multiple artifacts for the same result UUID.
+  if [[ "${#measurement_artifact_specs[@]}" -gt 0 ]]; then
+    for artifact_spec in "${measurement_artifact_specs[@]}"; do
+      IFS=$'\t' read -r artifact_file artifact_path <<< "$artifact_spec"
+      upload_measurement_artifact "$artifact_file" "$uuid" "$timestamp" "$artifact_path"
     done
   else
-    echo "No profiler TGZ found for $json_file (expected: $tgz_file or section artifact padata archives). Skipping upload."
+    echo "No measurement artifacts found for $json_file (expected: $tgz_file or referenced artifacts). Skipping upload."
   fi
 
 done

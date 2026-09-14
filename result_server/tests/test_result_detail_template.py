@@ -168,7 +168,7 @@ def _render_result_detail(result, quality, padata_filenames=None, *, public_surf
     detail_context = build_result_detail_context(
         result,
         quality,
-        padata_filenames=padata_filenames,
+        measurement_artifact_filenames=padata_filenames,
         public_surface=public_surface,
     )
     return render_template("result_detail.html", result=result, quality=quality, **detail_context)
@@ -312,7 +312,9 @@ class TestResultDetailTemplate:
         with app.test_request_context():
             html = _render_result_detail(result, FULL_QUALITY, [filename])
 
-        assert "PA Data Archives" in html
+        assert "Measurement Artifacts" in html
+        assert "Profile archive" in html
+        assert "Section: pairlist" in html
         assert "pairlist" in html
         assert "results/padata_k003_void_kern_build_pairlist.tgz" in html
         assert f'href="/results/{filename}"' in html
@@ -351,8 +353,50 @@ class TestResultDetailTemplate:
                 public_surface=True,
             )
 
-        assert "PA Data Archives" in html
+        assert "Measurement Artifacts" in html
         assert f'href="/results/{filename}"' in html
+
+    def test_timing_observation_artifact_is_linked_on_console_surface(self, app):
+        result = {
+            **FULL_RESULT,
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20260819_161329",
+        }
+        filename = (
+            "measurement_artifact_20260819_161329_"
+            "12345678-1234-1234-1234-123456789abc_qws_timing_CASE0.json"
+        )
+
+        with app.test_request_context():
+            html = _render_result_detail(result, FULL_QUALITY, [filename])
+
+        assert "Measurement Artifacts" in html
+        assert "Timing observation" in html
+        assert "qws-case0-timers" in html
+        assert "results/qws_timing_CASE0.json" in html
+        assert f'href="/results/{filename}"' in html
+
+    def test_timing_observation_artifact_is_hidden_on_public_surface(self, app):
+        result = {
+            **FULL_RESULT,
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20260819_161329",
+        }
+        filename = (
+            "measurement_artifact_20260819_161329_"
+            "12345678-1234-1234-1234-123456789abc_qws_timing_CASE0.json"
+        )
+
+        with app.test_request_context():
+            html = _render_result_detail(
+                result,
+                FULL_QUALITY,
+                [filename],
+                public_surface=True,
+            )
+
+        assert "Timing observation" not in html
+        assert filename not in html
 
     def test_vector_data_table(self, app):
         with app.test_request_context():

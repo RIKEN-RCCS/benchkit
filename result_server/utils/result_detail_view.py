@@ -80,6 +80,10 @@ BUILD_CACHE_DIGEST_HELP = {
     },
 }
 
+MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
+)
+
 
 def build_cache_host_environment_help(context="matched"):
     return HOST_ENVIRONMENT_FINGERPRINT_HELP.get(
@@ -97,7 +101,7 @@ def build_result_detail_context(
     result,
     quality,
     trigger_runs_by_pipeline=None,
-    padata_filenames=None,
+    measurement_artifact_filenames=None,
     *,
     public_surface=False,
 ):
@@ -110,7 +114,11 @@ def build_result_detail_context(
         "meta_rows": _build_meta_rows(result, trigger_runs_by_pipeline, public_surface=public_surface),
         "profile_rows": _build_profile_rows(profile_data),
         "quality_rows": [] if public_surface else _build_quality_rows(quality),
-        "profile_artifact_rows": _build_profile_artifact_rows(result, padata_filenames or []),
+        "measurement_artifact_rows": _build_measurement_artifact_rows(
+            result,
+            measurement_artifact_filenames or [],
+            include_timing=not public_surface,
+        ),
         "timing_observation_rows": (
             [] if public_surface else _build_timing_observation_rows(result.get("timing_observations"))
         ),
@@ -209,45 +217,124 @@ def _build_tool_specific_detail(profile_data):
     return mapping.get(level, "fapp tool-specific event set")
 
 
-def _build_profile_artifact_rows(result, padata_filenames):
+def _build_measurement_artifact_rows(
+    result,
+    measurement_artifact_filenames,
+    *,
+    include_timing=True,
+):
     result_uuid = result.get("_server_uuid")
     timestamp = result.get("_server_timestamp")
     if not result_uuid or not timestamp:
         return []
 
-    rows = []
-    for section in (result.get("fom_breakdown") or {}).get("sections") or []:
-        if not isinstance(section, dict):
-            continue
-        section_name = section.get("name") or "-"
-        for artifact in section.get("artifacts") or []:
-            if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
-                continue
-            artifact_path = artifact.get("path") or ""
-            artifact_slug = _padata_artifact_slug(artifact_path)
-            if not artifact_slug:
-                continue
-            filename = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
-            rows.append({
-                "section": section_name,
-                "artifact_path": artifact_path,
-                "filename": filename,
-                "link": url_for("results.show_result", filename=filename) if filename in padata_filenames else None,
-            })
+    uploaded = set(measurement_artifact_filenames)
+    rows = _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, uploaded)
+    if include_timing:
+        rows.extend(
+            _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uploaded)
+        )
     return rows
 
 
-def _padata_artifact_slug(artifact_path):
+def _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, uploaded):
+    rows = []
+    breakdown = result.get("fom_breakdown")
+    if not isinstance(breakdown, dict):
+        return rows
+
+    for collection_name, source_label in (("sections", "Section"), ("overlaps", "Overlap")):
+        for item in breakdown.get(collection_name) or []:
+            if not isinstance(item, dict):
+                continue
+            item_name = item.get("name") or "-"
+            for artifact in item.get("artifacts") or []:
+                if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
+                    continue
+                artifact_path = artifact.get("path") or ""
+                candidates = _profile_artifact_filenames(timestamp, result_uuid, artifact_path)
+                if not candidates:
+                    continue
+                filename = _choose_uploaded_filename(candidates, uploaded)
+                rows.append({
+                    "kind": "Profile archive",
+                    "source": f"{source_label}: {item_name}",
+                    "artifact_path": artifact_path,
+                    "filename": filename,
+                    "link": (
+                        url_for("results.show_result", filename=filename)
+                        if filename in uploaded
+                        else None
+                    ),
+                })
+    return rows
+
+
+def _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uploaded):
+    timing_observations = result.get("timing_observations")
+    if not isinstance(timing_observations, dict):
+        return []
+
+    observations = timing_observations.get("observations")
+    if not isinstance(observations, list):
+        return []
+
+    rows = []
+    for index, observation in enumerate(observations, start=1):
+        if not isinstance(observation, dict):
+            continue
+        artifact = observation.get("artifact")
+        artifact = artifact if isinstance(artifact, dict) else {}
+        if artifact.get("type") != "file_reference":
+            continue
+        artifact_path = str(artifact.get("path") or "").strip()
+        basename = _measurement_artifact_basename(artifact_path)
+        if not basename:
+            continue
+        filename = f"measurement_artifact_{timestamp}_{result_uuid}_{basename}"
+        label = str(observation.get("id") or f"Observation {index}")
+        rows.append({
+            "kind": "Timing observation",
+            "source": label,
+            "artifact_path": artifact_path,
+            "filename": filename,
+            "link": (
+                url_for("results.show_result", filename=filename)
+                if filename in uploaded
+                else None
+            ),
+        })
+    return rows
+
+
+def _choose_uploaded_filename(candidates, uploaded):
+    for filename in candidates:
+        if filename in uploaded:
+            return filename
+    return candidates[0]
+
+
+def _profile_artifact_filenames(timestamp, result_uuid, artifact_path):
+    basename = _measurement_artifact_basename(artifact_path)
+    if not basename or not (basename.endswith(".tgz") or basename.endswith(".tar.gz")):
+        return []
+
+    artifact_slug = basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
+    return [
+        f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz",
+        f"measurement_artifact_{timestamp}_{result_uuid}_{basename}",
+    ]
+
+
+def _measurement_artifact_basename(artifact_path):
     if not isinstance(artifact_path, str):
         return ""
     if not artifact_path.startswith("results/"):
         return ""
     basename = os.path.basename(artifact_path)
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
+    if not MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
         return ""
-    if basename.endswith(".tar.gz"):
-        return basename[:-7]
-    return basename[:-4]
+    return basename
 
 
 def _build_quality_rows(quality):

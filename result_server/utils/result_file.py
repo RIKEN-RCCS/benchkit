@@ -20,6 +20,12 @@ PUBLIC_PADATA_FILENAME_RE = re.compile(
     r"(?:_[A-Za-z0-9][A-Za-z0-9_.-]{0,127})?\.tgz$",
     re.IGNORECASE,
 )
+MEASUREMENT_ARTIFACT_FILENAME_RE = re.compile(
+    r"^measurement_artifact_\d{8}_\d{6}_"
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_"
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)$",
+    re.IGNORECASE,
+)
 
 
 def load_result_file(filename: str, save_dir: str):
@@ -67,11 +73,13 @@ def resolve_safe_child_path(
 
 
 def get_file_confidential_tags(filename: str, save_dir: str):
-    """Return confidential tags from a JSON file or its matching PA archive."""
-    if filename.endswith(".json"):
+    """Return confidential tags from a JSON file or its matching artifact result."""
+    if filename.endswith(".json") and not MEASUREMENT_ARTIFACT_FILENAME_RE.fullmatch(
+        filename
+    ):
         return _read_confidential_from_json(filename, save_dir)
 
-    # For TGZ files, find the matching JSON by UUID and reuse its tags.
+    # For measurement artifacts, find the matching Result JSON by UUID and reuse its tags.
     tags = []
     for _json_filename, data in _matching_result_json_for_padata(filename, save_dir):
         tags.extend(_extract_confidential_tags(data))

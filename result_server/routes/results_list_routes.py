@@ -18,7 +18,10 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
     public_surface = public_only and current_app.config.get("PUBLIC_PORTAL_MODE", False)
 
     received_dir = current_app.config["RECEIVED_DIR"]
-    received_padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", received_dir)
+    received_padata_dir = current_app.config.get(
+        "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+        current_app.config.get("RECEIVED_PADATA_DIR", received_dir),
+    )
     systems_info = get_all_systems_info()
 
     load_kwargs = dict(

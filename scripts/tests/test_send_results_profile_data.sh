@@ -57,7 +57,33 @@ cat > "${TMP_DIR}/results/result0.json" <<'EOF'
       }
     ],
     "overlaps": []
+  },
+  "timing_observations": {
+    "schema_version": 1,
+    "observations": [
+      {
+        "id": "qws-case0-timers",
+        "kind": "detailed-timing",
+        "producer": "qws",
+        "format": "qws_timing_observation/v1",
+        "result_exp": "CASE0",
+        "artifact": {
+          "type": "file_reference",
+          "path": "results/qws_timing_CASE0.json"
+        },
+        "summary": {
+          "timer_count": 14
+        }
+      }
+    ]
   }
+}
+EOF
+
+cat > "${TMP_DIR}/results/qws_timing_CASE0.json" <<'EOF'
+{
+  "schema_version": 1,
+  "timers": []
 }
 EOF
 
@@ -97,9 +123,9 @@ if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
   printf '%s\n' '{"id":"11111111-2222-3333-4444-555555555555","timestamp":"20260413_230000"}'
   exit 0
 fi
-if printf '%s\n' "$*" | grep -q '/api/ingest/padata'; then
-  printf '%s\n' "$*" >> "${TMP_DIR}/padata_uploads.log"
-  if [ "${FAKE_PADATA_STATUS:-200}" = "413" ]; then
+if printf '%s\n' "$*" | grep -q '/api/ingest/measurement-artifact'; then
+  printf '%s\n' "$*" >> "${TMP_DIR}/measurement_artifact_uploads.log"
+  if [ "${FAKE_MEASUREMENT_ARTIFACT_STATUS:-200}" = "413" ]; then
     echo "curl: (22) The requested URL returned error: 413" >&2
     exit 22
   fi
@@ -214,12 +240,18 @@ import sys
 path, expr = sys.argv[1:3]
 with open(path, "r", encoding="utf-8") as fh:
     data = json.load(fh)
-if "fom_breakdown.sections" in expr:
-    for section in data.get("fom_breakdown", {}).get("sections", []):
-        for artifact in section.get("artifacts", []):
-            artifact_path = artifact.get("path")
-            if artifact_path and artifact_path.split("/")[-1].startswith("padata") and artifact_path.endswith(".tgz"):
-                print(artifact_path)
+if "file_reference_paths" in expr:
+    breakdown = data.get("fom_breakdown", {})
+    for collection_name in ("sections", "overlaps"):
+        for item in breakdown.get(collection_name, []):
+            for artifact in item.get("artifacts", []):
+                if artifact.get("type") == "file_reference" and artifact.get("path"):
+                    print(artifact["path"])
+    observations = data.get("timing_observations", {}).get("observations", [])
+    for observation in observations:
+        artifact = observation.get("artifact", {})
+        if artifact.get("type") == "file_reference" and artifact.get("path"):
+            print(artifact["path"])
     sys.exit(0)
 raise SystemExit(1)
 PY
@@ -330,14 +362,16 @@ grep -Eq '"ncu_options":[[:space:]]*\[' "${TMP_DIR}/results/result0.json"
 grep -Eq '"ncu_report"' "${TMP_DIR}/results/result0.json"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/results/result0.json"
 grep -q '"result0.json"' "${TMP_DIR}/results/server_result_meta.json"
-grep -q 'padata0.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'padata_k001.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'padata_k002.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'padata_k003.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'artifact_path=results/padata_k001.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'artifact_path=results/padata_k002.tgz' "${TMP_DIR}/padata_uploads.log"
-grep -q 'artifact_path=results/padata_k003.tgz' "${TMP_DIR}/padata_uploads.log"
-test "$(grep -c '/api/ingest/padata' "${TMP_DIR}/padata_uploads.log")" = "4"
+grep -q 'padata0.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'padata_k001.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'padata_k002.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'padata_k003.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'qws_timing_CASE0.json' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'artifact_path=results/padata_k001.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'artifact_path=results/padata_k002.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'artifact_path=results/padata_k003.tgz' "${TMP_DIR}/measurement_artifact_uploads.log"
+grep -q 'artifact_path=results/qws_timing_CASE0.json' "${TMP_DIR}/measurement_artifact_uploads.log"
+test "$(grep -c '/api/ingest/measurement-artifact' "${TMP_DIR}/measurement_artifact_uploads.log")" = "5"
 
 mkdir -p "${TMP_DIR}/case413/results"
 cp "${TMP_DIR}/results/result0.json" "${TMP_DIR}/case413/results/result0.json"
@@ -345,12 +379,13 @@ cp "${TMP_DIR}/results/padata0.tgz" "${TMP_DIR}/case413/results/padata0.tgz"
 cp "${TMP_DIR}/results/padata_k001.tgz" "${TMP_DIR}/case413/results/padata_k001.tgz"
 cp "${TMP_DIR}/results/padata_k002.tgz" "${TMP_DIR}/case413/results/padata_k002.tgz"
 cp "${TMP_DIR}/results/padata_k003.tgz" "${TMP_DIR}/case413/results/padata_k003.tgz"
+cp "${TMP_DIR}/results/qws_timing_CASE0.json" "${TMP_DIR}/case413/results/qws_timing_CASE0.json"
 
-export FAKE_PADATA_STATUS=413
+export FAKE_MEASUREMENT_ARTIFACT_STATUS=413
 pushd "${TMP_DIR}/case413" >/dev/null
 bash "${REPO_DIR}/scripts/result_server/send_results.sh" > send_results_413.log 2>&1
 popd >/dev/null
-unset FAKE_PADATA_STATUS
+unset FAKE_MEASUREMENT_ARTIFACT_STATUS
 
 grep -q 'HTTP 413' "${TMP_DIR}/case413/send_results_413.log"
 grep -q 'All done.' "${TMP_DIR}/case413/send_results_413.log"

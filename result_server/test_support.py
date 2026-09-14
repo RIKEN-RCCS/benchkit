@@ -193,6 +193,7 @@ def build_results_route_app(
 
     if received_padata_dir is not None:
         app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+        app.config["RECEIVED_MEASUREMENT_ARTIFACTS_DIR"] = received_padata_dir
 
     from routes.results import results_bp
 
@@ -212,6 +213,7 @@ def build_api_route_app(
     app = Flask(__name__)
     app.config["RECEIVED_DIR"] = received_dir
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+    app.config["RECEIVED_MEASUREMENT_ARTIFACTS_DIR"] = received_padata_dir
     app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
     if execution_profile_db_path is not None:

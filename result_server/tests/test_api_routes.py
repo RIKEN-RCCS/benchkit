@@ -429,6 +429,90 @@ class TestIngestEstimate:
 
 
 # ============================================================
+# /api/ingest/measurement-artifact
+# ============================================================
+
+class TestIngestMeasurementArtifact:
+    def test_upload_timing_json_file(self, client, tmp_dirs):
+        """Timing JSON artifacts should be stored as measurement artifacts."""
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "20250101_120000",
+            "artifact_path": "results/qws_timing_CASE0.json",
+            "file": (io.BytesIO(b'{"timers": []}'), "qws_timing_CASE0.json"),
+        }
+        resp = client.post(
+            "/api/ingest/measurement-artifact",
+            data=data,
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "uploaded"
+        assert body["file"] == (
+            "measurement_artifact_20250101_120000_"
+            "12345678-1234-1234-1234-123456789abc_qws_timing_CASE0.json"
+        )
+        assert sorted(os.listdir(tmp_dirs[1])) == [body["file"]]
+
+    def test_upload_profile_tgz_uses_profile_archive_name(self, client, tmp_dirs):
+        """Profile archives remain addressable by the existing padata filename form."""
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "20250101_120000",
+            "artifact_path": "results/padata_pairlist.tgz",
+            "file": (io.BytesIO(b"fake tgz content"), "padata_pairlist.tgz"),
+        }
+        resp = client.post(
+            "/api/ingest/measurement-artifact",
+            data=data,
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["file"] == (
+            "padata_20250101_120000_"
+            "12345678-1234-1234-1234-123456789abc_padata_pairlist.tgz"
+        )
+        assert sorted(os.listdir(tmp_dirs[1])) == [body["file"]]
+
+    @pytest.mark.parametrize("artifact_path", [
+        "../qws_timing.json",
+        "results/../qws_timing.json",
+        "/tmp/qws_timing.json",
+        "results/bad name.json",
+        "artifacts/qws_timing.json",
+        "results/qws_timing.txt",
+    ])
+    def test_rejects_invalid_measurement_artifact_path(self, client, artifact_path):
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "20250101_120000",
+            "artifact_path": artifact_path,
+            "file": (io.BytesIO(b"data"), "test.json"),
+        }
+        resp = client.post(
+            "/api/ingest/measurement-artifact",
+            data=data,
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+
+    def test_missing_api_key_returns_401(self, client):
+        resp = client.post(
+            "/api/ingest/measurement-artifact",
+            data={"id": "x", "timestamp": "t"},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 401
+
+
+# ============================================================
 # /api/ingest/padata
 # ============================================================
 
