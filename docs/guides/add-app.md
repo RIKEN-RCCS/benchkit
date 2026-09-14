@@ -487,7 +487,8 @@ tar -czf ../results/padata0.tgz ./pa
 
 Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、Benchkit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
 `bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。Benchkit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
-`timing_observations` が `results/*.json` を参照する場合も、Result 送信時に同じ Measurement Artifacts として保存されます。
+
+アプリが独自の詳細 timer table を持つ場合は、まず小さな `results/*.json` として保存し、`bk_record_timing_observation` で登録してください。この JSON は Result 送信時に Measurement Artifacts として保存されます。`timing_observations` は未レビューの観測値を残すための任意機能であり、`SECTION:` / `OVERLAP:` や `fom_breakdown` へ昇格するには、timer ID、inclusive / exclusive の扱い、overlap window の意味を別途レビューします。
 
 `fapp` では共通 level として次を扱います。
 

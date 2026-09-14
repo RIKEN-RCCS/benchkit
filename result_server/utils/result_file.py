@@ -7,23 +7,15 @@ from typing import Optional
 
 from flask import Response, abort, send_from_directory, session
 
+from utils.measurement_artifacts import (
+    MEASUREMENT_ARTIFACT_FILENAME_RE,
+    PUBLIC_PADATA_FILENAME_RE,
+)
 from utils.session_user_context import get_session_user_context
 
 
 UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-    re.IGNORECASE,
-)
-PUBLIC_PADATA_FILENAME_RE = re.compile(
-    r"^padata_\d{8}_\d{6}_"
-    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-    r"(?:_[A-Za-z0-9][A-Za-z0-9_.-]{0,127})?\.tgz$",
-    re.IGNORECASE,
-)
-MEASUREMENT_ARTIFACT_FILENAME_RE = re.compile(
-    r"^measurement_artifact_\d{8}_\d{6}_"
-    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_"
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)$",
     re.IGNORECASE,
 )
 

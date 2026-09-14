@@ -7,6 +7,7 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from utils.measurement_artifacts import profile_archive_filename_candidates
 from utils.result_detail_view import (
     build_cache_digest_help,
     build_cache_host_environment_help,
@@ -283,10 +284,17 @@ def _profile_artifact_rows(
     uploaded = set(padata_filenames)
     rows = []
     for section_name, artifact_path in _iter_profile_artifacts(result):
-        artifact_slug = _padata_artifact_slug(artifact_path)
-        if not artifact_slug:
+        archive_candidates = profile_archive_filename_candidates(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
+        if not archive_candidates:
             continue
-        archive = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
+        archive = next(
+            (candidate for candidate in archive_candidates if candidate in uploaded),
+            archive_candidates[0],
+        )
         status = "available" if archive in uploaded else "not uploaded"
         archive_value = archive
         if archive in uploaded and padata_url_by_filename.get(archive):
@@ -309,15 +317,6 @@ def _iter_profile_artifacts(result: dict[str, Any]):
                 path = str(artifact.get("path") or "").strip()
                 if path:
                     yield item_name, path
-
-
-def _padata_artifact_slug(artifact_path: str) -> str:
-    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
-        return ""
-    basename = os.path.basename(artifact_path)
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
-        return ""
-    return basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
 
 
 def _build_cache_rows(build_cache: Any) -> list[tuple[str, Any]]:

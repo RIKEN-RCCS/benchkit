@@ -16,14 +16,16 @@ from datetime import datetime
 from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
 from utils.environment_snapshots import index_environment_snapshot
+from utils.measurement_artifacts import (
+    is_profile_archive_basename,
+    normalize_measurement_artifact_basename,
+    stored_measurement_artifact_filename,
+)
 from utils.rate_limit import rate_limited
 from utils.result_metadata_index import index_result_metadata
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
-_MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
-)
 DEFAULT_MAX_ARCHIVE_MEMBER_SIZE = 1024 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE = 1024 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
@@ -214,41 +216,6 @@ def _safe_basename(name):
     return name
 
 
-def _normalize_measurement_artifact_basename(
-    value,
-    *,
-    error_message="Invalid measurement artifact path",
-):
-    """Return a filename-safe results/ artifact basename, or None."""
-    if value is None:
-        return None
-
-    artifact_path = str(value).strip()
-    if artifact_path == "":
-        return None
-    if (
-        os.path.isabs(artifact_path)
-        or "\\" in artifact_path
-        or artifact_path.startswith("../")
-        or "/../" in artifact_path
-        or artifact_path.endswith("/..")
-    ):
-        abort(400, description=error_message)
-    if not artifact_path.startswith("results/"):
-        abort(400, description=error_message)
-
-    basename = os.path.basename(artifact_path)
-    if not _MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
-        abort(400, description=error_message)
-    return basename
-
-
-def _is_profile_archive_basename(basename):
-    return isinstance(basename, str) and (
-        basename.endswith(".tgz") or basename.endswith(".tar.gz")
-    )
-
-
 def _copy_uploaded_file(uploaded_file, save_path):
     """Write an uploaded file atomically."""
     tmp_path = save_path + ".tmp"
@@ -257,21 +224,6 @@ def _copy_uploaded_file(uploaded_file, save_path):
         f.flush()
         os.fsync(f.fileno())
     os.rename(tmp_path, save_path)
-
-
-def _measurement_artifact_filename(timestamp, uuid_str, artifact_basename):
-    if artifact_basename is None:
-        return _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
-    if _is_profile_archive_basename(artifact_basename):
-        artifact_slug = (
-            artifact_basename[:-7]
-            if artifact_basename.endswith(".tar.gz")
-            else artifact_basename[:-4]
-        )
-        return _safe_basename(f"padata_{timestamp}_{uuid_str}_{artifact_slug}.tgz")
-    return _safe_basename(
-        f"measurement_artifact_{timestamp}_{uuid_str}_{artifact_basename}"
-    )
 
 
 def _load_json_by_uuid(directory, field_path, uuid_value):
@@ -493,16 +445,21 @@ def ingest_measurement_artifact():
         "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
         current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"]),
     )
-    artifact_basename = _normalize_measurement_artifact_basename(
-        request.form.get("artifact_path")
-    )
-    if artifact_basename is None and not _is_profile_archive_basename(
+    try:
+        artifact_basename = normalize_measurement_artifact_basename(
+            request.form.get("artifact_path")
+        )
+    except ValueError:
+        abort(400, description="Invalid measurement artifact path")
+    if artifact_basename is None and not is_profile_archive_basename(
         uploaded_file.filename or ""
     ):
         abort(400, description="Missing measurement artifact path")
 
     if artifact_basename:
-        filename = _measurement_artifact_filename(timestamp, uuid_str, artifact_basename)
+        filename = _safe_basename(
+            stored_measurement_artifact_filename(timestamp, uuid_str, artifact_basename)
+        )
         matched_files = (
             [filename] if os.path.exists(os.path.join(received_dir, filename)) else []
         )
@@ -520,7 +477,9 @@ def ingest_measurement_artifact():
         save_path = old_file_path
     else:
         if not artifact_basename:
-            filename = _measurement_artifact_filename(timestamp, uuid_str, None)
+            filename = _safe_basename(
+                stored_measurement_artifact_filename(timestamp, uuid_str, None)
+            )
         save_path = os.path.join(received_dir, filename)
 
     _copy_uploaded_file(uploaded_file, save_path)

@@ -1,8 +1,9 @@
-import os
-import re
-
 from flask import url_for
 
+from utils.measurement_artifacts import (
+    profile_archive_filename_candidates,
+    stored_measurement_artifact_filename_from_path,
+)
 from utils.result_records import build_labeled_value_rows, format_numeric_value
 from utils.trigger_display import summarize_execution_trigger
 
@@ -79,11 +80,6 @@ BUILD_CACHE_DIGEST_HELP = {
         ),
     },
 }
-
-MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
-)
-
 
 def build_cache_host_environment_help(context="matched"):
     return HOST_ENVIRONMENT_FINGERPRINT_HELP.get(
@@ -252,7 +248,11 @@ def _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, upl
                 if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
                     continue
                 artifact_path = artifact.get("path") or ""
-                candidates = _profile_artifact_filenames(timestamp, result_uuid, artifact_path)
+                candidates = profile_archive_filename_candidates(
+                    timestamp,
+                    result_uuid,
+                    artifact_path,
+                )
                 if not candidates:
                     continue
                 filename = _choose_uploaded_filename(candidates, uploaded)
@@ -288,10 +288,13 @@ def _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uplo
         if artifact.get("type") != "file_reference":
             continue
         artifact_path = str(artifact.get("path") or "").strip()
-        basename = _measurement_artifact_basename(artifact_path)
-        if not basename:
+        filename = stored_measurement_artifact_filename_from_path(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
+        if not filename:
             continue
-        filename = f"measurement_artifact_{timestamp}_{result_uuid}_{basename}"
         label = str(observation.get("id") or f"Observation {index}")
         rows.append({
             "kind": "Timing observation",
@@ -312,29 +315,6 @@ def _choose_uploaded_filename(candidates, uploaded):
         if filename in uploaded:
             return filename
     return candidates[0]
-
-
-def _profile_artifact_filenames(timestamp, result_uuid, artifact_path):
-    basename = _measurement_artifact_basename(artifact_path)
-    if not basename or not (basename.endswith(".tgz") or basename.endswith(".tar.gz")):
-        return []
-
-    artifact_slug = basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
-    return [
-        f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz",
-        f"measurement_artifact_{timestamp}_{result_uuid}_{basename}",
-    ]
-
-
-def _measurement_artifact_basename(artifact_path):
-    if not isinstance(artifact_path, str):
-        return ""
-    if not artifact_path.startswith("results/"):
-        return ""
-    basename = os.path.basename(artifact_path)
-    if not MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
-        return ""
-    return basename
 
 
 def _build_quality_rows(quality):
