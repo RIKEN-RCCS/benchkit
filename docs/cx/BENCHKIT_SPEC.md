@@ -542,6 +542,7 @@ Benchkit は、アプリが出力する詳細 timer table や profiler から得
 `timing_observations` は最初の段階では任意項目であり、存在しない result を ingest failure として扱わない。
 同じ job から複数 result が出る場合は、各 observation に `result_exp` などの result scope を添えてよい。
 Result JSON には小さな summary と file reference を置き、巨大な profiler report や詳細 table は artifact として保持する。
+Result sender は、`timing_observations` から参照された `results/*.json` と profiler archive を Measurement Artifacts として保存する。
 
 将来、アプリ変更なしで詳細 timing を採取する場合は、profiler adapter が同じ `timing_observations` 経路へ summary と artifact reference を渡す。
 その observation を `fom_breakdown` へ昇格するかどうかは、app / profiler ごとの mapping review によって決める。
@@ -553,6 +554,7 @@ This is an observation layer separate from `fom_breakdown`.
 At the initial stage, `timing_observations` is optional, and results without it are not treated as ingest failures.
 When one job emits multiple results, each observation may carry a result scope such as `result_exp`.
 Result JSON should keep a compact summary and file reference; large profiler reports or full timer tables should remain artifacts.
+The result sender stores referenced `results/*.json` timing files and profiler archives as Measurement Artifacts.
 
 For app-change-free collection, profiler adapters may feed summaries and artifact references into the same `timing_observations` path.
 Promoting an observation into `fom_breakdown` remains a separate mapping review for the app or profiler output.

@@ -232,6 +232,7 @@ def create_dev_app(base_dir):
 
     app.config["RECEIVED_DIR"] = received_dir
     app.config["RECEIVED_PADATA_DIR"] = received_padata_dir
+    app.config["RECEIVED_MEASUREMENT_ARTIFACTS_DIR"] = received_padata_dir
     app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"] = received_estimation_artifacts_dir
     app.config["ESTIMATED_DIR"] = estimated_dir
     app.config["EXECUTION_PROFILE_DB_PATH"] = os.environ.get(

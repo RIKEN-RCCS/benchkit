@@ -42,6 +42,15 @@ from utils.trigger_display import load_trigger_run_lookup, summarize_execution_t
 PADATA_ARTIFACT_BASENAME_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)"
 )
+MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
+)
+MEASUREMENT_ARTIFACT_FILENAME_RE = re.compile(
+    r"^measurement_artifact_\d{8}_\d{6}_"
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_"
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)$",
+    re.IGNORECASE,
+)
 
 
 def register_results_detail_routes(results_bp):
@@ -79,15 +88,30 @@ def register_results_detail_routes(results_bp):
                 not_found_message="Result file not found",
             )
         quality = summarize_result_quality(result)
-        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
-        padata_filenames = _list_result_padata_filenames(result, padata_dir) if is_public_surface else [
-            name for name in os.listdir(padata_dir) if name.endswith(".tgz")
-        ]
+        artifact_dir = current_app.config.get(
+            "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+            current_app.config.get(
+                "RECEIVED_PADATA_DIR",
+                current_app.config["RECEIVED_DIR"],
+            ),
+        )
+        measurement_artifact_filenames = (
+            _list_result_measurement_artifact_filenames(
+                result,
+                artifact_dir,
+                include_timing=False,
+            )
+            if is_public_surface
+            else [
+                name for name in os.listdir(artifact_dir)
+                if _is_measurement_artifact_filename(name)
+            ]
+        )
         detail_context = build_result_detail_context(
             result,
             quality,
             load_trigger_run_lookup(current_app.config.get("EXECUTION_PROFILE_DB_PATH")),
-            padata_filenames,
+            measurement_artifact_filenames,
             public_surface=is_public_surface,
         )
         public_result = not get_file_confidential_tags(filename, current_app.config["RECEIVED_DIR"])
@@ -134,7 +158,13 @@ def register_results_detail_routes(results_bp):
             not_found_message="Result file not found",
         )
         quality = summarize_result_quality(result)
-        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
+        padata_dir = current_app.config.get(
+            "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+            current_app.config.get(
+                "RECEIVED_PADATA_DIR",
+                current_app.config["RECEIVED_DIR"],
+            ),
+        )
         padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]
         padata_urls = {
             name: url_for("results.show_result", filename=name)
@@ -272,20 +302,32 @@ def register_results_detail_routes(results_bp):
                 return serve_public_padata_file(
                     filename,
                     current_app.config["RECEIVED_DIR"],
-                    current_app.config["RECEIVED_PADATA_DIR"],
+                    current_app.config.get(
+                        "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+                        current_app.config["RECEIVED_PADATA_DIR"],
+                    ),
                 )
             abort(404)
 
-        if filename.endswith(".tgz"):
+        if _is_measurement_artifact_filename(filename):
             return serve_permitted_result_file(
                 filename,
                 current_app.config["RECEIVED_DIR"],
-                current_app.config["RECEIVED_PADATA_DIR"],
+                current_app.config.get(
+                    "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+                    current_app.config["RECEIVED_PADATA_DIR"],
+                ),
             )
         return serve_permitted_result_file(filename, current_app.config["RECEIVED_DIR"])
 
     def _build_public_reuse_manifest_for_route(result, filename):
-        padata_dir = current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"])
+        padata_dir = current_app.config.get(
+            "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+            current_app.config.get(
+                "RECEIVED_PADATA_DIR",
+                current_app.config["RECEIVED_DIR"],
+            ),
+        )
         padata_filenames = _list_result_padata_filenames(result, padata_dir)
         padata_urls = {
             name: url_for("results.show_result", filename=name)
@@ -323,6 +365,31 @@ def _list_result_padata_filenames(result, padata_dir):
     return filenames
 
 
+def _list_result_measurement_artifact_filenames(result, artifact_dir, *, include_timing=True):
+    result_uuid = _clean_result_value(result.get("_server_uuid"))
+    timestamp = _clean_result_value(result.get("_server_timestamp"))
+    if not result_uuid or not timestamp:
+        return []
+
+    filenames = []
+    seen = set()
+    for filename in _list_result_padata_filenames(result, artifact_dir):
+        seen.add(filename)
+        filenames.append(filename)
+
+    if not include_timing:
+        return filenames
+
+    for artifact_path in _iter_result_timing_artifact_paths(result):
+        filename = _measurement_artifact_filename(timestamp, result_uuid, artifact_path)
+        if not filename or filename in seen:
+            continue
+        seen.add(filename)
+        if os.path.isfile(os.path.join(artifact_dir, filename)):
+            filenames.append(filename)
+    return filenames
+
+
 def _iter_result_padata_artifact_paths(result):
     breakdown = result.get("fom_breakdown")
     if not isinstance(breakdown, dict):
@@ -339,6 +406,21 @@ def _iter_result_padata_artifact_paths(result):
                     yield path
 
 
+def _iter_result_timing_artifact_paths(result):
+    timing_observations = result.get("timing_observations")
+    if not isinstance(timing_observations, dict):
+        return
+    for observation in timing_observations.get("observations") or []:
+        if not isinstance(observation, dict):
+            continue
+        artifact = observation.get("artifact")
+        if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
+            continue
+        path = _clean_result_value(artifact.get("path"))
+        if path:
+            yield path
+
+
 def _padata_artifact_slug(artifact_path):
     if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
         return ""
@@ -346,6 +428,28 @@ def _padata_artifact_slug(artifact_path):
     if not PADATA_ARTIFACT_BASENAME_RE.fullmatch(basename):
         return ""
     return basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
+
+
+def _measurement_artifact_filename(timestamp, result_uuid, artifact_path):
+    basename = _measurement_artifact_basename(artifact_path)
+    if not basename:
+        return ""
+    return f"measurement_artifact_{timestamp}_{result_uuid}_{basename}"
+
+
+def _measurement_artifact_basename(artifact_path):
+    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
+        return ""
+    basename = os.path.basename(artifact_path)
+    if not MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
+        return ""
+    return basename
+
+
+def _is_measurement_artifact_filename(filename):
+    return filename.endswith(".tgz") or bool(
+        MEASUREMENT_ARTIFACT_FILENAME_RE.fullmatch(filename)
+    )
 
 
 def _clean_result_value(value):

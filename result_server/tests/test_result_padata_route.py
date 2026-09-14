@@ -52,6 +52,23 @@ def test_results_route_serves_padata_from_received_padata_dir(client, tmp_dirs):
     assert resp.data == b"fake tgz content"
 
 
+def test_results_route_serves_measurement_json_from_artifact_dir(client, tmp_dirs):
+    received, received_padata = tmp_dirs
+    uid = "12345678-1234-1234-1234-123456789abc"
+    json_name = f"result_20250101_120000_{uid}.json"
+    artifact_name = f"measurement_artifact_20250101_120000_{uid}_qws_timing_CASE0.json"
+
+    with open(os.path.join(received, json_name), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "system": "DemoSystem", "FOM": 1.0}, f)
+
+    with open(os.path.join(received_padata, artifact_name), "w", encoding="utf-8") as f:
+        json.dump({"timers": []}, f)
+
+    resp = client.get(f"/results/{artifact_name}")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"timers": []}
+
+
 def test_public_portal_mode_serves_anonymous_public_padata(client, app, tmp_dirs):
     received, received_padata = tmp_dirs
     app.config["PUBLIC_PORTAL_MODE"] = True
@@ -68,6 +85,20 @@ def test_public_portal_mode_serves_anonymous_public_padata(client, app, tmp_dirs
     resp = client.get(f"/results/{tgz_name}")
     assert resp.status_code == 200
     assert resp.data == b"fake tgz content"
+
+
+def test_public_portal_mode_hides_measurement_json(client, app, tmp_dirs):
+    received, received_padata = tmp_dirs
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    uid = "12345678-1234-1234-1234-123456789abc"
+    artifact_name = f"measurement_artifact_20250101_120000_{uid}_qws_timing_CASE0.json"
+
+    with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
+        json.dump({"code": "qws", "system": "DemoSystem", "FOM": 1.0, "_server_uuid": uid}, f)
+    with open(os.path.join(received_padata, artifact_name), "w", encoding="utf-8") as f:
+        json.dump({"timers": []}, f)
+
+    assert client.get(f"/results/{artifact_name}").status_code == 404
 
 
 def test_public_portal_mode_serves_authenticated_public_padata(client, app, tmp_dirs):
@@ -146,4 +177,28 @@ def test_results_route_blocks_confidential_padata_matched_by_server_uuid(client,
         f.write(b"fake tgz content")
 
     resp = client.get(f"/results/{tgz_name}")
+    assert resp.status_code == 403
+
+
+def test_results_route_blocks_confidential_measurement_json(client, tmp_dirs):
+    received, received_padata = tmp_dirs
+    uid = "12345678-1234-1234-1234-123456789abc"
+    artifact_name = f"measurement_artifact_20250101_120000_{uid}_qws_timing_CASE0.json"
+
+    with open(os.path.join(received, "result0.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "code": "qws",
+                "system": "DemoSystem",
+                "FOM": 1.0,
+                "_server_uuid": uid,
+                "confidential": ["dev"],
+            },
+            f,
+        )
+
+    with open(os.path.join(received_padata, artifact_name), "w", encoding="utf-8") as f:
+        json.dump({"timers": []}, f)
+
+    resp = client.get(f"/results/{artifact_name}")
     assert resp.status_code == 403

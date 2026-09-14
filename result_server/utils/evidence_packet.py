@@ -118,7 +118,7 @@ def build_result_evidence_packet(
     packet.table(_profile_rows(result.get("profile_data")))
     artifact_rows = _profile_artifact_rows(result, padata_filenames or [], padata_url_by_filename or {})
     if artifact_rows:
-        packet.heading(3, "PA Data Archives")
+        packet.heading(3, "Measurement Artifacts")
         packet.table(artifact_rows)
 
     build_cache_rows = _build_cache_rows(result.get("build_cache"))

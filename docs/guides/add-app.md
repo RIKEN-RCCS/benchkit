@@ -474,8 +474,8 @@ bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 `source_info` は必須ではありませんが、Git などから source を取得する app では `bk_fetch_source` を使って `results/source_info.env` を残すことを推奨します。
 section / overlap / profiler archive は、詳細分析や推定を使う場合の任意拡張です。
 
-### Performance Analysis データ（任意）
-詳細データがある場合は `results/padata[0-9].tgz` として保存：
+### Measurement Artifacts（任意）
+詳細データがある場合、profiler archive は従来通り `results/padata[0-9].tgz` として保存できます：
 ```bash
 # PAデータの作成例
 mkdir -p pa
@@ -487,6 +487,7 @@ tar -czf ../results/padata0.tgz ./pa
 
 Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、Benchkit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
 `bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。Benchkit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
+`timing_observations` が `results/*.json` を参照する場合も、Result 送信時に同じ Measurement Artifacts として保存されます。
 
 `fapp` では共通 level として次を扱います。
 

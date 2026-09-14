@@ -73,18 +73,19 @@
 {{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}
 {% endif %}
 
-{% if profile_artifact_rows %}
+{% if measurement_artifact_rows %}
 <div class="section">
-    <h2>PA Data Archives</h2>
+    <h2>Measurement Artifacts</h2>
     <div class="detail-table-wrap">
     <table class="artifact-table">
         <thead>
-            <tr><th>Section</th><th>Artifact</th><th>Archive</th></tr>
+            <tr><th>Kind</th><th>Source</th><th>Artifact</th><th>Stored File</th></tr>
         </thead>
         <tbody>
-            {% for row in profile_artifact_rows %}
+            {% for row in measurement_artifact_rows %}
             <tr>
-                <td>{{ row.section }}</td>
+                <td>{{ row.kind }}</td>
+                <td>{{ row.source }}</td>
                 <td>{{ row.artifact_path }}</td>
                 <td>
                     {% if row.link %}

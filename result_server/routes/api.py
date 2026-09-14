@@ -21,6 +21,9 @@ from utils.result_metadata_index import index_result_metadata
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+_MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
+)
 DEFAULT_MAX_ARCHIVE_MEMBER_SIZE = 1024 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE = 1024 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
@@ -211,8 +214,12 @@ def _safe_basename(name):
     return name
 
 
-def _normalize_padata_artifact_slug(value):
-    """Return a filename-safe padata artifact slug, or None for legacy uploads."""
+def _normalize_measurement_artifact_basename(
+    value,
+    *,
+    error_message="Invalid measurement artifact path",
+):
+    """Return a filename-safe results/ artifact basename, or None."""
     if value is None:
         return None
 
@@ -226,16 +233,45 @@ def _normalize_padata_artifact_slug(value):
         or "/../" in artifact_path
         or artifact_path.endswith("/..")
     ):
-        abort(400, description="Invalid padata artifact path")
+        abort(400, description=error_message)
     if not artifact_path.startswith("results/"):
-        abort(400, description="Invalid padata artifact path")
+        abort(400, description=error_message)
 
     basename = os.path.basename(artifact_path)
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
-        abort(400, description="Invalid padata artifact path")
-    if basename.endswith(".tar.gz"):
-        return basename[:-7]
-    return basename[:-4]
+    if not _MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
+        abort(400, description=error_message)
+    return basename
+
+
+def _is_profile_archive_basename(basename):
+    return isinstance(basename, str) and (
+        basename.endswith(".tgz") or basename.endswith(".tar.gz")
+    )
+
+
+def _copy_uploaded_file(uploaded_file, save_path):
+    """Write an uploaded file atomically."""
+    tmp_path = save_path + ".tmp"
+    with open(tmp_path, "wb") as f:
+        shutil.copyfileobj(uploaded_file.stream, f, length=1024 * 1024)
+        f.flush()
+        os.fsync(f.fileno())
+    os.rename(tmp_path, save_path)
+
+
+def _measurement_artifact_filename(timestamp, uuid_str, artifact_basename):
+    if artifact_basename is None:
+        return _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
+    if _is_profile_archive_basename(artifact_basename):
+        artifact_slug = (
+            artifact_basename[:-7]
+            if artifact_basename.endswith(".tar.gz")
+            else artifact_basename[:-4]
+        )
+        return _safe_basename(f"padata_{timestamp}_{uuid_str}_{artifact_slug}.tgz")
+    return _safe_basename(
+        f"measurement_artifact_{timestamp}_{uuid_str}_{artifact_basename}"
+    )
 
 
 def _load_json_by_uuid(directory, field_path, uuid_value):
@@ -434,10 +470,11 @@ def ingest_estimate():
     return _saved_json_response(saved), 200
 
 
+@api_bp.route("/api/ingest/measurement-artifact", methods=["POST"])
 @api_bp.route("/api/ingest/padata", methods=["POST"])
 @rate_limited(max_per_minute=120, key_fn=_api_rate_key, scope="api_ingest")
-def ingest_padata():
-    """Receive and store a PA Data archive."""
+def ingest_measurement_artifact():
+    """Receive and store a measurement artifact."""
     runner_id = require_api_key()
 
     uuid_str = request.form.get("id")
@@ -452,12 +489,23 @@ def ingest_padata():
     if not uploaded_file:
         abort(400, description="No file uploaded")
 
-    received_dir = current_app.config["RECEIVED_PADATA_DIR"]
-    artifact_slug = _normalize_padata_artifact_slug(request.form.get("artifact_path"))
+    received_dir = current_app.config.get(
+        "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+        current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"]),
+    )
+    artifact_basename = _normalize_measurement_artifact_basename(
+        request.form.get("artifact_path")
+    )
+    if artifact_basename is None and not _is_profile_archive_basename(
+        uploaded_file.filename or ""
+    ):
+        abort(400, description="Missing measurement artifact path")
 
-    if artifact_slug:
-        filename = _safe_basename(f"padata_{timestamp}_{uuid_str}_{artifact_slug}.tgz")
-        matched_files = [filename] if os.path.exists(os.path.join(received_dir, filename)) else []
+    if artifact_basename:
+        filename = _measurement_artifact_filename(timestamp, uuid_str, artifact_basename)
+        matched_files = (
+            [filename] if os.path.exists(os.path.join(received_dir, filename)) else []
+        )
     else:
         legacy_pattern = re.compile(rf"^padata_\d{{8}}_\d{{6}}_{re.escape(uuid_str)}\.tgz$")
         matched_files = [
@@ -471,16 +519,11 @@ def ingest_padata():
         shutil.move(old_file_path, backup_path)
         save_path = old_file_path
     else:
-        if not artifact_slug:
-            filename = _safe_basename(f"padata_{timestamp}_{uuid_str}.tgz")
+        if not artifact_basename:
+            filename = _measurement_artifact_filename(timestamp, uuid_str, None)
         save_path = os.path.join(received_dir, filename)
 
-    tmp_path = save_path + ".tmp"
-    with open(tmp_path, "wb") as f:
-        shutil.copyfileobj(uploaded_file.stream, f, length=1024 * 1024)
-        f.flush()
-        os.fsync(f.fileno())
-    os.rename(tmp_path, save_path)
+    _copy_uploaded_file(uploaded_file, save_path)
 
     print(f"Saved: {save_path}", flush=True)
     response = {
@@ -496,7 +539,11 @@ def ingest_padata():
         actor=runner_id,
         target=response["file"],
         result="success",
-        details={"ingest_type": "padata", "id": uuid_str, "replaced": response["replaced"]},
+        details={
+            "ingest_type": "measurement_artifact",
+            "id": uuid_str,
+            "replaced": response["replaced"],
+        },
     )
     return response, 200
 
