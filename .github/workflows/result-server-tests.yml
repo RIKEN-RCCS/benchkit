@@ -40,53 +40,35 @@ jobs:
       - name: Run result_server pytest suite
         run: python result_server/tests/run_result_server_tests.py
 
-  profile-data-shell:
+  profile-data-shell-group:
+    name: profile-data-shell / ${{ matrix.shell-group }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell-group:
+          - common
+          - result-sender
+          - estimation
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Check shell test dependencies
+      - name: Run ${{ matrix.shell-group }} shell tests
+        run: bash scripts/tests/run_profile_data_shell_tests.sh "${{ matrix.shell-group }}"
+
+  profile-data-shell:
+    runs-on: ubuntu-latest
+    needs: profile-data-shell-group
+    if: ${{ always() }}
+
+    steps:
+      - name: Check shell test groups
         run: |
           set -euo pipefail
-          command -v jq
-          jq --version
-          command -v python3
-          python3 --version
-          estimation_python=""
-          for candidate in python3.12 python3.11 python3; do
-            if command -v "$candidate" >/dev/null 2>&1; then
-              estimation_python=$(command -v "$candidate")
-              break
-            fi
-          done
-          test -n "$estimation_python"
-          "$estimation_python" - <<'PY'
-          import sys
-          raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
-          PY
-
-      - name: Run profiler, profile-data, and estimation shell tests
-        run: |
-          bash scripts/tests/test_bk_profiler.sh
-          bash scripts/tests/test_bk_fetch_source.sh
-          bash scripts/tests/test_bk_input_info.sh
-          bash scripts/tests/test_bk_timing_observations.sh
-          bash scripts/tests/test_qws_timing_artifact.sh
-          bash scripts/tests/test_build_cache.sh
-          bash scripts/tests/test_build_environment_snapshot.sh
-          bash scripts/tests/test_ci_timing_context.sh
-          bash scripts/tests/test_ncu_plan_generation.sh
-          bash scripts/tests/test_result_profile_data.sh
-          bash scripts/tests/test_process_and_send_results.sh
-          bash scripts/tests/test_result_common_json_contract.sh
-          bash scripts/tests/test_scheduler_extra_args.sh
-          bash scripts/tests/test_send_results_profile_data.sh
-          bash scripts/tests/test_send_estimate_artifacts.sh
-          bash scripts/tests/test_estimation_common_json_contract.sh
-          bash scripts/tests/test_estimation_run_timing.sh
-          bash scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh
-          bash scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh
-          bash scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh
-          bash scripts/tests/test_genesis_gpu_mlp_estimation.sh
+          if [ "${{ needs.profile-data-shell-group.result }}" != "success" ]; then
+            echo "One or more shell test groups failed"
+            exit 1
+          fi
+          echo "All shell test groups passed"
