@@ -47,8 +47,7 @@ case "$system" in
 	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
-	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
-	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
+	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
 	;;
     RC_GENOA)
 	module load system/genoa  mpi/openmpi-x86_64
@@ -57,7 +56,7 @@ case "$system" in
 	RC_DGXSP)
 	source /etc/profile.d/modules.sh
 	module load system/ng-dgx nvhpc-hpcx/26.3
-	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
+	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
 	;;
 	RC_FX700)
 	module load system/fx700 FJSVstclanga
