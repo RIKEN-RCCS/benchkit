@@ -730,6 +730,49 @@ build_environment_snapshot_block() {
 
 environment_snapshot_block=$(build_environment_snapshot_block)
 
+build_node_status_snapshot_block() {
+  local snapshot_file="results/node_status_snapshot_run.json"
+
+  if [ ! -f "$snapshot_file" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  local snapshot_json
+  if ! snapshot_json=$(jq -cS 'if type == "object" then . else error("node snapshot must be an object") end' "$snapshot_file" 2>/dev/null); then
+    echo "WARNING: results/node_status_snapshot_run.json is invalid; omitting node status snapshot summary" >&2
+    printf '%s' ""
+    return 0
+  fi
+
+  local snapshot_hash
+  snapshot_hash=$(printf '%s' "$snapshot_json" | sha256_text 2>/dev/null || true)
+  if [ -z "$snapshot_hash" ]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  jq -n -c \
+    --arg hash "sha256:${snapshot_hash}" \
+    --arg artifact_path "$snapshot_file" \
+    --argjson snapshot "$snapshot_json" \
+    '{
+      schema_version: ($snapshot.schema_version // 1),
+      kind: ($snapshot.kind // "node_status_snapshot"),
+      hash: $hash,
+      collection_status: ($snapshot.collection_status // "unknown"),
+      collection_warnings: ($snapshot.collection_warnings // []),
+      scheduler_kind: ($snapshot.scheduler.kind // "unknown"),
+      summary: ($snapshot.summary // {}),
+      artifact: {
+        type: "file_reference",
+        path: $artifact_path
+      }
+    }'
+}
+
+node_status_snapshot_block=$(build_node_status_snapshot_block)
+
 build_input_info_block() {
   local input_info_file="results/input_info.json"
 
@@ -988,6 +1031,12 @@ write_result_json() {
   \"build_cache\": ${build_cache_block}"
   fi
 
+  local node_status_snapshot_json_block=""
+  if [ -n "$node_status_snapshot_block" ]; then
+    node_status_snapshot_json_block=",
+  \"node_status_snapshot\": ${node_status_snapshot_block}"
+  fi
+
   local input_info_json_block=""
   local result_input_info_block=""
   result_input_info_block=$(filter_input_info_block_for_result "$exp")
@@ -1055,7 +1104,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}
+  "source_info": $source_info_block${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
 }
 EOF
 

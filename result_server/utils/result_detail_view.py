@@ -115,6 +115,9 @@ def build_result_detail_context(
             measurement_artifact_filenames or [],
             include_timing=not public_surface,
         ),
+        "node_status_rows": (
+            [] if public_surface else _build_node_status_rows(result.get("node_status_snapshot"))
+        ),
         "timing_observation_rows": (
             [] if public_surface else _build_timing_observation_rows(result.get("timing_observations"))
         ),
@@ -230,6 +233,11 @@ def _build_measurement_artifact_rows(
         rows.extend(
             _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uploaded)
         )
+        rows.extend(
+            _build_node_status_measurement_artifact_rows(
+                result, timestamp, result_uuid, uploaded
+            )
+        )
     return rows
 
 
@@ -308,6 +316,186 @@ def _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uplo
             ),
         })
     return rows
+
+
+def _build_node_status_measurement_artifact_rows(result, timestamp, result_uuid, uploaded):
+    node_status_snapshot = result.get("node_status_snapshot")
+    if not isinstance(node_status_snapshot, dict):
+        return []
+
+    artifact = node_status_snapshot.get("artifact")
+    artifact = artifact if isinstance(artifact, dict) else {}
+    if artifact.get("type") != "file_reference":
+        return []
+
+    artifact_path = str(artifact.get("path") or "").strip()
+    filename = stored_measurement_artifact_filename_from_path(
+        timestamp,
+        result_uuid,
+        artifact_path,
+    )
+    if not filename:
+        return []
+
+    return [
+        {
+            "kind": "Node status snapshot",
+            "source": "Run placement",
+            "artifact_path": artifact_path,
+            "filename": filename,
+            "link": (
+                url_for("results.show_result", filename=filename)
+                if filename in uploaded
+                else None
+            ),
+        }
+    ]
+
+
+def _build_node_status_rows(node_status_snapshot):
+    if not isinstance(node_status_snapshot, dict):
+        return []
+
+    summary = node_status_snapshot.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    artifact = node_status_snapshot.get("artifact")
+    artifact = artifact if isinstance(artifact, dict) else {}
+    warnings = _unique_strings(
+        list(_list_values(node_status_snapshot.get("collection_warnings")))
+        + list(_list_values(summary.get("warnings")))
+    )
+
+    rows = build_labeled_value_rows(
+        [
+            ("Status", node_status_snapshot.get("collection_status") or "unknown"),
+            ("Scheduler", node_status_snapshot.get("scheduler_kind") or "unknown"),
+            (
+                "Hosts Observed",
+                _format_observed_total(
+                    summary.get("observed_host_count"),
+                    summary.get("scheduler_host_count"),
+                ),
+            ),
+            (
+                "CPU Counts Observed",
+                _format_value_list(summary.get("cpu_logical_counts")),
+            ),
+            (
+                "Host Memory Total",
+                _format_mib_range(
+                    summary.get("memory_total_mib_min"),
+                    summary.get("memory_total_mib_max"),
+                ),
+            ),
+            (
+                "Min Memory Available Before Run",
+                _format_mib(summary.get("memory_available_mib_min")),
+            ),
+            (
+                "Max Load Average Before Run",
+                _format_load_summary(
+                    summary.get("load_average_1m_max"),
+                    summary.get("load_average_5m_max"),
+                ),
+            ),
+            ("GPUs Observed", summary.get("observed_gpu_count")),
+            (
+                "GPU Memory Used Before Run",
+                _format_mib(summary.get("gpu_memory_used_total_mib")),
+            ),
+            (
+                "Compute Processes Before Run",
+                _format_process_summary(
+                    summary.get("gpu_compute_process_count"),
+                    summary.get("gpu_compute_memory_used_mib"),
+                ),
+            ),
+            ("Snapshot Hash", node_status_snapshot.get("hash")),
+        ]
+    )
+    if warnings:
+        rows.append({"label": "Warnings", "value": ", ".join(str(item) for item in warnings)})
+    if artifact.get("path"):
+        rows.append({"label": "Artifact", "value": artifact["path"]})
+    return rows
+
+
+def _list_values(value):
+    if isinstance(value, list):
+        return value
+    if value in (None, ""):
+        return []
+    return [value]
+
+
+def _unique_strings(values):
+    unique_values = []
+    seen = set()
+    for value in values:
+        text = str(value)
+        if text in seen:
+            continue
+        seen.add(text)
+        unique_values.append(text)
+    return unique_values
+
+
+def _format_observed_total(observed, total):
+    if observed in (None, "") and total in (None, ""):
+        return "not recorded"
+    if total in (None, ""):
+        return str(observed)
+    return f"{observed or 0}/{total}"
+
+
+def _format_mib(value):
+    if value in (None, ""):
+        return "not recorded"
+    return f"{format_numeric_value(value)} MiB"
+
+
+def _format_mib_range(min_value, max_value):
+    if min_value in (None, "") and max_value in (None, ""):
+        return "not recorded"
+    if min_value == max_value or max_value in (None, ""):
+        return _format_mib(min_value)
+    if min_value in (None, ""):
+        return _format_mib(max_value)
+    return f"{format_numeric_value(min_value)}-{format_numeric_value(max_value)} MiB"
+
+
+def _format_value_list(values):
+    if not isinstance(values, list) or not values:
+        return "not recorded"
+    return ", ".join(_format_count_value(value) for value in values)
+
+
+def _format_load_summary(one_minute, five_minutes):
+    if one_minute in (None, "") and five_minutes in (None, ""):
+        return "not recorded"
+    values = []
+    if one_minute not in (None, ""):
+        values.append(f"1m={format_numeric_value(one_minute)}")
+    if five_minutes not in (None, ""):
+        values.append(f"5m={format_numeric_value(five_minutes)}")
+    return "; ".join(values)
+
+
+def _format_count_value(value):
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if numeric_value.is_integer():
+        return str(int(numeric_value))
+    return format_numeric_value(value)
+
+
+def _format_process_summary(count, memory_mib):
+    if count in (None, ""):
+        return "not recorded"
+    memory_text = _format_mib(memory_mib)
+    return f"{count} process(es); {memory_text}"
 
 
 def _choose_uploaded_filename(candidates, uploaded):

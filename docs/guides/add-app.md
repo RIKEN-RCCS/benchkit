@@ -243,6 +243,19 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 
 この actual build snapshot は、将来の build cache key や、同じ source から異なる binary が生じた場合の原因確認に使う前提の記録です。
 
+### run placement / node status snapshot の方針
+
+CI の共通 job は、benchmark 本体の `run_start` より前に `results/node_status_snapshot_run.json` を記録します。
+app の `run.sh` からこの snapshot 用 helper を呼ぶ必要はありません。
+
+この snapshot は scheduler-neutral な診断情報で、scheduler kind、scheduler が示す node list、観測できた host 数、CPU 数、memory、load average、GPU の軽量状態、run 前に見える GPU compute process の件数と memory 合計を記録します。
+process ID、process name、user name は記録しません。
+SLURM では可能なら allocation 内の各 node で軽い worker を動かします。
+PBS / PJM / unknown scheduler では、取れる範囲の nodefile / environment / local host 情報だけを partial または unsupported として残します。
+
+Result JSON には hash、summary、Measurement Artifact への参照だけを入れ、詳細な node list や GPU 状態は `results/node_status_snapshot_run.json` 側に残します。
+Portal の public surface ではこの Measurement Artifact は表示しません。
+
 ### build cache の方針
 
 cross build job と native `build_run` job の build phase では、共通 wrapper `scripts/build_with_cache.sh` が `build.sh` の前後で build artifact cache を扱います。

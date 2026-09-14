@@ -73,6 +73,10 @@
 {{ render_titled_key_value_table("PA Data Summary", profile_rows, "meta-table") }}
 {% endif %}
 
+{% if node_status_rows %}
+{{ render_titled_key_value_table("Node Status Snapshot", node_status_rows, "meta-table") }}
+{% endif %}
+
 {% if measurement_artifact_rows %}
 <div class="section">
     <h2>Measurement Artifacts</h2>

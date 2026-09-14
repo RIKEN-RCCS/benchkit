@@ -161,6 +161,7 @@ ${job_prefix}_run:
     - bash scripts/record_ci_timing_context.sh run
     - ls -la $program_path/
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_run.json
+    - BK_SYSTEM=\"$system\" BK_NODE_STATUS_SNAPSHOT_STAGE=run bash scripts/collect_node_status_snapshot.sh results/node_status_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
@@ -215,6 +216,7 @@ ${job_prefix}_build_run:
     - bash scripts/record_timestamp.sh results/build_start
     - bash scripts/build_with_cache.sh $program $system $program_path
     - bash scripts/record_timestamp.sh results/build_end
+    - BK_SYSTEM=\"$system\" BK_NODE_STATUS_SNAPSHOT_STAGE=run bash scripts/collect_node_status_snapshot.sh results/node_status_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
     - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end

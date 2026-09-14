@@ -141,6 +141,31 @@ FULL_RESULT = {
             }
         ],
     },
+    "node_status_snapshot": {
+        "schema_version": 1,
+        "kind": "node_status_snapshot",
+        "collection_status": "ok",
+        "collection_warnings": [],
+        "scheduler_kind": "slurm",
+        "summary": {
+            "scheduler_host_count": 2,
+            "observed_host_count": 2,
+            "cpu_logical_counts": [64],
+            "memory_total_mib_min": 262144,
+            "memory_total_mib_max": 262144,
+            "memory_available_mib_min": 131072,
+            "load_average_1m_max": 0.5,
+            "load_average_5m_max": 0.8,
+            "observed_gpu_count": 4,
+            "gpu_memory_used_total_mib": 0,
+            "gpu_compute_process_count": 0,
+            "gpu_compute_memory_used_mib": 0,
+        },
+        "artifact": {
+            "type": "file_reference",
+            "path": "results/node_status_snapshot_run.json",
+        },
+    },
 }
 
 FULL_QUALITY = {
@@ -204,6 +229,20 @@ class TestResultDetailTemplate:
         assert "build inputs hash matched" in html
         assert "rccs-cloud" in html
         assert "slurm" in html
+        assert "Node Status Snapshot" in html
+        assert "Hosts Observed" in html
+        assert "2/2" in html
+        assert "CPU Counts Observed" in html
+        assert "64" in html
+        assert "Host Memory Total" in html
+        assert "262144.000 MiB" in html
+        assert "Min Memory Available Before Run" in html
+        assert "131072.000 MiB" in html
+        assert "Max Load Average Before Run" in html
+        assert "1m=0.500; 5m=0.800" in html
+        assert "Compute Processes Before Run" in html
+        assert "0 process(es); 0.000 MiB" in html
+        assert "results/node_status_snapshot_run.json" in html
         assert "Timing Observations" in html
         assert "qws-case0-timers" in html
         assert "producer=qws" in html
@@ -233,6 +272,8 @@ class TestResultDetailTemplate:
         assert "Cached Binary Created At" not in html
         assert "Allocation Project ID" not in html
         assert "Runner" not in html
+        assert "Node Status Snapshot" not in html
+        assert "node_status_snapshot_run" not in html
         assert "Timing Observations" not in html
         assert "qws_timing_CASE0" not in html
         assert "rccs-cloud" not in html
@@ -396,6 +437,48 @@ class TestResultDetailTemplate:
             )
 
         assert "Timing observation" not in html
+        assert filename not in html
+
+    def test_node_status_snapshot_artifact_is_linked_on_console_surface(self, app):
+        result = {
+            **FULL_RESULT,
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20260819_161329",
+        }
+        filename = (
+            "measurement_artifact_20260819_161329_"
+            "12345678-1234-1234-1234-123456789abc_node_status_snapshot_run.json"
+        )
+
+        with app.test_request_context():
+            html = _render_result_detail(result, FULL_QUALITY, [filename])
+
+        assert "Measurement Artifacts" in html
+        assert "Node status snapshot" in html
+        assert "Run placement" in html
+        assert "results/node_status_snapshot_run.json" in html
+        assert f'href="/results/{filename}"' in html
+
+    def test_node_status_snapshot_artifact_is_hidden_on_public_surface(self, app):
+        result = {
+            **FULL_RESULT,
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20260819_161329",
+        }
+        filename = (
+            "measurement_artifact_20260819_161329_"
+            "12345678-1234-1234-1234-123456789abc_node_status_snapshot_run.json"
+        )
+
+        with app.test_request_context():
+            html = _render_result_detail(
+                result,
+                FULL_QUALITY,
+                [filename],
+                public_surface=True,
+            )
+
+        assert "Node status snapshot" not in html
         assert filename not in html
 
     def test_vector_data_table(self, app):
