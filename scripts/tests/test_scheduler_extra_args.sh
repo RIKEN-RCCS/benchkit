@@ -34,7 +34,7 @@ test "$(get_scheduler_extra_args Fugaku)" = "--account=global"
 
 tmpdir=""
 estimate_tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir" "$estimate_tmpdir"' EXIT
+trap 'rm -rf "$tmpdir" "$estimate_tmpdir"; rm -f "${REPO_DIR}/script.sh"' EXIT
 
 mkdir -p "$estimate_tmpdir/app"
 if has_estimate_script "$estimate_tmpdir/app"; then

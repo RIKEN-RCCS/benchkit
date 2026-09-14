@@ -383,6 +383,17 @@ def _list_result_measurement_artifact_filenames(result, artifact_dir, *, include
         seen.add(filename)
         if os.path.isfile(os.path.join(artifact_dir, filename)):
             filenames.append(filename)
+    for artifact_path in _iter_result_node_status_artifact_paths(result):
+        filename = stored_measurement_artifact_filename_from_path(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
+        if not filename or filename in seen:
+            continue
+        seen.add(filename)
+        if os.path.isfile(os.path.join(artifact_dir, filename)):
+            filenames.append(filename)
     return filenames
 
 
@@ -415,6 +426,18 @@ def _iter_result_timing_artifact_paths(result):
         path = _clean_result_value(artifact.get("path"))
         if path:
             yield path
+
+
+def _iter_result_node_status_artifact_paths(result):
+    node_status_snapshot = result.get("node_status_snapshot")
+    if not isinstance(node_status_snapshot, dict):
+        return
+    artifact = node_status_snapshot.get("artifact")
+    if not isinstance(artifact, dict) or artifact.get("type") != "file_reference":
+        return
+    path = _clean_result_value(artifact.get("path"))
+    if path:
+        yield path
 
 
 def _clean_result_value(value):

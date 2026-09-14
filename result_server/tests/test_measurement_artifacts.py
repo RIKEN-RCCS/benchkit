@@ -62,6 +62,11 @@ def test_builds_canonical_stored_names_for_legacy_profiles_and_timing_json():
         UUID,
         "results/qws_timing_CASE0.json",
     ) == f"measurement_artifact_{TIMESTAMP}_{UUID}_qws_timing_CASE0.json"
+    assert stored_measurement_artifact_filename_from_path(
+        TIMESTAMP,
+        UUID,
+        "results/node_status_snapshot_run.json",
+    ) == f"measurement_artifact_{TIMESTAMP}_{UUID}_node_status_snapshot_run.json"
 
 
 def test_profile_archive_candidates_keep_legacy_and_generic_names():
@@ -81,6 +86,7 @@ def test_profile_archive_candidates_keep_legacy_and_generic_names():
         f"padata_{TIMESTAMP}_{UUID}.tgz",
         f"padata_{TIMESTAMP}_{UUID}_padata_pairlist.tgz",
         f"measurement_artifact_{TIMESTAMP}_{UUID}_qws_timing_CASE0.json",
+        f"measurement_artifact_{TIMESTAMP}_{UUID}_node_status_snapshot_run.json",
     ],
 )
 def test_recognizes_served_measurement_artifact_filenames(filename):

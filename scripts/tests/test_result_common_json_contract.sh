@@ -159,6 +159,55 @@ cat > "${TMP_DIR}/results/environment_snapshot_run.json" <<'EOF'
 }
 EOF
 
+cat > "${TMP_DIR}/results/node_status_snapshot_run.json" <<'EOF'
+{
+  "schema_version": 1,
+  "kind": "node_status_snapshot",
+  "stage": "run",
+  "collected_at": "2026-09-14T00:01:30Z",
+  "collection_status": "ok",
+  "collection_warnings": ["remote_collection_not_used"],
+  "scheduler": {
+    "kind": "slurm",
+    "slurm": {
+      "job_id": "123",
+      "partition": "gpu",
+      "remote_collection_status": "ok"
+    }
+  },
+  "allocation": {
+    "scheduler_hosts": ["node-a", "node-b"]
+  },
+  "observed": {
+    "hosts": [
+      {
+        "hostname": "node-a",
+        "gpu_state": {
+          "query_status": "ok",
+          "gpus": [
+            {"index": "0", "memory_used_mib": 0}
+          ],
+          "process_summary": {
+            "compute_process_count": 0,
+            "memory_used_mib": 0
+          }
+        }
+      }
+    ]
+  },
+  "summary": {
+    "scheduler_host_count": 2,
+    "observed_host_count": 1,
+    "observed_gpu_count": 1,
+    "gpu_memory_used_total_mib": 0,
+    "gpu_compute_process_count": 0,
+    "gpu_compute_memory_used_mib": 0,
+    "gpu_query_statuses": ["ok"],
+    "warnings": ["observed_host_count_differs_from_scheduler_host_count"]
+  }
+}
+EOF
+
 cat > "${TMP_DIR}/results/build_cache.env" <<'EOF'
 BK_BUILD_CACHE_STATUS=hit
 BK_BUILD_CACHE_REASON=restored cached build artifacts
@@ -230,7 +279,19 @@ jq -e '
   .pipeline_timing.scheduler_queue_time_source == "runner_metadata" and
   .pipeline_timing.run_time == 34 and
   .pipeline_timing.run_time_scope == "job" and
-  (.pipeline_timing | has("profiled_run_included") | not)
+  (.pipeline_timing | has("profiled_run_included") | not) and
+  .node_status_snapshot.schema_version == 1 and
+  .node_status_snapshot.kind == "node_status_snapshot" and
+  (.node_status_snapshot.hash | startswith("sha256:")) and
+  .node_status_snapshot.collection_status == "ok" and
+  .node_status_snapshot.collection_warnings == ["remote_collection_not_used"] and
+  .node_status_snapshot.scheduler_kind == "slurm" and
+  .node_status_snapshot.summary.scheduler_host_count == 2 and
+  .node_status_snapshot.summary.observed_host_count == 1 and
+  .node_status_snapshot.artifact.type == "file_reference" and
+  .node_status_snapshot.artifact.path == "results/node_status_snapshot_run.json" and
+  (.node_status_snapshot | has("observed") | not) and
+  (.node_status_snapshot | has("allocation") | not)
 ' "${RESULT_JSON}" >/dev/null
 
 jq -e '

@@ -61,6 +61,29 @@ cat > "${TMP_DIR}/project/results/environment_snapshot_run.json" <<'EOF'
 }
 EOF
 
+cat > "${TMP_DIR}/project/results/node_status_snapshot_run.json" <<'EOF'
+{
+  "schema_version": 1,
+  "kind": "node_status_snapshot",
+  "stage": "run",
+  "collected_at": "2026-09-14T00:01:30Z",
+  "collection_status": "ok",
+  "scheduler": {
+    "kind": "slurm"
+  },
+  "summary": {
+    "scheduler_host_count": 2,
+    "observed_host_count": 2,
+    "observed_gpu_count": 4,
+    "gpu_memory_used_total_mib": 0,
+    "gpu_compute_process_count": 0,
+    "gpu_compute_memory_used_mib": 0,
+    "gpu_query_statuses": ["ok"],
+    "warnings": []
+  }
+}
+EOF
+
 cat > "${TMP_DIR}/project/results/input_info.json" <<'EOF'
 {
   "schema_version": 1,
@@ -95,6 +118,9 @@ EOF
 cat > "${TMP_DIR}/bin/curl" <<'EOF'
 #!/bin/bash
 set -euo pipefail
+if [ -n "${CURL_LOG:-}" ]; then
+  printf '%s\n' "$*" >> "$CURL_LOG"
+fi
 if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
   printf '%s\n' '{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","timestamp":"20260728_070000"}'
   exit 0
@@ -115,6 +141,7 @@ export BK_TRIGGER_ID="qws-fugaku-1400"
 export BK_TRIGGER_TYPE="scheduled"
 export BK_TRIGGER_REASON="cron:0 14 * * *@2026-08-07T14:00+09:00"
 export PARENT_PIPELINE_ID="54321"
+export CURL_LOG="${TMP_DIR}/curl.log"
 
 pushd "${TMP_DIR}/project" >/dev/null
 bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345 > "${TMP_DIR}/process.log"
@@ -165,7 +192,11 @@ jq -e '
   (.pipeline_timing.run_time | type) == "number" and
   .pipeline_timing.run_time_scope == "job" and
   (.pipeline_timing | has("profiled_run_included") | not) and
-  (.execution_trigger | type) == "object"
+  (.execution_trigger | type) == "object" and
+  .node_status_snapshot.collection_status == "ok" and
+  .node_status_snapshot.scheduler_kind == "slurm" and
+  .node_status_snapshot.summary.observed_gpu_count == 4 and
+  .node_status_snapshot.artifact.path == "results/node_status_snapshot_run.json"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '
   .input_info.schema_version == 1 and
@@ -184,6 +215,8 @@ jq -e '
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '."result0.json".uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json" >/dev/null
+grep -q '/api/ingest/measurement-artifact' "${TMP_DIR}/curl.log"
+grep -q 'file=@results/node_status_snapshot_run.json' "${TMP_DIR}/curl.log"
 grep -q "Result summary: code=qws system=Fugaku mode=cross exp=CASE0 fom=1.25 pipeline=12345" "${TMP_DIR}/process.log"
 if grep -q '"environment_snapshot"' "${TMP_DIR}/process.log"; then
   echo "process log should not include full result JSON" >&2

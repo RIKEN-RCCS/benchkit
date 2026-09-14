@@ -163,7 +163,8 @@ collect_measurement_artifacts_for_result() {
     def file_reference_paths:
       ((.fom_breakdown.sections // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
       ((.fom_breakdown.overlaps // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
-      ((.timing_observations.observations // [])[]? | .artifact? | select(.type == "file_reference") | .path // empty);
+      ((.timing_observations.observations // [])[]? | .artifact? | select(.type == "file_reference") | .path // empty),
+      (.node_status_snapshot.artifact? | select(.type == "file_reference") | .path // empty);
     file_reference_paths
   ' "$json_file" 2>/dev/null || true)
 }
