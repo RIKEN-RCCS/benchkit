@@ -1,6 +1,5 @@
 import json
 import os
-import re
 
 from flask import abort, current_app, render_template, request, url_for
 from werkzeug.exceptions import Forbidden, NotFound
@@ -31,26 +30,16 @@ from utils.result_file import (
     serve_permitted_result_file,
     serve_public_padata_file,
 )
+from utils.measurement_artifacts import (
+    is_measurement_artifact_filename,
+    stored_measurement_artifact_filename_from_path,
+)
 from utils.result_records import (
     format_numeric_value,
     format_result_timestamp,
     summarize_result_quality,
 )
 from utils.trigger_display import load_trigger_run_lookup, summarize_execution_trigger
-
-
-PADATA_ARTIFACT_BASENAME_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)"
-)
-MEASUREMENT_ARTIFACT_BASENAME_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)"
-)
-MEASUREMENT_ARTIFACT_FILENAME_RE = re.compile(
-    r"^measurement_artifact_\d{8}_\d{6}_"
-    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_"
-    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz|json)$",
-    re.IGNORECASE,
-)
 
 
 def register_results_detail_routes(results_bp):
@@ -104,7 +93,7 @@ def register_results_detail_routes(results_bp):
             if is_public_surface
             else [
                 name for name in os.listdir(artifact_dir)
-                if _is_measurement_artifact_filename(name)
+                if is_measurement_artifact_filename(name)
             ]
         )
         detail_context = build_result_detail_context(
@@ -309,7 +298,7 @@ def register_results_detail_routes(results_bp):
                 )
             abort(404)
 
-        if _is_measurement_artifact_filename(filename):
+        if is_measurement_artifact_filename(filename):
             return serve_permitted_result_file(
                 filename,
                 current_app.config["RECEIVED_DIR"],
@@ -353,10 +342,13 @@ def _list_result_padata_filenames(result, padata_dir):
     filenames = []
     seen = set()
     for artifact_path in _iter_result_padata_artifact_paths(result):
-        artifact_slug = _padata_artifact_slug(artifact_path)
-        if not artifact_slug:
+        filename = stored_measurement_artifact_filename_from_path(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
+        if not filename or not filename.endswith(".tgz"):
             continue
-        filename = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
         if filename in seen:
             continue
         seen.add(filename)
@@ -381,7 +373,11 @@ def _list_result_measurement_artifact_filenames(result, artifact_dir, *, include
         return filenames
 
     for artifact_path in _iter_result_timing_artifact_paths(result):
-        filename = _measurement_artifact_filename(timestamp, result_uuid, artifact_path)
+        filename = stored_measurement_artifact_filename_from_path(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
         if not filename or filename in seen:
             continue
         seen.add(filename)
@@ -419,37 +415,6 @@ def _iter_result_timing_artifact_paths(result):
         path = _clean_result_value(artifact.get("path"))
         if path:
             yield path
-
-
-def _padata_artifact_slug(artifact_path):
-    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
-        return ""
-    basename = os.path.basename(artifact_path)
-    if not PADATA_ARTIFACT_BASENAME_RE.fullmatch(basename):
-        return ""
-    return basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
-
-
-def _measurement_artifact_filename(timestamp, result_uuid, artifact_path):
-    basename = _measurement_artifact_basename(artifact_path)
-    if not basename:
-        return ""
-    return f"measurement_artifact_{timestamp}_{result_uuid}_{basename}"
-
-
-def _measurement_artifact_basename(artifact_path):
-    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
-        return ""
-    basename = os.path.basename(artifact_path)
-    if not MEASUREMENT_ARTIFACT_BASENAME_RE.fullmatch(basename):
-        return ""
-    return basename
-
-
-def _is_measurement_artifact_filename(filename):
-    return filename.endswith(".tgz") or bool(
-        MEASUREMENT_ARTIFACT_FILENAME_RE.fullmatch(filename)
-    )
 
 
 def _clean_result_value(value):

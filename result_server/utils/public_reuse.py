@@ -9,6 +9,7 @@ from ipaddress import ip_address
 from typing import Any
 from urllib.parse import urlsplit
 
+from utils.measurement_artifacts import profile_archive_filename_candidates
 from utils.result_records import (
     format_numeric_value,
     format_result_timestamp,
@@ -504,14 +505,21 @@ def _profile_summary(
     uploaded = set(padata_filenames)
     artifacts = []
     for section_name, artifact_path in _iter_profile_artifacts(result):
-        artifact_slug = _padata_artifact_slug(artifact_path)
-        if not artifact_slug:
-            continue
         result_uuid = _clean(result.get("_server_uuid"))
         timestamp = _clean(result.get("_server_timestamp"))
         if not result_uuid or not timestamp:
             continue
-        archive = f"padata_{timestamp}_{result_uuid}_{artifact_slug}.tgz"
+        archive_candidates = profile_archive_filename_candidates(
+            timestamp,
+            result_uuid,
+            artifact_path,
+        )
+        if not archive_candidates:
+            continue
+        archive = next(
+            (candidate for candidate in archive_candidates if candidate in uploaded),
+            archive_candidates[0],
+        )
         if archive not in uploaded:
             continue
         artifacts.append(
@@ -716,15 +724,6 @@ def _iter_profile_artifacts(result: dict[str, Any]):
                 path = _clean(artifact.get("path"))
                 if path:
                     yield item_name, path
-
-
-def _padata_artifact_slug(artifact_path: str) -> str:
-    if not isinstance(artifact_path, str) or not artifact_path.startswith("results/"):
-        return ""
-    basename = os.path.basename(artifact_path)
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:tgz|tar\.gz)", basename):
-        return ""
-    return basename[:-7] if basename.endswith(".tar.gz") else basename[:-4]
 
 
 def _safe_relative_path(value: Any) -> str:

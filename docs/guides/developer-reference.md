@@ -283,5 +283,6 @@ Treat missing `source_info`, `fom_breakdown`, or artifact references as follow-u
 Detailed timing artifacts may be recorded through `timing_observations` before
 they are promoted to `fom_breakdown`; do not treat every detailed timer or
 profiler region as an additive estimation section without an app-specific
-mapping review. Referenced `results/*.json` timing files and profiler archives
-are uploaded as Measurement Artifacts by the result sender.
+mapping review. Apps should use `bk_record_timing_observation` for this
+handoff. Referenced `results/*.json` timing files and profiler archives are
+uploaded as Measurement Artifacts by the result sender.

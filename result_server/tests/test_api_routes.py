@@ -503,6 +503,20 @@ class TestIngestMeasurementArtifact:
         )
         assert resp.status_code == 400
 
+    def test_requires_artifact_path_for_non_archive_upload(self, client):
+        data = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "20250101_120000",
+            "file": (io.BytesIO(b'{"timers": []}'), "qws_timing_CASE0.json"),
+        }
+        resp = client.post(
+            "/api/ingest/measurement-artifact",
+            data=data,
+            headers={"X-API-Key": API_KEY},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+
     def test_missing_api_key_returns_401(self, client):
         resp = client.post(
             "/api/ingest/measurement-artifact",
