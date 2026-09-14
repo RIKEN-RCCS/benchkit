@@ -11,7 +11,8 @@ on:
       - ".github/workflows/shellcheck.yml"
   push:
     branches:
-      - "**"
+      - develop
+      - main
     paths:
       - "scripts/*.sh"
       - "scripts/**/*.sh"
