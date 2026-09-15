@@ -13,16 +13,29 @@ sbd_ncu_profile_mode() {
   printf '%s\n' "${BK_SBD_NCU_PROFILE_MODE:-discovery}"
 }
 
+sbd_supports_ncu_profile() {
+  case "$1" in
+    RIKYU|RC_DGXSP|RC_GH200) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 sbd_configure_ncu_profile_from_run_env() {
   local system_name="$1"
   local profiler_tool
   local profiler_level
 
-  profiler_tool=$(bk_resolve_profiler_tool none SBD_PROFILER_TOOL) || return 1
-  if [ -z "$profiler_tool" ]; then
+  if ! sbd_supports_ncu_profile "$system_name"; then
     return 0
   fi
 
+  profiler_tool=$(bk_resolve_profiler_tool ncu SBD_PROFILER_TOOL) || return 1
+  if [ -z "$profiler_tool" ]; then
+    if [ -z "${BK_SBD_NCU_PROFILE:-}" ]; then
+      export BK_SBD_NCU_PROFILE=false
+    fi
+    return 0
+  fi
   if [ "$profiler_tool" != "ncu" ]; then
     echo "SBD ${system_name}: only ncu is supported for separate profile acquisition." >&2
     return 1

@@ -5,9 +5,10 @@ diagonalization benchmark from `github.com/r-ccs-cms/sbd`.
 
 ## Optional NSYS / NCU profiling
 
-SBD keeps ordinary benchmark timing unprofiled. Set `BK_PROFILER=ncu` or
-`SBD_PROFILER_TOOL=ncu` for a separate profiling run; `run.sh` maps that
-request to the SBD NCU flow. The profile flow runs rank-0 host
+SBD keeps ordinary benchmark timing unprofiled, then collects a separate
+profiling run on supported NVIDIA GPU systems. Set `BK_SBD_NCU_PROFILE=false`
+or `SBD_PROFILER_TOOL=none` to skip the additional profile flow. The profile
+flow runs rank-0 host
 `nsys profile --trace=cuda --sample=none`, exports the CUDA kernel summary,
 generates `results/sbd_kernel_discovery.json` and `results/sbd_ncu_plan.json`,
 and then uses that plan for rank-0 Nsight Compute acquisition when
