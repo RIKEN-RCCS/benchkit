@@ -63,8 +63,9 @@ case "$system" in
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= SYSLIBS=
 	;;
     MiyabiG)
-	### QWSはNeoverse版やGPU版はないので汎用版としてとりあえずarch=skylakeを指定している
-	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
+	module purge
+	module load nvidia/26.3 nv-hpcx/26.3
+	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
         ;;
     MiyabiC)
 	make -j 8 fugaku_benchmark= omp=1  compiler=intel arch=skylake rdma= mpi=1 powerapi=
