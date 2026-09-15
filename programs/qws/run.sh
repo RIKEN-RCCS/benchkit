@@ -164,7 +164,13 @@ case "$system" in
         mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=12 ./main "${qws_case0_args[@]}" > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
-    MiyabiG|MiyabiC)
+    MiyabiG)
+        module purge
+        module load nvidia/26.3 nv-hpcx/26.3
+        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 ./main "${qws_case0_args[@]}" > CASE0
+        print_results CASE0 CASE0 1 >> ../results/result
+        ;;
+    MiyabiC)
         mpirun -n 1 ./main "${qws_case0_args[@]}" > CASE0
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
