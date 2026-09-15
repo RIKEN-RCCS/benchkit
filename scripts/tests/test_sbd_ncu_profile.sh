@@ -142,15 +142,20 @@ chmod +x "${FAKE_BIN}/mpirun" "${FAKE_BIN}/nsys" "${FAKE_BIN}/ncu" "${RUN_DIR}/d
 export PATH="${FAKE_BIN}:${PATH}"
 
 (
-  export BK_PROFILER=ncu
-  export SBD_PROFILER_TOOL=none
-  unset BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL
-  sbd_configure_ncu_profile_from_run_env RIKYU
+  unset BK_PROFILER BK_PROFILER_LEVEL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL SBD_PROFILER_TOOL
+  sbd_configure_ncu_profile_from_run_env RC_FX700
   test -z "${BK_SBD_NCU_PROFILE:-}"
 )
 
+(
+  unset BK_PROFILER BK_PROFILER_LEVEL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL
+  export SBD_PROFILER_TOOL=none
+  sbd_configure_ncu_profile_from_run_env RIKYU
+  test "${BK_SBD_NCU_PROFILE:-}" = "false"
+)
+
 pushd "${RUN_DIR}" >/dev/null
-export BK_PROFILER=ncu
+unset BK_PROFILER SBD_PROFILER_TOOL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL
 export BK_SBD_NCU_PROFILE_MODE=discovery
 export BK_SBD_NCU_PLAN_TOP_K=5
 export BK_PROFILER_LEVEL=single
