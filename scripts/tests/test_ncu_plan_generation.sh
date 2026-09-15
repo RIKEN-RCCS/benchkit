@@ -55,7 +55,7 @@ jq -e '
   .profiles[0].section == null and
   .profiles[0].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__inter_cell.*" and
   .profiles[1].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__intra_cell.*" and
-  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist.*" and
+  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist<4,[[:space:]]*256>.*" and
   (.profiles[2].kernel_name | contains("build_pairlist"))
 ' "${TMP_DIR}/ncu_plan.json" >/dev/null
 
@@ -93,7 +93,7 @@ jq -e '
   .profiles[0].selection.source_gpu_duration_ns == 9750000 and
   .profiles[0].selection.discovery_gpu_time_pct == 97.5 and
   .profiles[1].kernel_match.pattern == "regex:.*kern_compute_force_nonbond_table_linear_univ__force_intra_cell.*" and
-  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist.*"
+  .profiles[2].kernel_match.pattern == "regex:.*kern_build_pairlist<4,[[:space:]]*256>.*"
 ' "${TMP_DIR}/dominant_ncu_plan.json" >/dev/null
 
 "${PYTHON_BIN}" "${REPO_DIR}/scripts/profiling/generate_ncu_plan.py" \
@@ -106,6 +106,32 @@ jq -e '
   (.profiles | length) == 5 and
   .profiles[3].kernel_match.pattern == "regex:.*kern_compute_energy_nonbond_table_linear_univ__energyforce_inter_cell.*"
 ' "${TMP_DIR}/all_ncu_plan.json" >/dev/null
+
+cat > "${TMP_DIR}/sbd_nsys.csv" <<'CSV'
+CUDA Kernel Summary
+"Time (%)","Total Time (ns)","Instances","Avg (ns)","Med (ns)","Min (ns)","Max (ns)","StdDev (ns)","Name"
+58.5,"5,850,000",50,117000,116000,100000,130000,4000,"void sbd::MultAlphaBeta<double>(double*, double const*)"
+19.2,"1,920,000",50,38400,38000,35000,42000,2000,"void sbd::MultUnified<double, (int)0, (int)1>(double*, double const*)"
+17.0,"1,700,000",50,34000,33800,30000,39000,1800,"void sbd::MultUnified<double, (int)1, (int)1>(double*, double const*)"
+2.7,"270,000",50,5400,5300,5000,6500,400,"void sbd::MultUnified<double, (int)0, (int)0>(double*, double const*)"
+2.5,"250,000",50,5000,4900,4500,6000,350,"void sbd::MultUnified<double, (int)1, (int)0>(double*, double const*)"
+CSV
+
+"${PYTHON_BIN}" "${REPO_DIR}/scripts/profiling/generate_ncu_plan.py" \
+  --nsys-csv "${TMP_DIR}/sbd_nsys.csv" \
+  --out-plan "${TMP_DIR}/sbd_ncu_plan.json" \
+  --top-k 5 \
+  --launch-count 10 >/dev/null
+
+jq -e '
+  (.profiles | length) == 5 and
+  .profiles[0].kernel_match.pattern == "regex:.*sbd::MultAlphaBeta<double>.*" and
+  .profiles[1].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)0,[[:space:]]*\\(int\\)1>.*" and
+  .profiles[2].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)1,[[:space:]]*\\(int\\)1>.*" and
+  .profiles[3].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)0,[[:space:]]*\\(int\\)0>.*" and
+  .profiles[4].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)1,[[:space:]]*\\(int\\)0>.*" and
+  ([.profiles[].kernel_match.pattern] | unique | length) == 5
+' "${TMP_DIR}/sbd_ncu_plan.json" >/dev/null
 
 jq -e '
   .schema_version == 1 and

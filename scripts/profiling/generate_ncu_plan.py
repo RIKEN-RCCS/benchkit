@@ -193,26 +193,78 @@ def parse_nsys_kernel_csv(csv_path: Path) -> list[KernelSummary]:
     return kernels
 
 
-def _kernel_match_token(kernel_name: str) -> str:
-    """Return a shell-safe demangled-name substring for NCU kernel matching.
+def _strip_function_arguments(kernel_name: str) -> str:
+    """Drop the top-level function argument list from a demangled kernel name."""
 
-    Nsight Systems summaries often include the full demangled signature. Passing
-    that signature through shell variables is fragile because argument lists and
-    template parameters contain spaces.  NCU only needs a stable substring, so
-    use the demangled function stem instead of the full signature.
+    template_depth = 0
+    paren_depth = 0
+    last_top_level_open = -1
+    for index, char in enumerate(kernel_name):
+        if char == "<":
+            template_depth += 1
+        elif char == ">" and template_depth > 0:
+            template_depth -= 1
+        elif template_depth == 0 and char == "(":
+            if paren_depth == 0:
+                last_top_level_open = index
+            paren_depth += 1
+        elif template_depth == 0 and char == ")" and paren_depth > 0:
+            paren_depth -= 1
+    if last_top_level_open >= 0:
+        return kernel_name[:last_top_level_open].strip()
+    return kernel_name.strip()
+
+
+def _last_top_level_token(stem: str) -> str:
+    """Return the final whitespace-delimited token outside templates/parens."""
+
+    template_depth = 0
+    paren_depth = 0
+    token_start = 0
+    for index, char in enumerate(stem):
+        if char == "<":
+            template_depth += 1
+        elif char == ">" and template_depth > 0:
+            template_depth -= 1
+        elif template_depth == 0 and char == "(":
+            paren_depth += 1
+        elif template_depth == 0 and char == ")" and paren_depth > 0:
+            paren_depth -= 1
+        elif template_depth == 0 and paren_depth == 0 and char.isspace():
+            token_start = index + 1
+    return stem[token_start:].strip() or stem.strip()
+
+
+def _escape_regex_with_flexible_whitespace(token: str) -> str:
+    parts: list[str] = []
+    in_whitespace = False
+    for char in token:
+        if char.isspace():
+            if not in_whitespace:
+                parts.append("[[:space:]]*")
+                in_whitespace = True
+            continue
+        parts.append(re.escape(char))
+        in_whitespace = False
+    return "".join(parts)
+
+
+def _kernel_match_token(kernel_name: str) -> str:
+    """Return a demangled-name substring for NCU kernel matching.
+
+    Keep C++ template arguments because they may be the semantic distinction
+    between CUDA kernels.  Drop only the top-level function argument list and
+    return type.
     """
 
-    stem = kernel_name.split("(", 1)[0].strip()
-    stem = re.sub(r"<.*>$", "", stem).strip()
-    parts = stem.split()
-    if parts:
-        stem = parts[-1]
+    stem = _strip_function_arguments(kernel_name)
+    stem = _last_top_level_token(stem)
     return stem or kernel_name.strip()
 
 
 def _regex_kernel_name(kernel_name: str) -> str:
     token = _kernel_match_token(kernel_name)
-    return f"regex:.*{re.escape(token)}.*"
+    return f"regex:.*{_escape_regex_with_flexible_whitespace(token)}.*"
 
 
 def _slugify_kernel_name(kernel_name: str, index: int) -> str:
