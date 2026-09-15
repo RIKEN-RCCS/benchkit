@@ -188,7 +188,7 @@ bk_emit_result() {
 #   $1 - section name (required)
 #   $2 - time value (required, numeric)
 #   $3 - estimation package name (optional)
-#   $4 - auxiliary artifact path (optional)
+#   $4 - auxiliary artifact path or comma-separated paths (optional)
 #
 # Optional named arguments:
 #   --type <value>         (optional, default: regular)
@@ -196,7 +196,7 @@ bk_emit_result() {
 #
 # Output format:
 #   SECTION:<name> time:<time> [type:<type>] [members:<members>]
-#   [estimation_package:<package>] [artifact:<path>]
+#   [estimation_package:<package>] [artifact:<path>[,<path>...]]
 #
 # Exit codes:
 #   0 - success

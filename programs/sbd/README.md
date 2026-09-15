@@ -3,6 +3,22 @@
 This BenchKit application runs the NVIDIA Thrust TPB selected-basis
 diagonalization benchmark from `github.com/r-ccs-cms/sbd`.
 
+## Optional NSYS / NCU profiling
+
+SBD keeps ordinary benchmark timing unprofiled. Set `BK_PROFILER=ncu` or
+`SBD_PROFILER_TOOL=ncu` for a separate profiling run; `run.sh` maps that
+request to the SBD NCU flow. The profile flow runs rank-0 host
+`nsys profile --trace=cuda --sample=none`, exports the CUDA kernel summary,
+generates `results/sbd_kernel_discovery.json` and `results/sbd_ncu_plan.json`,
+and then uses that plan for rank-0 Nsight Compute acquisition when
+`BK_SBD_NCU_PROFILE_MODE=discovery`.
+
+Use `BK_SBD_NCU_PROFILE_MODE=discovery-only` to stop after the NSYS discovery
+and plan generation step. `BK_SBD_NCU_PLAN_TOP_K` controls how many kernels are
+selected; discovery-only defaults to all kernels, while discovery defaults to
+the top three. Generated NCU archives are attached to the `mult` section as
+measurement artifacts.
+
 The RIKYU recipe uses the H2O cc-pVDZ FCIDUMP with the `1em7` selected alpha
 determinant file (about 628 million product determinants), one MPI rank per
 B200 GPU, 32 OpenMP threads per rank, and the rank-distributed/index-reordered/NCCL

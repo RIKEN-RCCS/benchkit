@@ -844,6 +844,21 @@ if ! timing_observations_block=$(build_timing_observations_block); then
   exit 1
 fi
 
+artifact_paths_json() {
+  local artifact_paths="$1"
+
+  if [ -z "$artifact_paths" ]; then
+    printf '%s\n' "[]"
+    return 0
+  fi
+
+  printf '%s\n' "$artifact_paths" \
+    | tr ',' '\n' \
+    | awk 'NF { print }' \
+    | jq -R '{type: "file_reference", path: .}' \
+    | jq -s .
+}
+
 filter_input_info_block_for_result() {
   local result_exp="$1"
 
@@ -1219,17 +1234,18 @@ while IFS= read -r line; do
         sec_members="$sec_name"
       fi
       sec_members_array=$(echo "$sec_members" | tr ',' '\n' | jq -R . | jq -s .)
+      sec_artifacts_array=$(artifact_paths_json "$sec_artifact")
       sec_entry=$(jq -cn \
         --argjson sections "$sec_members_array" \
         --argjson time "$sec_time" \
         --arg estimation_package "$sec_package" \
-        --arg artifact "$sec_artifact" '
+        --argjson artifacts "$sec_artifacts_array" '
           {
             sections: $sections,
             time: $time
           }
           + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
-          + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+          + (if ($artifacts | length) > 0 then {artifacts: $artifacts} else {} end)
         ')
 
       if [ -z "$overlaps_json" ]; then
@@ -1238,17 +1254,18 @@ while IFS= read -r line; do
         overlaps_json=$(echo "$overlaps_json" | jq ". + [${sec_entry}]")
       fi
     else
+      sec_artifacts_array=$(artifact_paths_json "$sec_artifact")
       sec_entry=$(jq -cn \
         --arg name "$sec_name" \
         --argjson time "$sec_time" \
         --arg estimation_package "$sec_package" \
-        --arg artifact "$sec_artifact" '
+        --argjson artifacts "$sec_artifacts_array" '
           {
             name: $name,
             time: $time
           }
           + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
-          + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+          + (if ($artifacts | length) > 0 then {artifacts: $artifacts} else {} end)
         ')
 
       if [ -z "$sections_json" ]; then
@@ -1268,18 +1285,19 @@ while IFS= read -r line; do
 
     # Convert comma-separated section names to JSON array
     ovl_sections_array=$(echo "$ovl_sections_str" | tr ',' '\n' | jq -R . | jq -s .)
+    ovl_artifacts_array=$(artifact_paths_json "$ovl_artifact")
 
     ovl_entry=$(jq -cn \
       --argjson sections "$ovl_sections_array" \
       --argjson time "$ovl_time" \
       --arg estimation_package "$ovl_package" \
-      --arg artifact "$ovl_artifact" '
+      --argjson artifacts "$ovl_artifacts_array" '
         {
           sections: $sections,
           time: $time
         }
         + (if $estimation_package != "" then {estimation_package: $estimation_package} else {} end)
-        + (if $artifact != "" then {artifacts: [{type: "file_reference", path: $artifact}]} else {} end)
+        + (if ($artifacts | length) > 0 then {artifacts: $artifacts} else {} end)
       ')
 
     if [ -z "$overlaps_json" ]; then
