@@ -16,9 +16,9 @@ mkdir -p "${TMP_DIR}/results"
 
 cat > "${TMP_DIR}/results/result" <<'EOF'
 FOM:1.25 FOM_unit:s FOM_version:contract-v1 Exp:CASE0 node_count:2 numproc_node:4 nthreads:8 description:smoke confidential:false
-SECTION:solve time:1.0
+SECTION:solve time:1.0 artifact:results/padata_solve_a.tgz,results/padata_solve_b.tgz
 SECTION:io time:0.25
-OVERLAP:solve,io time:0.10
+OVERLAP:solve,io time:0.10 artifact:results/overlap_a.json,results/overlap_b.json
 FOM:2.50 FOM_unit:s FOM_version:contract-v1 Exp:CASE1 node_count:2 numproc_node:4 nthreads:8 description:smoke confidential:false
 EOF
 
@@ -309,9 +309,15 @@ jq -e '
 jq -e '
   .fom_breakdown.sections[0].name == "solve" and
   .fom_breakdown.sections[0].time == 1 and
+  (.fom_breakdown.sections[0].artifacts | length) == 2 and
+  .fom_breakdown.sections[0].artifacts[0].path == "results/padata_solve_a.tgz" and
+  .fom_breakdown.sections[0].artifacts[1].path == "results/padata_solve_b.tgz" and
   .fom_breakdown.sections[1].name == "io" and
   (.fom_breakdown.overlaps[0].sections | index("solve") != null) and
-  (.fom_breakdown.overlaps[0].sections | index("io") != null)
+  (.fom_breakdown.overlaps[0].sections | index("io") != null) and
+  (.fom_breakdown.overlaps[0].artifacts | length) == 2 and
+  .fom_breakdown.overlaps[0].artifacts[0].path == "results/overlap_a.json" and
+  .fom_breakdown.overlaps[0].artifacts[1].path == "results/overlap_b.json"
 ' "${RESULT_JSON}" >/dev/null
 
 jq -e '

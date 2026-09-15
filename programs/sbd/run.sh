@@ -8,6 +8,8 @@ nthreads="$4"
 n_ranks=$((nodes * numproc_node))
 
 source scripts/bk_functions.sh
+source "${PWD}/programs/sbd/profile.sh"
+sbd_configure_ncu_profile_from_run_env "${system}"
 
 RESULTS_DIR="${PWD}/results"
 RUN_DIR="${PWD}/sbd_run"
@@ -134,11 +136,12 @@ if ! awk -v actual="${energy}" -v reference="${reference_energy}" \
 fi
 
 cp diag.log "${RESULTS_DIR}/"
+sbd_run_configured_ncu_profiles "${system}" "${n_ranks}" "${diag_args[@]}"
 bk_emit_result --fom "${davidson_time}" --fom-unit s \
   --fom-version "davidson_internal_s" --exp "${experiment}" \
   --nodes "${nodes}" --numproc-node "${numproc_node}" \
   --nthreads "${nthreads}" >> "${RESULTS_DIR}/result"
 if [[ -n "${mult_time}" ]]; then
-  bk_emit_section mult "${mult_time}" >> "${RESULTS_DIR}/result"
+  bk_emit_section mult "${mult_time}" "" "${SBD_MULT_SECTION_ARTIFACTS:-}" >> "${RESULTS_DIR}/result"
 fi
 printf 'SBD energy: %s\n' "${energy}" >&2
