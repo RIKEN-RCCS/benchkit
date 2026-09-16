@@ -71,6 +71,7 @@ The workflow accepts these inputs:
 |---|---|---|
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
 | `gitlab_target` | GitLab project to receive the temporary test branch and pipeline trigger / 一時テストbranchのpush先およびpipeline trigger先のGitLab project | `swc`, `gitlab_com` |
+| `result_server_target` | Result server target selected through GitLab CI/CD variable environment scope. `dev2` uses the default scope; `dev` sets `BK_GITLAB_ENVIRONMENT=develop`. / GitLab CI/CD変数のenvironment scopeで選ぶ結果返送先。`dev2`はdefault scopeを使い、`dev`は`BK_GITLAB_ENVIRONMENT=develop`を渡します | `dev2`, `dev` |
 | `code` | Benchkit program filter / Benchkitプログラムのフィルタ | `qws,genesis` |
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo do not honor this as a general system selector. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
 | `nodes` | Optional `programs/<code>/list.csv` nodes filter. Use this with `code` and `system` to run only selected matrix rows. / 任意の `programs/<code>/list.csv` nodesフィルタ。`code`、`system`と併用して特定matrix行だけを実行します | `1`, `1,2` |
@@ -103,8 +104,8 @@ The workflow:
 - Uses `ci.skip` for that push so the push itself does not start a full GitLab pipeline.
 - GitLab Pipeline APIを使ってpipelineを明示的に起動します。
 - Starts a GitLab pipeline through the GitLab Pipeline API.
-- `code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, `park_send`などの指定変数を渡します。
-- Passes the selected scope variables such as `code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, and `park_send`.
+- `result_server_target`から決まる`BK_GITLAB_ENVIRONMENT`、および`code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, `park_send`などの指定変数を渡します。
+- Passes `BK_GITLAB_ENVIRONMENT` derived from `result_server_target`, plus selected scope variables such as `code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, and `park_send`.
 - GitLab pipelineの完了を待ちます。
 - Waits for the GitLab pipeline to finish.
 - 実行後、一時GitLabブランチを削除します。
@@ -172,6 +173,7 @@ The recommended mechanism is pipeline variables. `GitLab Manual CI` uses pipelin
 | `nodes` | Optional `list.csv` nodes filter for selecting specific Benchkit matrix rows / 特定のBenchkit matrix行を選ぶ任意の`list.csv` nodesフィルタ | `1` |
 | `numproc_node` | Optional `list.csv` processes-per-node filter / 任意の`list.csv` processes-per-nodeフィルタ | `4` |
 | `nthreads` | Optional `list.csv` threads-per-process filter / 任意の`list.csv` threads-per-processフィルタ | `32` |
+| `BK_GITLAB_ENVIRONMENT` | Optional GitLab job environment name used for GitLab CI/CD variable environment scope resolution. When unset, jobs use `$CI_COMMIT_BRANCH`. / GitLab CI/CD変数のenvironment scope解決に使う任意のGitLab job environment名。未指定時は`$CI_COMMIT_BRANCH`を使います | `develop` |
 | `BK_EXECUTION_ACTIVITY` | Optional public activity or budget label stored in environment snapshot metadata / environment snapshot metadataに保存する任意の公開activityまたはbudget label | `SBDProfile` |
 | `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID. Benchkit validates the value and derives scheduler arguments only for systems that support it: `--account=<id>` on RIKYU and `-g <id>` on Fugaku/FugakuCN. / 任意の意味的な project/allocation ID。Benchkit は値を検証し、対応 system に限って scheduler 引数へ変換します。RIKYU では `--account=<id>`、Fugaku/FugakuCN では `-g <id>` になります | `rkp00010` |
 | `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling has moved to a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側へ移行済み | `osu-micro-benchmarks` |

@@ -26,6 +26,7 @@ variables:
   nodes: ""
   numproc_node: ""
   nthreads: ""
+  BK_GITLAB_ENVIRONMENT: ""
   app: ""
   benchpark: "false"
   park_only: "false"
@@ -76,6 +77,9 @@ variables:
     fi
     if [[ -n "$nthreads" ]]; then
       echo "Threads-per-process filter from API variable: $nthreads"
+    fi
+    if [[ -n "$BK_GITLAB_ENVIRONMENT" ]]; then
+      echo "GitLab environment from API variable: $BK_GITLAB_ENVIRONMENT"
     fi
 
 generate_matrix:
