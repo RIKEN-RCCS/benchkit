@@ -16,6 +16,7 @@ pushd "${TMP_DIR}/project" >/dev/null
 
 bash scripts/matrix_generate.sh code=sbd system=RIKYU nodes=1
 grep -q '^sbd_RIKYU_N1_P4_T32_run:' .gitlab-ci.generated.yml
+grep -q 'name: $CI_COMMIT_BRANCH' .gitlab-ci.generated.yml
 if grep -q '^sbd_RIKYU_N2_P4_T32_run:' .gitlab-ci.generated.yml; then
   echo "nodes=1 filter must not emit the SBD RIKYU 2-node job" >&2
   exit 1
@@ -32,6 +33,14 @@ if grep -q '^sbd_RIKYU_N1_P4_T32_run:' .gitlab-ci.generated.yml; then
 fi
 grep -q '^sbd_RIKYU_N2_P4_T32_run:' .gitlab-ci.generated.yml
 grep -q '^sbd_RIKYU_N4_P4_T32_run:' .gitlab-ci.generated.yml
+
+BK_GITLAB_ENVIRONMENT=develop bash scripts/matrix_generate.sh code=sbd system=RIKYU nodes=1
+grep -q 'name: "develop"' .gitlab-ci.generated.yml
+
+if BK_GITLAB_ENVIRONMENT='bad scope' bash scripts/matrix_generate.sh code=sbd system=RIKYU nodes=1 >/dev/null 2>&1; then
+  echo "invalid BK_GITLAB_ENVIRONMENT must fail matrix generation" >&2
+  exit 1
+fi
 
 popd >/dev/null
 

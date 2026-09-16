@@ -223,6 +223,24 @@ match_filter() {
     return 1
 }
 
+gitlab_environment_name_yaml() {
+    local environment_name="${BK_GITLAB_ENVIRONMENT:-}"
+    local escaped
+
+    if [[ -z "$environment_name" ]]; then
+        printf '$CI_COMMIT_BRANCH'
+        return 0
+    fi
+
+    if [[ ! "$environment_name" =~ ^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$ ]]; then
+        echo "ERROR: BK_GITLAB_ENVIRONMENT contains unsupported characters" >&2
+        return 1
+    fi
+
+    escaped=$(printf '%s' "$environment_name" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    printf '"%s"' "$escaped"
+}
+
 # send_results ジョブの YAML ブロックを生成
 # $1: ジョブ名プレフィックス（例: qws_Fugaku_N1_P4_T12）
 # $2: 依存ジョブ名（needs に指定するジョブ名）
@@ -241,6 +259,9 @@ emit_send_results_job() {
     local mode="$6"
     local build_job="$7"
     local run_job="$8"
+    local environment_name
+
+    environment_name=$(gitlab_environment_name_yaml)
 
     echo "
 ${job_prefix}_send_results:
@@ -248,7 +269,7 @@ ${job_prefix}_send_results:
   needs: [\"${depends_on}\"]
   tags: [fncx-curl-jq]
   environment:
-    name: \$CI_COMMIT_BRANCH
+    name: ${environment_name}
   script:
     - id
     - bash -lc 'ls -la results/ 2>&1 | head -20'
@@ -326,8 +347,10 @@ emit_estimate_job() {
     local code="$4"
     local output="$5"
     local estimate_runner_tag="${BK_ESTIMATE_RUNNER_TAG:-fncx-estimate-python}"
+    local environment_name
 
     estimate_runner_tag=$(printf '%s' "$estimate_runner_tag" | sed 's/"/\\"/g')
+    environment_name=$(gitlab_environment_name_yaml)
 
     echo "
 ${job_prefix}_estimate:
@@ -335,7 +358,7 @@ ${job_prefix}_estimate:
   needs: [\"${depends_on}\"]
   tags: [\"${estimate_runner_tag}\"]
   environment:
-    name: \$CI_COMMIT_BRANCH
+    name: ${environment_name}
   script:
     - echo \"Running estimation for ${code}\"
     - if [ -d send_results_workspace/results ]; then cp -R send_results_workspace/results results; fi
@@ -356,6 +379,9 @@ emit_send_estimate_job() {
     local job_prefix="$1"
     local depends_on="$2"
     local output="$3"
+    local environment_name
+
+    environment_name=$(gitlab_environment_name_yaml)
 
     echo "
 ${job_prefix}_send_estimate:
@@ -363,7 +389,7 @@ ${job_prefix}_send_estimate:
   needs: [\"${depends_on}\"]
   tags: [fncx-curl-jq]
   environment:
-    name: \$CI_COMMIT_BRANCH
+    name: ${environment_name}
   script:
     - bash scripts/result_server/send_estimate.sh
 

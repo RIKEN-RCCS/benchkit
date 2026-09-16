@@ -15,6 +15,14 @@ on:
           - swc
           - gitlab_com
         default: swc
+      result_server_target:
+        description: "Result server target resolved by GitLab CI/CD variable scope"
+        required: true
+        type: choice
+        options:
+          - dev2
+          - dev
+        default: dev2
       code:
         description: "Benchkit code filter, for example: qws,genesis"
         required: false
@@ -163,6 +171,7 @@ jobs:
           NODES_FILTER: ${{ inputs.nodes }}
           NUMPROC_NODE_FILTER: ${{ inputs.numproc_node }}
           NTHREADS_FILTER: ${{ inputs.nthreads }}
+          RESULT_SERVER_TARGET: ${{ inputs.result_server_target }}
           ACTIVITY: ${{ inputs.activity }}
           ALLOCATION_PROJECT_ID: ${{ inputs.allocation_project_id }}
           BENCHPARK_APP: ${{ inputs.app }}
@@ -206,6 +215,13 @@ jobs:
           add_variable("nodes", os.environ.get("NODES_FILTER", ""))
           add_variable("numproc_node", os.environ.get("NUMPROC_NODE_FILTER", ""))
           add_variable("nthreads", os.environ.get("NTHREADS_FILTER", ""))
+          result_server_target = os.environ.get("RESULT_SERVER_TARGET", "")
+          if result_server_target == "dev":
+              add_variable("BK_GITLAB_ENVIRONMENT", "develop")
+          elif result_server_target == "dev2":
+              print("GitLab result server target: dev2")
+          elif result_server_target:
+              raise SystemExit(f"Unsupported result_server_target: {result_server_target}")
           add_variable("BK_EXECUTION_ACTIVITY", os.environ.get("ACTIVITY", ""))
           add_variable("BK_ALLOCATION_PROJECT_ID", os.environ.get("ALLOCATION_PROJECT_ID", ""))
           add_variable("app", os.environ.get("BENCHPARK_APP", ""))
