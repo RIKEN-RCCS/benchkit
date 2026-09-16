@@ -215,6 +215,7 @@ match_filter() {
 
     IFS=',' read -ra FILTER_LIST <<< "$filter_str"
     for filter_item in "${FILTER_LIST[@]}"; do
+        filter_item=$(echo "$filter_item" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         if [[ "$target" == "$filter_item" ]]; then
             return 0
         fi

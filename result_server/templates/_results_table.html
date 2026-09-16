@@ -88,6 +88,23 @@
     display: block;
     font-weight: 600;
 }
+.activity-cell {
+    min-width: 120px;
+    max-width: 190px;
+    white-space: normal;
+    line-height: 1.25;
+}
+.activity-headline {
+    display: block;
+    font-weight: 600;
+}
+.activity-subline {
+    display: block;
+    color: #607282;
+    font-size: 0.82em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .run-cause-subline {
     display: block;
     color: #607282;
@@ -195,6 +212,13 @@
                     </td>
                 {% elif key == "system" %}
                     {% include "_results_table_cell_system.html" %}
+                {% elif key == "activity_context" %}
+                    <td class="activity-cell" title="{{ row.activity_context.title }}">
+                        <span class="activity-headline">{{ row.activity_context.headline }}</span>
+                        {% if row.activity_context.subline %}
+                        <span class="activity-subline">{{ row.activity_context.subline }}</span>
+                        {% endif %}
+                    </td>
                 {% elif key in ["nodes", "numproc_node", "nthreads"] %}
                     <td{% if row[key] == "N/A" %} class="na-warning"{% endif %}>{{ row[key] }}</td>
                 {% elif key == "profile_summary" %}

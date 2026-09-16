@@ -50,6 +50,10 @@ def build_result_table_row(
         "fom_unit": result_data.get("FOM_unit") or "",
         "fom_version": result_data.get("FOM_version", "N/A"),
         "system": result_data.get("system", "N/A"),
+        "activity_context": _build_activity_context(
+            result_data,
+            trigger_runs_by_pipeline,
+        ),
         "nodes": result_data.get("node_count", "N/A"),
         "numproc_node": _normalize_optional_field(result_data.get("numproc_node")),
         "nthreads": _normalize_optional_field(result_data.get("nthreads")),
@@ -102,6 +106,110 @@ def _normalize_pipeline_timing(pipeline_timing, key):
 def _has_vector_metrics(result_data):
     metrics = result_data.get("metrics", {})
     return isinstance(metrics, dict) and "vector" in metrics
+
+
+def _build_activity_context(result_data, trigger_runs_by_pipeline=None):
+    """Return public activity/allocation context for the result table."""
+    trigger_runs_by_pipeline = trigger_runs_by_pipeline or {}
+    activity = _extract_result_activity(result_data)
+    allocation_project_id = _extract_result_allocation_project_id(result_data)
+
+    if (not activity or not allocation_project_id) and trigger_runs_by_pipeline:
+        for pipeline_id in _result_pipeline_ids(result_data):
+            run = trigger_runs_by_pipeline.get(pipeline_id)
+            variables = _trigger_run_variables(run)
+            if not activity:
+                activity = variables.get("BK_EXECUTION_ACTIVITY", "")
+            if not allocation_project_id:
+                allocation_project_id = variables.get("BK_ALLOCATION_PROJECT_ID", "")
+            if activity and allocation_project_id:
+                break
+
+    headline = activity or allocation_project_id or "-"
+    subline = ""
+    if activity and allocation_project_id:
+        subline = f"allocation {allocation_project_id}"
+    elif allocation_project_id:
+        subline = "allocation"
+
+    title_parts = []
+    if activity:
+        title_parts.append(f"activity={activity}")
+    if allocation_project_id:
+        title_parts.append(f"allocation_project_id={allocation_project_id}")
+    return {
+        "headline": headline,
+        "subline": subline,
+        "title": "; ".join(title_parts) if title_parts else "No activity or allocation metadata was recorded for this result.",
+        "activity": activity,
+        "allocation_project_id": allocation_project_id,
+    }
+
+
+def _extract_result_activity(result_data):
+    snapshot = result_data.get("environment_snapshot")
+    if not isinstance(snapshot, dict):
+        return ""
+    summary = snapshot.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    payload = snapshot.get("payload")
+    payload = payload if isinstance(payload, dict) else {}
+    execution = payload.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    return _first_text(
+        summary.get("activity"),
+        execution.get("activity"),
+    )
+
+
+def _extract_result_allocation_project_id(result_data):
+    snapshot = result_data.get("environment_snapshot")
+    if not isinstance(snapshot, dict):
+        return ""
+    summary = snapshot.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    payload = snapshot.get("payload")
+    payload = payload if isinstance(payload, dict) else {}
+    system = payload.get("system")
+    system = system if isinstance(system, dict) else {}
+    return _first_text(
+        summary.get("allocation_project_id"),
+        system.get("allocation_project_id"),
+    )
+
+
+def _trigger_run_variables(run):
+    if not isinstance(run, dict):
+        return {}
+    payload = run.get("payload_json") if isinstance(run.get("payload_json"), dict) else {}
+    plan_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+    variables = plan_payload.get("variables") if isinstance(plan_payload.get("variables"), dict) else {}
+    return {
+        str(key): str(value).strip()
+        for key, value in variables.items()
+        if value not in (None, "")
+    }
+
+
+def _result_pipeline_ids(result_data):
+    values = []
+    for value in (result_data.get("pipeline_id"), result_data.get("parent_pipeline_id")):
+        text = str(value).strip() if value not in (None, "") else ""
+        if text and text not in values:
+            values.append(text)
+    return values
+
+
+def _first_text(*values):
+    for value in values:
+        if value is None or isinstance(value, (dict, list)):
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
 def _find_matching_padata_archive(json_filename, result_data, padata_filenames):
     result_uuid = extract_result_uuid(json_filename) or result_data.get("_server_uuid")
     if not result_uuid:

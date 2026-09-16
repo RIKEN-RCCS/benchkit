@@ -140,6 +140,7 @@ def summarize_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
         "target_ref": plan_payload.get("ref") or "-",
         "code": variables.get("code") or "-",
         "system": variables.get("system") or "-",
+        "activity": variables.get("BK_EXECUTION_ACTIVITY") or "-",
         "allocation_project_id": variables.get("BK_ALLOCATION_PROJECT_ID") or "-",
         "result_server": variables.get("RESULT_SERVER") or "-",
         "pipeline_id": _trigger_run_pipeline_ids(run)[0] if _trigger_run_pipeline_ids(run) else "-",
