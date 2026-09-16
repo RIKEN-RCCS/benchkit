@@ -24,7 +24,7 @@ RESULT_TABLE_COLUMNS = [
     {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
     {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
     {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
-    {"label": "Activity", "key": "activity_context", "tooltip": "Public activity or budget allocation context recorded with the benchmark run"},
+    {"label": "Activity / Allocation", "key": "activity_context", "tooltip": "Public activity or budget allocation context recorded with the benchmark run"},
     {"label": "Nodes", "key": "nodes"},
     {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
     {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
