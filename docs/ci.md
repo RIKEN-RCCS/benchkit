@@ -27,9 +27,9 @@ Workflows that push to GitLab or trigger GitLab pipelines use these secrets:
 
 | Secret | Format / 形式 | Purpose / 目的 |
 |---|---|---|
-| `GITLAB_TOKEN` | GitLab token with push and pipeline API access / pushとpipeline APIに使えるGitLab token | Authenticates Git operations and Pipeline API calls / Git操作とPipeline API呼び出しを認証する |
-| `GITLAB_REPO` | Scheme-less `host/path` such as `gitlab.example.com/group/project.git` / `gitlab.example.com/group/project.git` のようなschemeなし`host/path` | Selects the GitLab project used by sync and manual CI / syncとmanual CIが使うGitLab projectを指定する |
-| `GITLAB_COM_TOKEN` | GitLab.com token with push access / GitLab.comへのpush権限を持つtoken | Optionally mirrors protected branches and tags to a secondary GitLab.com mirror / 任意で保護ブランチとtagをGitLab.com上の副mirrorへmirrorする |
+| `GITLAB_TOKEN` | GitLab token with push and pipeline API access / pushとpipeline APIに使えるGitLab token | Authenticates SWC GitLab operations and Pipeline API calls / SWC GitLabのGit操作とPipeline API呼び出しを認証する |
+| `GITLAB_REPO` | Scheme-less `host/path` such as `gitlab.example.com/group/project.git` / `gitlab.example.com/group/project.git` のようなschemeなし`host/path` | Selects the SWC GitLab project used by sync and manual CI / syncとmanual CIが使うSWC GitLab projectを指定する |
+| `GITLAB_COM_TOKEN` | GitLab.com token with push and pipeline API access / GitLab.comへのpushとpipeline APIに使えるtoken | Mirrors protected refs to GitLab.com and can run `GitLab Manual CI` when `gitlab_target=gitlab_com` / GitLab.com上の副mirrorへ保護refをmirrorし、`gitlab_target=gitlab_com`時の`GitLab Manual CI`にも使う |
 
 `GITLAB_REPO` に `https://` や `http://` は付けません。`GitLab Manual CI` と `Sync protected branches to GitLab` は同じ形式を検証して使います。
 
@@ -70,8 +70,13 @@ The workflow accepts these inputs:
 | Input / 入力 | Description / 説明 | Example / 例 |
 |---|---|---|
 | `target_ref` | Branch, tag, or SHA in the upstream repository to test / upstreamリポジトリ内でテストするbranch、tag、SHA | `feature/my-change`, `ci/pr-123`, `develop` |
+| `gitlab_target` | GitLab project to receive the temporary test branch and pipeline trigger / 一時テストbranchのpush先およびpipeline trigger先のGitLab project | `swc`, `gitlab_com` |
 | `code` | Benchkit program filter / Benchkitプログラムのフィルタ | `qws,genesis` |
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo do not honor this as a general system selector. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用system selectorとしては扱いません | `Fugaku,MiyabiG` |
+| `nodes` | Optional `programs/<code>/list.csv` nodes filter. Use this with `code` and `system` to run only selected matrix rows. / 任意の `programs/<code>/list.csv` nodesフィルタ。`code`、`system`と併用して特定matrix行だけを実行します | `1`, `1,2` |
+| `numproc_node` | Optional `list.csv` processes-per-node filter / 任意の `list.csv` processes-per-nodeフィルタ | `4` |
+| `nthreads` | Optional `list.csv` threads-per-process filter / 任意の `list.csv` threads-per-processフィルタ | `32` |
+| `activity` | Optional public activity or budget label recorded as `BK_EXECUTION_ACTIVITY` and copied into Result environment metadata / `BK_EXECUTION_ACTIVITY`として記録しResult環境metadataへコピーする任意の公開activityまたはbudget label | `SBDProfile` |
 | `allocation_project_id` | Optional semantic project/allocation ID passed to GitLab as `BK_ALLOCATION_PROJECT_ID`. Benchkit translates it to scheduler syntax only for systems that require it, for example Slurm `--account=<id>` on RIKYU and PJM `-g <id>` on Fugaku. / GitLab へ `BK_ALLOCATION_PROJECT_ID` として渡す任意の意味的な project/allocation ID。Benchkit は必要な system に限って scheduler 書式へ変換します。例: RIKYU の Slurm `--account=<id>`、Fugaku の PJM `-g <id>` | `rkp00010` |
 | `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling is maintained in a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側で管理します | `osu-micro-benchmarks` |
 | `benchpark` | Enable the legacy Benchpark bridge path together with Benchkit / legacy Benchpark bridge pathも有効化 | `true` |
@@ -81,6 +86,10 @@ The workflow accepts these inputs:
 `GitLab Manual CI` is for development and release-candidate validation, not for producing production `main` branch results. The workflow rejects `target_ref` values that name the production `main` branch. Public `main` measurements should be produced by Portal-managed triggers with an explicit `code` / `system` scope and an explicit `RESULT_SERVER` pipeline variable.
 
 `GitLab Manual CI` は開発・release candidate検証用であり、本番 `main` branch結果を作る入口ではありません。このworkflowは本番 `main` branchを指す `target_ref` を拒否します。公開用の `main` 計測は、Portal管理のtriggerから、明示的な `code` / `system` scope と明示的な `RESULT_SERVER` pipeline variable を渡して作成します。
+
+GitHub Actions also shows a branch selector for the workflow file itself. If `main` appears there, it only selects which checked-in workflow definition to run. This workflow rejects the production `main` workflow branch and also rejects `target_ref=main` as a manual benchmark target.
+
+GitHub Actions UIにはworkflow file自体のbranch selectorも表示されます。そこに`main`が出る場合でも、それはどのworkflow定義を実行するかの選択に過ぎません。このworkflowは本番`main`のworkflow branchからの実行と、manual benchmark targetとしての`target_ref=main`の両方を拒否します。
 
 このworkflowは以下を行います。
 
@@ -94,8 +103,8 @@ The workflow:
 - Uses `ci.skip` for that push so the push itself does not start a full GitLab pipeline.
 - GitLab Pipeline APIを使ってpipelineを明示的に起動します。
 - Starts a GitLab pipeline through the GitLab Pipeline API.
-- `code`, `system`, `allocation_project_id`, `app`, `park_only`, `park_send`などの指定変数を渡します。
-- Passes the selected scope variables such as `code`, `system`, `allocation_project_id`, `app`, `park_only`, and `park_send`.
+- `code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, `park_send`などの指定変数を渡します。
+- Passes the selected scope variables such as `code`, `system`, `nodes`, `numproc_node`, `nthreads`, `activity`, `allocation_project_id`, `app`, `park_only`, and `park_send`.
 - GitLab pipelineの完了を待ちます。
 - Waits for the GitLab pipeline to finish.
 - 実行後、一時GitLabブランチを削除します。
@@ -160,6 +169,10 @@ The recommended mechanism is pipeline variables. `GitLab Manual CI` uses pipelin
 |---|---|---|
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo are not a general multi-system Benchpark runner. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用multi-system Benchpark runnerではありません | `MiyabiG,MiyabiC,RC_GENOA` |
 | `code` | Benchkit program filter / Benchkit programフィルタ | `qws,genesis` |
+| `nodes` | Optional `list.csv` nodes filter for selecting specific Benchkit matrix rows / 特定のBenchkit matrix行を選ぶ任意の`list.csv` nodesフィルタ | `1` |
+| `numproc_node` | Optional `list.csv` processes-per-node filter / 任意の`list.csv` processes-per-nodeフィルタ | `4` |
+| `nthreads` | Optional `list.csv` threads-per-process filter / 任意の`list.csv` threads-per-processフィルタ | `32` |
+| `BK_EXECUTION_ACTIVITY` | Optional public activity or budget label stored in environment snapshot metadata / environment snapshot metadataに保存する任意の公開activityまたはbudget label | `SBDProfile` |
 | `BK_ALLOCATION_PROJECT_ID` | Optional semantic project/allocation ID. Benchkit validates the value and derives scheduler arguments only for systems that support it: `--account=<id>` on RIKYU and `-g <id>` on Fugaku/FugakuCN. / 任意の意味的な project/allocation ID。Benchkit は値を検証し、対応 system に限って scheduler 引数へ変換します。RIKYU では `--account=<id>`、Fugaku/FugakuCN では `-g <id>` になります | `rkp00010` |
 | `app` | Legacy Benchpark bridge app filter. Active Benchpark CI/CD/CB result handling has moved to a separate project. / legacy Benchpark bridge appフィルタ。現行Benchpark CI/CD/CB結果受け取りは別プロジェクト側へ移行済み | `osu-micro-benchmarks` |
 | `benchpark` | Enable the legacy Benchpark bridge path / legacy Benchpark bridge pathを有効化 | `true` |

@@ -50,6 +50,7 @@ scripts/tests/test_ci_timing_context.sh
 scripts/tests/test_ncu_plan_generation.sh
 scripts/tests/test_sbd_ncu_profile.sh
 scripts/tests/test_scheduler_extra_args.sh
+scripts/tests/test_matrix_generate_filters.sh
 EOF
       ;;
     result-sender)

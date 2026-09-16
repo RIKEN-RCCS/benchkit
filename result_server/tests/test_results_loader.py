@@ -17,6 +17,7 @@ from test_support import build_results_route_app, install_portal_test_stubs
 install_portal_test_stubs()
 
 from utils.result_records import load_result_json, load_result_json_batch, summarize_result_quality
+from utils.result_table_rows import build_result_table_row
 from utils.results_loader import load_results_table
 from utils.table_filters import get_filter_options
 
@@ -275,6 +276,7 @@ class TestLoadResultsTableExtension:
             {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
             {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
             {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
+            {"label": "Activity", "key": "activity_context", "tooltip": "Public activity or budget allocation context recorded with the benchmark run"},
             {"label": "Nodes", "key": "nodes"},
             {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
             {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
@@ -297,6 +299,12 @@ class TestLoadResultsTableExtension:
             "FOM": 1.0,
             "pipeline_id": 17026,
             "ci_trigger": "schedule",
+            "environment_snapshot": {
+                "summary": {
+                    "activity": "SBDProfile",
+                    "allocation_project_id": "project00010",
+                }
+            },
             "profile_data": {
                 "tool": "ncu",
                 "level": "single",
@@ -320,12 +328,15 @@ class TestLoadResultsTableExtension:
         assert "json_link" not in column_keys
         assert "ci_summary" not in column_keys
         assert "execution_trigger_summary" not in column_keys
+        assert "activity_context" in column_keys
         assert "profile_summary" in column_keys
         assert rows[0]["json_link"] is None
         assert rows[0]["data_link"] == f"/results/padata_20250101_120000_{uid}.tgz"
         assert rows[0]["source_link"] is None
         assert rows[0]["profile_summary"] == "ncu / single"
         assert rows[0]["profile_summary_meta"]["ncu_options"] == ["--set", "basic"]
+        assert rows[0]["activity_context"]["headline"] == "SBDProfile"
+        assert rows[0]["activity_context"]["subline"] == "allocation project00010"
 
     def test_existing_row_fields_preserved(self, flask_app, tmp_dir):
         """Test case."""
@@ -349,8 +360,42 @@ class TestLoadResultsTableExtension:
         assert row["timestamp"] == "2025-01-01 12:00:00"
         assert row["numproc_node"] == "48"
         assert row["nthreads"] == "12"
+        assert row["activity_context"]["headline"] == "-"
         assert row["profile_summary"] == "-"
         assert row["execution_trigger_summary"]["headline"] == "-"
+
+    def test_activity_context_falls_back_to_trigger_run_variables(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        _write_json(tmp_dir, filename, {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "FOM": 1.0,
+            "pipeline_id": "12345",
+        })
+        trigger_runs_by_pipeline = {
+            "12345": {
+                "payload_json": {
+                    "payload": {
+                        "variables": {
+                            "BK_EXECUTION_ACTIVITY": "ActivityAlpha",
+                            "BK_ALLOCATION_PROJECT_ID": "project00020",
+                        }
+                    }
+                }
+            }
+        }
+
+        with flask_app.test_request_context():
+            row = build_result_table_row(
+                filename,
+                load_result_json(filename, tmp_dir),
+                [],
+                trigger_runs_by_pipeline,
+            )
+
+        assert row["activity_context"]["headline"] == "ActivityAlpha"
+        assert row["activity_context"]["subline"] == "allocation project00020"
 
     def test_profile_summary_is_built_from_profile_data(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())

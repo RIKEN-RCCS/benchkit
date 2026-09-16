@@ -668,6 +668,7 @@ build_environment_snapshot_block() {
         schema_version: 1,
         collected_at: ($primary.collected_at // ""),
         system: ($primary.system // {}),
+        execution: ($primary.execution // {}),
         scheduler: ($primary.scheduler // {}),
         runner: ($primary.runner // {}),
         ci: ($primary.ci // {}),
@@ -718,6 +719,7 @@ build_environment_snapshot_block() {
       hash: $hash,
       summary: {
         system: ($payload.system.name // ""),
+        activity: ($payload.execution.activity // ""),
         allocation_project_id: ($payload.system.allocation_project_id // ""),
         scheduler: ($payload.scheduler.kind // ""),
         runner: ($payload.runner.description // ""),

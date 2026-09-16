@@ -210,6 +210,7 @@ jq -n \
   --arg stage "$snapshot_stage" \
   --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg system "${BK_SYSTEM:-${system:-}}" \
+  --arg execution_activity "${BK_EXECUTION_ACTIVITY:-}" \
   --arg allocation_project_id "${BK_ALLOCATION_PROJECT_ID:-}" \
   --arg runner_description "${CI_RUNNER_DESCRIPTION:-}" \
   --arg runner_id "${CI_RUNNER_ID:-}" \
@@ -253,6 +254,9 @@ jq -n \
         uname: $uname,
         cpu_model: $cpu_model
       }
+    },
+    execution: {
+      activity: $execution_activity
     },
     scheduler: {
       kind: $scheduler_kind,

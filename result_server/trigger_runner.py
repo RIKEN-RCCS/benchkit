@@ -208,6 +208,7 @@ def _build_trigger_plan(
         code=code,
         system=system,
         allocation_project_id=profile_result.allocation_project_id,
+        activity=str(profile.get("activity", "")) if profile else "",
         scheduler_extra_args="",
         result_server_url=result_server_url,
         target_id=gitlab_target.id if gitlab_target else trigger.get("gitlab_target", ""),

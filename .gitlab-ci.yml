@@ -23,6 +23,9 @@ stages:
 variables:
   code: ""
   system: ""
+  nodes: ""
+  numproc_node: ""
+  nthreads: ""
   app: ""
   benchpark: "false"
   park_only: "false"
@@ -64,13 +67,23 @@ variables:
         echo "No code filter detected, running all programs"
       fi
     fi
+  - |
+    if [[ -n "$nodes" ]]; then
+      echo "Nodes filter from API variable: $nodes"
+    fi
+    if [[ -n "$numproc_node" ]]; then
+      echo "Processes-per-node filter from API variable: $numproc_node"
+    fi
+    if [[ -n "$nthreads" ]]; then
+      echo "Threads-per-process filter from API variable: $nthreads"
+    fi
 
 generate_matrix:
   stage: generate
   before_script:
     *filters
   script:
-    - bash ./scripts/matrix_generate.sh code=$code system=$system
+    - bash ./scripts/matrix_generate.sh "code=$code" "system=$system" "nodes=$nodes" "numproc_node=$numproc_node" "nthreads=$nthreads"
   tags:
     - general
   artifacts:

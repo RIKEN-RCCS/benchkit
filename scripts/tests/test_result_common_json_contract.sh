@@ -116,6 +116,9 @@ cat > "${TMP_DIR}/results/environment_snapshot_build.json" <<'EOF'
   "system": {
     "name": "DemoSystem"
   },
+  "execution": {
+    "activity": "ActivityAlpha"
+  },
   "scheduler": {
     "kind": "batch"
   },
@@ -143,6 +146,9 @@ cat > "${TMP_DIR}/results/environment_snapshot_run.json" <<'EOF'
   "collected_at": "2026-09-07T00:01:00Z",
   "system": {
     "name": "DemoSystem"
+  },
+  "execution": {
+    "activity": "ActivityAlpha"
   },
   "scheduler": {
     "kind": "batch"
@@ -324,6 +330,7 @@ jq -e '
   .environment_snapshot.schema_version == 1 and
   (.environment_snapshot.hash | startswith("sha256:")) and
   .environment_snapshot.summary.system == "DemoSystem" and
+  .environment_snapshot.summary.activity == "ActivityAlpha" and
   .environment_snapshot.summary.scheduler == "batch" and
   .environment_snapshot.summary.runner == "demo-runner" and
   .environment_snapshot.summary.ci_pipeline_id == "4242" and
