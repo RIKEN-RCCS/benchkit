@@ -185,7 +185,10 @@ test "${#profile_archives[@]}" -eq 5
 test "${#profile_metadata[@]}" -eq 5
 
 artifact_count=$(printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | awk 'NF { count += 1 } END { print count + 0 }')
-test "$artifact_count" -eq 5
+test "$artifact_count" -eq 12
+printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Fxq 'results/sbd_kernel_discovery.json'
+printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Fxq 'results/sbd_ncu_plan.json'
+printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Eq '^results/padata_.*\.metadata\.json$'
 
 jq -e '
   .kind == "gpu_kernel_profile_metadata" and

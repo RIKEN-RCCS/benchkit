@@ -56,13 +56,36 @@ sbd_profile_results_dir() {
 
 sbd_register_mult_section_artifact() {
   local artifact_path="$1"
+  local current
+  local existing_artifacts=()
 
+  if [ -z "$artifact_path" ]; then
+    return 0
+  fi
+  IFS=',' read -r -a existing_artifacts <<< "${SBD_MULT_SECTION_ARTIFACTS:-}"
+  for current in "${existing_artifacts[@]}"; do
+    if [ "$current" = "$artifact_path" ]; then
+      return 0
+    fi
+  done
   if [ -z "${SBD_MULT_SECTION_ARTIFACTS:-}" ]; then
     SBD_MULT_SECTION_ARTIFACTS="$artifact_path"
   else
     SBD_MULT_SECTION_ARTIFACTS="${SBD_MULT_SECTION_ARTIFACTS},${artifact_path}"
   fi
   export SBD_MULT_SECTION_ARTIFACTS
+}
+
+sbd_register_ncu_plan_artifacts() {
+  local discovery_json="$1"
+  local plan_json="$2"
+
+  if [ -s "$discovery_json" ]; then
+    sbd_register_mult_section_artifact "results/$(basename "$discovery_json")"
+  fi
+  if [ -s "$plan_json" ]; then
+    sbd_register_mult_section_artifact "results/$(basename "$plan_json")"
+  fi
 }
 
 sbd_run_rank0_nsys_discovery() {
@@ -210,6 +233,7 @@ sbd_generate_ncu_plan() {
     return 1
   fi
 
+  sbd_register_ncu_plan_artifacts "$discovery_json" "$plan_json"
   echo "SBD kernel discovery JSON: ${discovery_json}" >&2
   echo "SBD NCU plan JSON: ${plan_json}" >&2
   printf '%s\n' "$plan_json"
@@ -367,6 +391,7 @@ sbd_run_rank0_ncu_profile() {
 
   echo "SBD NCU profile metadata: ${metadata_rel_path}" >&2
   sbd_register_mult_section_artifact "$archive_rel_path"
+  sbd_register_mult_section_artifact "$metadata_rel_path"
 }
 
 sbd_run_ncu_plan_profiles() {
@@ -451,6 +476,7 @@ sbd_run_configured_ncu_profiles() {
   case "$(sbd_ncu_profile_mode)" in
     discovery|auto)
       plan_json=$(sbd_generate_ncu_plan "$n_ranks" "$@") || return 1
+      sbd_register_ncu_plan_artifacts "$(sbd_profile_results_dir)/sbd_kernel_discovery.json" "$plan_json"
       sbd_run_ncu_plan_profiles "$plan_json" "$n_ranks" "$@" || return $?
       ;;
     discovery-only|auto-discovery-only)
