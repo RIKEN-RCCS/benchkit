@@ -87,6 +87,7 @@ chmod +x "${TMP_DIR}/bin/nvc"
 
 pushd "${TMP_DIR}/project/src" >/dev/null
 export BK_SYSTEM=TestSystem
+export BK_EXECUTION_ACTIVITY=ActivityAlpha
 export BK_BENCHKIT_ROOT="${TMP_DIR}/project"
 export BK_SNAPSHOT_TOOL_COMMANDS="make bash nvcc nvc"
 export BK_SNAPSHOT_ENV_VARS="CC SECRET_TOKEN"
@@ -107,6 +108,7 @@ jq -e \
   '
   .stage == "build_actual" and
   .system.name == "TestSystem" and
+  .execution.activity == "ActivityAlpha" and
   .toolchain.commands.make.path == $make_path and
   (.toolchain.commands.bash.path | length) > 0 and
   .toolchain.nvcc == "Cuda compilation tools, release 13.1, V13.1.115" and

@@ -172,6 +172,7 @@ def test_summarize_trigger_run_extracts_payload_context():
                 "variables": {
                     "code": "demoapp",
                     "system": "DemoSystem",
+                    "BK_EXECUTION_ACTIVITY": "ActivityAlpha",
                     "BK_ALLOCATION_PROJECT_ID": "project00010",
                     "RESULT_SERVER": "https://portal.example.org/dev",
                 },
@@ -187,6 +188,7 @@ def test_summarize_trigger_run_extracts_payload_context():
     assert summary["target_ref"] == "develop"
     assert summary["code"] == "demoapp"
     assert summary["system"] == "DemoSystem"
+    assert summary["activity"] == "ActivityAlpha"
     assert summary["allocation_project_id"] == "project00010"
     assert summary["pipeline_id"] == "3186"
     assert summary["reason_label"] == "cron 0 14 * * * / 2026-08-07T14:00+09:00"

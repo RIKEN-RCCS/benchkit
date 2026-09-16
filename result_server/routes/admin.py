@@ -709,6 +709,7 @@ def _build_execution_pipeline_plan(store):
         park_only=False,
         park_send=False,
         allocation_project_id=resolve_result.allocation_project_id,
+        activity=str(profile.get("activity", "")) if profile else "",
         scheduler_extra_args="",
         result_server_url=_portal_result_server_url(),
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,

@@ -180,6 +180,7 @@ def build_pipeline_plan(
     park_only: bool = False,
     park_send: bool = False,
     allocation_project_id: str = "",
+    activity: str = "",
     scheduler_extra_args: str = "",
     result_server_url: str = "",
     target_id: str = "",
@@ -209,6 +210,7 @@ def build_pipeline_plan(
         _add_variable(variables, "park_only", "true")
     if park_send:
         _add_variable(variables, "park_send", "true")
+    _add_variable(variables, "BK_EXECUTION_ACTIVITY", activity)
     _add_variable(variables, "BK_ALLOCATION_PROJECT_ID", allocation_project_id)
     _add_variable(variables, "RESULT_SERVER", result_server_url)
     if scheduler_extra_args:

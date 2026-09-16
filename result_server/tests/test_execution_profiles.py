@@ -35,6 +35,7 @@ from utils.gitlab_pipeline import (  # noqa: E402
 from routes.admin import _portal_result_server_url  # noqa: E402
 from trigger_runner import (  # noqa: E402
     cron_matches,
+    _build_trigger_plan,
     _git_ls_remote,
     run_triggers,
 )
@@ -581,6 +582,39 @@ def test_trigger_runner_cron_matches_basic_fields():
     assert cron_matches("*/15 * * * *", now) == (True, [])
     assert cron_matches("0 2 * * *", now) == (False, [])
     assert cron_matches("0 2 *", now) == (False, ["cron expression must have 5 fields"])
+
+
+def test_trigger_runner_plan_includes_profile_activity(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_REPO", "gitlab.example.org/group/benchkit.git")
+    db_path = tmp_path / "cx_portal.sqlite3"
+    store = ExecutionProfileStore(str(db_path))
+    store.upsert_profile(_profile(activity="ActivityAlpha"), actor="admin@test.com")
+    trigger, errors = normalize_trigger_definition(
+        {
+            "id": "source-system-demoapp-1400",
+            "trigger_type": "scheduled",
+            "profile_id": "source-system-demoapp-nightly",
+            "target_ref": "develop",
+            "cron_expr": "0 14 * * *",
+            "timezone": "Asia/Tokyo",
+        }
+    )
+    assert errors == []
+    assert trigger is not None
+
+    payload, plan_errors = _build_trigger_plan(
+        store,
+        trigger,
+        result_server_url="https://portal.example.test/dev",
+        trigger_reason="cron:0 14 * * *@2026-08-07T14:00+09:00",
+        now=datetime(2026, 8, 7, 5, 0, tzinfo=UTC),
+    )
+
+    variables = payload["payload"]["variables"]
+    assert plan_errors == []
+    assert variables["BK_EXECUTION_ACTIVITY"] == "ActivityAlpha"
+    assert variables["BK_ALLOCATION_PROJECT_ID"] == "project00010"
+    assert variables["RESULT_SERVER"] == "https://portal.example.test/dev"
 
 
 def test_trigger_runner_blocks_scheduled_trigger_outside_profile_period(
@@ -2580,6 +2614,7 @@ def test_admin_execution_profiles_dry_run_submit_records_payload(tmp_path, monke
         payload_record = json.loads(row[4])
         variables = payload_record["payload"]["variables"]
         assert variables["code"] == "demoapp"
+        assert variables["BK_EXECUTION_ACTIVITY"] == "FutureSystem"
         assert variables["BK_ALLOCATION_PROJECT_ID"] == "project00010"
         assert variables["RESULT_SERVER"] == "http://localhost"
         assert variables["BK_TRIGGER_ID"] == "source-system-demoapp-nightly"
@@ -2631,6 +2666,7 @@ def test_admin_execution_profiles_dry_run_uses_profile_scope_values(
         variables = payload_record["payload"]["variables"]
         assert variables["code"] == "demoapp"
         assert variables["system"] == "SourceSystem"
+        assert variables["BK_EXECUTION_ACTIVITY"] == "FutureSystem"
         assert variables["BK_ALLOCATION_PROJECT_ID"] == "project00010"
         assert variables["RESULT_SERVER"] == "http://localhost"
         assert "exp" not in variables
@@ -2766,6 +2802,7 @@ def test_admin_execution_profiles_dry_run_allows_profile_without_allocation(
         assert row[0] == "dry_run_ready"
         assert json.loads(row[1]) == []
         variables = json.loads(row[2])["payload"]["variables"]
+        assert variables["BK_EXECUTION_ACTIVITY"] == "FutureSystem"
         assert "BK_ALLOCATION_PROJECT_ID" not in variables
     finally:
         _cleanup(temp_dirs)
@@ -2981,6 +3018,7 @@ def test_admin_execution_profiles_submit_uses_profile_scope_values(
         assert token == "secret-token"
         assert plan.payload["variables"]["code"] == "demoapp"
         assert plan.payload["variables"]["system"] == "DemoSystem"
+        assert plan.payload["variables"]["BK_EXECUTION_ACTIVITY"] == "FutureSystem"
         assert plan.payload["variables"]["BK_ALLOCATION_PROJECT_ID"] == "project00010"
         assert plan.payload["variables"]["RESULT_SERVER"] == "http://localhost"
         assert plan.payload["variables"]["BK_TRIGGER_ID"] == "source-system-demoapp-nightly"

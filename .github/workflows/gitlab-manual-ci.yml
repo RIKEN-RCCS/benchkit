@@ -7,11 +7,31 @@ on:
         description: "Branch, tag, or SHA in this repository to test"
         required: true
         default: "develop"
+      gitlab_target:
+        description: "GitLab target project"
+        required: true
+        type: choice
+        options:
+          - swc
+          - gitlab_com
+        default: swc
       code:
         description: "Benchkit code filter, for example: qws,genesis"
         required: false
       system:
         description: "System filter, for example: Fugaku,MiyabiG"
+        required: false
+      nodes:
+        description: "Optional list.csv nodes filter, for example: 1"
+        required: false
+      numproc_node:
+        description: "Optional list.csv numproc_node filter, for example: 4"
+        required: false
+      nthreads:
+        description: "Optional list.csv nthreads filter, for example: 32"
+        required: false
+      activity:
+        description: "Optional public activity/budget label recorded as BK_EXECUTION_ACTIVITY"
         required: false
       allocation_project_id:
         description: "Optional allocation/project ID passed as BK_ALLOCATION_PROJECT_ID"
@@ -53,6 +73,17 @@ jobs:
           fetch-depth: 0
           path: trusted
 
+      - name: Reject production main workflow branch
+        env:
+          WORKFLOW_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [ "${WORKFLOW_REF_NAME}" = "main" ]; then
+            echo "::error::GitLab Manual CI must be run from develop or a trusted non-production workflow branch."
+            exit 1
+          fi
+
       - name: Reject production main target
         env:
           TARGET_REF: ${{ inputs.target_ref }}
@@ -66,11 +97,19 @@ jobs:
               ;;
           esac
 
-      - name: Prepare GitLab repository settings
-        id: gitlab-repo
+      - name: Prepare SWC GitLab repository settings
+        if: ${{ inputs.gitlab_target == 'swc' }}
+        id: gitlab-repo-swc
         uses: ./trusted/.github/actions/prepare-gitlab-repo
         with:
           gitlab-repo: ${{ secrets.GITLAB_REPO }}
+
+      - name: Prepare GitLab.com repository settings
+        if: ${{ inputs.gitlab_target == 'gitlab_com' }}
+        id: gitlab-repo-com
+        uses: ./trusted/.github/actions/prepare-gitlab-repo
+        with:
+          gitlab-repo: gitlab.com/yoshifuminakamura/benchkit.git
 
       - name: Check out target ref
         uses: actions/checkout@v4
@@ -82,14 +121,22 @@ jobs:
       - name: Push target ref to GitLab test branch
         working-directory: target
         env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
+          GITLAB_TARGET: ${{ inputs.gitlab_target }}
+          GITLAB_TOKEN_SWC: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_TOKEN_GITLAB_COM: ${{ secrets.GITLAB_COM_TOKEN }}
+          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo-swc.outputs.host-path || steps.gitlab-repo-com.outputs.host-path }}
           TARGET_REF: ${{ inputs.target_ref }}
         run: |
           set -euo pipefail
 
+          case "${GITLAB_TARGET}" in
+            swc) GITLAB_TOKEN="${GITLAB_TOKEN_SWC}" ;;
+            gitlab_com) GITLAB_TOKEN="${GITLAB_TOKEN_GITLAB_COM}" ;;
+            *) echo "Unsupported GitLab target: ${GITLAB_TARGET}"; exit 1 ;;
+          esac
+
           if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO_HOST_PATH}" ]; then
-            echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
+            echo "Selected GitLab target token and repository settings are required."
             exit 1
           fi
 
@@ -106,11 +153,17 @@ jobs:
 
       - name: Trigger and wait for GitLab pipeline
         env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_HOST: ${{ steps.gitlab-repo.outputs.host }}
-          GITLAB_PROJECT_PATH: ${{ steps.gitlab-repo.outputs.project-path }}
+          GITLAB_TARGET: ${{ inputs.gitlab_target }}
+          GITLAB_TOKEN_SWC: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_TOKEN_GITLAB_COM: ${{ secrets.GITLAB_COM_TOKEN }}
+          GITLAB_HOST: ${{ steps.gitlab-repo-swc.outputs.host || steps.gitlab-repo-com.outputs.host }}
+          GITLAB_PROJECT_PATH: ${{ steps.gitlab-repo-swc.outputs.project-path || steps.gitlab-repo-com.outputs.project-path }}
           CODE_FILTER: ${{ inputs.code }}
           SYSTEM_FILTER: ${{ inputs.system }}
+          NODES_FILTER: ${{ inputs.nodes }}
+          NUMPROC_NODE_FILTER: ${{ inputs.numproc_node }}
+          NTHREADS_FILTER: ${{ inputs.nthreads }}
+          ACTIVITY: ${{ inputs.activity }}
           ALLOCATION_PROJECT_ID: ${{ inputs.allocation_project_id }}
           BENCHPARK_APP: ${{ inputs.app }}
           BENCHPARK: ${{ inputs.benchpark }}
@@ -118,6 +171,16 @@ jobs:
           PARK_SEND: ${{ inputs.park_send }}
         run: |
           set -euo pipefail
+
+          case "${GITLAB_TARGET}" in
+            swc) GITLAB_TOKEN="${GITLAB_TOKEN_SWC}" ;;
+            gitlab_com) GITLAB_TOKEN="${GITLAB_TOKEN_GITLAB_COM}" ;;
+            *) echo "Unsupported GitLab target: ${GITLAB_TARGET}"; exit 1 ;;
+          esac
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_HOST}" ] || [ -z "${GITLAB_PROJECT_PATH}" ]; then
+            echo "Selected GitLab target token and repository settings are required."
+            exit 1
+          fi
 
           project_encoded="$(PROJECT_PATH="${GITLAB_PROJECT_PATH}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
           api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipeline"
@@ -140,6 +203,10 @@ jobs:
 
           add_variable("code", os.environ.get("CODE_FILTER", ""))
           add_variable("system", os.environ.get("SYSTEM_FILTER", ""))
+          add_variable("nodes", os.environ.get("NODES_FILTER", ""))
+          add_variable("numproc_node", os.environ.get("NUMPROC_NODE_FILTER", ""))
+          add_variable("nthreads", os.environ.get("NTHREADS_FILTER", ""))
+          add_variable("BK_EXECUTION_ACTIVITY", os.environ.get("ACTIVITY", ""))
           add_variable("BK_ALLOCATION_PROJECT_ID", os.environ.get("ALLOCATION_PROJECT_ID", ""))
           add_variable("app", os.environ.get("BENCHPARK_APP", ""))
 
@@ -212,11 +279,18 @@ jobs:
         if: always()
         working-directory: trusted
         env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
+          GITLAB_TARGET: ${{ inputs.gitlab_target }}
+          GITLAB_TOKEN_SWC: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_TOKEN_GITLAB_COM: ${{ secrets.GITLAB_COM_TOKEN }}
+          GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo-swc.outputs.host-path || steps.gitlab-repo-com.outputs.host-path }}
         run: |
           set -euo pipefail
-          if [ -n "${GITLAB_TEST_BRANCH:-}" ] && [ -n "${GITLAB_REPO_HOST_PATH:-}" ]; then
+          case "${GITLAB_TARGET}" in
+            swc) GITLAB_TOKEN="${GITLAB_TOKEN_SWC}" ;;
+            gitlab_com) GITLAB_TOKEN="${GITLAB_TOKEN_GITLAB_COM}" ;;
+            *) GITLAB_TOKEN="" ;;
+          esac
+          if [ -n "${GITLAB_TEST_BRANCH:-}" ] && [ -n "${GITLAB_TOKEN:-}" ] && [ -n "${GITLAB_REPO_HOST_PATH:-}" ]; then
             git remote add gitlab-cleanup "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}" || true
             git push gitlab-cleanup --delete "${GITLAB_TEST_BRANCH}" || true
           fi

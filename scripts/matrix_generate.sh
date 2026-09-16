@@ -20,6 +20,9 @@ source ./scripts/job_functions.sh
 
 CODE_FILTER=""
 SYSTEM_FILTER=""
+NODES_FILTER=""
+NUMPROC_NODE_FILTER=""
+NTHREADS_FILTER=""
 ESTIMATE_RUNNER_TAG="${BK_ESTIMATE_RUNNER_TAG:-fncx-estimate-python}"
 ESTIMATE_RUNNER_TAG=$(printf '%s' "$ESTIMATE_RUNNER_TAG" | sed 's/"/\\"/g')
 
@@ -27,6 +30,9 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     code=*) CODE_FILTER="${1#code=}" ;;
     system=*) SYSTEM_FILTER="${1#system=}" ;;
+    nodes=*) NODES_FILTER="${1#nodes=}" ;;
+    numproc_node=*) NUMPROC_NODE_FILTER="${1#numproc_node=}" ;;
+    nthreads=*) NTHREADS_FILTER="${1#nthreads=}" ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
   shift
@@ -64,6 +70,9 @@ for listfile in programs/*/list.csv; do
     parse_list_csv_line "$system" "$enable" "$nodes" "$numproc_node" "$nthreads" "$elapse" || continue
 
     match_filter "$SYSTEM_FILTER" "$csv_system" || continue
+    match_filter "$NODES_FILTER" "$csv_nodes" || continue
+    match_filter "$NUMPROC_NODE_FILTER" "$csv_numproc_node" || continue
+    match_filter "$NTHREADS_FILTER" "$csv_nthreads" || continue
 
     system="$csv_system"
     nodes="$csv_nodes"
