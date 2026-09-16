@@ -222,6 +222,8 @@ def _build_trigger_plan(
         "api_url": plan.api_url,
         "gitlab_target": gitlab_target.id if gitlab_target else trigger.get("gitlab_target", ""),
         "gitlab_project": gitlab_target.repo if gitlab_target else "",
+        "activity": str(profile.get("activity", "")) if profile else "",
+        "allocation_project_id": profile_result.allocation_project_id,
         "payload": plan_payload,
     }
     errors = list(profile_result.errors) + target_errors + plan.errors

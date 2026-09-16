@@ -276,7 +276,7 @@ class TestLoadResultsTableExtension:
             {"label": "FOM", "key": "fom", "tooltip": "Figure of Merit - Benchmark performance metric value with its unit when available"},
             {"label": "FOM version", "key": "fom_version", "tooltip": "Version identifier for the FOM measurement section - helps identify which code region was measured when users modify the timing boundaries"},
             {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
-            {"label": "Activity", "key": "activity_context", "tooltip": "Public activity or budget allocation context recorded with the benchmark run"},
+            {"label": "Activity / Allocation", "key": "activity_context", "tooltip": "Public activity or budget allocation context recorded with the benchmark run"},
             {"label": "Nodes", "key": "nodes"},
             {"label": "P/N", "key": "numproc_node", "tooltip": "Number of processes per node"},
             {"label": "T/P", "key": "nthreads", "tooltip": "Number of threads per process"},
@@ -396,6 +396,36 @@ class TestLoadResultsTableExtension:
 
         assert row["activity_context"]["headline"] == "ActivityAlpha"
         assert row["activity_context"]["subline"] == "allocation project00020"
+
+    def test_activity_context_falls_back_to_portal_profile_context(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        _write_json(tmp_dir, filename, {
+            "code": "demoapp",
+            "system": "DemoSystem",
+            "FOM": 1.0,
+            "pipeline_id": "12345",
+        })
+        trigger_runs_by_pipeline = {
+            "12345": {
+                "payload_json": {
+                    "activity": "ActivityBeta",
+                    "allocation_project_id": "project00030",
+                    "payload": {"variables": {}},
+                }
+            }
+        }
+
+        with flask_app.test_request_context():
+            row = build_result_table_row(
+                filename,
+                load_result_json(filename, tmp_dir),
+                [],
+                trigger_runs_by_pipeline,
+            )
+
+        assert row["activity_context"]["headline"] == "ActivityBeta"
+        assert row["activity_context"]["subline"] == "allocation project00030"
 
     def test_profile_summary_is_built_from_profile_data(self, flask_app, tmp_dir):
         uid = str(uuid.uuid4())

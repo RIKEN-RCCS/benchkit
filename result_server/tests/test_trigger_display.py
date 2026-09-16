@@ -194,6 +194,36 @@ def test_summarize_trigger_run_extracts_payload_context():
     assert summary["reason_label"] == "cron 0 14 * * * / 2026-08-07T14:00+09:00"
 
 
+def test_summarize_trigger_run_uses_profile_context_snapshot():
+    run = {
+        "id": 4,
+        "trigger_id": "demoapp-demosystem-1400",
+        "trigger_type": "scheduled",
+        "status": "submitted",
+        "dry_run": False,
+        "reason": "cron:0 14 * * *@2026-08-07T14:00+09:00",
+        "payload_json": {
+            "activity": "ActivityBeta",
+            "allocation_project_id": "project00030",
+            "payload": {
+                "ref": "develop",
+                "variables": {
+                    "code": "demoapp",
+                    "system": "DemoSystem",
+                },
+            },
+        },
+        "errors": [],
+        "actor": "trigger_runner",
+        "created_at": "2026-08-07T05:00:00Z",
+    }
+
+    summary = summarize_trigger_run(run)
+
+    assert summary["activity"] == "ActivityBeta"
+    assert summary["allocation_project_id"] == "project00030"
+
+
 def test_build_trigger_result_links_matches_direct_trigger_metadata(tmp_path):
     result_file = tmp_path / "result_20260807_140000_aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"
     result_file.write_text(

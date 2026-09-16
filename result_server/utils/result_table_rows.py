@@ -117,11 +117,11 @@ def _build_activity_context(result_data, trigger_runs_by_pipeline=None):
     if (not activity or not allocation_project_id) and trigger_runs_by_pipeline:
         for pipeline_id in _result_pipeline_ids(result_data):
             run = trigger_runs_by_pipeline.get(pipeline_id)
-            variables = _trigger_run_variables(run)
+            variables = _trigger_run_activity_context(run)
             if not activity:
-                activity = variables.get("BK_EXECUTION_ACTIVITY", "")
+                activity = variables.get("activity", "")
             if not allocation_project_id:
-                allocation_project_id = variables.get("BK_ALLOCATION_PROJECT_ID", "")
+                allocation_project_id = variables.get("allocation_project_id", "")
             if activity and allocation_project_id:
                 break
 
@@ -178,16 +178,21 @@ def _extract_result_allocation_project_id(result_data):
     )
 
 
-def _trigger_run_variables(run):
+def _trigger_run_activity_context(run):
     if not isinstance(run, dict):
         return {}
     payload = run.get("payload_json") if isinstance(run.get("payload_json"), dict) else {}
     plan_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
     variables = plan_payload.get("variables") if isinstance(plan_payload.get("variables"), dict) else {}
     return {
-        str(key): str(value).strip()
-        for key, value in variables.items()
-        if value not in (None, "")
+        "activity": _first_text(
+            variables.get("BK_EXECUTION_ACTIVITY"),
+            payload.get("activity"),
+        ),
+        "allocation_project_id": _first_text(
+            variables.get("BK_ALLOCATION_PROJECT_ID"),
+            payload.get("allocation_project_id"),
+        ),
     }
 
 
