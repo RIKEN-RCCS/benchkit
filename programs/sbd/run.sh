@@ -136,11 +136,11 @@ if ! awk -v actual="${energy}" -v reference="${reference_energy}" \
 fi
 
 cp diag.log "${RESULTS_DIR}/"
-sbd_run_configured_ncu_profiles "${system}" "${n_ranks}" "${diag_args[@]}"
 bk_emit_result --fom "${davidson_time}" --fom-unit s \
   --fom-version "davidson_internal_s" --exp "${experiment}" \
   --nodes "${nodes}" --numproc-node "${numproc_node}" \
   --nthreads "${nthreads}" >> "${RESULTS_DIR}/result"
+sbd_run_optional_ncu_profiles "${system}" "${n_ranks}" "${diag_args[@]}"
 if [[ -n "${mult_time}" ]]; then
   bk_emit_section mult "${mult_time}" "" "${SBD_MULT_SECTION_ARTIFACTS:-}" >> "${RESULTS_DIR}/result"
 fi
