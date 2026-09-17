@@ -103,6 +103,8 @@ fi
 
 output=""
 kernel=""
+launch_count=""
+launch_count_seen=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -o|--output)
@@ -113,7 +115,16 @@ while [ $# -gt 0 ]; do
       shift
       kernel="$1"
       ;;
-    --kernel-name-base|--launch-skip|--launch-count|--target-processes|--set)
+    --launch-count)
+      launch_count_seen=$((launch_count_seen + 1))
+      shift
+      launch_count="$1"
+      ;;
+    --launch-count=*)
+      launch_count_seen=$((launch_count_seen + 1))
+      launch_count="${1#--launch-count=}"
+      ;;
+    --kernel-name-base|--launch-skip|--target-processes|--set)
       shift
       ;;
     --nvtx)
@@ -127,8 +138,11 @@ while [ $# -gt 0 ]; do
 done
 
 test -n "$output"
+if [ "${FAKE_NCU_FAIL:-}" = "1" ]; then
+  exit 7
+fi
 mkdir -p "$(dirname "$output")"
-printf '%s\n' "$kernel" >> "$FAKE_NCU_LOG"
+printf '%s\tlaunch_count=%s\tlaunch_count_seen=%s\n' "$kernel" "$launch_count" "$launch_count_seen" >> "$FAKE_NCU_LOG"
 printf 'fake ncu report\n' > "${output}.ncu-rep"
 EOF
 
@@ -154,8 +168,30 @@ export PATH="${FAKE_BIN}:${PATH}"
   test "${BK_SBD_NCU_PROFILE:-}" = "false"
 )
 
+(
+  unset BK_PROFILER BK_PROFILER_LEVEL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL
+  unset BK_SBD_NCU_PLAN_TOP_K BK_SBD_NCU_PLAN_LAUNCH_COUNT BK_SBD_NCU_PROFILE_TIMEOUT_SECONDS
+  unset SBD_PROFILER_TOOL
+  sbd_configure_ncu_profile_from_run_env RIKYU
+  test "${BK_SBD_NCU_PROFILE}" = "true"
+  test "${BK_SBD_NCU_PROFILER_LEVEL}" = "single"
+  test "${BK_SBD_NCU_PLAN_TOP_K}" = "1"
+  test "${BK_SBD_NCU_PLAN_LAUNCH_COUNT}" = "1"
+  case "${BK_SBD_NCU_PROFILE_TIMEOUT_SECONDS}" in
+    ''|0|*[!0-9]*) exit 1 ;;
+  esac
+)
+
+test "$(sbd_strip_ncu_launch_count_args --set basic --launch-count 1 --nvtx --launch-count=3)" = "--set basic --nvtx"
+
+(
+  export BK_SBD_NCU_PROFILE=true
+  sbd_run_configured_ncu_profiles() { return 7; }
+  sbd_run_optional_ncu_profiles RIKYU 4
+)
+
 pushd "${RUN_DIR}" >/dev/null
-unset BK_PROFILER SBD_PROFILER_TOOL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL
+unset BK_PROFILER SBD_PROFILER_TOOL BK_SBD_NCU_PROFILE BK_SBD_NCU_PROFILER_LEVEL BK_SBD_NCU_PLAN_LAUNCH_COUNT
 export BK_SBD_NCU_PROFILE_MODE=discovery
 export BK_SBD_NCU_PLAN_TOP_K=5
 export BK_PROFILER_LEVEL=single
@@ -174,6 +210,7 @@ test -f "${RESULTS_DIR}/sbd_ncu_plan.json"
 
 jq -e '
   (.profiles | length) == 5 and
+  ([.profiles[].launch_count] | unique) == [1] and
   ([.profiles[].kernel_match.pattern] | unique | length) == 5 and
   .profiles[1].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)0,[[:space:]]*\\(int\\)1>.*" and
   .profiles[4].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)1,[[:space:]]*\\(int\\)0>.*"
@@ -208,5 +245,6 @@ for archive in "${profile_archives[@]}"; do
 done
 
 grep -Fq 'regex:.*sbd::MultUnified<double,[[:space:]]*\(int\)0,[[:space:]]*\(int\)1>.*' "$FAKE_NCU_LOG"
+awk -F '\t' '$2 != "launch_count=1" || $3 != "launch_count_seen=1" { bad = 1 } END { exit bad }' "$FAKE_NCU_LOG"
 
 echo "SBD NCU profile test passed"

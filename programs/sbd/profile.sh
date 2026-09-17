@@ -13,6 +13,43 @@ sbd_ncu_profile_mode() {
   printf '%s\n' "${BK_SBD_NCU_PROFILE_MODE:-discovery}"
 }
 
+sbd_ncu_profile_timeout_seconds() {
+  local timeout_seconds="${BK_SBD_NCU_PROFILE_TIMEOUT_SECONDS:-0}"
+
+  case "$timeout_seconds" in
+    ''|*[!0-9]*)
+      echo "SBD NCU profile timeout must be a non-negative integer: ${timeout_seconds}" >&2
+      return 1
+      ;;
+  esac
+
+  printf '%s\n' "$timeout_seconds"
+}
+
+sbd_strip_ncu_launch_count_args() {
+  local filtered_args=()
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --launch-count)
+        shift
+        if [ "$#" -gt 0 ]; then
+          shift
+        fi
+        ;;
+      --launch-count=*)
+        shift
+        ;;
+      *)
+        filtered_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  printf '%s\n' "${filtered_args[*]}"
+}
+
 sbd_supports_ncu_profile() {
   case "$1" in
     RIKYU|RC_DGXSP|RC_GH200) return 0 ;;
@@ -24,6 +61,7 @@ sbd_configure_ncu_profile_from_run_env() {
   local system_name="$1"
   local profiler_tool
   local profiler_level
+  local default_profiler_level="detailed"
 
   if ! sbd_supports_ncu_profile "$system_name"; then
     return 0
@@ -44,8 +82,20 @@ sbd_configure_ncu_profile_from_run_env() {
   if [ -z "${BK_SBD_NCU_PROFILE:-}" ]; then
     export BK_SBD_NCU_PROFILE=true
   fi
+  if [ "$system_name" = "RIKYU" ]; then
+    default_profiler_level="single"
+    if [ -z "${BK_SBD_NCU_PLAN_TOP_K:-}" ]; then
+      export BK_SBD_NCU_PLAN_TOP_K=1
+    fi
+    if [ -z "${BK_SBD_NCU_PLAN_LAUNCH_COUNT:-}" ]; then
+      export BK_SBD_NCU_PLAN_LAUNCH_COUNT=1
+    fi
+    if [ -z "${BK_SBD_NCU_PROFILE_TIMEOUT_SECONDS:-}" ]; then
+      export BK_SBD_NCU_PROFILE_TIMEOUT_SECONDS=1800
+    fi
+  fi
   if [ -z "${BK_SBD_NCU_PROFILER_LEVEL:-}" ]; then
-    profiler_level=$(bk_resolve_profiler_level detailed SBD_PROFILER_LEVEL)
+    profiler_level=$(bk_resolve_profiler_level "$default_profiler_level" SBD_PROFILER_LEVEL)
     export BK_SBD_NCU_PROFILER_LEVEL="$profiler_level"
   fi
 }
@@ -280,6 +330,8 @@ sbd_run_rank0_ncu_profile() {
   local report_file
   local profiler_status
   local archive_status
+  local profile_timeout_seconds
+  local profile_cmd=()
 
   results_dir=$(sbd_profile_results_dir)
   archive_path="${results_dir}/padata_${profile_slug}.tgz"
@@ -298,39 +350,56 @@ sbd_run_rank0_ncu_profile() {
 
   ncu_level_arg_text=$(bk_profiler_ncu_level_args "$profiler_level") || return 1
   read -r -a ncu_level_args <<< "$ncu_level_arg_text"
+  ncu_level_arg_text=$(sbd_strip_ncu_launch_count_args "${ncu_level_args[@]}") || return 1
+  read -r -a ncu_level_args <<< "$ncu_level_arg_text"
+  profile_timeout_seconds=$(sbd_ncu_profile_timeout_seconds) || return 1
 
   rm -rf "$raw_dir" "$stage_dir"
   mkdir -p "$rep_dir" "$stage_dir/raw" "$stage_dir/reports"
 
   echo "SBD NCU profile: profile='${profile_name}' kernel='${kernel_regex}' skip=${launch_skip} count=${launch_count}" >&2
   echo "bk_profiler[ncu]: starting ${rep_name} level=${profiler_level} on rank 0" >&2
-  set +e
-  mpirun -np "$n_ranks" bash -lc '
-    rank=${OMPI_COMM_WORLD_RANK:-${PMIX_RANK:-${SLURM_PROCID:-0}}}
-    local_rank=${OMPI_COMM_WORLD_LOCAL_RANK:-${SLURM_LOCALID:-0}}
-    export CUDA_VISIBLE_DEVICES="${local_rank}"
-    profile_base="$1"
-    level_argc="$2"
-    shift 2
-    level_args=()
-    i=0
-    while [ "$i" -lt "$level_argc" ]; do
-      level_args+=("$1")
-      shift
-      i=$((i + 1))
-    done
-    kernel_regex="$1"
-    launch_skip="$2"
-    launch_count="$3"
-    shift 3
-    if [ "$rank" = 0 ]; then
-      exec ncu -o "$profile_base" --target-processes all "${level_args[@]}" \
-        --kernel-name-base demangled --kernel-name "$kernel_regex" \
-        --launch-skip "$launch_skip" --launch-count "$launch_count" ./diag "$@"
+  if [ "$profile_timeout_seconds" -gt 0 ]; then
+    echo "SBD NCU profile timeout: ${profile_timeout_seconds}s" >&2
+    if ! command -v timeout >/dev/null 2>&1; then
+      echo "SBD NCU profile timeout requested but timeout command is not available." >&2
+      return 1
     fi
-    exec ./diag "$@"
-  ' bash "$profile_base" "${#ncu_level_args[@]}" "${ncu_level_args[@]}" \
-    "$kernel_regex" "$launch_skip" "$launch_count" "$@" > "$profile_log" 2>&1
+  fi
+  profile_cmd=(
+    mpirun -np "$n_ranks" bash -lc '
+      rank=${OMPI_COMM_WORLD_RANK:-${PMIX_RANK:-${SLURM_PROCID:-0}}}
+      local_rank=${OMPI_COMM_WORLD_LOCAL_RANK:-${SLURM_LOCALID:-0}}
+      export CUDA_VISIBLE_DEVICES="${local_rank}"
+      profile_base="$1"
+      level_argc="$2"
+      shift 2
+      level_args=()
+      i=0
+      while [ "$i" -lt "$level_argc" ]; do
+        level_args+=("$1")
+        shift
+        i=$((i + 1))
+      done
+      kernel_regex="$1"
+      launch_skip="$2"
+      launch_count="$3"
+      shift 3
+      if [ "$rank" = 0 ]; then
+        exec ncu -o "$profile_base" --target-processes all "${level_args[@]}" \
+          --kernel-name-base demangled --kernel-name "$kernel_regex" \
+          --launch-skip "$launch_skip" --launch-count "$launch_count" ./diag "$@"
+      fi
+      exec ./diag "$@"
+    ' bash "$profile_base" "${#ncu_level_args[@]}" "${ncu_level_args[@]}" \
+      "$kernel_regex" "$launch_skip" "$launch_count" "$@"
+  )
+  set +e
+  if [ "$profile_timeout_seconds" -gt 0 ]; then
+    timeout --kill-after=60s "$profile_timeout_seconds" "${profile_cmd[@]}" > "$profile_log" 2>&1
+  else
+    "${profile_cmd[@]}" > "$profile_log" 2>&1
+  fi
   profiler_status=$?
   set -e
 
@@ -453,6 +522,24 @@ PY
     echo "SBD NCU plan has no executable profiles: ${plan_json}" >&2
     return 1
   fi
+}
+
+sbd_run_optional_ncu_profiles() {
+  local system_name="$1"
+  local n_ranks="$2"
+  local profile_status
+  shift 2
+
+  if ! sbd_ncu_profile_enabled; then
+    return 0
+  fi
+
+  profile_status=0
+  sbd_run_configured_ncu_profiles "$system_name" "$n_ranks" "$@" || profile_status=$?
+  if [ "$profile_status" -ne 0 ]; then
+    echo "SBD NCU profile acquisition failed with status ${profile_status}; continuing with benchmark result." >&2
+  fi
+  return 0
 }
 
 sbd_run_configured_ncu_profiles() {
