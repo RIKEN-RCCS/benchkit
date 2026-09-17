@@ -53,6 +53,7 @@ def build_result_table_row(
         "activity_context": _build_activity_context(
             result_data,
             trigger_runs_by_pipeline,
+            public_surface=public_surface,
         ),
         "nodes": result_data.get("node_count", "N/A"),
         "numproc_node": _normalize_optional_field(result_data.get("numproc_node")),
@@ -108,8 +109,8 @@ def _has_vector_metrics(result_data):
     return isinstance(metrics, dict) and "vector" in metrics
 
 
-def _build_activity_context(result_data, trigger_runs_by_pipeline=None):
-    """Return public activity/allocation context for the result table."""
+def _build_activity_context(result_data, trigger_runs_by_pipeline=None, *, public_surface=False):
+    """Return display activity/allocation context for the result table."""
     trigger_runs_by_pipeline = trigger_runs_by_pipeline or {}
     activity = _extract_result_activity(result_data)
     allocation_project_id = _extract_result_allocation_project_id(result_data)
@@ -124,6 +125,16 @@ def _build_activity_context(result_data, trigger_runs_by_pipeline=None):
                 allocation_project_id = variables.get("allocation_project_id", "")
             if activity and allocation_project_id:
                 break
+
+    if public_surface:
+        headline = activity or "-"
+        return {
+            "headline": headline,
+            "subline": "",
+            "title": f"activity={activity}" if activity else "No public activity metadata was recorded for this result.",
+            "activity": activity,
+            "allocation_project_id": "",
+        }
 
     headline = activity or allocation_project_id or "-"
     subline = ""

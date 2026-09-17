@@ -329,6 +329,8 @@ class TestLoadResultsTableExtension:
         assert "ci_summary" not in column_keys
         assert "execution_trigger_summary" not in column_keys
         assert "activity_context" in column_keys
+        activity_column = next(column for column in columns if column["key"] == "activity_context")
+        assert activity_column["label"] == "Activity"
         assert "profile_summary" in column_keys
         assert rows[0]["json_link"] is None
         assert rows[0]["data_link"] == f"/results/padata_20250101_120000_{uid}.tgz"
@@ -336,7 +338,36 @@ class TestLoadResultsTableExtension:
         assert rows[0]["profile_summary"] == "ncu / single"
         assert rows[0]["profile_summary_meta"]["ncu_options"] == ["--set", "basic"]
         assert rows[0]["activity_context"]["headline"] == "SBDProfile"
-        assert rows[0]["activity_context"]["subline"] == "allocation project00010"
+        assert rows[0]["activity_context"]["subline"] == ""
+        assert rows[0]["activity_context"]["allocation_project_id"] == ""
+        assert "project00010" not in rows[0]["activity_context"]["title"]
+
+    def test_public_surface_does_not_fall_back_to_allocation(self, flask_app, tmp_dir):
+        uid = str(uuid.uuid4())
+        filename = f"result_20250101_120000_{uid}.json"
+        _write_json(tmp_dir, filename, {
+            "code": "auxapp",
+            "system": "SourceSystem",
+            "Exp": "CASE0",
+            "FOM": 1.0,
+            "environment_snapshot": {
+                "summary": {
+                    "allocation_project_id": "project00010",
+                }
+            },
+        })
+
+        with flask_app.test_request_context():
+            rows, _, _ = load_results_table(
+                tmp_dir,
+                public_only=True,
+                public_surface=True,
+            )
+
+        assert rows[0]["activity_context"]["headline"] == "-"
+        assert rows[0]["activity_context"]["subline"] == ""
+        assert rows[0]["activity_context"]["allocation_project_id"] == ""
+        assert "project00010" not in rows[0]["activity_context"]["title"]
 
     def test_existing_row_fields_preserved(self, flask_app, tmp_dir):
         """Test case."""

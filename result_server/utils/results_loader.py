@@ -34,8 +34,17 @@ RESULT_TABLE_COLUMNS = [
     {"label": "CI", "key": "ci_summary", "tooltip": "CI trigger source and pipeline ID"},
 ]
 
+
+def _public_result_table_column(column):
+    public_column = dict(column)
+    if public_column["key"] == "activity_context":
+        public_column["label"] = "Activity"
+        public_column["tooltip"] = "Public activity or responsibility label recorded with the benchmark run"
+    return public_column
+
+
 PUBLIC_RESULT_TABLE_COLUMNS = [
-    column
+    _public_result_table_column(column)
     for column in RESULT_TABLE_COLUMNS
     if column["key"] not in {"execution_trigger_summary", "json_link", "ci_summary"}
 ]

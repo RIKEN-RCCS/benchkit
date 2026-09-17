@@ -193,6 +193,9 @@ jobs:
 
           project_encoded="$(PROJECT_PATH="${GITLAB_PROJECT_PATH}" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["PROJECT_PATH"], safe=""))')"
           api="https://${GITLAB_HOST}/api/v4/projects/${project_encoded}/pipeline"
+          if [ -n "${ALLOCATION_PROJECT_ID}" ]; then
+            echo "::add-mask::${ALLOCATION_PROJECT_ID}"
+          fi
 
           payload_file="$(mktemp)"
           PAYLOAD_FILE="${payload_file}" python3 - <<'PY'
@@ -201,9 +204,12 @@ jobs:
 
           variables = []
 
-          def add_variable(key, value):
+          def add_variable(key, value, *, log_value=True):
               if value:
-                  print(f"GitLab variable: {key}={value}")
+                  if log_value:
+                      print(f"GitLab variable: {key}={value}")
+                  else:
+                      print(f"GitLab variable: {key}=(set)")
                   variables.append({
                       "key": key,
                       "value": value,
@@ -223,7 +229,7 @@ jobs:
           elif result_server_target:
               raise SystemExit(f"Unsupported result_server_target: {result_server_target}")
           add_variable("BK_EXECUTION_ACTIVITY", os.environ.get("ACTIVITY", ""))
-          add_variable("BK_ALLOCATION_PROJECT_ID", os.environ.get("ALLOCATION_PROJECT_ID", ""))
+          add_variable("BK_ALLOCATION_PROJECT_ID", os.environ.get("ALLOCATION_PROJECT_ID", ""), log_value=False)
           add_variable("app", os.environ.get("BENCHPARK_APP", ""))
 
           if os.environ.get("BENCHPARK") == "true":
