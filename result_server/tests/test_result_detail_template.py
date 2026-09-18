@@ -397,6 +397,74 @@ class TestResultDetailTemplate:
         assert "Measurement Artifacts" in html
         assert f'href="/results/{filename}"' in html
 
+    @pytest.mark.parametrize("collection", ["sections", "overlaps"])
+    @pytest.mark.parametrize("uploaded", [True, False])
+    @pytest.mark.parametrize("public_surface", [True, False])
+    def test_profile_metadata_links_respect_surface_and_upload_state(
+        self, app, collection, uploaded, public_surface,
+    ):
+        basenames = ["kernel_discovery.json", "ncu_plan.json", "padata_kernel.metadata.json"]
+        filenames = [
+            "measurement_artifact_20250101_120000_"
+            f"12345678-1234-1234-1234-123456789abc_{name}"
+            for name in basenames
+        ]
+        result = {
+            "code": "demoapp",
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20250101_120000",
+            "fom_breakdown": {
+                collection: [{
+                    "name": "kernel",
+                    "artifacts": [
+                        {"type": "file_reference", "path": f"results/{name}"}
+                        for name in basenames
+                    ],
+                }],
+            },
+        }
+
+        with app.test_request_context():
+            html = _render_result_detail(
+                result, {}, filenames if uploaded else [], public_surface=public_surface,
+            )
+
+        for basename, filename in zip(basenames, filenames):
+            if public_surface:
+                assert basename not in html
+            else:
+                assert "Profile metadata" in html
+                assert f"results/{basename}" in html
+                if uploaded:
+                    assert f'href="/results/{filename}"' in html
+                else:
+                    assert f"{filename} not uploaded" in html
+                    assert f'href="/results/{filename}"' not in html
+
+    @pytest.mark.parametrize("artifact_path", [
+        "../metadata.json",
+        "results/../metadata.json",
+        "/results/metadata.json",
+        "artifacts/metadata.json",
+        "results/bad name.json",
+        "results/metadata.txt",
+    ])
+    def test_invalid_profile_metadata_paths_are_omitted(self, app, artifact_path):
+        result = {
+            "_server_uuid": "12345678-1234-1234-1234-123456789abc",
+            "_server_timestamp": "20250101_120000",
+            "fom_breakdown": {
+                "sections": [{
+                    "name": "kernel",
+                    "artifacts": [{"type": "file_reference", "path": artifact_path}],
+                }],
+            },
+        }
+        with app.test_request_context():
+            context = build_result_detail_context(result, {})
+
+        assert context["measurement_artifact_rows"] == []
+
     def test_timing_observation_artifact_is_linked_on_console_surface(self, app):
         result = {
             **FULL_RESULT,
