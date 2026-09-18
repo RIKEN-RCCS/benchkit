@@ -28,6 +28,7 @@ input=${header}.inp
 resultsdir=${SCRIPT_DIR}/results
 artifactsdir=${SCRIPT_DIR}/artifacts
 mkdir -p ${resultsdir}
+bk_run_context --results-dir "${resultsdir}" --exp "$exp"
 export BK_INPUT_INFO_FILE="${resultsdir}/input_info.json"
 export BK_INPUT_INFO_ITEMS_FILE="${resultsdir}/.input_info_items.jsonl"
 bk_reset_input_info
@@ -162,7 +163,7 @@ run_genesis_nvidia_gpu() {
     genesis_configure_ncu_profile "$system_name" "$profiler_tool_var" "$profiler_level_var" "$module_var" || return 1
 
     echo "Running ${system_name} as NVIDIA GPU benchmark run without profiler"
-    "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
+    bk_run -- "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
     genesis_run_configured_ncu_profiles "$system_name" "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
 }
 
@@ -203,7 +204,9 @@ case "$system" in
     export PARALLEL=${nthreads}
     export OMP_NUM_THREADS=${nthreads}
 	echo "${mpi_cmd} ./${binary} ${input}.sub"
-	${mpi_cmd} ./${binary} ${input}.sub
+	# Intentional word splitting: mpi_cmd contains the launcher and its arguments.
+	# shellcheck disable=SC2086
+	bk_run -- ${mpi_cmd} ./${binary} ${input}.sub
 	[[ -f ./stdout.1.0 ]] && cp ./stdout.1.0 ${output}
 	[[ -f ./stderr.1.0 ]] && cp ./stderr.1.0 ${stderr}
     ;;

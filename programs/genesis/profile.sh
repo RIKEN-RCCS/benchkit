@@ -428,7 +428,8 @@ genesis_run_container_ncu_acquisition_profile() {
     echo "bk_run_ncu_acquisition_profile: profile='${profile_name}' kernel='${kernel_regex}' skip=${launch_skip} count=${launch_count}" >&2
     echo "bk_profiler[ncu]: starting ${rep_name} level=${profiler_level} inside container rank 0" >&2
     set +e
-    "${profile_cmd[@]}" </dev/null 2>&1 | tee "$profile_log"
+    bk_profile_execute --tool ncu --phase collect --profile "$profile_slug" -- \
+        "${profile_cmd[@]}" </dev/null 2>&1 | tee "$profile_log"
     profiler_status=${PIPESTATUS[0]}
     set -e
 
@@ -446,12 +447,14 @@ genesis_run_container_ncu_acquisition_profile() {
             --csv \
             --print-units base \
             --print-fp || return 1
-        "${import_cmd[@]}" > "${rep_dir}/profile_raw.csv" 2> "${rep_dir}/profile_raw.csv.log" || true
+        bk_profile_execute --tool ncu --phase export --profile "${profile_slug}/raw" -- \
+            "${import_cmd[@]}" > "${rep_dir}/profile_raw.csv" 2> "${rep_dir}/profile_raw.csv.log" || true
 
         import_cmd=()
         genesis_build_container_once_command app_cmd import_cmd \
             ncu --import "$report_file" --page details || return 1
-        "${import_cmd[@]}" > "$stage_dir/reports/ncu_import_${rep_name}.txt" 2>&1 || true
+        bk_profile_execute --tool ncu --phase export --profile "${profile_slug}/details" -- \
+            "${import_cmd[@]}" > "$stage_dir/reports/ncu_import_${rep_name}.txt" 2>&1 || true
     fi
 
     cp -R "$rep_dir" "$stage_dir/raw/${rep_name}"
@@ -610,9 +613,9 @@ genesis_generate_ncu_plan() {
                 "${discovery_cmd[@]:$GENESIS_APPTAINER_PAYLOAD_INDEX}"
             )
             genesis_build_container_rank0_profile_command nsys_payload discovery_cmd nsys_profile_cmd
-            "${nsys_profile_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
+            bk_profile_execute --tool nsys --phase collect -- "${nsys_profile_cmd[@]}" 2>&1 | tee "$nsys_log" >&2
         else
-            nsys profile \
+            bk_profile_execute --tool nsys --phase collect -- nsys profile \
                 --force-overwrite=true \
                 --trace=cuda \
                 --sample=none \
@@ -633,10 +636,11 @@ genesis_generate_ncu_plan() {
         if genesis_find_apptainer_payload_index discovery_cmd; then
             genesis_build_container_once_command discovery_cmd nsys_stats_cmd \
                 nsys stats --force-export=true --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" || return 1
-            "${nsys_stats_cmd[@]}" >/dev/null
+            bk_profile_execute --tool nsys --phase export -- "${nsys_stats_cmd[@]}" >/dev/null
             nsys_stats_status=$?
         else
-            nsys stats --force-export=true --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" >/dev/null
+            bk_profile_execute --tool nsys --phase export -- \
+                nsys stats --force-export=true --report cuda_gpu_kern_sum --format csv --output "$nsys_csv" "$nsys_report" >/dev/null
             nsys_stats_status=$?
         fi
         if [ "$nsys_stats_status" -ne 0 ]; then
@@ -670,7 +674,7 @@ genesis_generate_ncu_plan() {
         esac
     fi
 
-    "$python_bin" "${SCRIPT_DIR}/scripts/profiling/generate_ncu_plan.py" \
+    bk_generate_ncu_plan \
         --nsys-csv "$discovery_csv" \
         --out-discovery "$discovery_json" \
         --out-plan "$plan_json" \
