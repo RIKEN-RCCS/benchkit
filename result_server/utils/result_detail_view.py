@@ -113,7 +113,7 @@ def build_result_detail_context(
         "measurement_artifact_rows": _build_measurement_artifact_rows(
             result,
             measurement_artifact_filenames or [],
-            include_timing=not public_surface,
+            include_private=not public_surface,
         ),
         "node_status_rows": (
             [] if public_surface else _build_node_status_rows(result.get("node_status_snapshot"))
@@ -220,7 +220,7 @@ def _build_measurement_artifact_rows(
     result,
     measurement_artifact_filenames,
     *,
-    include_timing=True,
+    include_private=True,
 ):
     result_uuid = result.get("_server_uuid")
     timestamp = result.get("_server_timestamp")
@@ -228,8 +228,10 @@ def _build_measurement_artifact_rows(
         return []
 
     uploaded = set(measurement_artifact_filenames)
-    rows = _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, uploaded)
-    if include_timing:
+    rows = _build_profile_measurement_artifact_rows(
+        result, timestamp, result_uuid, uploaded, include_metadata=include_private,
+    )
+    if include_private:
         rows.extend(
             _build_timing_measurement_artifact_rows(result, timestamp, result_uuid, uploaded)
         )
@@ -241,7 +243,9 @@ def _build_measurement_artifact_rows(
     return rows
 
 
-def _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, uploaded):
+def _build_profile_measurement_artifact_rows(
+    result, timestamp, result_uuid, uploaded, *, include_metadata=True,
+):
     rows = []
     breakdown = result.get("fom_breakdown")
     if not isinstance(breakdown, dict):
@@ -261,11 +265,19 @@ def _build_profile_measurement_artifact_rows(result, timestamp, result_uuid, upl
                     result_uuid,
                     artifact_path,
                 )
+                kind = "Profile archive"
+                if not candidates and include_metadata:
+                    filename = stored_measurement_artifact_filename_from_path(
+                        timestamp, result_uuid, artifact_path,
+                    )
+                    if filename.endswith(".json"):
+                        candidates = [filename]
+                        kind = "Profile metadata"
                 if not candidates:
                     continue
                 filename = _choose_uploaded_filename(candidates, uploaded)
                 rows.append({
-                    "kind": "Profile archive",
+                    "kind": kind,
                     "source": f"{source_label}: {item_name}",
                     "artifact_path": artifact_path,
                     "filename": filename,

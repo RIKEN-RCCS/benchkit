@@ -70,6 +70,8 @@ case "${system}" in
     ;;
 esac
 
+sbd_init_stage_timing "${experiment}"
+
 for input_file in fcidump.txt "${determinant_file}"; do
   if [[ ! -f "${INPUT_DIR}/${input_file}" ]]; then
     echo "SBD input not found: ${INPUT_DIR}/${input_file}" >&2
@@ -105,12 +107,12 @@ diag_args=(
 )
 
 if [[ "${system}" == "RC_FX700" ]]; then
-  mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}" \
-    > diag.log 2>&1
+  sbd_time_command benchmark "" diag.log \
+    mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}"
 else
-  mpirun -np "${n_ranks}" bash -lc \
+  sbd_time_command benchmark "" diag.log mpirun -np "${n_ranks}" bash -lc \
     'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
-    bash ./diag "${diag_args[@]}" > diag.log 2>&1
+    bash ./diag "${diag_args[@]}"
 fi
 
 davidson_time=$(grep -E 'Elapsed time for davidson ' diag.log | tail -n 1 | awk '{print $(NF-1)}')

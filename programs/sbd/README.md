@@ -17,8 +17,33 @@ and then uses that plan for rank-0 Nsight Compute acquisition when
 Use `BK_SBD_NCU_PROFILE_MODE=discovery-only` to stop after the NSYS discovery
 and plan generation step. `BK_SBD_NCU_PLAN_TOP_K` controls how many kernels are
 selected; discovery-only defaults to all kernels, while discovery defaults to
-the top three. Generated NCU archives are attached to the `mult` section as
+the top three. The RIKYU system default overrides this selection to the top one.
+Generated NCU archives are attached to the `mult` section as
 measurement artifacts.
+
+## Workflow stage timing
+
+SBD logs UTC start/end timestamps, elapsed seconds and command exit codes for
+the ordinary benchmark, NSYS collection, NSYS summary export, NCU plan
+generation and each NCU collection. The same records are stored in
+`results/sbd_stage_timing.json`, registered through `timing_observations` for
+Measurement Artifact upload. NCU records identify the profile used in the plan
+and archive metadata. Elapsed seconds use a monotonic clock.
+
+These are command wall times, including MPI startup and report finalization
+where applicable. They exclude queue wait and NCU archive postprocessing and
+do not replace the internal Davidson FOM. Profile collections execute the
+application again; their summed durations are not an application slowdown
+ratio. Compare equivalent regular/profiled conditions to evaluate overhead.
+
+A command failure retains its exit code, including timeout status. If the job
+is killed before a finish record can be written, the last stage remains
+`running` with no duration; treat it as unfinished, not successful or zero-cost.
+Earlier records remain in the JSON file, but transfer after a scheduler kill
+still depends on the job's artifact-upload policy. Timing-record failures do
+not replace the measured command's exit status.
+
+## Benchmark recipes
 
 The RIKYU recipe uses the H2O cc-pVDZ FCIDUMP with the `1em7` selected alpha
 determinant file (about 628 million product determinants), one MPI rank per
