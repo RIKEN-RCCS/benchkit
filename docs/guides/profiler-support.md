@@ -58,6 +58,47 @@ bk_profiler <tool> [options] -- <command ...>
 `bk_resolve_profiler_tool` / `bk_resolve_profiler_level` を使う。既存運用や site-local
 調整のために app 固有変数が必要な場合は、共通変数の上書きとして helper に渡す。
 
+## Workflow Stage Timing
+
+`bk_profiler` は各 `fapp` / `ncu` acquisition と report export の時間を自動記録する。
+アプリの `profile.sh` に開始・終了時計、JSON生成、artifact登録を実装する必要はない。
+SBDとGENESISも同じ共通経路を使い、MPI rank選択やcontainer起動条件はアプリ側で組み立てる。
+
+`run.sh` では、実験条件と出力先を決めた時点で共通実行contextを設定する。
+contextはsubshellやpipelineへ引き継がれ、作業ディレクトリを変えても出力先は変わらない。
+
+```bash
+bk_run_context --results-dir "${PWD}/results" --exp "$experiment"
+bk_run --log benchmark.log -- mpirun -np "$ranks" ./application
+bk_profiler ncu --archive "${BK_RUN_RESULTS_DIR}/padata.tgz" -- ./application
+```
+
+独自のMPI/container起動が必要な場合は、組み立てた完全なコマンドを
+`bk_profile_execute --tool <tool> --phase <collect|export|plan> -- <command ...>`
+へ渡す。`--profile <name>` で対象profileを識別でき、`--log <file>` でコマンドの
+stdout/stderrだけをファイルへ送れる。NSYSのcollect/exportにもこの入口を使う。
+NCU plan生成は `bk_generate_ncu_plan` へ従来のgenerator引数を渡す。
+いずれも時計操作や記録ファイルの管理は共通層が担当する。
+
+共通層は実験条件ごとの `results/workflow_timing_*.json` にstage、tool、profile、
+UTC開始・終了時刻、monotonic時計による経過秒、終了コードを保存する。
+更新はlockとatomic replacementを使い、並列コマンドの追記を保持する。
+`scripts/result.sh` が現在の実行sessionの記録を `timing_observations` へ自動追加し、
+既存のapp独自timing observationも保持する。Resultの `Exp` によりscopeを絞り、
+既存のMeasurement Artifacts送信・console表示経路を使う。公開面には追加しない。
+context未設定の `bk_profiler` はarchiveの出力ディレクトリを使い、job単位のscopeとなる。
+一つのresultsディレクトリは一つの実行sessionで使用する。
+
+記録はコマンドのwall timeであり、MPI起動やprofilerのreport finalizationを含む。
+queue待ちやarchive圧縮は含まず、アプリのFOMを置き換えない。profile用の再実行時間を
+そのままアプリのslowdown比とは解釈せず、同条件の通常実行と比較する。
+計測用helper自身の起動・記録には小さな追加コストがある。
+
+失敗・timeoutはコマンドの終了コードを保持する。finishを書けずに中断したstageは
+`running` と開始時刻だけが残るため、未完了として扱い、成功やゼロ秒とみなさない。
+任意の記録処理が失敗しても実行コマンドの終了コードを変えない。schedulerによる強制終了後の
+転送可否はjobのartifact upload方針に依存する。
+
 ## 3. 共通語彙としての level
 
 `single/simple/standard/detailed` は Benchkit の共通語彙として扱う。

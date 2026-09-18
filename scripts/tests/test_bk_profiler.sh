@@ -8,6 +8,15 @@ source "${REPO_DIR}/scripts/bk_functions.sh"
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
+TMP_RESULTS="${TMP_DIR}/results"
+mkdir -p "$TMP_RESULTS"
+bk_run_context --results-dir "$TMP_RESULTS" --exp profiler
+# Keep profiler staging and implicit timing artifacts out of the source tree.
+cd "$TMP_DIR"
+
+timing_stages() {
+  jq -s '[.[].stages[]]' "$TMP_RESULTS"/workflow_timing_*.json
+}
 
 test "$(bk_resolve_profiler_tool fapp)" = "fapp"
 (export BK_PROFILER=ncu; test "$(bk_resolve_profiler_tool fapp)" = "ncu")
@@ -64,6 +73,9 @@ EOF
 cat > "${FAKE_BIN}/fapppx" <<'EOF'
 #!/bin/bash
 set -euo pipefail
+if [ "${FAKE_EXPORT_FAIL:-0}" = 1 ]; then
+  exit 17
+fi
 dir=""
 outfile=""
 while [ $# -gt 0 ]; do
@@ -124,6 +136,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$import_mode" -eq 1 ]; then
+  if [ "${FAKE_EXPORT_FAIL:-0}" = 1 ]; then
+    exit 17
+  fi
   printf 'ncu import:%s\n' "$import_file"
   exit 0
 fi
@@ -147,6 +162,10 @@ run_and_check_level() {
   local archive="${TMP_DIR}/${level}.tgz"
   local extract_dir="${TMP_DIR}/${level}_extract"
   local raw_dir="${TMP_DIR}/${level}_pa"
+  local before_count=0
+  if compgen -G "$TMP_RESULTS/workflow_timing_*.json" >/dev/null; then
+    before_count=$(timing_stages | jq 'length')
+  fi
 
   bk_profiler fapp --level "$level" --archive "$archive" --raw-dir "$raw_dir" -- true
   mkdir -p "$extract_dir"
@@ -166,6 +185,17 @@ run_and_check_level() {
   grep -q "\"level\": \"${level}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
   grep -q "\"report_format\": \"${expected_format}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
   grep -q "\"event\": \"${expected_last_event}\"" "${extract_dir}/bk_profiler_artifact/meta.json"
+  local exports_per_rep=1
+  if [ "$expect_csv" = yes ]; then
+    exports_per_rep=2
+  fi
+  timing_stages | jq -e --argjson start "$before_count" \
+    --argjson reps "$expected_last_rep" --argjson exports "$exports_per_rep" '
+    .[$start:] |
+    ([.[] | select(.stage == "collect")] | length) == $reps and
+    ([.[] | select(.stage == "export")] | length) == ($reps * $exports) and
+    all(.[]; .tool == "fapp" and .status == "completed" and .exit_code == 0)
+  ' >/dev/null
 }
 
 run_and_check_level single 1 pa1 text no
@@ -176,7 +206,12 @@ run_and_check_level detailed 17 pa17 both yes
 ncu_archive="${TMP_DIR}/ncu.tgz"
 ncu_extract="${TMP_DIR}/ncu_extract"
 ncu_raw="${TMP_DIR}/ncu_pa"
+before_ncu=$(timing_stages | jq 'length')
 bk_profiler ncu --level single --archive "$ncu_archive" --raw-dir "$ncu_raw" -- bash -c 'printf "ncu target\n"'
+timing_stages | jq -e --argjson start "$before_ncu" '
+  .[$start:] | map([.stage, .tool, .status, .exit_code]) ==
+  [["collect", "ncu", "completed", 0], ["export", "ncu", "completed", 0]]
+' >/dev/null
 mkdir -p "$ncu_extract"
 tar -xzf "$ncu_archive" -C "$ncu_extract"
 test -f "${ncu_extract}/bk_profiler_artifact/meta.json"
@@ -209,7 +244,13 @@ ncu_raw_csv_archive="${TMP_DIR}/ncu_raw_csv.tgz"
 ncu_raw_csv_extract="${TMP_DIR}/ncu_raw_csv_extract"
 ncu_raw_csv_raw="${TMP_DIR}/ncu_raw_csv_pa"
 export BK_PROFILER_NCU_RAW_CSV=true
+before_ncu=$(timing_stages | jq 'length')
 bk_profiler ncu --level single --archive "$ncu_raw_csv_archive" --raw-dir "$ncu_raw_csv_raw" -- bash -c 'printf "ncu raw csv target\n"'
+timing_stages | jq -e --argjson start "$before_ncu" '
+  .[$start:] | map([.stage, .tool, .status, .exit_code]) ==
+  [["collect", "ncu", "completed", 0], ["export", "ncu", "completed", 0],
+   ["export", "ncu", "completed", 0]]
+' >/dev/null
 unset BK_PROFILER_NCU_RAW_CSV
 mkdir -p "$ncu_raw_csv_extract"
 tar -xzf "$ncu_raw_csv_archive" -C "$ncu_raw_csv_extract"
@@ -302,6 +343,8 @@ else
 fi
 unset FAKE_FAPP_FAIL
 test "$fapp_fail_status" -eq 23
+timing_stages | jq -e 'any(.[]; .stage == "collect" and .tool == "fapp" and
+  .status == "failed" and .exit_code == 23)' >/dev/null
 mkdir -p "$fapp_fail_extract"
 tar -xzf "$fapp_fail_archive" -C "$fapp_fail_extract"
 test -f "${fapp_fail_extract}/bk_profiler_artifact/meta.json"
@@ -318,9 +361,32 @@ else
   ncu_fail_status=$?
 fi
 test "$ncu_fail_status" -eq 42
+timing_stages | jq -e 'any(.[]; .stage == "collect" and .tool == "ncu" and
+  .status == "failed" and .exit_code == 42)' >/dev/null
 mkdir -p "$ncu_fail_extract"
 tar -xzf "$ncu_fail_archive" -C "$ncu_fail_extract"
 test -f "${ncu_fail_extract}/bk_profiler_artifact/meta.json"
 ! test -f "${ncu_fail_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
+
+# Best-effort report failure must be visible without changing collection status.
+for tool in fapp ncu; do
+  before_export=$(timing_stages | jq 'length')
+  FAKE_EXPORT_FAIL=1 bk_profiler "$tool" --level single \
+    --archive "${TMP_DIR}/${tool}_export_fail.tgz" \
+    --raw-dir "${TMP_DIR}/${tool}_export_fail_pa" -- true
+  timing_stages | jq -e --argjson start "$before_export" --arg tool "$tool" '
+    .[$start:] | length == 2 and
+    all(.[]; .tool == $tool) and
+    .[0].stage == "collect" and .[0].status == "completed" and .[0].exit_code == 0 and
+    .[1].stage == "export" and .[1].status == "failed" and .[1].exit_code == 17
+  ' >/dev/null
+  test -f "${TMP_DIR}/${tool}_export_fail.tgz"
+done
+
+timing_stages | jq -e '
+  ([.[].id] | unique | length) == length and
+  all(.[]; (.elapsed_seconds | type == "number" and . >= 0))
+' >/dev/null
+test ! -e "$TMP_RESULTS/timing_observations.json"
 
 echo "bk_profiler tests passed"

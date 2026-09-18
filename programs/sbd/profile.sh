@@ -104,65 +104,6 @@ sbd_profile_results_dir() {
   printf '%s\n' "${RESULTS_DIR:-${SBD_BENCHKIT_ROOT}/results}"
 }
 
-sbd_init_stage_timing() {
-  local results_dir staging_dir
-  export SBD_STAGE_TIMING_READY=false
-  results_dir=$(sbd_profile_results_dir)
-  if ! rm -f "${results_dir}/sbd_stage_timing.json" \
-    "${results_dir}/timing_observations.json" "${results_dir}/.timing_observation_items.jsonl"; then
-    echo "SBD timing: unable to clear previous timing files; timing disabled" >&2
-    return 0
-  fi
-  if ! "${PYTHON_BIN:-python3}" "${SBD_BENCHKIT_ROOT}/programs/sbd/stage_timing.py" \
-    "${results_dir}/sbd_stage_timing.json" init --exp "${1:-}"; then
-    echo "SBD timing: initialization failed; continuing without timing" >&2
-    return 0
-  fi
-  export SBD_STAGE_TIMING_READY=true
-  staging_dir=$(mktemp -d "${results_dir}/.sbd-timing-XXXXXX") || return 0
-  # Publish only a complete manifest; partial optional metadata blocks Result generation.
-  if BK_TIMING_OBSERVATIONS_FILE="${staging_dir}/timing_observations.json" \
-    BK_TIMING_OBSERVATION_ITEMS_FILE="${staging_dir}/items.jsonl" \
-    bk_record_timing_observation --id sbd-stage-timing --kind workflow-stage-timing \
-      --artifact results/sbd_stage_timing.json \
-      --artifact-file "${results_dir}/sbd_stage_timing.json" && \
-    jq -e '.schema_version == 1 and (.observations | length) == 1' \
-      "${staging_dir}/timing_observations.json" >/dev/null && \
-    mv "${staging_dir}/items.jsonl" "${results_dir}/.timing_observation_items.jsonl" && \
-    mv "${staging_dir}/timing_observations.json" "${results_dir}/timing_observations.json"; then
-    :
-  else
-    echo "SBD timing: artifact registration failed" >&2
-  fi
-  rm -f "${staging_dir}/items.jsonl" "${staging_dir}/timing_observations.json" || true
-  rmdir "$staging_dir" || true
-  return 0
-}
-
-# Only wrap external commands: retain their exit status and output routing.
-sbd_time_command() {
-  local stage="$1" profile="$2" log_file="$3"
-  shift 3
-  local timing_id="" command_status=0
-  local timing_file
-  timing_file="$(sbd_profile_results_dir)/sbd_stage_timing.json"
-  if [ "${SBD_STAGE_TIMING_READY:-false}" = true ] && [ -f "$timing_file" ]; then
-    timing_id=$("${PYTHON_BIN:-python3}" "${SBD_BENCHKIT_ROOT}/programs/sbd/stage_timing.py" \
-      "$timing_file" start "$stage" --profile "$profile") || timing_id=""
-  fi
-  if [ -n "$log_file" ]; then
-    "$@" > "$log_file" 2>&1 || command_status=$?
-  else
-    "$@" || command_status=$?
-  fi
-  if [ -n "$timing_id" ]; then
-    "${PYTHON_BIN:-python3}" "${SBD_BENCHKIT_ROOT}/programs/sbd/stage_timing.py" \
-      "$timing_file" finish "$timing_id" "$command_status" || \
-      echo "SBD timing: stage completion could not be recorded" >&2
-  fi
-  return "$command_status"
-}
-
 sbd_register_mult_section_artifact() {
   local artifact_path="$1"
   local current
@@ -206,7 +147,7 @@ sbd_run_rank0_nsys_discovery() {
 
   echo "Running SBD NSYS kernel discovery for automatic NCU plan generation" >&2
   profile_status=0
-  sbd_time_command nsys_collect "" "$log_file" mpirun -np "$n_ranks" bash -lc '
+  bk_profile_execute --tool nsys --phase collect --log "$log_file" -- mpirun -np "$n_ranks" bash -lc '
     rank=${OMPI_COMM_WORLD_RANK:-${PMIX_RANK:-${SLURM_PROCID:-0}}}
     local_rank=${OMPI_COMM_WORLD_LOCAL_RANK:-${SLURM_LOCALID:-0}}
     export CUDA_VISIBLE_DEVICES="${local_rank}"
@@ -283,7 +224,7 @@ sbd_generate_ncu_plan() {
     fi
 
     nsys_stats_status=0
-    sbd_time_command nsys_export "" "" nsys stats --force-export=true \
+    bk_profile_execute --tool nsys --phase export -- nsys stats --force-export=true \
       --report cuda_gpu_kern_sum,cuda_api_sum \
       --format csv \
       --output "$nsys_stats_base" \
@@ -318,8 +259,7 @@ sbd_generate_ncu_plan() {
     esac
   fi
 
-  if ! sbd_time_command ncu_plan "" "" \
-    "$python_bin" "${SBD_BENCHKIT_ROOT}/scripts/profiling/generate_ncu_plan.py" \
+  if ! bk_generate_ncu_plan \
     --nsys-csv "$discovery_csv" \
     --out-discovery "$discovery_json" \
     --out-plan "$plan_json" \
@@ -452,10 +392,10 @@ sbd_run_rank0_ncu_profile() {
   )
   profiler_status=0
   if [ "$profile_timeout_seconds" -gt 0 ]; then
-    sbd_time_command ncu_collect "$profile_slug" "$profile_log" \
+    bk_profile_execute --tool ncu --phase collect --profile "$profile_slug" --log "$profile_log" -- \
       timeout --kill-after=60s "$profile_timeout_seconds" "${profile_cmd[@]}" || profiler_status=$?
   else
-    sbd_time_command ncu_collect "$profile_slug" "$profile_log" \
+    bk_profile_execute --tool ncu --phase collect --profile "$profile_slug" --log "$profile_log" -- \
       "${profile_cmd[@]}" || profiler_status=$?
   fi
 
@@ -467,12 +407,13 @@ sbd_run_rank0_ncu_profile() {
 
   report_file=$(bk_profiler_find_ncu_report "$rep_dir" || true)
   if [ -n "$report_file" ]; then
-    ncu --import "$report_file" \
+    bk_profile_execute --tool ncu --phase export --profile "${profile_slug}/raw" -- ncu --import "$report_file" \
       --page raw \
       --csv \
       --print-units base \
       --print-fp > "${rep_dir}/profile_raw.csv" 2> "${rep_dir}/profile_raw.csv.log" || true
-    ncu --import "$report_file" --page details > "$stage_dir/reports/ncu_import_${rep_name}.txt" 2>&1 || true
+    bk_profile_execute --tool ncu --phase export --profile "${profile_slug}/details" -- \
+      ncu --import "$report_file" --page details > "$stage_dir/reports/ncu_import_${rep_name}.txt" 2>&1 || true
   fi
 
   cp -R "$rep_dir" "$stage_dir/raw/${rep_name}"

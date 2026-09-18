@@ -70,7 +70,7 @@ case "${system}" in
     ;;
 esac
 
-sbd_init_stage_timing "${experiment}"
+bk_run_context --results-dir "${RESULTS_DIR}" --exp "${experiment}"
 
 for input_file in fcidump.txt "${determinant_file}"; do
   if [[ ! -f "${INPUT_DIR}/${input_file}" ]]; then
@@ -107,10 +107,10 @@ diag_args=(
 )
 
 if [[ "${system}" == "RC_FX700" ]]; then
-  sbd_time_command benchmark "" diag.log \
+  bk_run --log diag.log -- \
     mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}"
 else
-  sbd_time_command benchmark "" diag.log mpirun -np "${n_ranks}" bash -lc \
+  bk_run --log diag.log -- mpirun -np "${n_ranks}" bash -lc \
     'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
     bash ./diag "${diag_args[@]}"
 fi

@@ -40,6 +40,7 @@ tests_for_group() {
     common)
       cat <<'EOF'
 scripts/tests/test_bk_profiler.sh
+scripts/tests/test_workflow_timing.sh
 scripts/tests/test_bk_fetch_source.sh
 scripts/tests/test_bk_input_info.sh
 scripts/tests/test_bk_timing_observations.sh

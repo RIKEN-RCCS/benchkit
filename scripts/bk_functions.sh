@@ -9,6 +9,110 @@ if [ -z "${BK_BENCHKIT_ROOT:-}" ]; then
   export BK_BENCHKIT_ROOT
 fi
 
+if [ -z "${_BK_WORKFLOW_SESSION_ID:-}" ]; then
+  printf -v _BK_WORKFLOW_EPOCH '%(%s)T' -1
+  export _BK_WORKFLOW_SESSION_ID="${_BK_WORKFLOW_EPOCH}-${BASHPID}-${RANDOM}"
+fi
+
+# Set execution scope once, before changing directory or entering a pipeline.
+bk_run_context() {
+  local results_dir="${BK_RUN_RESULTS_DIR:-${PWD}/results}"
+  local run_exp="${BK_RUN_EXP:-}"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --results-dir|--exp)
+        [ "$#" -ge 2 ] || return 2
+        case "$1" in
+          --results-dir) results_dir="$2" ;;
+          --exp) run_exp="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) echo "bk_run_context: unknown argument" >&2; return 2 ;;
+    esac
+  done
+  case "$results_dir" in
+    /*) ;;
+    *) results_dir="${PWD}/${results_dir}" ;;
+  esac
+  export BK_RUN_RESULTS_DIR="$results_dir" BK_RUN_EXP="$run_exp"
+  # An unavailable recorder must not leave a previous run eligible for collection.
+  if ! rm -f "${results_dir}/.workflow_session.json"; then
+    echo "Benchkit timing: previous execution context could not be invalidated" >&2
+    return 0
+  fi
+  "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py" \
+    --results-dir "$results_dir" context --session "$_BK_WORKFLOW_SESSION_ID" || \
+    echo "Benchkit timing: execution context could not be recorded" >&2
+  return 0
+}
+
+_bk_execute_command() {
+  local stage="$1" tool="$2" profile="$3" log_file="$4"
+  shift 4
+  local token="" command_status=0
+  local results_dir="${BK_RUN_RESULTS_DIR:-${BK_BENCHKIT_ROOT}/results}"
+  local recorder="${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py"
+  token=$("${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
+    start --session "$_BK_WORKFLOW_SESSION_ID" --exp "${BK_RUN_EXP:-}" \
+    --stage "$stage" --tool "$tool" --profile "$profile") || token=""
+  if [ -n "$log_file" ]; then
+    "$@" > "$log_file" 2>&1 || command_status=$?
+  else
+    "$@" || command_status=$?
+  fi
+  if [ -n "$token" ]; then
+    "${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
+      finish "$token" "$command_status" || \
+      echo "Benchkit timing: stage completion could not be recorded" >&2
+  fi
+  return "$command_status"
+}
+
+bk_run() {
+  local log_file=""
+  if [ "${1:-}" = --log ]; then
+    [ "$#" -ge 2 ] || return 2
+    log_file="$2"
+    shift 2
+  fi
+  [ "${1:-}" = -- ] && shift
+  [ "$#" -gt 0 ] || return 2
+  _bk_execute_command benchmark none "" "$log_file" "$@"
+}
+
+# Execute a prepared profiler command, including MPI/container launchers.
+bk_profile_execute() {
+  local tool="" phase="collect" profile="" log_file=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --tool|--phase|--profile|--log)
+        [ "$#" -ge 2 ] || return 2
+        case "$1" in
+          --tool) tool="$2" ;;
+          --phase) phase="$2" ;;
+          --profile) profile="$2" ;;
+          --log) log_file="$2" ;;
+        esac
+        shift 2
+        ;;
+      --) shift; break ;;
+      *) echo "bk_profile_execute: unknown argument" >&2; return 2 ;;
+    esac
+  done
+  [ -n "$tool" ] && [ "$#" -gt 0 ] || return 2
+  case "$phase" in
+    collect|export|plan) ;;
+    *) echo "bk_profile_execute: unknown phase" >&2; return 2 ;;
+  esac
+  _bk_execute_command "$phase" "$tool" "$profile" "$log_file" "$@"
+}
+
+bk_generate_ncu_plan() {
+  bk_profile_execute --tool ncu --phase plan -- \
+    "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/generate_ncu_plan.py" "$@"
+}
+
 # bk_emit_result - Output a standardized FOM result line.
 #
 # Named arguments:
@@ -2313,6 +2417,8 @@ bk_run_ncu_acquisition_profile() {
 }
 
 bk_profiler() {
+  local BK_RUN_RESULTS_DIR="${BK_RUN_RESULTS_DIR:-}"
+  local _bk_workflow_profile
   if [ $# -lt 2 ]; then
     echo "bk_profiler: requires a profiler tool and an execution command" >&2
     return 1
@@ -2375,10 +2481,13 @@ bk_profiler() {
     return 1
   fi
 
+  BK_RUN_RESULTS_DIR="${BK_RUN_RESULTS_DIR:-$(dirname "$_bk_profiler_archive")}"
   if [ -z "$_bk_profiler_tool" ]; then
-    "$@"
+    bk_run -- "$@"
     return $?
   fi
+
+  _bk_workflow_profile=$(basename "$_bk_profiler_archive" .tgz)
 
   _bk_profiler_level=$(bk_get_profiler_level "$_bk_profiler_tool" "$_bk_profiler_level") || return 1
   _bk_profiler_report_format=$(bk_get_profiler_report_format "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format") || return 1
@@ -2410,7 +2519,8 @@ bk_profiler() {
         bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_fapp_rep_name" "$_bk_fapp_event" "$@" || return 1
         # BK_PROFILER_ARGS is intentionally word-split into fapp options.
         # shellcheck disable=SC2086
-        if fapp -C -d "$_bk_fapp_rep_dir" ${_bk_profiler_extra_args} -Hevent="${_bk_fapp_event}" "$@"; then
+        if bk_profile_execute --tool fapp --profile "${_bk_workflow_profile}/${_bk_fapp_rep_name}/${_bk_fapp_event}" -- \
+          fapp -C -d "$_bk_fapp_rep_dir" ${_bk_profiler_extra_args} -Hevent="${_bk_fapp_event}" "$@"; then
           _bk_fapp_status=0
         else
           _bk_fapp_status=$?
@@ -2450,7 +2560,8 @@ bk_profiler() {
       bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_ncu_rep_name" "$_bk_profiler_level" "$@" || return 1
       # BK_PROFILER_ARGS is intentionally word-split into ncu options.
       # shellcheck disable=SC2086
-      if ncu -o "$_bk_ncu_profile_base" --target-processes all ${_bk_ncu_level_args} ${_bk_profiler_extra_args} "$@"; then
+      if bk_profile_execute --tool ncu --profile "${_bk_workflow_profile}/${_bk_ncu_rep_name}" -- \
+        ncu -o "$_bk_ncu_profile_base" --target-processes all ${_bk_ncu_level_args} ${_bk_profiler_extra_args} "$@"; then
         _bk_profiler_status=0
       else
         _bk_profiler_status=$?
@@ -2465,7 +2576,8 @@ bk_profiler() {
         1|true|TRUE|yes|YES|on|ON)
           _bk_ncu_report_file=$(bk_profiler_find_ncu_report "$_bk_ncu_rep_dir" || true)
           if [ -n "$_bk_ncu_report_file" ]; then
-            ncu --import "$_bk_ncu_report_file" \
+            bk_profile_execute --tool ncu --phase export --profile "${_bk_workflow_profile}/${_bk_ncu_rep_name}/raw" -- \
+              ncu --import "$_bk_ncu_report_file" \
               --page raw \
               --csv \
               --print-units base \
@@ -2501,12 +2613,14 @@ bk_profiler() {
           if [ "$_bk_profiler_report_format" = "text" ] || [ "$_bk_profiler_report_format" = "both" ]; then
             # BK_PROFILER_REPORT_ARGS is intentionally word-split into fapp/fapppx options.
             # shellcheck disable=SC2086
-            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/fapp_A_${_bk_fapp_rep_name}.txt" 2>&1 || true
+            bk_profile_execute --tool fapp --phase export --profile "${_bk_workflow_profile}/${_bk_fapp_rep_name}/text" -- \
+              "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/fapp_A_${_bk_fapp_rep_name}.txt" 2>&1 || true
           fi
           if [ "$_bk_profiler_report_format" = "csv" ] || [ "$_bk_profiler_report_format" = "both" ]; then
             # BK_PROFILER_REPORT_ARGS is intentionally word-split into fapp/fapppx options.
             # shellcheck disable=SC2086
-            "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} -Icpupa -tcsv -o "$_bk_stage_dir/reports/cpu_pa_${_bk_fapp_rep_name}.csv" >/dev/null 2>&1 || true
+            bk_profile_execute --tool fapp --phase export --profile "${_bk_workflow_profile}/${_bk_fapp_rep_name}/csv" -- \
+              "$_bk_fapp_post_cmd" -A -d "$_bk_fapp_rep_dir" ${_bk_profiler_report_extra_args} -Icpupa -tcsv -o "$_bk_stage_dir/reports/cpu_pa_${_bk_fapp_rep_name}.csv" >/dev/null 2>&1 || true
           fi
         done
       else
@@ -2520,7 +2634,8 @@ bk_profiler() {
         if [ -n "$_bk_ncu_report_file" ] && { [ "$_bk_profiler_report_format" = "text" ] || [ "$_bk_profiler_report_format" = "both" ]; }; then
           # BK_PROFILER_REPORT_ARGS is intentionally word-split into ncu --import options.
           # shellcheck disable=SC2086
-          ncu --import "$_bk_ncu_report_file" --page details ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/ncu_import_${_bk_ncu_rep_name}.txt" 2>&1 || true
+          bk_profile_execute --tool ncu --phase export --profile "${_bk_workflow_profile}/${_bk_ncu_rep_name}/details" -- \
+            ncu --import "$_bk_ncu_report_file" --page details ${_bk_profiler_report_extra_args} > "$_bk_stage_dir/reports/ncu_import_${_bk_ncu_rep_name}.txt" 2>&1 || true
         fi
       done
       ;;

@@ -803,9 +803,20 @@ fi
 
 build_timing_observations_block() {
   local timing_observations_file="results/timing_observations.json"
+  local workflow_json='{"schema_version":1,"observations":[]}'
+  local workflow_recorder
+  workflow_recorder="$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py"
+  if [ -f results/.workflow_session.json ]; then
+    if ! workflow_json=$("${PYTHON_BIN:-python3}" "$workflow_recorder" --results-dir results manifest); then
+      echo "WARNING: workflow timing observations could not be collected" >&2
+      workflow_json='{"schema_version":1,"observations":[]}'
+    fi
+  fi
 
   if [ ! -f "$timing_observations_file" ]; then
-    printf '%s' ""
+    if printf '%s' "$workflow_json" | jq -e '.observations | length > 0' >/dev/null; then
+      printf '%s' "$workflow_json"
+    fi
     return 0
   fi
 
@@ -839,7 +850,8 @@ build_timing_observations_block() {
     return 1
   fi
 
-  printf '%s' "$timing_observations_json"
+  printf '%s' "$timing_observations_json" | jq -cS --argjson workflow "$workflow_json" \
+    '.observations += $workflow.observations'
 }
 
 if ! timing_observations_block=$(build_timing_observations_block); then

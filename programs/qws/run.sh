@@ -109,6 +109,7 @@ case "$system" in
                 mpiexec -n 2 ./main "${qws_case1_args[@]}" > CASE1
                 print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
+                    bk_run_context --results-dir ../results --exp CASE0
                     bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main "${qws_case0_args[@]}" > CASE0.profile
                 # else
                 #     emit_qws_dummy_padata ../results/padata0.tgz
@@ -118,6 +119,7 @@ case "$system" in
                 mpiexec -n 8 ./main "${qws_case7_args[@]}" > CASE7
                 print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
+                    bk_run_context --results-dir ../results --exp CASE7
                     bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main "${qws_case7_args[@]}" > CASE7.profile
                 # else
                 #     emit_qws_dummy_padata ../results/padata0.tgz
