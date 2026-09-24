@@ -31,10 +31,11 @@ from utils.execution_profiles import (
     normalize_trigger_definition,
 )
 from utils.gitlab_pipeline import (
-    build_pipeline_plan,
+    build_profile_pipeline_plan,
     configured_gitlab_target,
     configured_gitlab_targets,
     configured_gitlab_trigger_token,
+    profile_scope_csv,
     submit_pipeline_plan,
 )
 from utils.rate_limit import rate_limited
@@ -265,13 +266,6 @@ def _profile_request_status_filter():
     if selected not in options:
         selected = "open"
     return selected, options[selected]
-
-
-def _profile_scope_csv(profile, key):
-    if not profile:
-        return ""
-    values = profile.get(key) or []
-    return ",".join(str(value).strip() for value in values if str(value).strip())
 
 
 def _default_trigger_ref():
@@ -695,22 +689,17 @@ def _build_execution_pipeline_plan(store):
         exp=exp,
     )
     profile = resolve_result.profile
-    effective_code = code or _profile_scope_csv(profile, "code")
-    effective_system = system or _profile_scope_csv(profile, "system")
-    effective_exp = exp or _profile_scope_csv(profile, "exp")
+    effective_code = code or profile_scope_csv(profile, "code")
+    effective_system = system or profile_scope_csv(profile, "system")
+    effective_exp = exp or profile_scope_csv(profile, "exp")
     gitlab_target, target_errors = configured_gitlab_target(gitlab_target_id)
-    plan = build_pipeline_plan(
+    plan = build_profile_pipeline_plan(
+        profile=profile,
         gitlab_repo=gitlab_target.repo if gitlab_target else "",
         target_ref=target_ref,
         code=effective_code,
         system=effective_system,
-        app="",
-        benchpark=False,
-        park_only=False,
-        park_send=False,
         allocation_project_id=resolve_result.allocation_project_id,
-        activity=str(profile.get("activity", "")) if profile else "",
-        scheduler_extra_args="",
         result_server_url=_portal_result_server_url(),
         target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
     )

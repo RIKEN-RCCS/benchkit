@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 try:
     from utils.execution_profiles import ExecutionProfileStore
     from utils.gitlab_pipeline import (
-        build_pipeline_plan,
+        build_profile_pipeline_plan,
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
@@ -24,7 +24,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - supports python -m result_server.trigger_runner
     from result_server.utils.execution_profiles import ExecutionProfileStore
     from result_server.utils.gitlab_pipeline import (
-        build_pipeline_plan,
+        build_profile_pipeline_plan,
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
@@ -179,12 +179,6 @@ def _trigger_now(trigger: dict, now: datetime) -> tuple[datetime, list[str]]:
         return now, [f"unknown timezone: {timezone_name}"]
 
 
-def _profile_scope_csv(profile: dict | None, key: str) -> str:
-    if not profile:
-        return ""
-    return ",".join(str(value).strip() for value in profile.get(key, []) if str(value).strip())
-
-
 def _build_trigger_plan(
     store: ExecutionProfileStore,
     trigger: dict,
@@ -200,16 +194,11 @@ def _build_trigger_plan(
     profile = profile_result.profile
     gitlab_target, target_errors = configured_gitlab_target(trigger.get("gitlab_target", ""))
     target_ref = trigger.get("target_ref") or os.environ.get("RESULT_SERVER_GITLAB_REF", "")
-    code = _profile_scope_csv(profile, "code")
-    system = _profile_scope_csv(profile, "system")
-    plan = build_pipeline_plan(
+    plan = build_profile_pipeline_plan(
+        profile=profile,
         gitlab_repo=gitlab_target.repo if gitlab_target else "",
         target_ref=target_ref,
-        code=code,
-        system=system,
         allocation_project_id=profile_result.allocation_project_id,
-        activity=str(profile.get("activity", "")) if profile else "",
-        scheduler_extra_args="",
         result_server_url=result_server_url,
         target_id=gitlab_target.id if gitlab_target else trigger.get("gitlab_target", ""),
     )
