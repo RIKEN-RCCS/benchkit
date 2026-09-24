@@ -232,6 +232,36 @@ def build_pipeline_plan(
     )
 
 
+def profile_scope_csv(profile: dict | None, key: str) -> str:
+    """Serialize a normalized execution profile scope for pipeline selection."""
+    values = (profile or {}).get(key) or []
+    return ",".join(str(value).strip() for value in values if str(value).strip())
+
+
+def build_profile_pipeline_plan(
+    *,
+    profile: dict | None,
+    allocation_project_id: str,
+    gitlab_repo: str,
+    target_ref: str,
+    result_server_url: str,
+    target_id: str = "",
+    code: str = "",
+    system: str = "",
+) -> GitLabPipelinePlan:
+    """Map a resolved profile to CI inputs; callers retain validation and provenance."""
+    return build_pipeline_plan(
+        gitlab_repo=gitlab_repo,
+        target_ref=target_ref,
+        code=code or profile_scope_csv(profile, "code"),
+        system=system or profile_scope_csv(profile, "system"),
+        allocation_project_id=allocation_project_id,
+        activity=str(profile.get("activity", "")) if profile else "",
+        result_server_url=result_server_url,
+        target_id=target_id,
+    )
+
+
 def submit_pipeline_plan(
     plan: GitLabPipelinePlan,
     *,
