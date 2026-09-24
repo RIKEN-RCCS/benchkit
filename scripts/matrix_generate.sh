@@ -18,6 +18,15 @@ PARENT_PIPELINE_CREATED_AT="${CI_PIPELINE_CREATED_AT:-}"
 
 source ./scripts/job_functions.sh
 
+_BK_EXECUTION_ROUTES=""
+if [[ -n "${BK_EXECUTION_ROUTES_FILE:-}" ]]; then
+  _BK_EXECUTION_ROUTES=$(python3 scripts/execution_routes.py --system-file "$SYSTEM_FILE")
+  if [[ -n "${BK_ROUTE_ALLOCATION_PROJECT_ID:-}" ]]; then
+    echo "ERROR: BK_ROUTE_ALLOCATION_PROJECT_ID is reserved for generated jobs" >&2
+    exit 1
+  fi
+fi
+
 CODE_FILTER=""
 SYSTEM_FILTER=""
 NODES_FILTER=""
@@ -110,6 +119,11 @@ for listfile in programs/*/list.csv; do
        continue
      fi
 
+    if [[ -n "$(execution_route_field "$system" id)" && "$template" != *'${scheduler_extra_args}'* ]]; then
+      echo "ERROR: execution route requires a queue template with scheduler_extra_args" >&2
+      exit 1
+    fi
+
 	schedule_parameter=$(expand_template "$template")
 	# Escape special characters for YAML
 	schedule_parameter=$(echo "$schedule_parameter" | sed 's/"/\\"/g')
@@ -128,11 +142,17 @@ for listfile in programs/*/list.csv; do
 
       # Emit build job only once per code+system pair
       if [[ -z "${BUILT_MAP[$build_key]+_}" ]]; then
+        route_build_variables=""
+        if [[ -n "$(execution_route_field "$system" id)" ]]; then
+          route_build_variables=$(printf '  variables:\n%s' "$(emit_execution_route_variables "$system")")
+        fi
         echo "
 ${build_key}_build:
   stage: build
   tags: [\"$build_tag\"]
+${route_build_variables}
   script:
+$(emit_execution_route_setup "$system")
     - mkdir -p results
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build.json
     - export BK_SYSTEM=\"$system\"
@@ -155,17 +175,17 @@ ${build_key}_build:
       echo "
 ${job_prefix}_run:
   stage: run
-  id_tokens:
-    CI_JOB_JWT:
-      aud: https://gitlab.swc.r-ccs.riken.jp
+$(emit_id_tokens_block "$system")
   tags: [\"$run_tag\"]
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
+$(emit_execution_route_variables "$system")
   needs: [${build_key}_build]
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
   script:
+$(emit_execution_route_setup "$system")
     - echo \"Starting job\"
     - bash scripts/record_ci_timing_context.sh run
     - ls -la $program_path/
@@ -206,16 +226,16 @@ ${job_prefix}_run:
 ${job_prefix}_build_run:
   stage: build_run
   needs: []
-  id_tokens:
-    CI_JOB_JWT:
-      aud: https://gitlab.swc.r-ccs.riken.jp
+$(emit_id_tokens_block "$system")
   tags: [\"$build_run_tag\"]
   variables:
     SCHEDULER_PARAMETERS: \"${schedule_parameter}\"
+$(emit_execution_route_variables "$system")
   before_script:
     - mkdir -p results
     - echo \"Pre-created results directory on login node\"
   script:
+$(emit_execution_route_setup "$system")
     - echo \"Starting build and run\"
     - bash scripts/record_ci_timing_context.sh build_run
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=build_run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_build_run.json

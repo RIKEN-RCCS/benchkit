@@ -166,6 +166,11 @@ The recommended mechanism is pipeline variables. `GitLab Manual CI` uses pipelin
 
 ### Pipeline Variables / Pipeline変数
 
+For fixed project / runner / allocation combinations, use
+[execution route presets](guides/execution-routes.md). A project-level file
+variable groups the runner tags and budget without duplicating system or app
+definitions. / 接続先・runner・課金先を固定する場合は、project単位の実行経路設定を利用できます。
+
 | Variable / 変数 | Description / 説明 | Example / 例 |
 |---|---|---|
 | `system` | Benchkit system filter. Legacy Benchpark bridge jobs in this repo are not a general multi-system Benchpark runner. / Benchkit systemフィルタ。このrepo内のlegacy Benchpark bridge jobは汎用multi-system Benchpark runnerではありません | `MiyabiG,MiyabiC,RC_GENOA` |
