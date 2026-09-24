@@ -78,6 +78,26 @@ get_scheduler_extra_args() {
     system_key=$(printf '%s' "$system" | tr -c '[:alnum:]_' '_')
     system_var="BK_SCHEDULER_EXTRA_ARGS_${system_key}"
     explicit_args="${!system_var:-${BK_SCHEDULER_EXTRA_ARGS:-}}"
+    local route_allocation
+    route_allocation=$(execution_route_field "$system" allocation_project_id)
+    if [[ -n "$route_allocation" ]]; then
+        if [[ -n "${BK_ALLOCATION_PROJECT_ID:-}" && "$BK_ALLOCATION_PROJECT_ID" != "$route_allocation" ]]; then
+            echo "ERROR: allocation conflicts with the configured execution route" >&2
+            return 1
+        fi
+        if [[ -n "$explicit_args" || -n "${SCHEDULER_PARAMETERS:-}" ]]; then
+            echo "ERROR: scheduler overrides cannot be combined with an execution route" >&2
+            return 1
+        fi
+        local allocation_args
+        allocation_args=$(scheduler_args_from_allocation_project "$system" "$route_allocation") || return 1
+        if [[ -z "$allocation_args" ]]; then
+            echo "ERROR: execution route allocation is unsupported for this system" >&2
+            return 1
+        fi
+        printf '%s\n' "$allocation_args"
+        return 0
+    fi
     if [[ -n "$explicit_args" ]]; then
         printf '%s\n' "$explicit_args"
         return 0
@@ -124,12 +144,24 @@ get_system_gpu_per_node() {
     return 0
 }
 
+execution_route_field() {
+    if [[ -n "${_BK_EXECUTION_ROUTES:-}" ]]; then
+        jq -r --arg system "$1" --arg field "$2" '.[$system][$field] // empty' <<< "$_BK_EXECUTION_ROUTES"
+    fi
+}
+
 # System_CSVからtag_buildを取得する
 # $1: システム名
 # mode=nativeの場合は空文字を返す（tag_buildカラム自体が空）
 # 存在しないシステム名の場合は空文字を返す（exit code 0）
 get_system_tag_build() {
     local system="$1"
+    local tag
+    tag=$(execution_route_field "$system" build_tag)
+    if [[ -n "$tag" ]]; then
+        printf '%s\n' "$tag"
+        return 0
+    fi
     awk -F, -v s="$system" '$1==s {print $3}' "$SYSTEM_FILE"
     return 0
 }
@@ -139,6 +171,12 @@ get_system_tag_build() {
 # 存在しないシステム名の場合は空文字を返す（exit code 0）
 get_system_tag_run() {
     local system="$1"
+    local tag
+    tag=$(execution_route_field "$system" run_tag)
+    if [[ -n "$tag" ]]; then
+        printf '%s\n' "$tag"
+        return 0
+    fi
     awk -F, -v s="$system" '$1==s {print $4}' "$SYSTEM_FILE"
     return 0
 }
@@ -297,9 +335,27 @@ emit_artifacts_block() {
 
 # id_tokens ブロックを生成（YAML 文字列を返す）
 emit_id_tokens_block() {
+    local audience
+    audience=$(execution_route_field "${1:-}" id_token_audience)
+    audience=${audience:-\$CI_SERVER_URL}
     echo "  id_tokens:
     CI_JOB_JWT:
-      aud: https://gitlab.swc.r-ccs.riken.jp"
+      aud: \"${audience}\""
+}
+
+emit_execution_route_variables() {
+    local allocation
+    allocation=$(execution_route_field "$1" allocation_project_id)
+    if [[ -n "$allocation" ]]; then
+        printf '    BK_ROUTE_ALLOCATION_PROJECT_ID: "%s"\n' "$allocation"
+    fi
+}
+
+emit_execution_route_setup() {
+    if [[ -n "$(execution_route_field "$1" id)" ]]; then
+        # A forwarded empty allocation must not erase the resolved job budget.
+        printf '    - export BK_ALLOCATION_PROJECT_ID="$BK_ROUTE_ALLOCATION_PROJECT_ID"\n'
+    fi
 }
 
 # ============================================================
