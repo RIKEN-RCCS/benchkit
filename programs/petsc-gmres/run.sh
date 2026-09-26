@@ -48,7 +48,7 @@ touch .run_marker
 
 case "${system}" in
   RIKYU)
-    DATA="${BK_PETSC_GMRES_MATRIX:-/data1/rkp00015/benchkit-data/petsc-gmres/stokes2.dat}"
+    DATA="${BK_PETSC_GMRES_MATRIX:-/data1/rkp00015/CX_input/petsc-gmres/stokes2.dat}"
     module load nvhpc-hpcx/26.3
     # One MPI rank per GPU: each rank gets a distinct GPU via
     # CUDA_VISIBLE_DEVICES (set inside mpirun so OMPI_COMM_WORLD_LOCAL_RANK
@@ -72,7 +72,7 @@ case "${system}" in
     # this was staged) is what actually resolves from a compute-node job;
     # found by testing the real run.sh in a real job, not by trusting the
     # canonical-looking path a filesystem tool reported.
-    DATA="${BK_PETSC_GMRES_MATRIX:-/vol0500/data/ra250029/benchkit-data/petsc-gmres/stokes2.dat}"
+    DATA="${BK_PETSC_GMRES_MATRIX:-/vol0500/share/ra250029/CX_input/petsc-gmres/stokes2.dat}"
     module load lang/tcsds-1.2.43
     module load LLVM/llvmorg-22.1.0
     mpiexec -n "${n_ranks}" \
@@ -91,10 +91,11 @@ case "${system}" in
     fi
     ;;
   RC_DGXSP)
-    # GPU run (1 rank/GPU) -- see build.sh. This system has no separate
-    # group-storage tier (see README.md), so the data lives under $HOME
-    # like everything else here.
-    DATA="${BK_PETSC_GMRES_MATRIX:-/home/users/william.dawson/benchkit-data/petsc-gmres/stokes2.dat}"
+    # GPU run (1 rank/GPU) -- see build.sh. /lvs0 group storage IS mounted
+    # and readable on the ng-dgx compute nodes (verified with a compute-node
+    # read test), so the data lives in the site's CX_input like everywhere
+    # else.
+    DATA="${BK_PETSC_GMRES_MATRIX:-/lvs0/rccs-nghpcadu/CX_input/petsc-gmres/stokes2.dat}"
     source /etc/profile.d/modules.sh
     module load system/ng-dgx nvhpc-hpcx
     mpirun -np "${n_ranks}" \
