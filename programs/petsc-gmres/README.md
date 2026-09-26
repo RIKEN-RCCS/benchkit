@@ -52,16 +52,22 @@ the same format as PETSc's own `MatView`, so no separate conversion step
 (e.g. `mtx2petsc`) is needed. The `MatLoad` call in `GMRES-PETSc.cpp`
 reads it directly.
 
-Pre-staged locations (same convention as this repo's `ffb` and
+Pre-staged at the per-site `CX_input` local-file directory (the shared
+staging convention for this deployment: RIKYU `/data1/rkp00015/CX_input`,
+R-CCS Cloud `/lvs0/rccs-nghpcadu/CX_input`, Fugaku
+`/vol0500/share/ra250029/CX_input`), like this repo's `ffb` and
 `LQCD_dw_solver`, which pre-stage their own — much larger — source
-archives at a fixed per-system path rather than fetching them at
-build/run time):
+archives rather than fetching them at build/run time:
 
 | system | path |
 |---|---|
-| RIKYU | `/data1/rkp00015/benchkit-data/petsc-gmres/stokes2.dat` |
-| Fugaku | `/vol0500/data/ra250029/benchkit-data/petsc-gmres/stokes2.dat` — use the `/vol0500` mount alias, not `/vol0005`, in an actual path; `/vol0005` is the volume name but doesn't resolve from a compute-node job. Covered by this app's `FJ` queue.csv `GFSCACHE` declaration (`/vol0002:/vol0003:/vol0004:/vol0005`), so no per-app `-x` handling is needed |
-| RC_DGXSP | `/home/users/william.dawson/benchkit-data/petsc-gmres/stokes2.dat` (this system has no separate group-storage tier, so — unlike RIKYU/Fugaku — this lives under `$HOME`) |
+| RIKYU | `/data1/rkp00015/CX_input/petsc-gmres/stokes2.dat` |
+| Fugaku | `/vol0500/share/ra250029/CX_input/petsc-gmres/stokes2.dat` — use the `/vol0500` mount alias, not `/vol0005`, in an actual path; `/vol0005` is the volume name but doesn't resolve from a compute-node job. Covered by this app's `FJ` queue.csv `GFSCACHE` declaration (`/vol0002:/vol0003:/vol0004:/vol0005`), so no per-app `-x` handling is needed |
+| RC_DGXSP | `/lvs0/rccs-nghpcadu/CX_input/petsc-gmres/stokes2.dat` — `/lvs0` is mounted and readable on the ng-dgx compute nodes (verified with a compute-node read test) |
+
+Every copy has SHA-256
+`01971e1fb37268a195ff3d96c7800d3f7cf6a37c2ddfe397825c62b3b592bdaf` —
+check a fresh copy against it before use.
 
 To re-stage on a system: copy the `stokes2.dat` file (3,092,468,720 bytes)
 from an existing location above. To regenerate from scratch, run the
