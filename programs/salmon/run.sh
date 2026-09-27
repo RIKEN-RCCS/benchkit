@@ -11,7 +11,7 @@ source "${PWD}/scripts/bk_functions.sh"
 
 RESULTS_DIR="${PWD}/results"
 WORK_DIR="${PWD}/salmon_run"
-INPUT_ARCHIVE_CLOUD="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
+INPUT_ARCHIVE_CLOUD="/lvs0/rccs-nghpcadu/CX_input/SALMON/SALMON.tar.gz"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 
 # Pre-staged folded restarts. The ground state is computed once offline and
@@ -21,12 +21,15 @@ AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 # matching directory on that system) to move another system onto this
 # path -- see the RIKYU or RC_DGXSP entries for the shape a new one needs
 # (restart/, *.psp8, and one TDDFT .nml, all siblings in one directory).
-RIKYU_RESTART_DIR_DEFAULT="/data1/rkp00012/CX_input/SALMON/3x3x3-folded"
+RIKYU_RESTART_DIR_DEFAULT="/data1/rkp00015/CX_input/SALMON/3x3x3-folded"
 RIKYU_RESTART_NML="Si-3-3-3-tddft.nml"
-RC_DGXSP_RESTART_DIR_DEFAULT="/lvs0/dne1/rccs-nghpcadu/CX_input/SALMON_2x2x2_folded"
+RC_DGXSP_RESTART_DIR_DEFAULT="/lvs0/rccs-nghpcadu/CX_input/SALMON_2x2x2_folded"
 RC_DGXSP_RESTART_NML="Si-2-2-2-tddft.nml"
-FUGAKU_RESTART_DIR_DEFAULT="/home/ra000009/data/u10035/CX_input_fugaku/SALMON_3x3x3_folded"
+FUGAKU_RESTART_DIR_DEFAULT="/vol0500/share/ra250029/CX_input/SALMON/3x3x3-folded"
 FUGAKU_RESTART_NML="Si-3-3-3-tddft.nml"
+# RIKYU and Fugaku carry *different* 3x3x3 folds (same size, distinct
+# provenance: wfn.bin SHA-256 d2f884a7... vs 720a8778...), so those two
+# systems' results are not expected to be bitwise identical.
 # Fugaku's list.csv row MUST use enough MPI ranks that each rank's local
 # wfn.bin chunk stays under ~2GB: SALMON's default restart reader
 # (method_wf_distributor='single') does one MPI_File_read_all per rank
