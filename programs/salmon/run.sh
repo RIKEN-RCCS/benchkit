@@ -363,6 +363,16 @@ if uses_prestaged_restart "${system}"; then
     local rt_s
     rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${logfile}")
     if [[ -z "${rt_s}" ]]; then
+      # Fujitsu MPI ignores plain shell redirection for the application's
+      # own stdout and writes each rank under ./output.$PJM_JOBID/ -- the
+      # success marker above already falls back to those files, and so
+      # must the FOM extraction.
+      while IFS= read -r -d '' output_file; do
+        rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${output_file}")
+        [[ -n "${rt_s}" ]] && break
+      done < <(find . -type f -newer .rt_start_marker ! -path "./input/*" -print0)
+    fi
+    if [[ -z "${rt_s}" ]]; then
       echo "could not read 'rt iterations' from ${logfile}" >&2
       exit 1
     fi
