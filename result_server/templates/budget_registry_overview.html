@@ -1,0 +1,77 @@
+{% extends "_results_base.html" %}
+{% from "_budget_registry_fields.html" import fields, context, field_help with context %}
+{% block title %}Budgets{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+{% include "_budget_registry_nav.html" %}
+<section class="budget-section">
+    <div class="budget-heading"><h2>Budget @ System</h2>{% if actor.is_admin %}<a href="{{ url_for('budget_registry.index') }}#budget-editor">Add budget</a>{% endif %}</div>
+    <div class="budget-table-scroll"><table>
+        <thead><tr><th>Budget @ System</th><th>Status</th><th>Validity</th><th>Managers</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for item in catalog.budgets %}
+        {% set route = catalog.destinations | selectattr('budget_id', 'equalto', item.id) | first %}
+        {% set assigned = catalog.budget_managers | selectattr('budget_id', 'equalto', item.id) | list %}
+        <tr>
+            <td><a href="{{ url_for('budget_registry.index', edit=item.id) }}#budget-editor">{{ item.label }} @ {{ item.system }}</a></td>
+            <td>{% if not item.enabled %}Disabled{% elif not route %}Not configured{% else %}Enabled{% endif %}</td>
+            <td>{{ item.valid_from or 'No start date' }} / {{ item.valid_until or 'No end date' }}</td>
+            <td><a href="{{ url_for('budget_registry.index', edit=item.id) }}#budget-managers">{{ assigned | length }} managers</a></td>
+            <td><a href="{{ url_for('budget_registry.index', edit=item.id) }}#budget-editor">Edit</a></td>
+        </tr>
+        {% else %}<tr><td colspan="5">No budgets.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</section>
+
+{% if actor.is_admin or budget %}
+<section class="budget-section" id="budget-editor">
+    <h2>{% if budget %}{{ budget.label }} @ {{ budget.system }}{% else %}Add Budget @ System{% endif %}</h2>
+    {% if actor.is_admin %}
+    {% include "_budget_execution_editor.html" %}
+    {% else %}
+    <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-form">
+        {{ context('budgets', catalog.revision) }}
+        {{ fields(specs.budgets[2], budget, catalog) }}
+        <div class="budget-actions"><button type="submit">Review change</button></div>
+    </form>
+    {% endif %}
+</section>
+{% endif %}
+
+{% if budget %}
+<section class="budget-section" id="budget-managers">
+    <h2>{{ budget.label }} / Managers</h2>
+    <div class="budget-table-scroll"><table>
+        <thead><tr><th>Manager email</th>{% if actor.is_admin %}<th>Actions</th>{% endif %}</tr></thead>
+        <tbody>{% for manager in managers %}<tr><td>{{ manager.principal }}</td>{% if actor.is_admin %}<td>
+            <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-actions">
+                {{ context('budget_managers', catalog.revision) }}
+                <input type="hidden" name="budget_id" value="{{ budget.id }}">
+                <input type="hidden" name="principal" value="{{ manager.principal }}">
+                <button type="submit" class="budget-secondary">Remove manager</button>
+            </form>
+        </td>{% endif %}</tr>{% else %}<tr><td colspan="2">No budget managers assigned.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if actor.is_admin %}
+    <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-form budget-manager-form" id="manager-editor">
+        {{ context('budget_managers', catalog.revision) }}
+        <input type="hidden" name="budget_id" value="{{ budget.id }}">
+        <input type="hidden" name="assigned" value="on">
+        {{ fields(specs.budget_managers[2][1:2], {}, catalog) }}
+        <div class="budget-actions"><button type="submit">Review manager assignment</button></div>
+    </form>
+    {% endif %}
+</section>
+{% if actor.is_admin and selected.destination_id %}
+<details class="budget-section budget-details"><summary>Internal identifiers</summary>
+    <dl class="budget-facts">
+        <dt>Budget / Destination IDs</dt><dd>{{ budget.id }} / {{ selected.destination_id }}</dd>
+    </dl>
+</details>
+{% endif %}
+{% endif %}
+{% include "_budget_registry_history.html" %}
+<script src="{{ url_for('static', filename='js/budget_registry.js') }}" defer></script>
+{% endblock %}

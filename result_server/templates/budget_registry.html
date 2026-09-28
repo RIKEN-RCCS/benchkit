@@ -1,0 +1,34 @@
+{% extends "_results_base.html" %}
+{% from "_budget_registry_fields.html" import fields, context with context %}
+{% block title %}Budget Management{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+{% include "_budget_registry_nav.html" %}
+<section class="budget-section">
+    <h2>{{ specs[kind][0] }}</h2>
+    <div class="budget-table-scroll">
+    <table>
+        <thead><tr>{% for name, label, input_type in specs[kind][2] if name != 'id' %}<th>{{ label }}</th>{% endfor %}<th>Actions</th></tr></thead>
+        <tbody>
+        {% for row in catalog[kind] %}
+        <tr>{% for name, label, input_type in specs[kind][2] if name != 'id' %}<td>{% if input_type == 'checkbox' %}{{ 'Enabled' if row[name] else 'Disabled' }}{% elif input_type in ['budgets', 'connections', 'execution_accounts'] %}{% for item in catalog[input_type] if item.id == row[name] %}{{ item.label }}{% endfor %}{% else %}{{ row[name] or '-' }}{% endif %}</td>{% endfor %}
+            <td>{% if kind == 'connections' and row.target_id %}{{ 'Server configuration' if row.available else 'Unavailable' }}{% else %}<a href="{{ url_for('budget_registry.index', section=kind, edit=row.principal if kind == 'budget_managers' else row.id, budget_id=row.budget_id if kind == 'budget_managers' else '') }}">Edit</a>{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="{{ specs[kind][2] | length + 1 }}">No records.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+{% if actor.is_admin or selected %}
+<section class="budget-section">
+    <h2>{{ 'Edit' if selected else 'Add' }} {{ specs[kind][0] }}</h2>
+    <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-form">
+        {{ context(kind, catalog.revision) }}
+        {{ fields(specs[kind][2], selected, catalog) }}
+        <div class="budget-actions"><button type="submit">Review change</button>{% if selected %}<a href="{{ url_for('budget_registry.index', section=kind) }}">Cancel</a>{% endif %}</div>
+    </form>
+</section>
+{% endif %}
+{% include "_budget_registry_history.html" %}
+{% endblock %}

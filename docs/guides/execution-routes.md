@@ -6,6 +6,11 @@ under different user accounts and budgets without duplicating application
 configuration. A route is an operational configuration, not a public activity
 label or a mechanism for changing the operating-system user.
 
+The project-file workflow below describes the current prototype. Budget-first
+management is being developed around a shared [encrypted budget registry](budget-registry.md).
+Its storage foundation is available, but Portal selection and CI handoff are
+not yet integrated. Do not treat the prototype as the completed management workflow.
+
 ## Configure a Project
 
 Create a GitLab project CI/CD variable named `BK_EXECUTION_ROUTES_FILE` with

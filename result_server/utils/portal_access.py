@@ -55,7 +55,7 @@ RESTRICTED_VIEWER_ENDPOINTS = frozenset(
     }
 )
 
-AUTHENTICATED_CONSOLE_ENDPOINT_PREFIXES = ("profile_requests.",)
+AUTHENTICATED_CONSOLE_ENDPOINT_PREFIXES = ("profile_requests.", "budget_registry.")
 OPERATOR_ENDPOINT_PREFIXES = ("admin.",)
 OPERATOR_ENDPOINTS = frozenset({
     "results.usage_evidence_snapshot_csv",

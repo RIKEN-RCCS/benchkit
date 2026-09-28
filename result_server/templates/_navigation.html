@@ -111,6 +111,9 @@
         <a href="{{ url_for('results.results') }}" class="nav-link {% if request.endpoint == 'results.results' %}active{% endif %}">Public</a>
         <a href="{{ url_for('results.results_confidential') }}" class="nav-link {% if request.endpoint == 'results.results_confidential' %}active{% endif %}">All Results</a>
         <a href="{{ url_for('estimated.estimated_results') }}" class="nav-link {% if request.endpoint == 'estimated.estimated_results' %}active{% endif %}">Estimated</a>
+        {% if config.get('BUDGET_REGISTRY_DB_PATH') and config.get('BUDGET_REGISTRY_KEY_FILE') %}
+        <a href="{{ url_for('budget_registry.index') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('budget_registry.') %}active{% endif %}">Budgets</a>
+        {% endif %}
         {% if 'admin' in session.get('user_affiliations', []) %}
         <a href="{{ url_for('results.usage_report') }}" class="nav-link {% if request.endpoint == 'results.usage_report' %}active{% endif %}">Usage</a>
         {% endif %}
