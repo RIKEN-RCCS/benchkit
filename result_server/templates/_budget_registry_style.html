@@ -1,0 +1,48 @@
+<style>
+    .budget-toolbar {display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;border-bottom:1px solid #cbd5d1;padding-bottom:12px;}
+    .budget-tabs {display:flex;flex-wrap:wrap;gap:16px;}
+    .budget-tabs a {padding:6px 0;color:#176d58;}
+    .budget-tabs a[aria-current] {color:#172a21;font-weight:700;border-bottom:2px solid #176d58;}
+    .budget-section {padding:20px 0;border-bottom:1px solid #d3ded8;min-width:0;}
+    .budget-section h2 {font-size:18px;margin:0 0 16px;letter-spacing:0;}
+    .budget-heading {display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+    .budget-section a {color:#176d58;}
+    .budget-advanced > summary,.budget-details > summary {cursor:pointer;font-size:14px;font-weight:600;padding:6px 0;}
+    .budget-advanced[open] > summary,.budget-details[open] > summary {margin-bottom:16px;}
+    .budget-details {margin-top:18px;}
+    .budget-facts {display:grid;grid-template-columns:minmax(110px,180px) minmax(0,1fr);gap:12px;font-size:14px;}
+    .budget-facts dt {font-weight:600;}
+    .budget-facts dd {margin:0;overflow-wrap:anywhere;}
+    .budget-manager-form {margin-top:20px;}
+    .budget-table-scroll {overflow-x:auto;width:100%;}
+    .budget-section table {width:100%;border-collapse:collapse;font-size:14px;}
+    .budget-section th,.budget-section td {text-align:left;padding:10px;border-bottom:1px solid #e0e6e2;max-width:280px;overflow-wrap:anywhere;vertical-align:top;}
+    .budget-section th {background:#eef3f0;color:#253c30;}
+    .budget-form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-width:900px;}
+    .budget-fieldset {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border:0;border-bottom:1px solid #d3ded8;padding:0 0 20px;margin:0;min-width:0;grid-column:1/-1;}
+    .budget-fieldset legend {font-size:16px;font-weight:600;padding:0 0 14px;}
+    .budget-wide {grid-column:1/-1;}
+    .budget-form label {display:flex;flex-direction:column;gap:6px;font-size:14px;min-width:0;}
+    .budget-field {position:relative;min-width:0;align-self:start;}
+    .budget-field > label {min-height:28px;padding-right:38px;display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+    .budget-optional {font-size:12px;color:#53635b;font-weight:400;}
+    .budget-help > summary {position:absolute;right:0;top:0;box-sizing:border-box;width:28px;height:28px;display:grid;place-items:center;border:1px solid #9dafa5;border-radius:50%;color:#344b40;background:#f5f7f6;cursor:pointer;font-size:14px;font-weight:600;list-style:none;padding:0;margin:0;}
+    .budget-help > summary::-webkit-details-marker {display:none;}
+    .budget-help > summary:hover,.budget-help[open] > summary {background:#e3eee8;border-color:#176d58;}
+    .budget-help > summary:focus-visible {outline:2px solid #176d58;outline-offset:2px;}
+    .budget-help dl {margin:10px 0 0;padding:0 0 0 10px;border-left:2px solid #9dafa5;font-size:13px;line-height:1.5;color:#344b40;overflow-wrap:anywhere;}
+    .budget-help dt {font-weight:600;}
+    .budget-help dd {margin:0 0 8px;}
+    .budget-help dd:last-child {margin-bottom:0;}
+    .budget-help code {font-size:12px;white-space:normal;overflow-wrap:anywhere;}
+    .budget-form input,.budget-form select {box-sizing:border-box;min-width:0;width:100%;padding:9px;border:1px solid #9dafa5;border-radius:4px;background:white;font:inherit;}
+    .budget-form input[type=checkbox] {width:20px;height:20px;align-self:start;}
+    .budget-actions {display:flex;align-items:center;gap:16px;flex-wrap:wrap;grid-column:1/-1;}
+    .budget-actions button {border:1px solid #176d58;border-radius:4px;background:#176d58;color:white;padding:9px 16px;font:inherit;cursor:pointer;}
+    .budget-actions a {color:#176d58;}
+    .budget-actions .budget-secondary {background:white;color:#176d58;}
+    .budget-confirm {display:flex;align-items:center;gap:10px;margin:18px 0;color:#843922;}
+    .budget-confirm input {width:20px;height:20px;flex-shrink:0;}
+    .budget-section ul {padding-left:20px;overflow-wrap:anywhere;}
+    @media(max-width:600px) {.budget-form,.budget-fieldset{grid-template-columns:minmax(0,1fr);} .budget-section th,.budget-section td{min-width:100px;} .nav-bar{flex-wrap:wrap;} .nav-left{flex-wrap:wrap;} .nav-right{margin-left:0;} .page-title{font-size:26px;}}
+</style>

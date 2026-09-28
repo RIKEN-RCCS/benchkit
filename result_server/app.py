@@ -158,6 +158,7 @@ def _register_portal_blueprints(app, prefix):
     from routes.admin import admin_bp, profile_requests_bp
     from routes.auth import auth_bp
     from routes.security_metadata import register_security_metadata_routes
+    from routes.budget_registry import register_budget_registry
 
     register_security_metadata_routes(app, prefix=prefix)
     app.register_blueprint(api_bp, url_prefix=prefix)
@@ -169,6 +170,7 @@ def _register_portal_blueprints(app, prefix):
         url_prefix=f"{prefix}/execution-profile-requests",
     )
     app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
+    register_budget_registry(app, prefix)
 
 
 def create_app(prefix="", base_dir=None):
