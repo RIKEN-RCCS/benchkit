@@ -54,6 +54,20 @@ case "$system" in
 	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
 	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
 	;;
+    RC_GH200)
+	module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
+	exedir=exe
+	mkdir -p $code/$exedir/
+	NP=$((nodes * numproc_node))
+	cp $artdir/${BIN}.t${NP} $code/$exedir/${BIN}
+	cd $code/$exedir/
+	echo "code is executed in "$code/$exedir/
+	# qc-gh200 is one GPU per node (unified superchip): no per-rank pinning
+	# needed for this single-GPU run.
+	mpirun -np "$NP" ./Simulation.x > ${LOG} 2>&1
+	elapsed=$(grep "sim time \[s\]:" ${LOG} | awk '{print $4}' | tail -n 1)
+	tcc=$(grep "time/count/cell" ${LOG} | awk '{print $2}' | tail -n 1)
+	;;
     *)
 	echo "Unknown system: $system"
 	exit 1
