@@ -1,6 +1,6 @@
 # Execution Route Presets
 
-An execution route binds a GitLab project, runner tags, and an allocation for
+An execution route binds a GitLab project, runner tags, and an optional allocation for
 one or more Benchkit systems. Different projects can execute the same system
 under different user accounts and budgets without duplicating application
 configuration. A route is an operational configuration, not a public activity
@@ -68,10 +68,14 @@ commit actual configurations or copy them into public issues, PRs, or logs.
 - `BK_SCHEDULER_EXTRA_ARGS`, the selected system's corresponding override, and
   a preexisting `SCHEDULER_PARAMETERS` cannot be used with a route. Edit the
   route rather than overriding its budget.
-- Allocation binding currently supports the existing semantic allocation
+- Set `allocation_project_id` to an empty string when no allocation override is
+  needed. The key remains required. Generated jobs explicitly bind an empty
+  allocation; a nonempty pipeline allocation is still a conflict.
+- Nonempty allocation binding currently supports the existing semantic allocation
   adapters: Fugaku/FugakuCN (`-g`) and RIKYU (`--account`). Other systems fail
-  closed until an appropriate adapter is available. The queue template must
-  include `${scheduler_extra_args}`.
+  closed until an appropriate adapter is available. For a nonempty allocation,
+  the queue template must include `${scheduler_extra_args}`. Allocation-free
+  routes do not require an allocation adapter or that template placeholder.
 - Generated build/run jobs set the resolved allocation for environment
   snapshots, even when an empty allocation was forwarded from the parent.
   `BK_ROUTE_ALLOCATION_PROJECT_ID` is reserved for this handoff.

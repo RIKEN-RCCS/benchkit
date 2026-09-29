@@ -2,23 +2,29 @@
 {% set help = {
     'label': ('A human-readable name for this record.', 'Used in Portal lists and selectors. This is not a scheduler allocation ID or a runner tag.', 'Research budget'),
     'enabled': ('Whether this budget is available for destination resolution.', 'Disabled budgets cannot be resolved for a new execution. Does not cancel running jobs. Validity dates are checked separately.', ''),
-    'system': ('The exact Benchkit system name, matching the execution settings.', 'Each budget belongs to one system. A saved budget cannot move to another system.', 'ExampleSystem'),
-    'allocation_project_id': ('The scheduler account or project-group ID charged for this budget.', 'Stored as allocation_project_id for scheduler submission. Not a job ID or the public Activity label; it may be non-public. Registry-to-trigger integration is pending.', 'budget-example'),
+    'system': ('One exact Benchkit system name for this single-target entry. Do not enter a comma-separated list.', 'The grouped Budget editor separates the managed system from multiple execution targets. The separate-budget batch creates independent budgets.', 'ExampleSystem'),
+    'allocation_project_id': ('Optional scheduler account or project-group ID. Leave empty when the system does not require one.', 'Empty means no allocation override, not unrestricted access. A non-empty value is stored as allocation_project_id for submission. Not a public Activity label; it may be non-public. Registry-to-trigger integration is pending.', 'budget-example'),
     'valid_from': ('Optional first available date, inclusive, in UTC.', 'Destination resolution is refused before this date. Empty means no start-date restriction.', ''),
     'valid_until': ('Optional last available date, inclusive, in UTC.', 'Destination resolution is refused after this date. Empty means no end-date restriction. Does not stop running jobs.', ''),
-    'account_id': ('Saved runner tags and GitLab connection for this system.', 'Reusing a record shares it with other budgets. Editing that record affects all referencing budgets; the review lists them. In the budget editor, New execution settings creates a separate record.', ''),
-    'build_tag': ('Optional single GitLab runner tag for build jobs, not a branch or release tag.', 'Identifies the build runner in the saved settings. Empty leaves the build tag unspecified. Does not register a runner; registry-to-trigger integration is pending.', 'example-build'),
-    'run_tag': ('A single GitLab runner tag for benchmark execution jobs.', 'Identifies the execution runner in the saved settings. Does not register a runner or grant budget access; registry-to-trigger integration is pending.', 'example-run'),
+    'account_id': ('A saved GitLab connection and build/run tag combination for this system, separate from the budget name and scheduler allocation ID.', 'Choices show the saved connection and tags, not the budget name. Reusing a record shares it with other budgets. Editing it affects all referencing budgets; the review lists them. New execution settings creates a separate record.', ''),
+    'build_tag': ('Optional single GitLab runner tag for build jobs, not a branch or release tag. Select an observed runner/tag pair or enter it manually.', 'Saves a tag condition, not a runner ID. Several runners may match. Empty leaves the build tag unspecified. Observation does not verify system or budget access; registry-to-trigger integration is pending.', 'example-build'),
+    'run_tag': ('A single GitLab runner tag for benchmark execution jobs. Select an observed runner/tag pair or enter it manually.', 'Saves a tag condition, not a runner ID. Several runners may match. Observation does not verify system or budget access; registry-to-trigger integration is pending.', 'example-run'),
     'id_token_audience': ('Optional audience expected by the runner authentication service for the GitLab ID token.', 'Empty resolves to the GitLab server URL. This is an audience identifier, not a token or secret.', 'https://gitlab.example.org'),
     'connection_id': ('A registered GitLab destination, such as the project used for benchmark CI.', 'The connection supplies the GitLab server, repository and trigger credential reference. Selecting it does not edit those settings. Server-configured targets are reused without copying their configuration.', ''),
     'connection_label': ('A human-readable name for this GitLab connection.', 'Used in connection selectors. Does not rename the GitLab project.', 'Compute project'),
     'server_url': ('The HTTPS base URL of the GitLab instance, without a project path or credentials.', 'Identifies the GitLab server in the saved destination. No connection check or pipeline is started by saving.', 'https://gitlab.example.org'),
     'project_path': ('The GitLab namespace/project path; subgroups are allowed. Not a URL or numeric project ID.', 'Identifies the project on the selected GitLab server. Saving does not create the project; registry-to-trigger integration is pending.', 'group/benchmark'),
     'token_env': ('The name of a server environment variable containing a GitLab pipeline trigger token. Never enter the token itself.', 'Only the variable name is stored here. Provision its value separately on each server using this connection. Saving does not set or validate the credential.', 'RESULT_SERVER_GITLAB_TRIGGER_TOKEN_EXAMPLE'),
-    'budget_id': ('An existing budget to associate with this record.', 'The destination and its execution settings must use the same system as this budget.', ''),
+    'budget_id': ('An existing budget to associate with this record.', 'Execution settings must belong to the same managed system as this budget. Each destination selects a canonical execution target within that scope.', ''),
     'principal': ('The email address of an existing Portal user.', 'A budget manager can edit this budget name, availability and dates, and resolve its destination. Infrastructure and manager assignments remain CX-administrator-only. This is not an applicant list.', 'manager@example.org'),
     'assigned': ('Whether this Portal user is assigned as a manager of the selected budget.', 'Removing an assignment removes that budget-manager role, not the Portal account or any CX-administrator privileges.', '')
 } %}
+{% if kind == 'budget_group' or (catalog is defined and catalog.schema_version >= 4 and kind in ['budgets', 'execution_accounts']) %}
+{% set _ = help.update({'system': ('The managed system or computing service that owns this budget, not an execution-target list.', 'Execution targets retain their exact Benchkit IDs for CI, scheduler partitions and results. A saved managed-system scope cannot be reassigned.', 'Example Computing Center')}) %}
+{% endif %}
+{% if kind == 'destinations' %}
+{% set _ = help.update({'system': ('One exact Benchkit execution-target ID.', 'Used unchanged for matrix rows, hardware metadata and scheduler partitions. It is not the managed-system name.', 'Example_A')}) %}
+{% endif %}
 {% if name in help %}
 <details class="budget-help">
     <summary aria-label="About {{ label }}" title="About {{ label }}">?</summary>
@@ -37,14 +43,14 @@
     <input type="hidden" name="{{ name }}" value="{{ selected.get(name, '') or '' }}">
 {% else %}
 <div class="budget-field">
-<label for="budget-field-{{ name }}">{{ label }}{% if name in ['valid_from', 'valid_until', 'build_tag', 'id_token_audience'] %}<span class="budget-optional">Optional</span>{% endif %}</label>
+<label for="budget-field-{{ name }}">{{ label }}{% if name in ['valid_from', 'valid_until', 'build_tag', 'id_token_audience', 'allocation_project_id'] %}<span class="budget-optional">Optional</span>{% endif %}</label>
 {% if input_type in ['budgets', 'connections', 'execution_accounts'] %}
     <select id="budget-field-{{ name }}" name="{{ name }}" aria-describedby="budget-help-{{ name }}" required>
         <option value="">Select</option>
         {% for option in catalog[input_type] %}
         <option value="{{ option.id }}" {% if selected.get(name) == option.id %}selected{% endif %}
                 {% if option.available is defined and not option.available %}disabled{% endif %}
-                {% if option.system is defined %}data-system="{{ option.system }}"{% endif %}>{{ option.label }}{% if option.system is defined %} @ {{ option.system }}{% endif %}</option>
+                {% if option.system is defined %}data-system="{{ option.system }}"{% endif %}>{% if input_type == 'execution_accounts' %}{{ option.display_label }}{% else %}{{ option.label }}{% if option.system is defined %} @ {{ option.system }}{% endif %}{% endif %}</option>
         {% endfor %}
     </select>
 {% elif input_type == 'systems' %}
@@ -62,7 +68,7 @@
     <input id="budget-field-{{ name }}" type="{{ input_type }}" name="{{ name }}" aria-describedby="budget-help-{{ name }}" value="{{ selected.get(name, '') }}" maxlength="512"
            {% if name == 'system' and systems %}list="budget-system-options"{% endif %}
            {% if name == 'system' and selected.get('id') %}readonly{% endif %}
-           {% if name not in ['valid_from', 'valid_until', 'build_tag', 'id_token_audience'] %}required{% endif %}>
+           {% if name not in ['valid_from', 'valid_until', 'build_tag', 'id_token_audience', 'allocation_project_id'] %}required{% endif %}>
     {% if name == 'system' and systems %}<datalist id="budget-system-options">{% for system in systems %}<option value="{{ system }}">{% endfor %}</datalist>{% endif %}
 {% endif %}
 {{ field_help(name, label) }}

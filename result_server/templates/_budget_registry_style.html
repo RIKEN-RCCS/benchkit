@@ -26,6 +26,14 @@
     .budget-field {position:relative;min-width:0;align-self:start;}
     .budget-field > label {min-height:28px;padding-right:38px;display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
     .budget-optional {font-size:12px;color:#53635b;font-weight:400;}
+    .budget-runner-status {font-size:13px;line-height:1.5;color:#53635b;overflow-wrap:anywhere;margin:8px 0 0;}
+    .budget-runner-column {display:grid;gap:16px;min-width:0;align-content:start;}
+    .budget-batch-name {box-sizing:border-box;width:100%;min-width:140px;padding:8px;border:1px solid #9dafa5;border-radius:4px;font:inherit;}
+    .budget-target-table {table-layout:fixed;}
+    .budget-target-table th:first-child,.budget-target-table td:first-child {width:56px;min-width:56px;box-sizing:border-box;}
+    .budget-target-table select {width:100%;min-width:0;max-width:100%;}
+    .budget-target-table th span {display:block;font-size:12px;font-weight:400;}
+    .budget-form label.budget-actions,.budget-actions > label {flex-direction:row;align-items:center;}
     .budget-help > summary {position:absolute;right:0;top:0;box-sizing:border-box;width:28px;height:28px;display:grid;place-items:center;border:1px solid #9dafa5;border-radius:50%;color:#344b40;background:#f5f7f6;cursor:pointer;font-size:14px;font-weight:600;list-style:none;padding:0;margin:0;}
     .budget-help > summary::-webkit-details-marker {display:none;}
     .budget-help > summary:hover,.budget-help[open] > summary {background:#e3eee8;border-color:#176d58;}
@@ -45,4 +53,11 @@
     .budget-confirm input {width:20px;height:20px;flex-shrink:0;}
     .budget-section ul {padding-left:20px;overflow-wrap:anywhere;}
     @media(max-width:600px) {.budget-form,.budget-fieldset{grid-template-columns:minmax(0,1fr);} .budget-section th,.budget-section td{min-width:100px;} .nav-bar{flex-wrap:wrap;} .nav-left{flex-wrap:wrap;} .nav-right{margin-left:0;} .page-title{font-size:26px;}}
+    @media(max-width:600px) {
+        .budget-target-table,.budget-target-table tbody{display:block;width:100%;}
+        .budget-target-table thead{display:none;}
+        .budget-target-table tr{display:grid;grid-template-columns:36px minmax(0,1fr);border-bottom:1px solid #cbd5d1;padding:8px 0;}
+        .budget-target-table td,.budget-target-table th,.budget-target-table th:first-child,.budget-target-table td:first-child{min-width:0;max-width:none;width:auto;border:0;padding:8px;}
+        .budget-target-table td:nth-child(n+3){grid-column:2;}
+    }
 </style>

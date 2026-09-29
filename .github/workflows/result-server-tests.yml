@@ -58,7 +58,7 @@ jobs:
       - name: Require SQLCipher and run encrypted database tests
         run: |
           python -c 'from sqlcipher3 import dbapi2'
-          python -m pytest -q result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py
+          python -m pytest -q result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py
 
   profile-data-shell-group:
     name: profile-data-shell / ${{ matrix.shell-group }}

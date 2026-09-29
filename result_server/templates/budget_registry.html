@@ -12,7 +12,7 @@
         <thead><tr>{% for name, label, input_type in specs[kind][2] if name != 'id' %}<th>{{ label }}</th>{% endfor %}<th>Actions</th></tr></thead>
         <tbody>
         {% for row in catalog[kind] %}
-        <tr>{% for name, label, input_type in specs[kind][2] if name != 'id' %}<td>{% if input_type == 'checkbox' %}{{ 'Enabled' if row[name] else 'Disabled' }}{% elif input_type in ['budgets', 'connections', 'execution_accounts'] %}{% for item in catalog[input_type] if item.id == row[name] %}{{ item.label }}{% endfor %}{% else %}{{ row[name] or '-' }}{% endif %}</td>{% endfor %}
+        <tr>{% for name, label, input_type in specs[kind][2] if name != 'id' %}<td>{% if input_type == 'checkbox' %}{{ 'Enabled' if row[name] else 'Disabled' }}{% elif input_type in ['budgets', 'connections', 'execution_accounts'] %}{% for item in catalog[input_type] if item.id == row[name] %}{{ item.display_label if input_type == 'execution_accounts' else item.label }}{% endfor %}{% else %}{{ row[name] or '-' }}{% endif %}</td>{% endfor %}
             <td>{% if kind == 'connections' and row.target_id %}{{ 'Server configuration' if row.available else 'Unavailable' }}{% else %}<a href="{{ url_for('budget_registry.index', section=kind, edit=row.principal if kind == 'budget_managers' else row.id, budget_id=row.budget_id if kind == 'budget_managers' else '') }}">Edit</a>{% endif %}</td>
         </tr>
         {% else %}<tr><td colspan="{{ specs[kind][2] | length + 1 }}">No records.</td></tr>{% endfor %}

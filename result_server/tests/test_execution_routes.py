@@ -74,6 +74,27 @@ def test_native_route_does_not_require_build_tag(config, env):
     assert routes.resolve_routes(config, SYSTEMS, env)["FugakuCN"]["build_tag"] == ""
 
 
+def test_route_can_explicitly_omit_allocation(config, env):
+    config["routes"][0]["allocation_project_id"] = ""
+    assert all(item["allocation_project_id"] == "" for item in routes.resolve_routes(config, SYSTEMS, env).values())
+
+
+def test_allocation_free_route_generates_empty_binding_without_scheduler_option(project):
+    directory, _ = project
+    path = directory / "routes.json"
+    config = json.loads(path.read_text())
+    config["routes"][0].update(systems=["Legacy"], allocation_project_id="", build_tag="")
+    path.write_text(json.dumps(config))
+    result = generate(project, "Legacy")
+    assert result.returncode == 0, result.stderr
+    generated = (directory / ".gitlab-ci.generated.yml").read_text()
+    assert 'BK_ROUTE_ALLOCATION_PROJECT_ID: ""' in generated
+    assert 'SCHEDULER_PARAMETERS: "none"' in generated
+    assert 'tags: ["research-run"]' in generated
+    for overrides in ({"BK_ALLOCATION_PROJECT_ID": "unexpected"}, {"BK_SCHEDULER_EXTRA_ARGS": "--account=unexpected"}):
+        assert generate(project, "Legacy", **overrides).returncode != 0
+
+
 @pytest.mark.parametrize("name", ["Fugaku", "Unknown"])
 def test_duplicate_or_unknown_system_is_rejected(config, env, name):
     config["routes"][0]["systems"].append(name)

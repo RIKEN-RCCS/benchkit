@@ -1,4 +1,10 @@
 {% extends "_results_base.html" %}
 {% block title %}Budget Change Not Applied{% endblock %}
 {% block page_subtitle %}{% endblock %}
-{% block content %}<p role="alert">{{ message }}</p><a href="{{ url_for('budget_registry.index') }}">Budget Management</a>{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+<section class="budget-section">
+    <p role="alert">{{ message }}</p>
+    <a href="{{ url_for('budget_registry.index') }}">Budget Management</a>
+</section>
+{% endblock %}

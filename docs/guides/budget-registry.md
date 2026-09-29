@@ -5,6 +5,9 @@ configuration. An opt-in Portal management view is available; profile selection
 and pipeline submission are not yet connected. No existing databases are
 converted and no shared database is opened automatically at application startup.
 
+The separate [runner observations view](runner-monitoring.md) provides read-only
+GitLab runner inventory and status; it does not change Budget configuration.
+
 ## Security Boundary
 
 Encryption protects database contents when a database file or encrypted backup
@@ -60,8 +63,9 @@ initialization may leave an incomplete file for operator inspection; it is never
 silently replaced. All readers must support the schema version before a shared
 schema is upgraded.
 
-Schema version 3 adds references to server-configured GitLab targets. It retains
-system-specific budgets, manager assignments and a single budget enabled state.
+Schema version 4 separates the managed system from canonical execution targets.
+It retains manager assignments and a single budget enabled state. Schema version
+3 added references to server-configured GitLab targets.
 An unused version-1 or version-2 prototype can be upgraded explicitly, with a required new
 encrypted backup destination:
 
@@ -70,10 +74,35 @@ python -m result_server.budget_db migrate-empty --database "$DB_PATH" --key-file
 ```
 
 The command refuses a registry with any records or prior revisions. Populated
-registries need a separately reviewed migration; no users, systems, or states
-are silently discarded. Neither reads nor application startup perform migration.
+version-1/2 registries need a separately reviewed migration; no users, systems,
+or states are silently discarded. Neither reads nor application startup perform migration.
+
+For a populated version-3 registry, deploy version-4-capable code to **every
+reader and writer first**, stop shared-registry writes, then run:
+
+```sh
+python -m result_server.budget_db migrate-targets --database "$DB_PATH" --key-file "$DB_KEY_FILE" --destination "$BACKUP_PATH"
+```
+
+This takes a new encrypted backup, validates the existing relationships, and
+replaces the single-destination constraint with uniqueness per budget and
+execution target in one transaction. IDs, manager assignments, enabled states,
+validity dates, revision and history are preserved. Existing budgets initially
+retain their former system as the managed system and their one execution target.
+No name-prefix or runner-tag inference merges budgets or broadens access.
+New code continues to read and edit version-3 singleton budgets without migration;
+the grouped editor requires version 4. Older code rejects version 4, so migrating
+a shared database is not an isolated UI deployment. Run `check` after migration
+and keep the backup and its separately stored key for recovery. Do not restore
+over a live database or discard subsequent edits during rollback.
 
 ## Backup and Recovery
+
+The [single-instance migration workflow](database-migrations.md) provides
+`status`, `plan`, encrypted-copy `rehearse`, guarded `migrate`, and `verify`.
+It applies only to the explicitly selected DB, not every DB or Portal deployment.
+Use it for planned upgrades; the older migration commands also use its locked
+backup and transaction handling.
 
 The backup operation uses a consistent SQLite backup transaction, including
 committed data still in WAL, and writes an encrypted destination using the same
@@ -96,8 +125,10 @@ the key file for an existing database.
 - Budgets, manager assignments, GitLab connections, execution settings, and budget-system
   destinations are separate records. Destinations reference reusable settings
   and connections. The database stores credential references, not token values.
-- Each budget belongs to exactly one immutable system and has at most one
-  execution destination. Its single enabled state controls resolution.
+- Each budget belongs to exactly one immutable **managed system** and may expose
+  multiple explicitly selected **execution targets**. Its single enabled state,
+  validity dates and manager assignments control every target. Common execution
+  settings and allocation are saved independently of the first target.
   A destination ID cannot be moved to another budget or system. Different
   budgets can use the same system and GitLab project without ambiguity.
 - CX administrators manage the entire registry, including manager assignments
@@ -121,19 +152,39 @@ to the same files. Startup only registers configuration and routes: it does not
 create or migrate storage. Missing configuration, an inaccessible key, or an
 invalid database makes the management view unavailable without creating files.
 
-The authenticated `/budgets/` view starts with a **Budget @ System** list.
-A budget is a system-specific resource entitlement with managers, validity dates,
+The authenticated `/budgets/` view starts with a **Budget @ Managed system** list.
+A budget is a managed-system-specific resource entitlement with managers, validity dates,
 and one enabled state. Its scheduler allocation ID is the system-specific accounting
 argument, not a running job's allocation ID and not a public Activity label.
-A different system requires a separate budget, even if its label or manager is
-the same. Application applicants and end users are not registered in this
+A managed system may contain several machine types or partitions. For example,
+`Example Computing Center` can own one budget with `Example_A` and `Example_B`
+as execution targets. They may use the same login runner with different scheduler
+partitions, or different runners/connections. Application applicants and end users are not registered in this
 registry. Their request and approval workflow is separate from the budget
 manager's authority to configure CX execution using the budget.
 
-Selecting a list entry brings its budget, runner tags, GitLab connection selector,
-and managers onto the same page. Selecting saved execution settings fills the
+Selecting a list entry opens the budget's managed system, common runner tags,
+GitLab connection and execution targets, with a link to manager assignments.
+Selecting saved execution settings fills the
 tags and connection. The budget form does not accept GitLab URLs, repository paths,
 credential references or ID-token audiences. Validity dates are optional.
+
+The grouped editor at `/budgets/group` selects exact execution-target IDs from
+`config/system.csv`. These IDs still drive `system_info.csv`, application matrix
+rows, scheduler queues/partitions and results. The managed-system label never
+replaces them in the resolved route. Targets are revalidated during both review
+and apply. Optional run-tag filtering is only a discovery aid and never unchecks
+selected targets or grants access automatically.
+
+Each target uses the common GitLab/tag settings unless a saved execution-setting
+record for the same managed system is explicitly selected. Alternative settings
+can be registered under Infrastructure without duplicating the budget or its
+managers. Review binds both common and alternative connection configurations.
+One optional scheduler allocation applies to all targets in a budget; distinct
+allocations require distinct budgets. Review lists added, retained and removed
+targets, including current and proposed settings/allocation. Removing a target
+records its removal and makes its destination ID unresolvable; it does not cancel
+jobs or change previously captured snapshots. Existing target IDs are preserved.
 
 Connections configured through `RESULT_SERVER_GITLAB_TARGETS` (or the existing
 single-repository fallback) appear automatically. Saving a selection records only
@@ -164,6 +215,33 @@ those shared settings. The budget form cannot alter a connection's configuration
 Changing shared tags, or editing a registry-managed connection through Infrastructure,
 lists every affected budget during review. Credential provisioning, OS accounts,
 and runner registration are not performed by these forms.
+
+The Budget overview shows each authorized budget's scheduler allocation ID.
+Saved execution-setting choices show their GitLab connection, build/run tags,
+and system rather than a budget-derived name. Identical combinations include
+their record IDs to distinguish separately shared settings. Renaming a budget
+does not rename or modify these settings; existing record names and references
+are preserved. New settings created through the Budget form use a neutral name.
+
+Scheduler allocation IDs are optional. Leave the field empty for a system that
+does not require an allocation override. Empty is stored and resolved as an empty
+string, not a fabricated account ID or a public Activity label. Scheduler access
+and site defaults still apply.
+
+**Register separate budgets** (the legacy **Add multiple systems** action) is a
+separate batch workflow, not the grouped editor. It lets CX administrators choose one GitLab connection
+and build/run tag pair, then select multiple systems. The default candidate view
+matches the run tag against `config/system.csv`; it is a configuration hint,
+not proof of runner or allocation access. Alternate tags can be entered manually
+and systems selected from the full list. Existing systems with budgets are
+excluded from batch creation; use their individual editors instead.
+
+The review shows the common settings and each new Budget name/system. Applying
+creates a separate Budget, destination and execution-setting record per system
+in one transaction. A validation error, stale revision, or changed connection
+rolls back the entire batch. No existing record is replaced, no managers are
+automatically assigned, and no pipelines are started. The shared registry affects
+every connected Portal even when the editor is opened in only one deployment.
 
 The default ID-token audience resolves to the selected GitLab server URL.
 Exceptional runner requirements belong under **Infrastructure / Execution settings**.

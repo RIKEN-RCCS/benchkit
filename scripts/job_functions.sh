@@ -80,7 +80,7 @@ get_scheduler_extra_args() {
     explicit_args="${!system_var:-${BK_SCHEDULER_EXTRA_ARGS:-}}"
     local route_allocation
     route_allocation=$(execution_route_field "$system" allocation_project_id)
-    if [[ -n "$route_allocation" ]]; then
+    if [[ -n "$(execution_route_field "$system" id)" ]]; then
         if [[ -n "${BK_ALLOCATION_PROJECT_ID:-}" && "$BK_ALLOCATION_PROJECT_ID" != "$route_allocation" ]]; then
             echo "ERROR: allocation conflicts with the configured execution route" >&2
             return 1
@@ -91,7 +91,7 @@ get_scheduler_extra_args() {
         fi
         local allocation_args
         allocation_args=$(scheduler_args_from_allocation_project "$system" "$route_allocation") || return 1
-        if [[ -z "$allocation_args" ]]; then
+        if [[ -n "$route_allocation" && -z "$allocation_args" ]]; then
             echo "ERROR: execution route allocation is unsupported for this system" >&2
             return 1
         fi
@@ -346,7 +346,7 @@ emit_id_tokens_block() {
 emit_execution_route_variables() {
     local allocation
     allocation=$(execution_route_field "$1" allocation_project_id)
-    if [[ -n "$allocation" ]]; then
+    if [[ -n "$(execution_route_field "$1" id)" ]]; then
         printf '    BK_ROUTE_ALLOCATION_PROJECT_ID: "%s"\n' "$allocation"
     fi
 }

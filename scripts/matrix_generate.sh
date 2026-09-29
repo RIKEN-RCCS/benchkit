@@ -119,7 +119,7 @@ for listfile in programs/*/list.csv; do
        continue
      fi
 
-    if [[ -n "$(execution_route_field "$system" id)" && "$template" != *'${scheduler_extra_args}'* ]]; then
+    if [[ -n "$(execution_route_field "$system" allocation_project_id)" && "$template" != *'${scheduler_extra_args}'* ]]; then
       echo "ERROR: execution route requires a queue template with scheduler_extra_args" >&2
       exit 1
     fi

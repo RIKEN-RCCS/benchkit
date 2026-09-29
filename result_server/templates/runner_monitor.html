@@ -1,0 +1,81 @@
+{% extends "_results_base.html" %}
+{% block title %}Runners{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% macro stamp(value) %}{% if value %}<time datetime="{{ value }}">{{ value[:19] | replace('T', ' ') }} UTC</time>{% else %}Never{% endif %}{% endmacro %}
+{% macro observation_label(state) %}{{ {'current': 'Current', 'expired': 'Out of date', 'unavailable': 'Unavailable', 'not_observed': 'Not observed'}[state] }}{% endmacro %}
+{% macro age(value, label) %}<span class="runner-age" title="Last successful read: {{ value or 'Never' }}">{{ label }}</span>{% endmacro %}
+{% block content %}
+{% include "_runner_monitor_style.html" %}
+<section class="runner-section" aria-labelledby="connections-title">
+    <div class="runner-heading"><h2 id="connections-title">GitLab connections</h2>{% if config.get('BUDGET_REGISTRY_DB_PATH') %}<a href="{{ url_for('budget_registry.index') }}">Budgets</a>{% endif %}</div>
+    <div class="connection-columns runner-columns" aria-hidden="true"><span>Connection</span><span>Runners</span><span>Observation</span></div>
+    {% for target in catalog.targets %}
+    <details class="connection-entry runner-entry">
+        <summary aria-label="Connection details: {{ target.id }}" aria-describedby="connection-state-{{ loop.index }}"><span class="connection-columns">
+            <strong>{{ target.id }}</strong><span>{{ target.count if target.count is not none else 'Unknown' }}</span>
+            <span id="connection-state-{{ loop.index }}"><span class="runner-state {{ target.state }}">{{ observation_label(target.state) }}</span>{{ age(target.last_success_at, target.last_success_age) }}</span>
+        </span></summary>
+        <div class="runner-expanded">
+            <dl class="runner-facts"><dt>GitLab</dt><dd>{{ target.server }}</dd><dt>Project</dt><dd>{{ target.project }}</dd>
+                <dt>Scope</dt><dd>{% for kind in target.runner_types %}{{ kind | replace('_type', '') }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>
+                <dt>Last success</dt><dd>{{ stamp(target.last_success_at) }}</dd><dt>Last attempt</dt><dd>{{ stamp(target.attempted_at) }}</dd>
+                {% if target.error %}<dt>Read error</dt><dd>{{ target.error }}</dd>{% endif %}</dl>
+            <a href="{{ url_for('runner_monitor.index', target=target.id) }}">View runners</a>
+        </div>
+    </details>
+    {% else %}<p class="runner-empty">No observations collected.</p>{% endfor %}
+</section>
+<section class="runner-section" aria-labelledby="runners-title">
+    <div class="runner-heading"><h2 id="runners-title">Runners <span class="runner-count">{{ runners | length }}</span></h2></div>
+    <form class="runner-filters" method="GET">
+        <label>Connection<select name="target"><option value="">All connections</option>{% for target in catalog.targets %}<option value="{{ target.id }}" {% if selected_target == target.id %}selected{% endif %}>{{ target.id }}</option>{% endfor %}</select></label>
+        <label>Heartbeat<select name="state"><option value="">All states</option>{% for state in ['online', 'offline', 'stale', 'never_contacted', 'unknown'] %}<option value="{{ state }}" {% if selected_state == state %}selected{% endif %}>{{ state | replace('_', ' ') | title }}</option>{% endfor %}</select></label>
+        <label>Runner / tag<input type="search" name="q" value="{{ query }}" maxlength="200"></label>
+        <button type="submit">Filter</button><a href="{{ url_for('runner_monitor.index') }}">Clear</a>
+    </form>
+    <div class="runner-inventory">
+        <div class="runner-summary-grid runner-columns" aria-hidden="true"><span>Runner</span><span>Status</span><span>Connections</span><span>Tags</span></div>
+        {% for runner in runners %}{% set record = runner.record or runner.summary %}{% set name = record.description or ('Runner #' ~ runner.id) %}
+        <details class="runner-entry runner-item">
+            <summary aria-label="Runner details: {{ name }}" aria-describedby="runner-state-{{ loop.index }}"><span class="runner-summary-grid">
+                <strong class="runner-name">{{ name }}</strong>
+                <span class="runner-status" id="runner-state-{{ loop.index }}">
+                    {% if runner.state == 'current' %}<span class="runner-state {{ runner.heartbeat }}">{{ runner.heartbeat | replace('_', ' ') | title }}</span>{% if record.paused %}<span class="runner-paused">Paused</span>{% endif %}
+                    {% else %}<span class="runner-state {{ runner.state }}">{{ observation_label(runner.state) }}</span>{% endif %}
+                    {{ age(runner.detail.last_success_at, runner.last_success_age) }}
+                    {% if runner.manager_state != 'current' %}<span class="runner-warning">Managers: {{ observation_label(runner.manager_state) }}</span>{% endif %}
+                </span>
+                <span class="runner-connections"><span class="runner-field-label">Connections</span>{% for target in runner.targets %}<span>{{ target }}</span>{% endfor %}</span>
+                <span class="runner-tags"><span class="runner-field-label">Tags</span>{% for tag in runner.record.get('tag_list', [])[:2] %}<code>{{ tag }}</code>{% else %}<span class="runner-muted">Not available</span>{% endfor %}
+                    {% if runner.record.get('tag_list', []) | length > 2 %}<span class="runner-muted">+{{ runner.record.tag_list | length - 2 }} more</span>{% endif %}
+                    {% if runner.state != 'current' and runner.record.tag_list %}<span class="runner-muted">Last known</span>{% endif %}
+                </span>
+            </span></summary>
+            <div class="runner-expanded">
+                <div class="runner-detail-grid">
+                    <section><h3>Runner</h3><dl class="runner-facts">
+                        <dt>GitLab</dt><dd>{{ runner.server }}</dd><dt>Runner ID</dt><dd>{{ runner.id }}</dd><dt>Type</dt><dd>{{ record.runner_type | replace('_type', '') | title }}</dd>
+                        <dt>Connections</dt><dd class="runner-links">{% for target in runner.targets %}<a href="{{ url_for('runner_monitor.index', target=target) }}">{{ target }}</a>{% endfor %}</dd>
+                        <dt>Tags{% if runner.state != 'current' %} (last known){% endif %}</dt><dd>{% for tag in runner.record.tag_list %}<code class="runner-detail-tag">{{ tag }}</code>{% else %}Not available{% endfor %}</dd>
+                        <dt>Scheduling</dt><dd>{% if runner.state != 'current' or record.paused is none %}Unknown{% elif record.paused %}Paused{% else %}Not paused{% endif %}</dd>
+                        {% if runner.record.access_level %}<dt>Access level</dt><dd>{{ runner.record.access_level }}</dd>{% endif %}
+                    </dl></section>
+                    <section><h3>Observation</h3><dl class="runner-facts">
+                        <dt>Availability</dt><dd class="runner-state {{ runner.state }}">{{ observation_label(runner.state) }}</dd>
+                        <dt>Last observed heartbeat</dt><dd>{{ runner.record.get('status', 'unknown') | replace('_', ' ') | title }}</dd>
+                        <dt>Last contact</dt><dd>{{ stamp(runner.record.contacted_at) }}</dd><dt>Last success</dt><dd>{{ stamp(runner.detail.last_success_at) }}</dd><dt>Last attempt</dt><dd>{{ stamp(runner.detail.attempted_at) }}</dd>
+                        {% if runner.detail.error %}<dt>Read error</dt><dd>{{ runner.detail.error }}</dd>{% endif %}
+                    </dl></section>
+                </div>
+                <section class="runner-manager-section"><h3>Managers <span class="runner-count">{{ runner.managers.get('data', []) | length }}</span> <span class="runner-state {{ runner.manager_state }}">{{ observation_label(runner.manager_state) }}</span></h3>
+                    <dl class="runner-facts"><dt>Last success</dt><dd>{{ stamp(runner.managers.last_success_at) }}</dd><dt>Last attempt</dt><dd>{{ stamp(runner.managers.attempted_at) }}</dd>{% if runner.managers.error %}<dt>Read error</dt><dd>{{ runner.managers.error }}</dd>{% endif %}</dl>
+                    <div class="runner-manager-grid">{% for manager in runner.managers.get('data', []) %}<dl class="runner-facts">
+                        <dt>Manager</dt><dd>{{ manager.system_id or manager.id }}</dd><dt>Platform</dt><dd>{{ manager.platform or 'Unknown' }} / {{ manager.architecture or 'Unknown' }}</dd><dt>Version</dt><dd>{{ manager.version or 'Unknown' }}</dd><dt>Last observed status</dt><dd>{{ manager.status | replace('_', ' ') }}</dd><dt>Last contact</dt><dd>{{ stamp(manager.contacted_at) }}</dd>
+                    </dl>{% endfor %}</div>
+                </section>
+            </div>
+        </details>
+        {% else %}<p class="runner-empty">No runners match.</p>{% endfor %}
+    </div>
+</section>
+{% endblock %}

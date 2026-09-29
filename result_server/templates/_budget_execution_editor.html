@@ -3,29 +3,10 @@
     <fieldset class="budget-fieldset">
         <legend>Budget</legend>
         {{ fields(specs.budget_setup[2][:8], selected, catalog, systems) }}
+        {% if not budget %}<p class="budget-runner-status budget-wide">{% if catalog.schema_version >= 4 %}<a href="{{ url_for('budget_registry.group') }}">Budget with multiple execution targets</a>{% else %}One system per Budget. <a href="{{ url_for('budget_registry.batch') }}">Add multiple systems</a> for separate budgets.{% endif %}</p>{% endif %}
     </fieldset>
-    <fieldset class="budget-fieldset">
-        <legend>Execution settings</legend>
-        <div class="budget-field budget-wide">
-            <label for="budget-field-account_id">Saved settings</label>
-            <select id="budget-field-account_id" name="account_id" aria-describedby="budget-help-account_id">
-                <option value="">New execution settings</option>
-                {% for option in catalog.execution_accounts %}<option value="{{ option.id }}" data-system="{{ option.system }}" {% if selected.get('account_id') == option.id %}selected{% endif %}>{{ option.label }} @ {{ option.system }}</option>{% endfor %}
-            </select>
-            {{ field_help('account_id', 'Saved settings') }}
-        </div>
-        <input type="hidden" name="loaded_account_id" value="{{ selected.get('account_id', '') }}">
-        {{ fields(specs.budget_setup[2][9:11], selected, catalog) }}
-        <div class="budget-field budget-wide">
-            <label for="budget-field-connection_id">GitLab connection</label>
-            <select id="budget-field-connection_id" name="connection_id" aria-describedby="budget-help-connection_id" required>
-                <option value="">{{ 'Select' if catalog.connections else 'No GitLab connections' }}</option>
-                {% for option in catalog.connections %}<option value="{{ option.id }}" {% if selected.get('connection_id') == option.id %}selected{% endif %} {% if not option.available %}disabled{% endif %}>{{ option.label }}{% if not option.available %} (Unavailable){% endif %}</option>{% endfor %}
-            </select>
-            {{ field_help('connection_id', 'GitLab connection') }}
-        </div>
-        <div class="budget-wide"><a href="{{ url_for('budget_registry.index', section='connections') }}">Manage connections</a></div>
-    </fieldset>
+    {% include "_budget_execution_settings.html" %}
     <div class="budget-actions"><button type="submit">Review change</button>{% if budget %}<a href="{{ url_for('budget_registry.index') }}">Cancel</a>{% endif %}</div>
 </form>
 <script type="application/json" id="budget-execution-data">{{ execution_choices | tojson }}</script>
+<script type="application/json" id="budget-runner-data">{{ runner_choices | tojson }}</script>
