@@ -268,8 +268,10 @@ def create_dev_app(base_dir):
     app.register_blueprint(profile_requests_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
     from routes.budget_registry import register_budget_registry
+    from routes.runner_monitor import register_runner_monitor
 
     register_budget_registry(app)
+    register_runner_monitor(app)
 
     def systemlist():
         systems_info = get_all_systems_info()

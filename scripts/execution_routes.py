@@ -79,7 +79,9 @@ def resolve_routes(config, systems, env):
         if not isinstance(names, list) or not names:
             raise RouteError("route systems must be a nonempty list")
         run_tag = _identifier(route["run_tag"])
-        allocation = _identifier(route["allocation_project_id"])
+        allocation = route["allocation_project_id"]
+        if allocation != "":
+            _identifier(allocation)
         build_tag = route.get("build_tag", "")
         if build_tag:
             _identifier(build_tag)

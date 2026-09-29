@@ -2,6 +2,7 @@
 
 import html
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import re
 import sys
@@ -61,6 +62,186 @@ def hidden(response, name):
     match = re.search(r'name="' + name + r'" value="([^"]*)"', response.get_data(as_text=True))
     assert match, response.status_code
     return html.unescape(match.group(1))
+
+
+def setting_options(response):
+    class Options(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.active = False
+            self.key = None
+            self.values = {}
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "select":
+                self.active = attrs.get("name") == "account_id"
+            if tag == "option" and self.active:
+                self.key = attrs["value"]
+                self.values[self.key] = ""
+
+        def handle_data(self, data):
+            if self.key is not None:
+                self.values[self.key] += data
+
+        def handle_endtag(self, tag):
+            if tag == "option":
+                self.key = None
+            if tag == "select":
+                self.active = False
+
+    parser = Options()
+    parser.feed(response.get_data(as_text=True))
+    return parser.values
+
+
+@pytest.fixture
+def batch_portal(portal, tmp_path):
+    app, _ = portal
+    path = tmp_path / "systems.csv"
+    path.write_text("system,tag_build,tag_run\nExample_A,,example-run\nExample_B,,example-run\nOther,other-build,other-run\n")
+    app.config["BUDGET_SYSTEM_CSV"] = str(path)
+    return portal
+
+
+def batch_review(client, **overrides):
+    page = client.get("/budgets/batch")
+    values = dict(systems=["Example_A", "Example_B"], connection_id="gitlab:example",
+                  build_tag="", run_tag="example-run", allocation_project_id="", enabled="on",
+                  revision=hidden(page, "revision"), csrf_token=hidden(page, "csrf_token"))
+    values.update({"label:" + name: name for name in values["systems"]})
+    values.update(overrides)
+    return client.post("/budgets/batch/review", data=values)
+
+
+def test_batch_review_apply_empty_allocation_and_replay(batch_portal, registry, configured_target):
+    app, _ = batch_portal
+    client = app.test_client()
+    login(client)
+    before = registry.catalog(ADMIN)
+    response = batch_review(client)
+    assert response.status_code == 200
+    assert b"Not specified" in response.data and b"Example_A" in response.data
+    assert registry.catalog(ADMIN) == before
+    assert apply(client, response, run_tag="unreviewed").status_code == 302
+    after = registry.catalog(ADMIN)
+    assert {row["system"] for row in after["budgets"]} == {"Example_A", "Example_B"}
+    assert {row["allocation_project_id"] for row in after["destinations"]} == {""}
+    assert {row["run_tag"] for row in after["execution_accounts"]} == {"example-run"}
+    assert apply(client, response).status_code == 409
+    assert batch_review(client).status_code == 400
+    assert registry.catalog(ADMIN) == after
+
+
+@pytest.mark.parametrize("systems", [[], ["unknown"], ["Example_A", "Example_A"]])
+def test_batch_rejects_unlisted_or_duplicate_systems(batch_portal, registry, configured_target, systems):
+    app, _ = batch_portal
+    client = app.test_client()
+    login(client)
+    assert batch_review(client, systems=systems).status_code == 400
+    assert registry.check() == 0
+
+
+def test_batch_access_csrf_and_revalidation(batch_portal, registry, configured_target, monkeypatch):
+    app, users = batch_portal
+    client = app.test_client()
+    assert client.get("/budgets/batch").status_code == 302
+    seed(registry)
+    login(client, MANAGER.principal)
+    assert client.get("/budgets/batch").status_code == 403
+    login(client)
+    assert client.post("/budgets/batch/review", data={"systems": "Example_A"}).status_code == 400
+    proposed = batch_review(client)
+    assert proposed.status_code == 200
+    before = registry.catalog(ADMIN)
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TARGETS", "example=gitlab.example.org/changed/project")
+    assert apply(client, proposed).status_code == 409
+    assert registry.check() == before["revision"]
+    users.users[ADMIN.principal] = []
+    assert apply(client, proposed).status_code == 403
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    assert client.get("/budgets/batch").status_code == 404
+
+
+def test_individual_editor_saves_without_allocation(portal, registry, configured_target):
+    app, _ = portal
+    client = app.test_client()
+    login(client)
+    proposed = review(client, {**setup_form_values(), "allocation_project_id": ""}, "budget_setup")
+    assert proposed.status_code == 200
+    assert apply(client, proposed).status_code == 302
+    assert registry.catalog(ADMIN)["destinations"][0]["allocation_project_id"] == ""
+
+
+def test_comma_separated_systems_are_rejected_without_partial_registration(portal, registry, configured_target):
+    app, _ = portal
+    client = app.test_client()
+    login(client)
+    before = registry.catalog(ADMIN)
+    response = review(client, {**setup_form_values(), "system": "Example_A,Example_B",
+                              "allocation_project_id": ""}, "budget_setup")
+    assert response.status_code == 400
+    assert b"Enter one system name, without commas" in response.data
+    assert b"Add multiple systems" in response.data
+    assert b"Example_A,Example_B" not in response.data
+    assert registry.catalog(ADMIN) == before
+    page = client.get("/budgets/")
+    assert b"Budget with multiple execution targets" in page.data
+
+
+def test_saved_settings_display_configuration_independently_of_budget_name(portal, registry):
+    app, _ = portal
+    revision = seed(registry)
+    client = app.test_client()
+    login(client)
+    before = registry.catalog(ADMIN)["execution_accounts"]
+    original = setting_options(client.get("/budgets/?edit=research"))["research-account"]
+    for value in ("Compute project", "example-build", "example-run", "ExampleSystem"):
+        assert value in original
+    assert before[0]["label"] not in original
+    revision = registry.save_budget(ADMIN, revision, id="research", label="Renamed budget", system="ExampleSystem")
+    page = client.get("/budgets/?edit=research")
+    assert "Renamed budget @ ExampleSystem" in page.get_data(as_text=True)
+    assert setting_options(page)["research-account"] == original
+    assert registry.catalog(ADMIN)["execution_accounts"] == before
+    registry.save_account(ADMIN, revision, id="research-account", label=before[0]["label"], system="ExampleSystem",
+                          connection_id="compute", build_tag="", run_tag="changed-run")
+    changed = setting_options(client.get("/budgets/?edit=research"))["research-account"]
+    assert "changed-run" in changed and "example-run" not in changed
+    assert "example-build" not in changed
+
+
+def test_identical_setting_combinations_remain_distinguishable(portal, registry):
+    app, _ = portal
+    revision = seed(registry)
+    registry.save_account(ADMIN, revision, id="second-settings", label="Another legacy name", system="ExampleSystem",
+                          connection_id="compute", build_tag="example-build", run_tag="example-run")
+    client = app.test_client()
+    login(client)
+    options = setting_options(client.get("/budgets/"))
+    assert options["research-account"] != options["second-settings"]
+    assert "research-account" in options["research-account"]
+    assert "second-settings" in options["second-settings"]
+
+
+def test_allocation_column_is_scoped_to_managed_budgets_and_never_public(portal, registry):
+    app, _ = portal
+    revision = seed(registry)
+    revision = registry.save_budget(ADMIN, revision, id="other", label="Other budget", system="ExampleSystem")
+    registry.save_destination(ADMIN, revision, id="other-destination", budget_id="other", system="ExampleSystem",
+                              account_id="research-account", allocation_project_id="other-allocation")
+    client = app.test_client()
+    login(client, MANAGER.principal)
+    body = client.get("/budgets/").get_data(as_text=True)
+    assert "<th>Scheduler allocation ID</th>" in body
+    assert "budget-example" in body
+    assert "other-allocation" not in body
+    login(client)
+    body = client.get("/budgets/").get_data(as_text=True)
+    assert "other-allocation" in body
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    response = client.get("/budgets/")
+    assert response.status_code == 404 and b"budget-example" not in response.data
 
 
 @pytest.mark.parametrize('principal,query', [
@@ -307,6 +488,87 @@ def test_registration_only_configures_paths(monkeypatch, tmp_path):
     assert app.config["BUDGET_REGISTRY_DB_PATH"] == str(path)
     assert not path.exists()
     assert "/example/budgets/" in {rule.rule for rule in app.url_map.iter_rules()}
+
+
+@pytest.mark.parametrize("prefix", ["", "/preview/console"])
+def test_budget_editor_script_uses_console_prefix_and_live_authorization(portal, registry, tmp_path, prefix):
+    _app, users = portal
+    app = build_portal_route_app(
+        templates_dir=str(Path(__file__).resolve().parents[1] / "templates"),
+        received_dir=str(tmp_path / "received"), estimated_dir=str(tmp_path / "estimated"), user_store=users)
+    register_budget_registry(app, prefix)
+    init_csrf(app)
+    app.config.update(BUDGET_REGISTRY_DB_PATH=str(registry.storage.path),
+                      BUDGET_REGISTRY_KEY_FILE=str(registry.storage.key_file))
+    client = app.test_client()
+    script = prefix + "/budgets/editor.js"
+    assert client.get(script).status_code == 302
+    login(client)
+    page = client.get(prefix + "/budgets/")
+    assert f'src="{script}"' in page.get_data(as_text=True)
+    response = client.get(script)
+    assert response.status_code == 200 and response.mimetype == "text/javascript"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert b"updateChoices" in response.data
+    users.users[ADMIN.principal] = []
+    assert client.get(script).status_code == 403
+    app.config["PUBLIC_PORTAL_MODE"] = True
+    assert client.get(script).status_code == 404
+
+
+def test_budget_choices_are_readonly_scoped_and_not_exposed_to_managers(portal, registry, monkeypatch):
+    from datetime import datetime, timezone
+    from utils.runner_observations import RunnerObservations, collect
+    from utils.runner_monitor import MonitorTarget, RunnerClient
+    from routes.runner_monitor import register_runner_monitor
+    from test_runner_monitor import FakeClient
+    seed(registry)
+    app, _ = portal
+    register_runner_monitor(app)
+    app.config.update(RUNNER_MONITOR_DB_PATH=str(registry.storage.path),
+                      RUNNER_MONITOR_KEY_FILE=str(registry.storage.key_file))
+    snapshot = collect([MonitorTarget("example", "https://gitlab.example.org", "group/benchmark", Path("/example/token"))],
+                       {}, client_factory=FakeClient, now=datetime.now(timezone.utc).isoformat())
+    next(iter(snapshot["runners"].values()))["detail"]["data"]["description"] = "</script><script>bad()</script>"
+    reads = []
+    monkeypatch.setattr(RunnerObservations, "read", lambda self: reads.append(True) or snapshot)
+    monkeypatch.setattr(RunnerClient, "_get", lambda *args: pytest.fail("UI must not call GitLab"))
+    monkeypatch.setattr(RunnerObservations, "save", lambda *args: pytest.fail("UI must not write observations"))
+    client = app.test_client()
+    login(client)
+    before = registry.management_catalog(ADMIN)
+    body = client.get("/budgets/?edit=research").get_data(as_text=True)
+    payload = re.search(r'id="budget-runner-data">(.*?)</script>', body, re.S).group(1)
+    assert json.loads(payload)["compute"]["runners"][0]["fresh"]
+    assert "</script><script>bad()" not in body
+    assert registry.management_catalog(ADMIN) == before
+    assert len(reads) == 1
+    login(client, MANAGER.principal)
+    body = client.get("/budgets/?edit=research").get_data(as_text=True)
+    assert "budget-runner-data" not in body and "example-run" not in body
+    assert len(reads) == 1
+
+
+def test_unavailable_observations_do_not_block_existing_budget_edit(portal, registry, tmp_path):
+    from routes.runner_monitor import register_runner_monitor
+    seed(registry)
+    app, _ = portal
+    register_runner_monitor(app)
+    missing = tmp_path / "missing-observations.db"
+    app.config.update(RUNNER_MONITOR_DB_PATH=str(missing), RUNNER_MONITOR_KEY_FILE=str(tmp_path / "missing.key"))
+    client = app.test_client()
+    login(client)
+    page = client.get("/budgets/?edit=research")
+    assert page.status_code == 200
+    assert b'"state": "unavailable"' in page.data
+    assert b'value="example-run"' in page.data
+    assert not missing.exists()
+    proposal = review(client, {"budget_id": "research", "destination_id": "research-system", "label": "Research",
+                              "system": "ExampleSystem", "account_id": "research-account", "loaded_account_id": "research-account",
+                              "connection_id": "compute", "build_tag": "example-build", "run_tag": "manual-run",
+                              "allocation_project_id": "budget-example", "enabled": "on"}, "budget_setup")
+    assert proposal.status_code == 200
+    assert apply(client, proposal).status_code == 302
 
 
 def test_budget_system_registration_uses_generated_ids_and_returns_to_managers(portal, registry):

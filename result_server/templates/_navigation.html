@@ -115,6 +115,9 @@
         <a href="{{ url_for('budget_registry.index') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('budget_registry.') %}active{% endif %}">Budgets</a>
         {% endif %}
         {% if 'admin' in session.get('user_affiliations', []) %}
+        {% if config.get('RUNNER_MONITOR_DB_PATH') and config.get('RUNNER_MONITOR_KEY_FILE') %}
+        <a href="{{ url_for('runner_monitor.index') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('runner_monitor.') %}active{% endif %}">Runners</a>
+        {% endif %}
         <a href="{{ url_for('results.usage_report') }}" class="nav-link {% if request.endpoint == 'results.usage_report' %}active{% endif %}">Usage</a>
         {% endif %}
         {% else %}

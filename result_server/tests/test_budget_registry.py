@@ -63,6 +63,64 @@ def seed(store):
                                   allocation_project_id="budget-example")
 
 
+def batch_values():
+    return dict(entries=[dict(budget_id="budget-" + name, destination_id="destination-" + name,
+                              account_id="account-" + name, system=name, label=name)
+                         for name in ("Example_A", "Example_B")],
+                connection_id="gitlab:example", build_tag="", run_tag="example-run",
+                allocation_project_id="", enabled=True)
+
+
+def test_batch_without_allocation_is_atomic_and_resolves_each_system(registry, configured_target):
+    values = batch_values()
+    before = registry.catalog(ADMIN)
+    registry.create_budget_batch(ADMIN, before["revision"], **values, preview=True)
+    assert registry.catalog(ADMIN) == before
+    registry.create_budget_batch(ADMIN, before["revision"], **values)
+    after = registry.catalog(ADMIN)
+    assert {row["system"] for row in after["budgets"]} == {row["system"] for row in values["entries"]}
+    for entry in values["entries"]:
+        route = registry.resolve(ADMIN, entry["destination_id"])["route"]
+        assert route["allocation_project_id"] == ""
+        assert route["run_tag"] == values["run_tag"]
+        assert route["systems"] == [entry["system"]]
+    with pytest.raises(RegistryError):
+        registry.create_budget_batch(ADMIN, after["revision"], **values)
+    assert registry.catalog(ADMIN) == after
+
+
+@pytest.mark.parametrize("problem", ["label", "duplicate_system", "duplicate_id", "allocation", "manager", "stale"])
+def test_failed_batch_leaves_no_partial_records_or_history(registry, configured_target, problem):
+    values = batch_values()
+    actor, revision = ADMIN, 0
+    if problem == "label":
+        values["entries"][-1]["label"] = ""
+    elif problem == "duplicate_system":
+        values["entries"][-1]["system"] = values["entries"][0]["system"]
+    elif problem == "duplicate_id":
+        values["entries"][-1]["account_id"] = values["entries"][0]["account_id"]
+    elif problem == "allocation":
+        values["allocation_project_id"] = "--invalid"
+    elif problem == "manager":
+        actor = MANAGER
+    else:
+        revision = 99
+    before = registry.catalog(ADMIN)
+    with pytest.raises(RegistryError):
+        registry.create_budget_batch(actor, revision, **values)
+    assert registry.catalog(ADMIN) == before
+
+
+def test_individual_destination_allows_empty_allocation_but_rejects_invalid_value(registry):
+    revision = seed(registry)
+    values = dict(id="research-system", budget_id="research", system="ExampleSystem", account_id="research-account")
+    revision = registry.save_destination(ADMIN, revision, **values, allocation_project_id="")
+    assert registry.resolve(ADMIN, "research-system")["route"]["allocation_project_id"] == ""
+    for invalid in (None, False, "-bad", " "):
+        with pytest.raises(RegistryError):
+            registry.save_destination(ADMIN, revision, **values, allocation_project_id=invalid)
+
+
 def test_encrypted_at_rest_and_wrong_key(registry, tmp_path, capfd):
     seed(registry)
     path = registry.storage.path
@@ -409,6 +467,7 @@ def test_complete_budget_setup_is_atomic_and_reuses_shared_records(registry, con
     assert snapshot["target"]["project_path"] == "group/project"
     assert snapshot["route"]["run_tag"] == values["run_tag"]
     before = registry.catalog(ADMIN)
+    assert before["execution_accounts"][0]["label"] != values["label"]
     values.update(new_account=False, budget_id="another-budget", destination_id="another-destination")
     registry.save_budget_setup(ADMIN, revision, **values)
     after = registry.management_catalog(ADMIN)
@@ -501,6 +560,7 @@ def legacy_empty_registry(registry):
     """Recreate the version-1 prototype schema in an encrypted fixture only."""
     with registry.storage.connect() as conn:
         with conn:
+            conn.execute("DROP TABLE budget_defaults")
             conn.execute("ALTER TABLE connections DROP COLUMN target_id")
             conn.execute("ALTER TABLE budgets DROP COLUMN system")
             conn.execute("ALTER TABLE budget_managers RENAME TO budget_members")
@@ -532,6 +592,7 @@ def test_empty_prototype_migration_is_explicit_and_backed_up(registry, tmp_path)
 def test_empty_version_two_migration(registry, tmp_path):
     with registry.storage.connect() as conn:
         with conn:
+            conn.execute("DROP TABLE budget_defaults")
             conn.execute("ALTER TABLE connections DROP COLUMN target_id")
             conn.execute("UPDATE registry_meta SET schema_version=2")
     backup = tmp_path / "backup" / "version-two.db"

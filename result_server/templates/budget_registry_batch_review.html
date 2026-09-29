@@ -1,0 +1,25 @@
+{% extends "_results_base.html" %}
+{% block title %}Review Budget Batch{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+<section class="budget-section">
+    <h2>Shared settings / Revision {{ revision }}</h2>
+    <dl class="budget-facts">
+        <dt>GitLab connection</dt><dd>{{ connection.label }}</dd>
+        <dt>Build tag</dt><dd>{{ values.build_tag or 'Not specified' }}</dd>
+        <dt>Run tag</dt><dd>{{ values.run_tag }}</dd>
+        <dt>Scheduler allocation ID</dt><dd>{{ values.allocation_project_id or 'Not specified' }}</dd>
+        <dt>Status</dt><dd>{{ 'Enabled' if values.enabled else 'Disabled' }}</dd>
+    </dl>
+</section>
+<section class="budget-section">
+    <h2>New budgets</h2>
+    <div class="budget-table-scroll"><table>
+        <thead><tr><th>Budget name</th><th>System</th></tr></thead>
+        <tbody>{% for entry in values.entries %}<tr><td>{{ entry.label }}</td><td>{{ entry.system }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p>Creates one Budget and independent execution settings per system. Existing budgets are unchanged. Budget managers can be assigned after creation. No pipelines are started.</p>
+    {% include "_budget_apply_form.html" %}
+</section>
+{% endblock %}

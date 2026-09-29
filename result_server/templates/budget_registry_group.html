@@ -1,0 +1,48 @@
+{% extends "_results_base.html" %}
+{% from "_budget_registry_fields.html" import fields, context, field_help with context %}
+{% block title %}Budget{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+{% include "_budget_registry_nav.html" %}
+<section class="budget-section" id="budget-editor">
+    <div class="budget-heading"><h2>{{ budget.label if budget else 'Add Budget' }}</h2>
+        {% if budget %}<a href="{{ url_for('budget_registry.index', edit=budget.id) }}#budget-managers">Manage budget managers</a>{% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('budget_registry.group_review') }}" class="budget-form" data-budget-setup data-budget-group>
+        {{ context('budget_group', catalog.revision) }}
+        <fieldset class="budget-fieldset">
+            <legend>Budget / Managed system</legend>
+            {{ fields(specs.budget_group[2][:7], selected, catalog) }}
+            {% if allocation_conflict %}<p class="budget-wide" role="alert">Existing targets have different allocation IDs. Applying this change replaces them with the allocation shown above.</p>{% endif %}
+        </fieldset>
+        {% include "_budget_execution_settings.html" %}
+        <fieldset class="budget-fieldset budget-wide">
+            <legend>Execution targets</legend>
+            <div class="budget-field"><label for="target-filter">Target name</label><input type="search" id="target-filter" data-target-filter></div>
+            <label class="budget-actions"><input type="checkbox" data-target-tag-filter> Matching common run tag only</label>
+            <div class="budget-actions budget-wide"><label><input type="checkbox" data-select-targets> Select visible targets</label><span data-target-count role="status"></span></div>
+            <div class="budget-table-scroll budget-wide"><table class="budget-target-table">
+                <thead><tr><th>Use</th><th>Execution target</th><th>Catalog tag hints</th><th>Execution settings</th></tr></thead>
+                <tbody>{% for item in systems %}
+                {% set target = targets.get(item.system, {}) %}
+                <tr data-group-target data-system="{{ item.system }}" data-run-tag="{{ item.run_tag }}">
+                    <td><input type="checkbox" name="targets" value="{{ item.system }}" aria-label="Use {{ item.system }}" {% if target %}checked{% endif %}></td>
+                    <th scope="row">{{ item.system }}{% if item.unavailable %}<span>Unavailable in system configuration</span>{% endif %}</th>
+                    <td><div>Build: {{ item.build_tag or '-' }}</div><div>Run: {{ item.run_tag or '-' }}</div></td>
+                    <td><select name="target_account:{{ item.system }}" aria-label="Execution settings for {{ item.system }}" data-target-account>
+                        <option value="">Common settings</option>
+                        {% for option in catalog.execution_accounts %}<option value="{{ option.id }}" data-system="{{ option.system }}" {% if target.get('account_id') == option.id and option.id != selected.account_id %}selected{% endif %}>{{ option.display_label }}</option>{% endfor %}
+                    </select></td>
+                </tr>
+                {% endfor %}</tbody>
+            </table></div>
+            <div class="budget-wide"><a href="{{ url_for('budget_registry.index', section='execution_accounts') }}">Manage execution settings</a></div>
+        </fieldset>
+        <div class="budget-actions"><button type="submit">Review change</button><a href="{{ url_for('budget_registry.index') }}">Cancel</a></div>
+    </form>
+</section>
+<script type="application/json" id="budget-execution-data">{{ execution_choices | tojson }}</script>
+<script type="application/json" id="budget-runner-data">{{ runner_choices | tojson }}</script>
+<script src="{{ url_for('budget_registry.editor_script') }}" defer></script>
+{% endblock %}

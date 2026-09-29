@@ -8,7 +8,7 @@
 {% if name not in data %}-
 {% elif name == 'assigned' %}{{ 'Assigned' if value else 'Not assigned' }}
 {% elif input_type == 'checkbox' %}{{ 'Enabled' if value else 'Disabled' }}
-{% elif input_type in ['budgets', 'execution_accounts', 'connections'] %}{% set match = catalog[input_type] | selectattr('id', 'equalto', value) | first %}{% if match %}{{ match.label }}{% elif input_type == 'execution_accounts' and values.get('new_account') %}New execution settings{% elif input_type == 'connections' and values.get('new_connection') %}{{ values.connection_label }}{% else %}-{% endif %}
+{% elif input_type in ['budgets', 'execution_accounts', 'connections'] %}{% set match = catalog[input_type] | selectattr('id', 'equalto', value) | first %}{% if match %}{{ match.display_label if input_type == 'execution_accounts' else match.label }}{% elif input_type == 'execution_accounts' and values.get('new_account') %}New execution settings{% elif input_type == 'connections' and values.get('new_connection') %}{{ values.connection_label }}{% else %}-{% endif %}
 {% elif value is none %}-
 {% else %}{{ value or '-' }}{% endif %}
 {% endmacro %}
@@ -21,14 +21,27 @@
     </table></div>
 </section>
 {% endfor %}
+{% if kind == 'budget_group' %}
+<section class="budget-section">
+    <h2>Execution targets</h2>
+    <div class="budget-table-scroll"><table>
+        <thead><tr><th>Execution target</th><th>Change</th><th>Current settings / Allocation</th><th>Proposed settings / Allocation</th></tr></thead>
+        <tbody>{% for target in values.targets %}
+        {% set old = old_targets | selectattr('id', 'equalto', target.id) | first %}
+        <tr><th>{{ target.system }}</th><td>{{ 'Retained' if old else 'Added' }}</td>
+            <td>{% if old %}{{ display('account_id', 'execution_accounts', old) }}<div>{{ old.allocation_project_id or 'Not specified' }}</div>{% else %}-{% endif %}</td>
+            <td>{% if target.account_id %}{{ display('account_id', 'execution_accounts', target) }}{% else %}Common settings{% endif %}<div>{{ values.allocation_project_id or 'Not specified' }}</div></td></tr>
+        {% endfor %}
+        {% set retained = values.targets | map(attribute='id') | list %}
+        {% for target in old_targets if target.id not in retained %}
+        <tr><th>{{ target.system }}</th><td>Removed</td><td>{{ display('account_id', 'execution_accounts', target) }}<div>{{ target.allocation_project_id or 'Not specified' }}</div></td><td>Unavailable for new resolution</td></tr>
+        {% endfor %}</tbody>
+    </table></div>
+</section>
+{% endif %}
 <section class="budget-section">
     <h2>Affected Budgets</h2>
-    <ul>{% for row in impact %}<li>{% if kind in ['budget_setup', 'budget_system', 'budgets'] and row.budget_id == values.get('budget_id', values.get('id')) %}{{ values.label }}{% else %}{% for budget in catalog.budgets if budget.id == row.budget_id %}{{ budget.label }}{% endfor %}{% endif %} @ {{ row.system }}</li>{% else %}<li>None</li>{% endfor %}</ul>
-    <form method="POST" action="{{ url_for('budget_registry.apply') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="ticket" value="{{ ticket }}">
-        <label class="budget-confirm"><input type="checkbox" name="confirm_shared_change" required>Apply to the shared registry used by all connected Portals</label>
-        <div class="budget-actions"><button type="submit">Apply change</button><a href="{{ back_url }}">Cancel</a></div>
-    </form>
+    <ul>{% for row in impact %}<li>{% if kind in ['budget_setup', 'budget_system', 'budget_group', 'budgets'] and row.budget_id == values.get('budget_id', values.get('id')) %}{{ values.label }}{% else %}{% for budget in catalog.budgets if budget.id == row.budget_id %}{{ budget.label }}{% endfor %}{% endif %} @ {{ row.system }}</li>{% else %}<li>None</li>{% endfor %}</ul>
+    {% include "_budget_apply_form.html" %}
 </section>
 {% endblock %}

@@ -1,10 +1,13 @@
 <div class="budget-toolbar">
     <nav class="budget-tabs" aria-label="Budget management">
-        <a href="{{ url_for('budget_registry.index') }}" {% if kind == 'overview' %}aria-current="page"{% endif %}>Budget @ System</a>
+        <a href="{{ url_for('budget_registry.index') }}" {% if kind == 'overview' %}aria-current="page"{% endif %}>Budgets</a>
         {% if actor.is_admin %}
         <details class="budget-advanced" {% if kind in ['execution_accounts', 'connections'] %}open{% endif %}>
             <summary>Infrastructure</summary>
             <div class="budget-tabs">
+                {% if config.get('RUNNER_MONITOR_DB_PATH') and config.get('RUNNER_MONITOR_KEY_FILE') %}
+                <a href="{{ url_for('runner_monitor.index') }}">Runners</a>
+                {% endif %}
                 {% for key in ['execution_accounts', 'connections'] %}
                 <a href="{{ url_for('budget_registry.index', section=key) }}" {% if kind == key %}aria-current="page"{% endif %}>{{ specs[key][0] }}</a>
                 {% endfor %}

@@ -1,0 +1,41 @@
+{% extends "_results_base.html" %}
+{% from "_budget_registry_fields.html" import fields, context with context %}
+{% block title %}Add Multiple Systems{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+{% include "_budget_registry_style.html" %}
+{% include "_budget_registry_nav.html" %}
+<form method="POST" action="{{ url_for('budget_registry.batch_review') }}" data-budget-batch>
+    {{ context('budget_batch', catalog.revision) }}
+    <section class="budget-section">
+        <h2>Shared GitLab / runner tags</h2>
+        <div class="budget-form">
+            {{ fields([('connection_id', 'GitLab connection', 'connections')], selected, catalog) }}
+            {{ fields([('enabled', 'Enabled', 'checkbox')], selected, catalog) }}
+            {% include "_budget_runner_fields.html" %}
+            {{ fields([('allocation_project_id', 'Scheduler allocation ID', 'text')], selected, catalog) }}
+        </div>
+    </section>
+    <section class="budget-section">
+        <h2>Systems</h2>
+        <p>Each selected system gets its own Budget and execution settings. Existing budgets are not replaced. Tag matches are configuration hints, not proof of access.</p>
+        <div class="budget-form">
+            <label>System candidates<select name="candidate_scope"><option value="matching">Matching run tag</option><option value="all">All registered systems</option></select></label>
+            <label><span><input type="checkbox" data-select-systems> Select available systems</span></label>
+        </div>
+        <p role="status" data-batch-count></p>
+        <div class="budget-table-scroll"><table>
+            <thead><tr><th>System</th><th>Budget name</th><th>Configured build / run tags</th><th>Status</th></tr></thead>
+            <tbody>{% for item in systems %}<tr data-batch-system data-run-tag="{{ item.run_tag }}">
+                <td><label><input type="checkbox" name="systems" value="{{ item.system }}" {% if item.registered %}disabled{% endif %}> {{ item.system }}</label></td>
+                <td><input class="budget-batch-name" data-budget-name name="label:{{ item.system }}" value="{{ item.system }}" aria-label="Budget name for {{ item.system }}" maxlength="256" {% if item.registered %}disabled{% endif %}></td>
+                <td>{{ item.build_tag or '-' }} / {{ item.run_tag }}</td>
+                <td>{{ 'Already registered' if item.registered else 'Available' }}</td>
+            </tr>{% else %}<tr><td colspan="4">No configured systems.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
+    <div class="budget-actions"><button type="submit">Review batch</button><a href="{{ url_for('budget_registry.index') }}">Cancel</a></div>
+</form>
+<script type="application/json" id="budget-runner-data">{{ runner_choices | tojson }}</script>
+<script src="{{ url_for('budget_registry.editor_script') }}" defer></script>
+{% endblock %}
