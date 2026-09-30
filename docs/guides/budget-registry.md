@@ -207,7 +207,7 @@ snapshots: the runner's deployment determines its OS identity. The storage schem
 retains a retired account-name column to preserve existing records without an
 implicit migration; new records leave it empty. Validity dates remain optional.
 
-Budget, destination and runner-tag edits are reviewed and saved in one transaction.
+Budget, destination and runner-tag edits are validated and saved atomically.
 A newly used server target reference is recorded in that same transaction.
 Validation failure or preview leaves no partial records or history changes behind.
 Reusing unchanged settings preserves their IDs and creates no extra history for
@@ -228,20 +228,36 @@ does not require an allocation override. Empty is stored and resolved as an empt
 string, not a fabricated account ID or a public Activity label. Scheduler access
 and site defaults still apply.
 
-**Register separate budgets** (the legacy **Add multiple systems** action) is a
-separate batch workflow, not the grouped editor. It lets CX administrators choose one GitLab connection
-and build/run tag pair, then select multiple systems. The default candidate view
-matches the run tag against `config/system.csv`; it is a configuration hint,
-not proof of runner or allocation access. Alternate tags can be entered manually
-and systems selected from the full list. Existing systems with budgets are
-excluded from batch creation; use their individual editors instead.
+**Add budget** is the registration entry point for both one and multiple execution
+targets. Selecting multiple targets creates one Budget, not separate Budgets for
+each target. Independent Budgets are registered individually through the same form.
+The overview no longer includes a separate single-target creation form.
+Budget names link to their editor; there is no duplicate Edit action column.
+Execution-target rows display the GitLab connection and build/run tags that will
+be saved, including unsaved edits to the common settings. A target-specific
+selector appears only when alternative saved settings exist for the same managed
+system. Other scopes and the common record itself are not offered as alternatives.
+An unavailable selected override must be corrected explicitly, never silently
+replaced by the common settings.
 
-The review shows the common settings and each new Budget name/system. Applying
-creates a separate Budget, destination and execution-setting record per system
-in one transaction. A validation error, stale revision, or changed connection
-rolls back the entire batch. No existing record is replaced, no managers are
-automatically assigned, and no pipelines are started. The shared registry affects
-every connected Portal even when the editor is opened in only one deployment.
+Changing the managed-system name while registering a budget retains entered tags.
+If the selected saved settings belong to another scope, choose matching settings
+or explicitly choose new settings before saving. Scope checks still apply on the
+server. Runner match summaries show counts rather than repeating names; their
+links open the connection-filtered inventory separately from the editor.
+
+The existing Status column distinguishes disabled, not started, expired,
+unconfigured, and within-validity budgets. Dates are inclusive in UTC. These
+labels describe registry state, not runner availability or submission readiness.
+Recent changes show record names and operations; changed field names are available
+on expansion without displaying before/after operational values in the list.
+
+The former separate-budget batch page redirects to Add budget. Previously opened
+batch forms and signed batch reviews cannot be submitted; use
+Add budget. Existing records are preserved, never automatically merged or deleted.
+Registries on schema v3 retain their single-target editor until explicitly migrated.
+The shared registry affects every connected Portal even when the editor is opened
+in only one deployment. No pipelines are started by registration.
 
 The default ID-token audience resolves to the selected GitLab server URL.
 Exceptional runner requirements belong under **Infrastructure / Execution settings**.
@@ -269,10 +285,28 @@ labels alone do not grant management access. An unavailable identity backend
 does not fall back to cached privileges. Deployment must use a trusted user
 directory and must not grant administrative rights to untrusted accounts.
 
-Changes go through review and explicit shared-registry confirmation. Review
-uses the same validation and authorization as writes, inside a transaction
-that is rolled back; no revision or history entry is committed. The preview
-shows before/after fields and affected destinations. Confirmation uses a
+Ordinary registration and edits use **Save budget** and return to the Budget list
+with a one-time success notice and the saved row highlighted. Manager assignments
+return to the manager panel; Infrastructure changes return to their section.
+The shared-registry scope is a standing label, not a checkbox on every save.
+
+Validation errors retain the grouped editor's entries and selected targets.
+Invalid date intervals are marked at the date field. A revision conflict retains
+the proposal but requires a new review against current records before saving;
+there is no automatic retry or overwrite. Recovery from an apply failure uses
+only the actor-bound, unexpired signed proposal, not replacement POST fields.
+Recovery does not save drafts in browser storage, cookies, or an auxiliary DB.
+
+Changing execution settings referenced by another Budget opens a review showing
+those Budgets. Infrastructure changes affecting Budgets also require confirmation.
+References include saved common settings even when current targets use overrides.
+Reusing unchanged settings or editing only the current Budget does not require
+this review. Impact is determined server-side and rechecked when applying.
+
+Every save retains validation, authorization, CSRF and revision checks. Validation
+uses the same storage rules in a rolled-back preview before the write; a stale
+revision or changed connection aborts the write without partial changes. Where
+review is required, it shows before/after fields and affected Budgets, and uses a
 signed proposal bound to the actor and revision, expiring after ten minutes.
 Changed proposals, stale revisions, replayed submissions, expired reviews,
 revoked access, and missing CSRF tokens are rejected. No proposal is stored in
@@ -283,7 +317,7 @@ The storage API itself still applies successful writes immediately. Persistent
 drafts, separate approvers, and cross-database profile impact analysis are not
 implemented. The current review identifies affected registry destinations,
 not every external profile or scheduled trigger. Updates to enabled records
-affect subsequent resolution after confirmation.
+affect subsequent resolution after saving.
 
 Profile references, execution selection, and the shared manual/scheduled/watch
 resolver remain pending. Runner registration, scheduler authorization, and CI

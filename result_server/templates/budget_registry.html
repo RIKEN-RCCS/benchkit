@@ -25,8 +25,9 @@
     <h2>{{ 'Edit' if selected else 'Add' }} {{ specs[kind][0] }}</h2>
     <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-form">
         {{ context(kind, catalog.revision) }}
+        {% include "_budget_form_error.html" %}
         {{ fields(specs[kind][2], selected, catalog) }}
-        <div class="budget-actions"><button type="submit">Review change</button>{% if selected %}<a href="{{ url_for('budget_registry.index', section=kind) }}">Cancel</a>{% endif %}</div>
+        <div class="budget-actions"><button type="submit" name="action" value="{{ 'review' if retry_review else 'save' }}">{{ 'Review latest changes' if retry_review else 'Save changes' }}</button>{% if selected %}<a href="{{ url_for('budget_registry.index', section=kind) }}">Cancel</a>{% endif %}</div>
     </form>
 </section>
 {% endif %}

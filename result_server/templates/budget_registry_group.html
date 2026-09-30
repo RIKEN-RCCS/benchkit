@@ -11,6 +11,7 @@
     </div>
     <form method="POST" action="{{ url_for('budget_registry.group_review') }}" class="budget-form" data-budget-setup data-budget-group>
         {{ context('budget_group', catalog.revision) }}
+        {% include "_budget_form_error.html" %}
         <fieldset class="budget-fieldset">
             <legend>Budget / Managed system</legend>
             {{ fields(specs.budget_group[2][:7], selected, catalog) }}
@@ -19,6 +20,7 @@
         {% include "_budget_execution_settings.html" %}
         <fieldset class="budget-fieldset budget-wide">
             <legend>Execution targets</legend>
+            {% set target_choices = catalog.execution_accounts | selectattr('system', 'equalto', selected.get('system', '')) | rejectattr('id', 'equalto', selected.account_id) | list %}
             <div class="budget-field"><label for="target-filter">Target name</label><input type="search" id="target-filter" data-target-filter></div>
             <label class="budget-actions"><input type="checkbox" data-target-tag-filter> Matching common run tag only</label>
             <div class="budget-actions budget-wide"><label><input type="checkbox" data-select-targets> Select visible targets</label><span data-target-count role="status"></span></div>
@@ -30,16 +32,26 @@
                     <td><input type="checkbox" name="targets" value="{{ item.system }}" aria-label="Use {{ item.system }}" {% if target %}checked{% endif %}></td>
                     <th scope="row">{{ item.system }}{% if item.unavailable %}<span>Unavailable in system configuration</span>{% endif %}</th>
                     <td><div>Build: {{ item.build_tag or '-' }}</div><div>Run: {{ item.run_tag or '-' }}</div></td>
-                    <td><select name="target_account:{{ item.system }}" aria-label="Execution settings for {{ item.system }}" data-target-account>
+                    <td><select name="target_account:{{ item.system }}" aria-label="Execution settings for {{ item.system }}" data-target-account {% if not target or not target_choices %}hidden{% endif %} {% if not target %}disabled{% endif %}>
                         <option value="">Common settings</option>
-                        {% for option in catalog.execution_accounts %}<option value="{{ option.id }}" data-system="{{ option.system }}" {% if target.get('account_id') == option.id and option.id != selected.account_id %}selected{% endif %}>{{ option.display_label }}</option>{% endfor %}
-                    </select></td>
+                        {% for option in target_choices %}<option value="{{ option.id }}" {% if target.get('account_id') == option.id %}selected{% endif %}>{{ option.display_label }}</option>{% endfor %}
+                        {% if target.get('account_id') and target.account_id != selected.account_id and not (target_choices | selectattr('id', 'equalto', target.account_id) | list) %}<option value="{{ target.account_id }}" selected>Unavailable settings; select again</option>{% endif %}
+                    </select>
+                    {% set override = target_choices | selectattr('id', 'equalto', target.get('account_id')) | first | default({}) %}
+                    {% set effective = override or selected %}
+                    {% set connection = catalog.connections | selectattr('id', 'equalto', effective.get('connection_id')) | first | default({}) %}
+                    <span data-target-mode {% if target and target_choices %}hidden{% endif %}>{{ ('Saved settings' if override else 'Common settings') if target else 'Not selected' }}</span>
+                    <dl class="budget-target-settings" data-target-summary {% if not target %}hidden{% endif %}>
+                        <dt>GitLab</dt><dd data-target-connection>{{ connection.get('label', 'Not selected') }}</dd>
+                        <dt>Build</dt><dd data-target-build>{{ effective.get('build_tag') or 'Not specified' }}</dd>
+                        <dt>Run</dt><dd data-target-run>{{ effective.get('run_tag') or 'Not specified' }}</dd>
+                    </dl></td>
                 </tr>
                 {% endfor %}</tbody>
             </table></div>
             <div class="budget-wide"><a href="{{ url_for('budget_registry.index', section='execution_accounts') }}">Manage execution settings</a></div>
         </fieldset>
-        <div class="budget-actions"><button type="submit">Review change</button><a href="{{ url_for('budget_registry.index') }}">Cancel</a></div>
+        <div class="budget-actions"><button type="submit" name="action" value="{{ 'review' if retry_review else 'save' }}">{{ 'Review latest changes' if retry_review else 'Save budget' }}</button><a href="{{ url_for('budget_registry.index') }}">Cancel</a></div>
     </form>
 </section>
 <script type="application/json" id="budget-execution-data">{{ execution_choices | tojson }}</script>

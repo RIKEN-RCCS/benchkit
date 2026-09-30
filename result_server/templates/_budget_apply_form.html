@@ -1,6 +1,6 @@
 <form method="POST" action="{{ url_for('budget_registry.apply') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="ticket" value="{{ ticket }}">
-    <label class="budget-confirm"><input type="checkbox" name="confirm_shared_change" required>Apply to the shared registry used by all connected Portals</label>
+    {% if shared_budgets %}<label class="budget-confirm"><input type="checkbox" name="confirm_shared_change" required>Confirm changes to the affected budgets</label>{% endif %}
     <div class="budget-actions"><button type="submit">Apply change</button><a href="{{ back_url }}">Cancel</a></div>
 </form>

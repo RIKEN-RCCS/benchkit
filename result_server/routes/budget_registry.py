@@ -1,4 +1,4 @@
-"""Authenticated, review-before-apply management of the shared budget registry."""
+"""Authenticated budget management with review for shared-setting changes."""
 
 from functools import wraps
 from collections import Counter
@@ -7,11 +7,12 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Blueprint, current_app, make_response, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, current_app, flash, make_response, redirect, render_template, request, send_file, session, url_for
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from utils.budget_registry import BudgetRegistry, RegistryActor, RegistryConflict, RegistryError, RegistryPermissionError
 from utils.budget_runner_choices import runner_choices
+from utils.budget_registry_display import decorate_catalog
 from utils.encrypted_sqlite import EncryptedDatabaseError
 from utils.rate_limit import rate_limited
 from utils.runner_observations import RunnerObservations
@@ -38,7 +39,6 @@ SPECS = {
         ("account_id", "Common execution settings", "execution_accounts"),
         ("build_tag", "Build tag", "text"), ("run_tag", "Run tag", "text"),
         ("connection_id", "GitLab connection", "connections")]),
-    "budget_batch": ("Budget batch", "create_budget_batch", []),
     "budget_setup": ("Budget @ System", "save_budget_setup", [
         ("budget_id", "Budget ID", "hidden"), ("destination_id", "Destination ID", "hidden"),
         ("label", "Budget name", "text"), ("enabled", "Enabled", "checkbox"),
@@ -95,16 +95,71 @@ def _restricted(view):
                 response = make_response(view(*args, **kwargs))
             except RegistryPermissionError:
                 response = make_response("Budget access is not permitted", 403)
-            except RegistryConflict:
-                response = make_response("Registry changed. Reload before saving.", 409)
+            except RegistryConflict as exc:
+                response = _input_error(exc, conflict=True)
             except RegistryError as exc:
-                response = make_response(render_template("budget_registry_error.html", message=str(exc)), 400)
+                response = _input_error(exc)
             except EncryptedDatabaseError:
                 response = make_response("Budget registry is unavailable", 503)
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
         return response
     return wrapped
+
+
+def _input_error(exc, *, conflict=False):
+    """Recover only authorized input, never retry or write on a stale revision."""
+    code = 409 if conflict else 400
+    message = ("Registry changed. Your entries are retained; review against the latest settings before saving."
+               if conflict else str(exc))
+    try:
+        _store, actor, catalog = _context()
+        submitted = request.form.to_dict()
+        kind = "budget_group" if request.endpoint == "budget_registry.group_review" else submitted.get("kind")
+        if request.endpoint == "budget_registry.apply":
+            proposal = _signer().loads(submitted.get("ticket", ""), max_age=600)
+            if proposal.get("actor") != actor.principal:
+                raise RegistryPermissionError("Review belongs to another identity")
+            kind = proposal.get("kind")
+            submitted = dict(proposal["values"])
+            if kind in ("budget_setup", "budget_group"):
+                if submitted.get("new_account"):
+                    submitted["account_id"] = ""
+                submitted["loaded_account_id"] = submitted["account_id"]
+                if not any(row["id"] == submitted["budget_id"] for row in catalog["budgets"]):
+                    submitted["budget_id"] = ""
+            for name, _, input_type in SPECS.get(kind, (None, None, []))[2]:
+                if input_type == "checkbox":
+                    submitted[name] = "on" if submitted.get(name) else ""
+        elif request.endpoint not in ("budget_registry.review", "budget_registry.group_review"):
+            raise RegistryError(message)
+        _kind(kind, actor)
+        if any(len(str(submitted.get(name, ""))) > 512 for name, _, _ in SPECS[kind][2]):
+            raise RegistryError(message)
+        retry_review = (conflict or request.endpoint == "budget_registry.apply" or submitted.get("action") == "review"
+                        or str(submitted.get("revision")) != str(catalog["revision"]))
+        error = {"message": message, "field": getattr(exc, "field", None)}
+        if kind == "budget_group":
+            targets = (submitted["targets"] if request.endpoint == "budget_registry.apply" else
+                       [dict(system=name, account_id=request.form.get("target_account:" + name, ""))
+                        for name in request.form.getlist("targets")])
+            if len(targets) > 64:
+                raise RegistryError(message)
+            return make_response(_render_group(actor, catalog, submitted.get("budget_id", ""),
+                                              submitted=submitted, submitted_targets=targets,
+                                              form_error=error, retry_review=retry_review), code)
+        if kind in ("budgets", "connections", "execution_accounts", "budget_managers", "destinations"):
+            current = _current(catalog, kind, submitted)
+            if not actor.is_admin and not current:
+                raise RegistryPermissionError("Budget access is not permitted")
+            selected = {name: (submitted.get(name) == "on" if input_type == "checkbox" else submitted.get(name, ""))
+                        for name, _, input_type in SPECS[kind][2]}
+            return make_response(render_template("budget_registry.html", actor=actor, catalog=catalog,
+                                 specs=SPECS, kinds=_kinds(actor), kind=kind, selected=selected,
+                                 form_error=error, retry_review=retry_review), code)
+    except (RegistryError, EncryptedDatabaseError, BadSignature):
+        pass
+    return make_response(render_template("budget_registry_error.html", message=message), code)
 
 
 def _context():
@@ -138,6 +193,7 @@ def _context():
     for account in catalog["execution_accounts"]:
         if counts[account["display_label"]] > 1:
             account["display_label"] += f" [ID: {account['id']}]"
+    decorate_catalog(catalog)
     return store, actor, catalog
 
 
@@ -167,7 +223,7 @@ def _values(kind, catalog):
             value = value == "on"
         values[name] = value
     if "," in values.get("system", ""):
-        raise RegistryError("Enter one system name, without commas. For multiple systems, open Budget Management and choose Add multiple systems.")
+        raise RegistryError("Enter one system name, without commas. Use Add budget to select execution targets separately.")
     ids = ("budget_id", "destination_id") if kind in ("budget_setup", "budget_system") else ("id",)
     for name in ids:
         if name in values and not values[name]:
@@ -234,7 +290,44 @@ def _runner_choices(actor, catalog):
         snapshot = RunnerObservations(path, key).read()
     except EncryptedDatabaseError:
         return {row["id"]: {"state": "unavailable", "runners": []} for row in catalog["connections"]}
-    return runner_choices(catalog["connections"], snapshot)
+    choices = runner_choices(catalog["connections"], snapshot)
+    if "runner_monitor.index" in current_app.view_functions:
+        for observed in choices.values():
+            if observed["targets"]:
+                observed["runners_url"] = url_for("runner_monitor.index", target=observed["targets"][0])
+    return choices
+
+
+def _shared_budgets(catalog, kind, values):
+    """Include saved defaults even when every current target uses an override."""
+    own_budget = None
+    if kind in ("budget_setup", "budget_group"):
+        own_budget = values["budget_id"]
+        account = next((row for row in catalog["execution_accounts"] if row["id"] == values["account_id"]), None)
+        if not account or all(account[name] == values[name] for name in ("build_tag", "run_tag", "connection_id")):
+            return []
+        accounts = {account["id"]}
+    elif kind in ("execution_accounts", "connections"):
+        previous = next((row for row in catalog[kind] if row["id"] == values["id"]), None)
+        if not previous or all(previous[name] == values[name] for name, _, _ in SPECS[kind][2]):
+            return []
+        accounts = ({values["id"]} if kind == "execution_accounts" else
+                    {row["id"] for row in catalog["execution_accounts"] if row["connection_id"] == values["id"]})
+    else:
+        return []
+    budgets = {row["budget_id"] for row in catalog["destinations"] if row["account_id"] in accounts}
+    budgets.update(row["id"] for row in catalog["budget_defaults"] if row["account_id"] in accounts)
+    return [row for row in catalog["budgets"] if row["id"] in budgets and row["id"] != own_budget]
+
+
+def _save_change(store, actor, revision, kind, values):
+    getattr(store, SPECS[kind][1])(actor, revision, **values)
+    if kind in ("budget_setup", "budget_system", "budget_group", "budgets", "budget_managers"):
+        session["budget_saved_id"] = values.get("budget_id", values.get("id"))
+        flash("Budget managers saved." if kind == "budget_managers" else "Budget saved.", "budget-success")
+    else:
+        flash("Changes saved.", "budget-success")
+    return redirect(_return_url(kind, values))
 
 
 @budget_registry_bp.route("/editor.js", methods=["GET"])
@@ -276,10 +369,14 @@ def _group_targets(values, catalog):
 @_restricted
 def group():
     _store, actor, catalog = _context()
+    return _render_group(actor, catalog, request.args.get("edit", ""))
+
+
+def _render_group(actor, catalog, editing, *, submitted=None, submitted_targets=None,
+                  form_error=None, retry_review=False):
     _kind("budget_group", actor)
     if catalog["schema_version"] < 4:
         raise RegistryError("Execution groups require an explicit database migration")
-    editing = request.args.get("edit", "")
     budget = next((row for row in catalog["budgets"] if row["id"] == editing), {})
     if editing and not budget:
         raise RegistryPermissionError("Registry entry is not permitted")
@@ -290,16 +387,22 @@ def group():
     selected = {**budget, "budget_id": editing, "account_id": account_id,
                 "allocation_project_id": defaults.get("allocation_project_id", targets[0]["allocation_project_id"] if targets else "")}
     selected.update({name: account.get(name, "") for name in ("connection_id", "build_tag", "run_tag")})
+    if submitted is not None:
+        selected.update({name: (submitted.get(name) == "on" if input_type == "checkbox" else submitted.get(name, ""))
+                         for name, _, input_type in SPECS["budget_group"][2]})
+        selected["loaded_account_id"] = submitted.get("loaded_account_id", "")
+        targets = submitted_targets
     systems = _batch_systems(catalog)
     known = {row["system"] for row in systems}
     systems.extend(dict(system=row["system"], build_tag="", run_tag="", unavailable=True)
                    for row in targets if row["system"] not in known)
-    allocations = {row["allocation_project_id"] for row in targets}
+    allocations = {row.get("allocation_project_id", selected.get("allocation_project_id", "")) for row in targets}
     return render_template("budget_registry_group.html", actor=actor, catalog=catalog, specs=SPECS,
                            kind="budget_group", budget=budget, selected=selected, systems=systems,
                            targets={row["system"]: row for row in targets}, allocation_conflict=len(allocations) > 1,
                            runner_choices=_runner_choices(actor, catalog),
-                           execution_choices=catalog["execution_accounts"])
+                           execution_choices=catalog["execution_accounts"],
+                           form_error=form_error, retry_review=retry_review)
 
 
 @budget_registry_bp.route("/group/review", methods=["POST"])
@@ -353,6 +456,9 @@ def group_review():
             raise RegistryError("Select available execution settings for every target")
         values["expected_target_connections"][target_connection["id"]] = target_connection
     store.save_budget_group(actor, revision, **values, preview=True)
+    shared_budgets = _shared_budgets(catalog, "budget_group", values)
+    if request.form.get("action") == "save" and not shared_budgets:
+        return _save_change(store, actor, revision, "budget_group", values)
     ticket = _signer().dumps(dict(actor=actor.principal, revision=revision, kind="budget_group", values=values))
     if len(ticket) > 16384:
         raise RegistryError("Review is too large; select fewer execution targets")
@@ -371,7 +477,7 @@ def group_review():
                            groups=[("Budget", SPECS["budget_group"][2][:7], before),
                                    ("Common execution settings", SPECS["budget_group"][2][7:],
                                     {**account, "account_id": account.get("id", "")})],
-                           old_targets=old_targets, impact=list(affected.values()),
+                           old_targets=old_targets, impact=list(affected.values()), shared_budgets=shared_budgets,
                            back_url=url_for("budget_registry.group", edit=values["budget_id"] if before.get("id") else ""))
 
 
@@ -379,47 +485,19 @@ def group_review():
 @_restricted
 def batch():
     _store, actor, catalog = _context()
-    _kind("budget_batch", actor)
-    return render_template("budget_registry_batch.html", actor=actor, catalog=catalog,
-                           specs=SPECS, kind="budget_batch", selected={}, systems=_batch_systems(catalog),
-                           runner_choices=_runner_choices(actor, catalog))
+    _kind("budget_group", actor)
+    return redirect(url_for("budget_registry.group") if catalog["schema_version"] >= 4
+                    else url_for("budget_registry.index", _anchor="budget-editor"))
 
 
 @budget_registry_bp.route("/batch/review", methods=["POST"])
 @_restricted
 @rate_limited(max_per_minute=20, key_fn=lambda _: session.get("user_email", ""), scope="budget_review")
 def batch_review():
-    store, actor, catalog = _context()
-    _kind("budget_batch", actor)
-    try:
-        revision = int(request.form.get("revision", ""))
-    except ValueError:
-        raise RegistryError("A registry revision is required") from None
-    if revision != catalog["revision"]:
-        raise RegistryConflict("Registry changed")
-    selected = request.form.getlist("systems")
-    available = {row["system"] for row in _batch_systems(catalog) if not row["registered"]}
-    if not 1 <= len(selected) <= 64 or len(set(selected)) != len(selected) or not set(selected) <= available:
-        raise RegistryError("Select unregistered systems from the list")
-    connection = next((row for row in catalog["connections"]
-                       if row["id"] == request.form.get("connection_id") and row["available"]), None)
-    if not connection:
-        raise RegistryError("Select an available GitLab connection")
-    enabled = request.form.get("enabled", "")
-    if enabled not in ("", "on"):
-        raise RegistryError("Invalid enabled state")
-    entries = [dict(budget_id=uuid4().hex, destination_id=uuid4().hex, account_id=uuid4().hex,
-                    system=system, label=request.form.get("label:" + system, "").strip()) for system in selected]
-    values = dict(entries=entries, connection_id=connection["id"], expected_connection=connection,
-                  enabled=enabled == "on",
-                  **{name: request.form.get(name, "").strip()
-                     for name in ("build_tag", "run_tag", "allocation_project_id")})
-    store.create_budget_batch(actor, revision, **values, preview=True)
-    ticket = _signer().dumps(dict(actor=actor.principal, revision=revision, kind="budget_batch", values=values))
-    if len(ticket) > 16384:
-        raise RegistryError("Batch review is too large; select fewer systems")
-    return render_template("budget_registry_batch_review.html", ticket=ticket, values=values,
-                           connection=connection, revision=revision, back_url=url_for("budget_registry.batch"))
+    _store, actor, _catalog = _context()
+    _kind("budget_group", actor)
+    return render_template("budget_registry_error.html",
+                           message="This registration form has been retired. Return to Budget Management and choose Add budget."), 410
 
 
 @budget_registry_bp.route("/", methods=["GET"])
@@ -441,6 +519,7 @@ def index():
             selected.update({name: account.get(name, "") for name in ("build_tag", "run_tag", "connection_id")})
         managers = [row for row in catalog["budget_managers"] if row["budget_id"] == editing]
         return render_template("budget_registry_overview.html", actor=actor, catalog=catalog,
+                               saved_budget_id=session.pop("budget_saved_id", None),
                                specs=SPECS, kind="overview", budget=budget, selected=selected,
                                grouped_budget=bool(budget) and (any(row["id"] == editing for row in catalog["budget_defaults"]) or any(row["system"] != budget["system"] for row in catalog["destinations"] if row["budget_id"] == editing)),
                                managers=managers,
@@ -451,8 +530,6 @@ def index():
     kind = _kind(section, actor)
     if kind in ("budget_setup", "budget_system"):
         return redirect(url_for("budget_registry.index"))
-    if kind == "budget_batch":
-        return redirect(url_for("budget_registry.batch"))
     if kind == "budget_group":
         return redirect(url_for("budget_registry.group"))
     editing = request.args.get("edit", "")
@@ -472,7 +549,7 @@ def index():
 def review():
     store, actor, catalog = _context()
     kind = _kind(request.form.get("kind"), actor)
-    if kind in ("budget_batch", "budget_group"):
+    if kind == "budget_group":
         raise RegistryError("Use the dedicated review form")
     try:
         revision = int(request.form.get("revision", ""))
@@ -483,6 +560,9 @@ def review():
     values = _values(kind, catalog)
     _validate_manager(kind, values)
     getattr(store, SPECS[kind][1])(actor, revision, **values, preview=True)
+    shared_budgets = _shared_budgets(catalog, kind, values)
+    if request.form.get("action") == "save" and not shared_budgets:
+        return _save_change(store, actor, revision, kind, values)
     ticket = _signer().dumps({"actor": actor.principal, "revision": revision, "kind": kind, "values": values})
     groups = None
     if kind == "budget_setup":
@@ -494,19 +574,15 @@ def review():
     return render_template("budget_registry_review.html", ticket=ticket, kind=kind, specs=SPECS,
                            revision=revision, before=_current(catalog, kind, values), values=values,
                            impact=_impact(catalog, kind, values), catalog=catalog,
-                           groups=groups,
+                           groups=groups, shared_budgets=shared_budgets,
                            back_url=url_for("budget_registry.index"))
 
 
 def _return_url(kind, values):
-    if kind == "budget_group":
-        return url_for("budget_registry.group", edit=values["budget_id"])
-    if kind == "budget_batch":
-        return url_for("budget_registry.index")
-    if kind in ("budget_setup", "budget_system"):
-        return url_for("budget_registry.index", edit=values["budget_id"], destination=values["destination_id"])
-    if kind in ("budgets", "budget_managers"):
-        return url_for("budget_registry.index", edit=values.get("budget_id", values.get("id")))
+    if kind == "budget_managers":
+        return url_for("budget_registry.index", edit=values["budget_id"], _anchor="budget-managers")
+    if kind in ("budget_setup", "budget_system", "budget_group", "budgets"):
+        return url_for("budget_registry.index", _anchor="budget-" + values.get("budget_id", values.get("id")))
     return url_for("budget_registry.index", section=kind)
 
 
@@ -526,8 +602,6 @@ def _validate_manager(kind, values):
 @rate_limited(max_per_minute=10, key_fn=lambda _: session.get("user_email", ""), scope="budget_apply")
 def apply():
     store, actor, _catalog = _context()
-    if request.form.get("confirm_shared_change") != "on":
-        raise RegistryError("Shared change confirmation is required")
     if len(request.form.get("ticket", "")) > 16384:
         raise RegistryError("Invalid review")
     try:
@@ -537,8 +611,11 @@ def apply():
     if proposal.get("actor") != actor.principal:
         raise RegistryPermissionError("Review belongs to another identity")
     kind = _kind(proposal.get("kind"), actor)
+    if proposal["revision"] != _catalog["revision"]:
+        raise RegistryConflict("Registry changed")
+    if _shared_budgets(_catalog, kind, proposal["values"]) and request.form.get("confirm_shared_change") != "on":
+        raise RegistryError("Confirm the changes affecting other budgets")
     _validate_manager(kind, proposal["values"])
     if kind == "budget_group":
         _group_targets(proposal["values"], _catalog)
-    getattr(store, SPECS[kind][1])(actor, proposal["revision"], **proposal["values"])
-    return redirect(_return_url(kind, proposal["values"]))
+    return _save_change(store, actor, proposal["revision"], kind, proposal["values"])

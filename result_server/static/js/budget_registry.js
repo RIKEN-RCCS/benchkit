@@ -3,7 +3,6 @@
 function runnerPicker(form) {
     const connection = form.elements.connection_id;
     const observations = JSON.parse(document.getElementById("budget-runner-data").textContent);
-    const matches = document.getElementById("budget-tag-matches");
     const statusLabel = runner => {
         if (!runner.fresh) return `Observation unavailable or expired; last success ${runner.age}`;
         return [runner.heartbeat, runner.paused ? "paused" : "", runner.protected ? "protected" : ""].filter(Boolean).join(", ");
@@ -11,15 +10,27 @@ function runnerPicker(form) {
     const updateMatches = () => {
         const observed = observations[connection.value];
         const runners = observed?.runners || [];
-        const messages = [];
         for (const role of ["build", "run"]) {
+            const matches = form.querySelector(`[data-tag-matches="${role}"]`);
             const tag = form.elements[`${role}_tag`].value;
+            matches.hidden = !tag;
             if (!tag) continue;
             const found = runners.filter(runner => runner.fresh && runner.tags.includes(tag));
-            messages.push(`${role === "build" ? "Build" : "Run"}: ${found.length} observed runners match "${tag}"${found.length ? ` (${found.map(runner => `${runner.label}: ${statusLabel(runner)}`).join("; ")})` : "; availability unverified"}.`);
+            const online = found.filter(runner => runner.heartbeat === "online" && !runner.paused).length;
+            matches.textContent = found.length ? `${found.length} matching runners; ${online} online, not paused.`
+                : "No current match; availability unverified.";
+            if (observed?.runners_url) {
+                const link = document.createElement("a");
+                const url = new URL(observed.runners_url, location.href);
+                url.searchParams.set("q", tag);
+                link.href = url.href;
+                link.target = "_blank";
+                link.rel = "noopener";
+                link.textContent = "View runners";
+                link.setAttribute("aria-label", `View ${role} runners (new tab)`);
+                matches.append(" ", link);
+            }
         }
-        matches.textContent = messages.join(" ");
-        matches.hidden = !messages.length;
     };
     const updateChoices = () => {
         const observed = observations[connection.value];
@@ -75,24 +86,24 @@ if (form) {
     };
     const loadAccount = () => {
         const record = catalog.find(item => item.id === account.value) || {};
-        fill(["build_tag", "run_tag"], record);
+        if (record.id) fill(["build_tag", "run_tag"], record);
         form.elements.loaded_account_id.value = account.value;
         if (record.connection_id) {
             connection.value = record.connection_id;
         }
         updateChoices();
+        filterSettings();
         form.dispatchEvent(new Event("execution-settings-change"));
     };
     const filterSettings = () => {
         for (const option of account.options) {
             const available = !option.value || option.dataset.system === system.value;
-            option.hidden = !available;
-            option.disabled = !available;
+            option.hidden = !available && !option.selected;
+            option.disabled = !available && !option.selected;
         }
-        if (account.selectedOptions[0]?.disabled) {
-            account.value = "";
-            loadAccount();
-        }
+        const record = catalog.find(item => item.id === account.value);
+        account.setCustomValidity(account.value && (!record || record.system !== system.value)
+            ? "Select settings for the managed system, or choose New execution settings." : "");
     };
     system.addEventListener("input", filterSettings);
     account.addEventListener("change", loadAccount);
@@ -106,6 +117,7 @@ if (form) {
 
 const group = document.querySelector("[data-budget-group]");
 if (group) {
+    const settings = JSON.parse(document.getElementById("budget-execution-data").textContent);
     const rows = Array.from(group.querySelectorAll("[data-group-target]"));
     const search = group.querySelector("[data-target-filter]");
     const tagFilter = group.querySelector("[data-target-tag-filter]");
@@ -114,12 +126,27 @@ if (group) {
         for (const row of rows) {
             const selected = row.querySelector("[name=targets]").checked;
             const select = row.querySelector("[data-target-account]");
+            const previous = select.value === group.elements.account_id.value ? "" : select.value;
+            const choices = settings.filter(item => item.system === group.elements.system.value &&
+                item.id !== group.elements.account_id.value);
+            const record = choices.find(item => item.id === previous);
+            const invalid = !!previous && !record;
+            select.replaceChildren(new Option("Common settings", ""),
+                ...choices.map(item => new Option(item.display_label, item.id)));
+            if (invalid) select.add(new Option("Unavailable settings; select again", previous));
+            select.value = previous;
             select.disabled = !selected;
-            for (const option of select.options) {
-                const available = !option.value || option.dataset.system === group.elements.system.value;
-                option.disabled = !available;
-                option.hidden = !available;
-            }
+            select.hidden = !selected || (!choices.length && !invalid);
+            select.setCustomValidity(invalid && selected ? "Select settings for the managed system" : "");
+            row.querySelector("[data-target-mode]").textContent = !selected ? "Not selected" :
+                invalid ? "Unavailable settings" : record ? "Saved settings" : "Common settings";
+            row.querySelector("[data-target-mode]").hidden = selected && !select.hidden;
+            row.querySelector("[data-target-summary]").hidden = !selected || invalid;
+            const connection = Array.from(group.elements.connection_id.options).find(option =>
+                option.value === (record ? record.connection_id : group.elements.connection_id.value));
+            row.querySelector("[data-target-connection]").textContent = connection?.value ? connection.textContent : "Not selected";
+            row.querySelector("[data-target-build]").textContent = (record ? record.build_tag : group.elements.build_tag.value) || "Not specified";
+            row.querySelector("[data-target-run]").textContent = (record ? record.run_tag : group.elements.run_tag.value) || "Not specified";
             // Filtering never revokes a previously selected execution target.
             row.hidden = !row.dataset.system.toLowerCase().includes(search.value.toLowerCase()) ||
                 (tagFilter.checked && row.dataset.runTag !== group.elements.run_tag.value);
@@ -142,44 +169,4 @@ if (group) {
     group.addEventListener("runner-tag-change", update);
     group.addEventListener("execution-settings-change", update);
     update();
-}
-
-const batch = document.querySelector("[data-budget-batch]");
-if (batch) {
-    runnerPicker(batch);
-    const rows = Array.from(batch.querySelectorAll("[data-batch-system]"));
-    const all = batch.querySelector("[data-select-systems]");
-    const count = batch.querySelector("[data-batch-count]");
-    const updateCount = () => {
-        const visible = rows.filter(row => !row.hidden && !row.querySelector("[name=systems]").disabled);
-        const checked = visible.filter(row => row.querySelector("[name=systems]").checked);
-        all.disabled = !visible.length;
-        all.checked = !!visible.length && checked.length === visible.length;
-        all.indeterminate = checked.length > 0 && checked.length < visible.length;
-        count.textContent = `${checked.length} selected / ${visible.length} available`;
-        batch.querySelector("[type=submit]").disabled = !checked.length;
-    };
-    const filter = () => {
-        for (const row of rows) {
-            row.hidden = batch.elements.candidate_scope.value !== "all" &&
-                (!batch.elements.run_tag.value || row.dataset.runTag !== batch.elements.run_tag.value);
-            const checkbox = row.querySelector("[name=systems]");
-            if (row.hidden) checkbox.checked = false;
-            row.querySelector("[data-budget-name]").disabled = checkbox.disabled || !checkbox.checked;
-        }
-        updateCount();
-    };
-    all.addEventListener("change", () => {
-        for (const row of rows) {
-            const checkbox = row.querySelector("[name=systems]");
-            if (!row.hidden && !checkbox.disabled) checkbox.checked = all.checked;
-        }
-        filter();
-    });
-    batch.addEventListener("input", event => {
-        if (event.target !== all) filter();
-    });
-    batch.addEventListener("change", filter);
-    batch.addEventListener("runner-tag-change", filter);
-    filter();
 }

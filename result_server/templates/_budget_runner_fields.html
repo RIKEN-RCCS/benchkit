@@ -1,4 +1,4 @@
-<p class="budget-runner-status budget-wide" id="budget-runner-help">Choosing a runner copies its tag into the field below. Only the tag is saved, not the runner ID. Review and apply to save changes.</p>
+<p class="budget-runner-status budget-wide" id="budget-runner-help">Choosing a runner copies its tag into the field below. Only the tag is saved, not the runner ID.</p>
 {% for role in ['build', 'run'] %}
 <div class="budget-runner-column">
     <div class="budget-field" data-runner-picker="{{ role }}" hidden>
@@ -7,6 +7,6 @@
         <p class="budget-runner-status" id="budget-{{ role }}-observation" role="status"></p>
     </div>
     {{ fields([(role ~ '_tag', (role | capitalize) ~ ' tag to save', 'text')], selected, catalog) }}
+    <p class="budget-runner-status" data-tag-matches="{{ role }}" role="status" hidden></p>
 </div>
 {% endfor %}
-<p class="budget-runner-status budget-wide" id="budget-tag-matches" role="status" hidden></p>

@@ -80,7 +80,7 @@ def choice_connection(**overrides):
 def test_budget_runner_choices_do_not_cross_connection_identity(change):
     snapshot = collect([target(), target("second")], {}, client_factory=FakeClient, now=NOW)
     choices = runner_choices([choice_connection(**change)], snapshot, now=datetime.fromisoformat(NOW))
-    assert choices["connection"] == {"state": "not_observed", "runners": []}
+    assert choices["connection"] == {"state": "not_observed", "runners": [], "targets": []}
 
 
 def test_budget_runner_choices_match_manual_connections_and_deduplicate_shared_runners():
@@ -91,6 +91,7 @@ def test_budget_runner_choices_match_manual_connections_and_deduplicate_shared_r
     choices = runner_choices([choice_connection(target_id="", server_url="https://GITLAB.example.org/")],
                              snapshot, now=datetime.fromisoformat(NOW))["connection"]
     assert choices["state"] == "current"
+    assert choices["targets"] == ["alias", "first"]
     assert len(choices["runners"]) == 1
     selected = choices["runners"][0]
     assert selected["fresh"] and selected["paused"] and selected["protected"]

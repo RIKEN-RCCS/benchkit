@@ -20,6 +20,10 @@ IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 class RegistryError(ValueError):
     """Invalid registry configuration or unavailable destination."""
 
+    def __init__(self, message, *, field=None):
+        super().__init__(message)
+        self.field = field
+
 
 class RegistryConflict(RegistryError):
     """The revision changed after the caller loaded the registry."""
@@ -60,7 +64,8 @@ def _dates(start, end):
         if start and end and start > end:
             raise ValueError
     except (ValueError, TypeError):
-        raise RegistryError("Invalid budget validity interval") from None
+        raise RegistryError("Enter valid dates with the end date on or after the start date.",
+                            field="valid_until") from None
 
 
 class BudgetRegistry:

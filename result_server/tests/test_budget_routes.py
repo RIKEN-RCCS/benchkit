@@ -104,46 +104,29 @@ def batch_portal(portal, tmp_path):
     return portal
 
 
-def batch_review(client, **overrides):
-    page = client.get("/budgets/batch")
-    values = dict(systems=["Example_A", "Example_B"], connection_id="gitlab:example",
-                  build_tag="", run_tag="example-run", allocation_project_id="", enabled="on",
-                  revision=hidden(page, "revision"), csrf_token=hidden(page, "csrf_token"))
-    values.update({"label:" + name: name for name in values["systems"]})
-    values.update(overrides)
-    return client.post("/budgets/batch/review", data=values)
-
-
-def test_batch_review_apply_empty_allocation_and_replay(batch_portal, registry, configured_target):
+def test_registration_has_one_entry_and_legacy_batch_redirects(batch_portal, registry, configured_target):
     app, _ = batch_portal
     client = app.test_client()
     login(client)
     before = registry.catalog(ADMIN)
-    response = batch_review(client)
-    assert response.status_code == 200
-    assert b"Not specified" in response.data and b"Example_A" in response.data
+    page = client.get("/budgets/")
+    assert page.status_code == 200
+    assert page.data.count(b'href="/budgets/group"') == 1
+    assert b'href="/budgets/batch"' not in page.data
+    assert b'data-budget-setup' not in page.data
+    assert b'<th>Actions</th>' not in page.data
+    assert b'>Edit</a>' not in page.data
+    response = client.get("/budgets/batch")
+    assert response.status_code == 302
+    assert response.location == "/budgets/group"
+    assert client.get(response.location).status_code == 200
     assert registry.catalog(ADMIN) == before
-    assert apply(client, response, run_tag="unreviewed").status_code == 302
-    after = registry.catalog(ADMIN)
-    assert {row["system"] for row in after["budgets"]} == {"Example_A", "Example_B"}
-    assert {row["allocation_project_id"] for row in after["destinations"]} == {""}
-    assert {row["run_tag"] for row in after["execution_accounts"]} == {"example-run"}
-    assert apply(client, response).status_code == 409
-    assert batch_review(client).status_code == 400
-    assert registry.catalog(ADMIN) == after
 
 
-@pytest.mark.parametrize("systems", [[], ["unknown"], ["Example_A", "Example_A"]])
-def test_batch_rejects_unlisted_or_duplicate_systems(batch_portal, registry, configured_target, systems):
+def test_retired_batch_forms_and_tickets_cannot_write(batch_portal, registry, configured_target):
+    from routes.budget_registry import _signer
+
     app, _ = batch_portal
-    client = app.test_client()
-    login(client)
-    assert batch_review(client, systems=systems).status_code == 400
-    assert registry.check() == 0
-
-
-def test_batch_access_csrf_and_revalidation(batch_portal, registry, configured_target, monkeypatch):
-    app, users = batch_portal
     client = app.test_client()
     assert client.get("/budgets/batch").status_code == 302
     seed(registry)
@@ -151,14 +134,17 @@ def test_batch_access_csrf_and_revalidation(batch_portal, registry, configured_t
     assert client.get("/budgets/batch").status_code == 403
     login(client)
     assert client.post("/budgets/batch/review", data={"systems": "Example_A"}).status_code == 400
-    proposed = batch_review(client)
-    assert proposed.status_code == 200
     before = registry.catalog(ADMIN)
-    monkeypatch.setenv("RESULT_SERVER_GITLAB_TARGETS", "example=gitlab.example.org/changed/project")
-    assert apply(client, proposed).status_code == 409
-    assert registry.check() == before["revision"]
-    users.users[ADMIN.principal] = []
-    assert apply(client, proposed).status_code == 403
+    page = client.get("/budgets/group")
+    csrf = hidden(page, "csrf_token")
+    assert client.post("/budgets/batch/review", data={"csrf_token": csrf}).status_code == 410
+    assert client.post("/budgets/review", data={"kind": "budget_batch", "csrf_token": csrf}).status_code == 403
+    with app.app_context():
+        ticket = _signer().dumps(dict(actor=ADMIN.principal, revision=before["revision"],
+                                     kind="budget_batch", values={}))
+    assert client.post("/budgets/apply", data={"ticket": ticket, "csrf_token": csrf,
+                                              "confirm_shared_change": "on"}).status_code == 403
+    assert registry.catalog(ADMIN) == before
     app.config["PUBLIC_PORTAL_MODE"] = True
     assert client.get("/budgets/batch").status_code == 404
 
@@ -182,11 +168,11 @@ def test_comma_separated_systems_are_rejected_without_partial_registration(porta
                               "allocation_project_id": ""}, "budget_setup")
     assert response.status_code == 400
     assert b"Enter one system name, without commas" in response.data
-    assert b"Add multiple systems" in response.data
+    assert b"Add budget" in response.data
     assert b"Example_A,Example_B" not in response.data
     assert registry.catalog(ADMIN) == before
     page = client.get("/budgets/")
-    assert b"Budget with multiple execution targets" in page.data
+    assert b'href="/budgets/group"' in page.data
 
 
 def test_saved_settings_display_configuration_independently_of_budget_name(portal, registry):
@@ -218,7 +204,7 @@ def test_identical_setting_combinations_remain_distinguishable(portal, registry)
                           connection_id="compute", build_tag="example-build", run_tag="example-run")
     client = app.test_client()
     login(client)
-    options = setting_options(client.get("/budgets/"))
+    options = setting_options(client.get("/budgets/group"))
     assert options["research-account"] != options["second-settings"]
     assert "research-account" in options["research-account"]
     assert "second-settings" in options["second-settings"]
@@ -245,7 +231,7 @@ def test_allocation_column_is_scoped_to_managed_budgets_and_never_public(portal,
 
 
 @pytest.mark.parametrize('principal,query', [
-    (ADMIN.principal, ''),
+    (ADMIN.principal, 'group'),
     (ADMIN.principal, '?edit=research'),
     (MANAGER.principal, '?edit=research'),
     (ADMIN.principal, '?section=execution_accounts'),
@@ -306,21 +292,55 @@ def test_review_apply_and_replay(portal, registry):
     assert proposed.status_code == 200
     assert registry.check() == 0
     assert registry.catalog(ADMIN)["budgets"] == []
-    assert "shared registry" in proposed.get_data(as_text=True)
+    assert 'name="confirm_shared_change"' not in proposed.get_data(as_text=True)
     assert apply(client, proposed).status_code == 302
     assert registry.check() == 1
     assert registry.catalog(ADMIN)["budgets"][0]["label"] == "Research budget"
     assert apply(client, proposed).status_code == 409
 
 
-def test_confirm_and_signed_proposal_are_required(portal, registry):
+def test_signed_proposal_required_without_routine_confirmation(portal, registry):
     app, _ = portal
     client = app.test_client()
     login(client)
     proposed = review(client, {"id": "research", "label": "Research"})
-    assert apply(client, proposed, confirm_shared_change="").status_code == 400
     assert apply(client, proposed, ticket=hidden(proposed, "ticket") + "x").status_code == 400
     assert registry.check() == 0
+    assert apply(client, proposed, confirm_shared_change="").status_code == 302
+
+
+@pytest.mark.parametrize('kind', ['execution_accounts', 'connections'])
+def test_infrastructure_save_checks_affected_budgets(portal, registry, kind):
+    app, _ = portal
+    seed(registry)
+    client = app.test_client()
+    login(client)
+    before = registry.catalog(ADMIN)
+    values = {**before[kind][0], 'action': 'save', 'label': 'Changed settings'}
+    proposed = review(client, values, kind)
+    assert proposed.status_code == 200
+    assert b'name="confirm_shared_change"' in proposed.data
+    assert b'Research budget' in proposed.data
+    assert registry.catalog(ADMIN) == before
+    assert apply(client, proposed, confirm_shared_change='').status_code == 400
+    assert registry.catalog(ADMIN) == before
+    response = apply(client, proposed)
+    assert response.status_code == 302
+    assert b'Changes saved.' in client.get(response.location).data
+
+
+def test_manager_assignment_save_stays_on_manager_panel(portal, registry):
+    app, _ = portal
+    seed(registry)
+    client = app.test_client()
+    login(client)
+    response = review(client, {'action': 'save', 'budget_id': 'research',
+                              'principal': APPLICANT.principal, 'assigned': 'on'}, 'budget_managers')
+    assert response.status_code == 302
+    assert response.location.endswith('#budget-managers')
+    page = client.get(response.location)
+    assert b'Budget managers saved.' in page.data
+    assert APPLICANT.principal.encode() in page.data
 
 
 def test_apply_uses_reviewed_values_not_resubmitted_fields(portal, registry):
@@ -340,7 +360,7 @@ def test_review_cannot_be_shared_between_actors(portal, registry):
     other = app.test_client()
     users.users["second@example.org"] = ["admin"]
     login(other, "second@example.org")
-    page = other.get("/budgets/")
+    page = other.get("/budgets/group")
     assert apply(other, proposed, csrf_token=hidden(page, "csrf_token")).status_code == 403
     assert registry.check() == 0
 
@@ -571,7 +591,7 @@ def test_unavailable_observations_do_not_block_existing_budget_edit(portal, regi
     assert apply(client, proposal).status_code == 302
 
 
-def test_budget_system_registration_uses_generated_ids_and_returns_to_managers(portal, registry):
+def test_budget_system_registration_uses_generated_ids_and_returns_to_list(portal, registry):
     app, _ = portal
     seed(registry)
     client = app.test_client()
@@ -590,8 +610,9 @@ def test_budget_system_registration_uses_generated_ids_and_returns_to_managers(p
     assert budget["id"] and destination["id"]
     body = client.get(response.location).get_data(as_text=True)
     assert "Another budget @ ExampleSystem" in body
-    assert 'id="budget-managers"' in body
-    assert hidden(client.get(response.location), "budget_id") == budget["id"]
+    assert 'class="budget-saved"' in body
+    assert 'Budget saved.' in body
+    assert hidden(client.get('/budgets/?edit=' + budget["id"]), "budget_id") == budget["id"]
     assert apply(client, proposed).status_code == 409
 
 
@@ -704,24 +725,29 @@ def setup_form_values():
             "build_tag": "example-build", "run_tag": "example-run", "connection_id": "gitlab:example"}
 
 
-def test_empty_registry_can_be_configured_on_one_page(portal, registry, configured_target):
-    app, _ = portal
+@pytest.mark.parametrize("targets", [["Example_A"], ["Example_A", "Example_B"]])
+def test_empty_registry_can_be_configured_on_one_page(batch_portal, registry, configured_target, targets):
+    app, _ = batch_portal
     client = app.test_client()
     login(client)
-    page = client.get("/budgets/")
-    assert hidden(page, "kind") == "budget_setup"
+    page = client.get("/budgets/group")
+    assert hidden(page, "kind") == "budget_group"
     assert 'name="account_name"' not in page.get_data(as_text=True)
     for name in ("server_url", "project_path", "token_env", "id_token_audience", "connection_label"):
         assert name not in page.get_data(as_text=True)
     for name in ("build_tag", "run_tag", "connection_id"):
         assert f'name="{name}"' in page.get_data(as_text=True)
-    proposed = review(client, setup_form_values(), "budget_setup")
+    values = {**setup_form_values(), "targets": targets,
+              "revision": hidden(page, "revision"), "csrf_token": hidden(page, "csrf_token")}
+    proposed = client.post("/budgets/group/review", data=values)
     assert proposed.status_code == 200
     assert registry.check() == 0
     response = apply(client, proposed)
     assert response.status_code == 302
     catalog = registry.catalog(ADMIN)
-    assert len(catalog["budgets"]) == len(catalog["destinations"]) == len(catalog["connections"]) == len(catalog["execution_accounts"]) == 1
+    assert len(catalog["budgets"]) == len(catalog["connections"]) == len(catalog["execution_accounts"]) == 1
+    assert {row["system"] for row in catalog["destinations"]} == set(targets)
+    assert {row["budget_id"] for row in catalog["destinations"]} == {catalog["budgets"][0]["id"]}
     resolved = registry.resolve(ADMIN, catalog["destinations"][0]["id"])
     assert resolved["target"]["project_path"] == "group/project"
     assert resolved["route"]["build_tag"] == "example-build"
@@ -795,7 +821,7 @@ def test_missing_connection_is_an_actionable_empty_state(portal, registry):
     app, _ = portal
     client = app.test_client()
     login(client)
-    page = client.get('/budgets/').get_data(as_text=True)
+    page = client.get('/budgets/group').get_data(as_text=True)
     assert 'No GitLab connections' in page
     assert 'section=connections' in page
     assert review(client, setup_form_values(), "budget_setup").status_code == 400

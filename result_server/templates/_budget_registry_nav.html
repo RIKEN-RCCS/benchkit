@@ -15,5 +15,8 @@
         </details>
         {% endif %}
     </nav>
-    <span>Revision {{ catalog.revision }}</span>
+    <span>Shared registry &middot; Revision {{ catalog.revision }}</span>
 </div>
+{% for message in get_flashed_messages(category_filter=['budget-success']) %}
+<div class="budget-success" role="status">{{ message }}</div>
+{% endfor %}
