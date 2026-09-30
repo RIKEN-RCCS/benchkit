@@ -3,10 +3,9 @@
     <fieldset class="budget-fieldset">
         <legend>Budget</legend>
         {{ fields(specs.budget_setup[2][:8], selected, catalog, systems) }}
-        {% if not budget %}<p class="budget-runner-status budget-wide">{% if catalog.schema_version >= 4 %}<a href="{{ url_for('budget_registry.group') }}">Budget with multiple execution targets</a>{% else %}One system per Budget. <a href="{{ url_for('budget_registry.batch') }}">Add multiple systems</a> for separate budgets.{% endif %}</p>{% endif %}
     </fieldset>
     {% include "_budget_execution_settings.html" %}
-    <div class="budget-actions"><button type="submit">Review change</button>{% if budget %}<a href="{{ url_for('budget_registry.index') }}">Cancel</a>{% endif %}</div>
+    <div class="budget-actions"><button type="submit" name="action" value="save">Save budget</button>{% if budget %}<a href="{{ url_for('budget_registry.index') }}">Cancel</a>{% endif %}</div>
 </form>
 <script type="application/json" id="budget-execution-data">{{ execution_choices | tojson }}</script>
 <script type="application/json" id="budget-runner-data">{{ runner_choices | tojson }}</script>

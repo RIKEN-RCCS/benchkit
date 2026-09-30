@@ -2,6 +2,9 @@
     <summary>Recent changes</summary>
     <div class="budget-table-scroll"><table>
         <thead><tr><th>Revision</th><th>Time</th><th>Actor</th><th>Record</th></tr></thead>
-        <tbody>{% for row in catalog.history %}<tr><td>{{ row.revision }}</td><td>{{ row.changed_at }}</td><td>{{ row.actor }}</td><td>{{ row.entity_type }} / {{ row.entity_id }}</td></tr>{% else %}<tr><td colspan="4">No changes.</td></tr>{% endfor %}</tbody>
+        <tbody>{% for row in catalog.history %}<tr><td>{{ row.revision }}</td><td>{{ row.changed_at }}</td><td>{{ row.actor }}</td><td><details>
+            <summary>{{ row.display_name }} &middot; {{ row.operation }}</summary>
+            <div>{{ row.display_kind }}{% if row.changed_fields %}: {{ row.changed_fields | join(', ') }}{% endif %}</div>
+        </details></td></tr>{% else %}<tr><td colspan="4">No changes.</td></tr>{% endfor %}</tbody>
     </table></div>
 </details>

@@ -2,7 +2,7 @@
 {% set help = {
     'label': ('A human-readable name for this record.', 'Used in Portal lists and selectors. This is not a scheduler allocation ID or a runner tag.', 'Research budget'),
     'enabled': ('Whether this budget is available for destination resolution.', 'Disabled budgets cannot be resolved for a new execution. Does not cancel running jobs. Validity dates are checked separately.', ''),
-    'system': ('One exact Benchkit system name for this single-target entry. Do not enter a comma-separated list.', 'The grouped Budget editor separates the managed system from multiple execution targets. The separate-budget batch creates independent budgets.', 'ExampleSystem'),
+    'system': ('One exact Benchkit system name for this single-target entry. Do not enter a comma-separated list.', 'Add budget separates the managed system from its execution targets.', 'ExampleSystem'),
     'allocation_project_id': ('Optional scheduler account or project-group ID. Leave empty when the system does not require one.', 'Empty means no allocation override, not unrestricted access. A non-empty value is stored as allocation_project_id for submission. Not a public Activity label; it may be non-public. Registry-to-trigger integration is pending.', 'budget-example'),
     'valid_from': ('Optional first available date, inclusive, in UTC.', 'Destination resolution is refused before this date. Empty means no start-date restriction.', ''),
     'valid_until': ('Optional last available date, inclusive, in UTC.', 'Destination resolution is refused after this date. Empty means no end-date restriction. Does not stop running jobs.', ''),
@@ -65,11 +65,14 @@
 {% elif input_type == 'checkbox' %}
     <input id="budget-field-{{ name }}" type="checkbox" name="{{ name }}" aria-describedby="budget-help-{{ name }}" {% if selected.get(name) %}checked{% endif %}>
 {% else %}
-    <input id="budget-field-{{ name }}" type="{{ input_type }}" name="{{ name }}" aria-describedby="budget-help-{{ name }}" value="{{ selected.get(name, '') }}" maxlength="512"
+    <input id="budget-field-{{ name }}" type="{{ input_type }}" name="{{ name }}" aria-describedby="budget-help-{{ name }}{% if form_error and form_error.field == name %} budget-error-{{ name }}{% endif %}" {% if form_error and form_error.field == name %}aria-invalid="true" autofocus{% endif %} value="{{ selected.get(name, '') }}" maxlength="512"
            {% if name == 'system' and systems %}list="budget-system-options"{% endif %}
            {% if name == 'system' and selected.get('id') %}readonly{% endif %}
            {% if name not in ['valid_from', 'valid_until', 'build_tag', 'id_token_audience', 'allocation_project_id'] %}required{% endif %}>
     {% if name == 'system' and systems %}<datalist id="budget-system-options">{% for system in systems %}<option value="{{ system }}">{% endfor %}</datalist>{% endif %}
+{% endif %}
+{% if form_error and form_error.field == name %}
+<p class="budget-error" id="budget-error-{{ name }}" role="alert">{{ form_error.message }}</p>
 {% endif %}
 {{ field_help(name, label) }}
 </div>

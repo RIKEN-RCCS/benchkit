@@ -5,10 +5,11 @@
         <select id="budget-field-account_id" name="account_id" aria-describedby="budget-help-account_id">
             <option value="">New execution settings</option>
             {% for option in catalog.execution_accounts %}<option value="{{ option.id }}" data-system="{{ option.system }}" {% if selected.get('account_id') == option.id %}selected{% endif %}>{{ option.display_label }}</option>{% endfor %}
+            {% if selected.get('account_id') and not (catalog.execution_accounts | selectattr('id', 'equalto', selected.account_id) | list) %}<option value="{{ selected.account_id }}" selected>Unavailable settings; select again</option>{% endif %}
         </select>
         {{ field_help('account_id', 'Saved GitLab / runner tag settings') }}
     </div>
-    <input type="hidden" name="loaded_account_id" value="{{ selected.get('account_id', '') }}">
+    <input type="hidden" name="loaded_account_id" value="{{ selected.get('loaded_account_id', selected.get('account_id', '')) }}">
     <div class="budget-field budget-wide">
         <label for="budget-field-connection_id">GitLab connection</label>
         <select id="budget-field-connection_id" name="connection_id" aria-describedby="budget-help-connection_id" required>

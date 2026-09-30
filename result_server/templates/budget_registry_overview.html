@@ -6,45 +6,42 @@
 {% include "_budget_registry_style.html" %}
 {% include "_budget_registry_nav.html" %}
 <section class="budget-section">
-    <div class="budget-heading"><h2>Budget @ Managed system</h2>{% if actor.is_admin %}<div class="budget-actions"><a href="{{ url_for('budget_registry.batch') }}">{{ 'Register separate budgets' if catalog.schema_version >= 4 else 'Add multiple systems' }}</a><a href="{{ url_for('budget_registry.group') if catalog.schema_version >= 4 else url_for('budget_registry.index') ~ '#budget-editor' }}">Add budget</a></div>{% endif %}</div>
+    <div class="budget-heading"><h2>Budget @ Managed system</h2>{% if actor.is_admin %}<div class="budget-actions"><a href="{{ url_for('budget_registry.group') if catalog.schema_version >= 4 else url_for('budget_registry.index') ~ '#budget-editor' }}">Add budget</a></div>{% endif %}</div>
     <div class="budget-table-scroll"><table>
-        <thead><tr><th>Budget @ Managed system</th><th>Execution targets</th><th>Scheduler allocation ID</th><th>Status</th><th>Validity</th><th>Managers</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Budget @ Managed system</th><th>Execution targets</th><th>Scheduler allocation ID</th><th>Status</th><th>Validity</th><th>Managers</th></tr></thead>
         <tbody>
         {% for item in catalog.budgets %}
         {% set route = catalog.destinations | selectattr('budget_id', 'equalto', item.id) | first %}
         {% set destinations = catalog.destinations | selectattr('budget_id', 'equalto', item.id) | list %}
         {% set edit_url = url_for('budget_registry.group', edit=item.id) if actor.is_admin and catalog.schema_version >= 4 else url_for('budget_registry.index', edit=item.id) %}
         {% set assigned = catalog.budget_managers | selectattr('budget_id', 'equalto', item.id) | list %}
-        <tr>
+        <tr id="budget-{{ item.id }}"{% if item.id == saved_budget_id %} class="budget-saved"{% endif %}>
             <td><a href="{{ edit_url }}#budget-editor">{{ item.label }} @ {{ item.system }}</a></td>
             <td>{% for target in destinations %}<div>{{ target.system }}</div>{% else %}-{% endfor %}</td>
             <td>{% for allocation in destinations | map(attribute='allocation_project_id') | unique %}<div>{{ allocation or 'Not specified' }}</div>{% else %}-{% endfor %}</td>
-            <td>{% if not item.enabled %}Disabled{% elif not route %}Not configured{% else %}Enabled{% endif %}</td>
+            <td>{{ item.status_label }}</td>
             <td>{{ item.valid_from or 'No start date' }} / {{ item.valid_until or 'No end date' }}</td>
             <td><a href="{{ url_for('budget_registry.index', edit=item.id) }}#budget-managers">{{ assigned | length }} managers</a></td>
-            <td><a href="{{ edit_url }}#budget-editor">Edit</a></td>
         </tr>
-        {% else %}<tr><td colspan="7">No budgets.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="6">No budgets.</td></tr>{% endfor %}
         </tbody>
     </table></div>
 </section>
 
-{% if actor.is_admin or budget %}
+{% if budget or (actor.is_admin and catalog.schema_version < 4) %}
 <section class="budget-section" id="budget-editor">
-    <h2>{% if budget %}{{ budget.label }} @ {{ budget.system }}{% else %}{{ 'Single-target Budget' if catalog.schema_version >= 4 else 'Add Budget @ System' }}{% endif %}</h2>
+    <h2>{% if budget %}{{ budget.label }} @ {{ budget.system }}{% else %}Add Budget @ System{% endif %}</h2>
     {% if actor.is_admin %}
     {% if grouped_budget %}
     <a href="{{ url_for('budget_registry.group', edit=budget.id) }}#budget-editor">Edit budget and execution targets</a>
     {% else %}
-    {% if catalog.schema_version >= 4 and not budget %}<details class="budget-details"><summary>Add a single-target Budget</summary>{% endif %}
     {% include "_budget_execution_editor.html" %}
-    {% if catalog.schema_version >= 4 and not budget %}</details>{% endif %}
     {% endif %}
     {% else %}
     <form method="POST" action="{{ url_for('budget_registry.review') }}" class="budget-form">
         {{ context('budgets', catalog.revision) }}
         {{ fields(specs.budgets[2], budget, catalog) }}
-        <div class="budget-actions"><button type="submit">Review change</button></div>
+        <div class="budget-actions"><button type="submit" name="action" value="save">Save budget</button></div>
     </form>
     {% endif %}
 </section>
@@ -60,7 +57,7 @@
                 {{ context('budget_managers', catalog.revision) }}
                 <input type="hidden" name="budget_id" value="{{ budget.id }}">
                 <input type="hidden" name="principal" value="{{ manager.principal }}">
-                <button type="submit" class="budget-secondary">Remove manager</button>
+                <button type="submit" name="action" value="save" class="budget-secondary">Remove manager</button>
             </form>
         </td>{% endif %}</tr>{% else %}<tr><td colspan="2">No budget managers assigned.</td></tr>{% endfor %}</tbody>
     </table></div>
@@ -70,7 +67,7 @@
         <input type="hidden" name="budget_id" value="{{ budget.id }}">
         <input type="hidden" name="assigned" value="on">
         {{ fields(specs.budget_managers[2][1:2], {}, catalog) }}
-        <div class="budget-actions"><button type="submit">Review manager assignment</button></div>
+        <div class="budget-actions"><button type="submit" name="action" value="save">Add manager</button></div>
     </form>
     {% endif %}
 </section>

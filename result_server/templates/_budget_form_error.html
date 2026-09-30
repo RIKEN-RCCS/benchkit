@@ -1,0 +1,3 @@
+{% if form_error and not form_error.field %}
+<p class="budget-error budget-wide" role="alert" tabindex="-1" autofocus>{{ form_error.message }}</p>
+{% endif %}

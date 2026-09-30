@@ -40,8 +40,13 @@
 </section>
 {% endif %}
 <section class="budget-section">
+    {% if shared_budgets %}
+    <h2>Other affected Budgets</h2>
+    <ul>{% for budget in shared_budgets %}<li>{{ budget.label }} @ {{ budget.system }}</li>{% endfor %}</ul>
+    {% else %}
     <h2>Affected Budgets</h2>
     <ul>{% for row in impact %}<li>{% if kind in ['budget_setup', 'budget_system', 'budget_group', 'budgets'] and row.budget_id == values.get('budget_id', values.get('id')) %}{{ values.label }}{% else %}{% for budget in catalog.budgets if budget.id == row.budget_id %}{{ budget.label }}{% endfor %}{% endif %} @ {{ row.system }}</li>{% else %}<li>None</li>{% endfor %}</ul>
+    {% endif %}
     {% include "_budget_apply_form.html" %}
 </section>
 {% endblock %}

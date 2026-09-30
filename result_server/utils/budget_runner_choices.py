@@ -29,5 +29,5 @@ def runner_choices(connections, snapshot, *, now=None):
                          "protected": record.get("access_level") == "ref_protected",
                          "age": runner["last_success_age"]})
         state = "current" if current else "unavailable" if targets else "not_observed"
-        result[connection["id"]] = {"state": state, "runners": rows}
+        result[connection["id"]] = {"state": state, "runners": rows, "targets": sorted(members)}
     return result
