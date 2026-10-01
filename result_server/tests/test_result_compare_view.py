@@ -190,6 +190,30 @@ def test_build_result_compare_context_marks_mixed_rows():
     assert context["mixed"] is True
 
 
+def test_input_comparison_uses_full_digest_beyond_display_prefix():
+    first_digest = "a" * 64
+    changed_digest = "a" * 63 + "b"
+    for digest, expected_status in [(first_digest, "same"), (changed_digest, "changed")]:
+        results = [
+            {"data": {
+                "system": "DemoSystem",
+                "code": "demoapp",
+                "input_info": {"inputs": [{
+                    "dataset_id": "demo-matrix",
+                    "dataset_version": "v1",
+                    "verification_status": "verified",
+                    "sha256": value,
+                    "size_bytes": 3,
+                }]},
+            }}
+            for value in (first_digest, digest)
+        ]
+        summary = build_result_compare_context(results)["comparison_summary"]
+        input_row = next(row for row in summary["diff_rows"] if row["label"] == "Input")
+        assert input_row["status"] == expected_status
+        assert summary["baseline"]["input_display"] == summary["latest"]["input_display"]
+
+
 def test_build_result_compare_context_uses_vector_axis_metadata():
     context = build_result_compare_context(
         [

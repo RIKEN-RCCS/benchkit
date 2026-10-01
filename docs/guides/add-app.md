@@ -219,6 +219,46 @@ bk_record_input \
 digest や source URL などの field が必要になった場合は、app 側に Result JSON schema を直書きさせるより、共通helperまたは共通の受け渡し形式を拡張します。
 公開 surface では detailed local path を出さず、dataset identity と検証状態を優先して見せる前提で設計してください。
 
+#### Verifying pre-staged files
+
+An application can verify a regular file before launching the benchmark:
+
+```bash
+bk_record_input \
+  --dataset-id myapp-case0-matrix \
+  --version v1 \
+  --type matrix \
+  --result-exp CASE0 \
+  --verify-file "$input_file" \
+  --expected-sha256 "$expected_sha256" \
+  --expected-size-bytes "$expected_size_bytes" || exit 1
+```
+
+All three verification options are required together. Supported types are
+`file`, `matrix`, and `archive` (including `tar` and `tgz`). The helper checks the
+byte count and complete SHA-256, then records `sha256`, numeric `size_bytes`, and
+`verification_status: "verified"`. Missing files, invalid expectations, read/hash
+failures, and mismatches return nonzero without adding an input record. Existing
+calls without these options retain their previous behavior.
+
+`--verify-file` is a local lookup path, not a metadata field: it is not saved or
+printed in verification errors. `--path` retains its separate meaning as a
+repository-relative metadata path. Dataset IDs, versions, parameters, and recipes
+remain application-provided metadata and must be suitable for their publication
+surface. Digest verification does not grant public access or publication approval.
+
+Applications own the expected digests, sizes, file lists, versions, generation
+recipes, and numerical acceptance criteria. Obtain expectations from a trusted
+input definition, not by hashing the same untrusted file immediately before this
+call. For a multi-file restart, record each required file using `--type file`
+and a stable component dataset ID. Stop before launching if any check fails;
+successfully checked components do not prove that unlisted files were checked.
+Hashing a manifest alone does not verify the files it names. Verification applies
+to the bytes read at verification time; applications must keep those inputs
+unchanged until they are consumed. Symlinks are followed and their target bytes
+are checked on each invocation; no size/mtime cache is used. Verify large inputs
+outside the measured solver interval and budget for the read cost separately.
+
 Portal の `/results/usage` では、通常の benchmark result に対する入力出自の状態を `Input Status` として表示します。
 この値は estimation 専用ではなく、Result JSON の `input_info` を見た current-state summary です。
 

@@ -59,6 +59,18 @@ cat > "${TMP_DIR}/results/input_info.json" <<'EOF'
 }
 EOF
 
+# Preserve existing records while adding a verified file through the public helper.
+(
+  cd "$TMP_DIR"
+  source "${REPO_DIR}/scripts/bk_functions.sh"
+  jq -c '.inputs[]' results/input_info.json > results/.input_info_items.jsonl
+  printf abc > input.bin
+  bk_record_input --dataset-id demo-case0-matrix --version v1 --type matrix \
+    --result-exp CASE0 --verify-file "$TMP_DIR/input.bin" \
+    --expected-sha256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad \
+    --expected-size-bytes 3
+)
+
 cat > "${TMP_DIR}/results/timing_observations.json" <<'EOF'
 {
   "schema_version": 1,
@@ -269,10 +281,15 @@ jq -e '
   .source_info.ref_kind == "branch" and
   .source_info.resolved_commit == "abcdef1234567890abcdef1234567890abcdef12" and
   .input_info.schema_version == 1 and
-  (.input_info.inputs | length) == 1 and
+  (.input_info.inputs | length) == 2 and
   .input_info.inputs[0].dataset_id == "demo-case0" and
   .input_info.inputs[0].result_exp == "CASE0" and
   .input_info.inputs[0].verification_status == "covered_by_source_commit" and
+  .input_info.inputs[1].dataset_id == "demo-case0-matrix" and
+  .input_info.inputs[1].verification_status == "verified" and
+  .input_info.inputs[1].sha256 == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" and
+  .input_info.inputs[1].size_bytes == 3 and
+  (.input_info.inputs[1] | has("repo_relative_path") | not) and
   .timing_observations.schema_version == 1 and
   (.timing_observations.observations | length) == 1 and
   .timing_observations.observations[0].id == "demo-case0-timers" and

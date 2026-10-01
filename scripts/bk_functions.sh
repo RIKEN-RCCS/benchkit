@@ -1242,6 +1242,8 @@ _bk_record_input_item() {
   _bk_item_source_ref=""
   _bk_item_resolved_commit=""
   _bk_item_verification_status=""
+  _bk_item_sha256=""
+  _bk_item_size_bytes=""
   _bk_item_recipe=""
   _bk_item_command=""
   _bk_item_arguments=()
@@ -1346,6 +1348,17 @@ _bk_record_input_item() {
         shift
         _bk_item_verification_status="$1"
         ;;
+      --sha256|--size-bytes)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: $1 requires a value" >&2
+          return 1
+        fi
+        case "$1" in
+          --sha256) _bk_item_sha256="$2" ;;
+          --size-bytes) _bk_item_size_bytes="$2" ;;
+        esac
+        shift
+        ;;
       --recipe)
         if [ $# -lt 2 ]; then
           echo "bk_record_input_item: --recipe requires a value" >&2
@@ -1400,6 +1413,13 @@ _bk_record_input_item() {
   if [ -z "$_bk_item_verification_status" ]; then
     _bk_item_verification_status="declared"
   fi
+  if [ -n "$_bk_item_sha256" ]; then
+    bk_validate_hex_length "$_bk_item_sha256" 64 "input sha256" || return 1
+  fi
+  if [ -n "$_bk_item_size_bytes" ] && ! [[ "$_bk_item_size_bytes" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    echo "bk_record_input_item: invalid byte count" >&2
+    return 1
+  fi
 
   _bk_item_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
   _bk_item_items_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
@@ -1420,6 +1440,10 @@ _bk_record_input_item() {
     _bk_input_item_string_field "source_ref" "$_bk_item_source_ref"
     _bk_input_item_string_field "resolved_commit" "$_bk_item_resolved_commit"
     _bk_input_item_string_field "verification_status" "$_bk_item_verification_status"
+    _bk_input_item_string_field "sha256" "$_bk_item_sha256"
+    if [ -n "$_bk_item_size_bytes" ]; then
+      printf ',"size_bytes":%s' "$_bk_item_size_bytes"
+    fi
     _bk_input_item_string_field "recipe" "$_bk_item_recipe"
     if [ -n "$_bk_item_command" ]; then
       _bk_input_item_string_field "command" "$_bk_item_command"
@@ -1466,6 +1490,10 @@ bk_record_input() {
   _bk_input_parameter_set_id=""
   _bk_input_command=""
   _bk_input_recipe=""
+  _bk_input_verify_requested=0
+  _bk_input_verify_file=""
+  _bk_input_expected_sha256=""
+  _bk_input_expected_size_bytes=""
   _bk_input_arguments=()
   _bk_input_parameter_args=()
 
@@ -1494,6 +1522,19 @@ bk_record_input() {
         fi
         shift
         _bk_input_type="$1"
+        ;;
+      --verify-file|--expected-sha256|--expected-size-bytes)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input: $1 requires a value" >&2
+          return 1
+        fi
+        _bk_input_verify_requested=1
+        case "$1" in
+          --verify-file) _bk_input_verify_file="$2" ;;
+          --expected-sha256) _bk_input_expected_sha256="$2" ;;
+          --expected-size-bytes) _bk_input_expected_size_bytes="$2" ;;
+        esac
+        shift
         ;;
       --repo-url|--source-url|--public-url)
         if [ $# -lt 2 ]; then
@@ -1659,12 +1700,52 @@ bk_record_input() {
     fi
   fi
 
+  if [ "$_bk_input_verify_requested" -eq 1 ]; then
+    case "$_bk_input_type" in
+      file|matrix|archive|tar|tgz) ;;
+      *)
+        echo "bk_record_input: file verification requires --type file, matrix, or archive" >&2
+        return 1
+        ;;
+    esac
+    if [ -z "$_bk_input_verify_file" ] || [ -z "$_bk_input_expected_sha256" ] \
+      || ! [[ "$_bk_input_expected_size_bytes" =~ ^(0|[1-9][0-9]*)$ ]]; then
+      echo "bk_record_input: verification requires a file, SHA-256, and nonnegative byte count" >&2
+      return 1
+    fi
+    _bk_input_expected_sha256="$(bk_lower_hex "$_bk_input_expected_sha256")"
+    bk_validate_hex_length "$_bk_input_expected_sha256" 64 "input sha256" || return 1
+    if [ ! -f "$_bk_input_verify_file" ] || [ ! -r "$_bk_input_verify_file" ]; then
+      echo "bk_record_input: verification requires a readable regular file" >&2
+      return 1
+    fi
+    if ! _bk_input_actual_size=$( { wc -c < "$_bk_input_verify_file"; } 2>/dev/null); then
+      echo "bk_record_input: unable to read input size" >&2
+      return 1
+    fi
+    _bk_input_actual_size="${_bk_input_actual_size//[[:space:]]/}"
+    if [ "$_bk_input_actual_size" != "$_bk_input_expected_size_bytes" ]; then
+      echo "bk_record_input: input size mismatch" >&2
+      return 1
+    fi
+    # Hash through stdin so filenames cannot affect parsing or leak into diagnostics.
+    if ! _bk_input_actual_sha256=$( { bk_verify_file_sha256 /dev/stdin \
+      "$_bk_input_expected_sha256" "input" < "$_bk_input_verify_file"; } 2>/dev/null); then
+      echo "bk_record_input: input SHA-256 verification failed" >&2
+      return 1
+    fi
+    _bk_input_verification_status="verified"
+  fi
+
   _bk_input_call=(
     --dataset-id "$_bk_input_dataset_id"
     --kind "$_bk_input_kind"
     --source "$_bk_input_source"
     --verification-status "$_bk_input_verification_status"
   )
+  if [ "$_bk_input_verify_requested" -eq 1 ]; then
+    _bk_input_call+=(--sha256 "$_bk_input_actual_sha256" --size-bytes "$_bk_input_actual_size")
+  fi
   if [ -n "$_bk_input_dataset_version" ]; then
     _bk_input_call+=(--dataset-version "$_bk_input_dataset_version")
   fi

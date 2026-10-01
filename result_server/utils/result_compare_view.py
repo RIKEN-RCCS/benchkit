@@ -255,10 +255,10 @@ def _input_summary(data, stats):
     display = label if not descriptors else f"{label}: {'; '.join(descriptors[:2])}"
     if len(descriptors) > 2:
         display = f"{display}; +{len(descriptors) - 2} more"
-    return {"display": display, "key": (status, tuple(descriptors))}
+    return {"display": display, "key": (status, tuple(_input_descriptors(data, shorten=False)))}
 
 
-def _input_descriptors(data):
+def _input_descriptors(data, *, shorten=True):
     items = input_info_items_for_result(data)
     descriptors = []
     for item in items:
@@ -276,7 +276,7 @@ def _input_descriptors(data):
         if version:
             parts.append(version)
         if digest:
-            parts.append(short_identifier(str(digest), 12))
+            parts.append(short_identifier(str(digest), 12) if shorten else str(digest))
         if parts:
             descriptors.append("@".join(parts))
     return descriptors
