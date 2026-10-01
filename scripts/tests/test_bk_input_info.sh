@@ -149,6 +149,96 @@ bk_reset_input_info
 test ! -e results/input_info.json
 test ! -e results/.input_info_items.jsonl
 
+# Synthetic inputs exercise the contract without pinning application datasets.
+input_sha256=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+printf abc > 'private input.bin'
+input_path="${TMP_DIR}/private input.bin"
+bk_record_input --dataset-id demo-verified --version v1 --type file \
+  --result-exp CASE0 --verify-file "$input_path" \
+  --expected-sha256 "${input_sha256^^}" --expected-size-bytes 3
+if command -v jq >/dev/null 2>&1; then
+  jq -e --arg sha "$input_sha256" '
+    .inputs[0].verification_status == "verified" and
+    .inputs[0].sha256 == $sha and .inputs[0].size_bytes == 3 and
+    .inputs[0].result_exp == "CASE0" and
+    (.inputs[0] | has("repo_relative_path") | not)
+  ' results/input_info.json >/dev/null
+fi
+cp results/input_info.json expected-info.json
+cp results/.input_info_items.jsonl expected-items.jsonl
+
+reject_verification() {
+  if bk_record_input --dataset-id demo-invalid "$@" > verification.out 2> verification.err; then
+    echo "bk_record_input accepted invalid file verification" >&2
+    exit 1
+  fi
+  cmp results/input_info.json expected-info.json
+  cmp results/.input_info_items.jsonl expected-items.jsonl
+  test ! -s verification.out
+  if grep -F -e "$TMP_DIR" -e 'private input.bin' verification.err; then
+    echo "bk_record_input exposed an input location" >&2
+    exit 1
+  fi
+}
+
+reject_verification --type file --verify-file "$input_path"
+reject_verification --type file --expected-sha256 "$input_sha256" --expected-size-bytes 3
+reject_verification --type file --verify-file "$input_path" --expected-sha256 '' --expected-size-bytes 3
+reject_verification --type file --verify-file "$input_path" --expected-sha256 invalid --expected-size-bytes 3
+reject_verification --type file --verify-file "$input_path" --expected-sha256
+for size in '' -1 03 3.0 nope 4; do
+  reject_verification --type file --verify-file "$input_path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes "$size"
+done
+for path in "$TMP_DIR/missing" "$TMP_DIR"; do
+  reject_verification --type file --verify-file "$path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes 3
+done
+mkfifo input-pipe
+reject_verification --type file --verify-file input-pipe \
+  --expected-sha256 "$input_sha256" --expected-size-bytes 3
+reject_verification --type restart --verify-file "$input_path" \
+  --expected-sha256 "$input_sha256" --expected-size-bytes 3
+# A same-size replacement must not be accepted using cached metadata.
+printf abd > "$input_path"
+reject_verification --type file --verify-file "$input_path" \
+  --expected-sha256 "$input_sha256" --expected-size-bytes 3
+printf abc > "$input_path"
+(
+  bk_sha256_file() { return 1; }
+  reject_verification --type file --verify-file "$input_path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes 3
+)
+(
+  bk_sha256_file() { printf '%s\n' "$input_sha256"; return 1; }
+  reject_verification --type file --verify-file "$input_path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes 3
+)
+
+# Symlinks are permitted, but the target bytes are verified on every call.
+ln -s "$input_path" input-link
+bk_record_input --dataset-id demo-link --type matrix --verify-file input-link \
+  --expected-sha256 "$input_sha256" --expected-size-bytes 3
+printf '' > empty-input
+bk_record_input --dataset-id demo-empty --type file --verify-file empty-input \
+  --expected-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 \
+  --expected-size-bytes 0
+# Existing declared calls must not inherit verification from a preceding call.
+bk_record_input --dataset-id demo-declared --type file
+if command -v jq >/dev/null 2>&1; then
+  jq -e '
+    (.inputs | length) == 4 and
+    .inputs[1].verification_status == "verified" and
+    .inputs[2].size_bytes == 0 and
+    .inputs[3].verification_status == "declared" and
+    (.inputs[3] | has("sha256") or has("size_bytes") | not)
+  ' results/input_info.json >/dev/null
+fi
+if grep -F "$input_path" results/input_info.json; then
+  echo "bk_record_input stored an input location" >&2
+  exit 1
+fi
+
 bk_write_source_info_env \
   git \
   "https://example.test/demo.git" \
