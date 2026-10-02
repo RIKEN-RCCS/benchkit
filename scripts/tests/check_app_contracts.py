@@ -92,7 +92,10 @@ def source_provenance_visible(app: str) -> bool:
     run_text = app_script_text(app, "run.sh")
     return any(
         marker in f"{build_text}\n{run_text}"
-        for marker in ("bk_fetch_source", "results/source_info.env", "BK_SOURCE_")
+        for marker in (
+            "bk_fetch_source", "bk_fetch_recorded_source",
+            "results/source_info.env", "BK_SOURCE_",
+        )
     )
 
 
@@ -101,11 +104,14 @@ def input_provenance_visible(app: str) -> bool:
     return any(
         marker in run_text
         for marker in (
-            "bk_record_input_info",
+            "bk_record_input",
             "results/input_info.json",
             "input_info",
             "BK_INPUT_",
         )
+    ) or (
+        "bk_run" in run_text
+        and any(flag in run_text for flag in ("--input-file", "--parameter-input"))
     )
 
 
