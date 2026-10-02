@@ -44,6 +44,24 @@ not a Python standard-library feature. Other platforms need a vetted
 bundled SQLite, crypto provider, platform support, and license notices before
 deployment. Update and test the dependency as security releases become available.
 
+### Dependency Records and Disclosure
+
+Dependency tracking and public disclosure are separate decisions. Maintain an
+access-controlled deployment inventory of the installed distribution, artifact
+hashes, upstream references, bundled SQLCipher/SQLite/crypto components, and
+license notices. Verify artifact integrity and update the inventory when the
+deployment changes; restricting access does not replace these checks.
+
+Public documentation may contain reviewed dependency requirements, distribution
+hashes, upstream references, verification procedures, and applicable license
+notices without publishing a deployment inventory or environment-to-component
+mapping. Keep deployment paths and operational configuration out of public
+records. Never include keys or credentials in either inventory. This guidance
+does not assert that a particular distribution's bundled components have already
+been independently verified.
+
+### Initialization
+
 Set `DB_PATH`, `DB_KEY_FILE`, and `BACKUP_PATH` to operator-selected absolute
 paths. Provision their parent directories with mode `0700` first. The key and
 database must be in separate directories; file modes must be `0600` or stricter.
