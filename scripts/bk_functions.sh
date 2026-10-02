@@ -14,6 +14,25 @@ if [ -z "${_BK_WORKFLOW_SESSION_ID:-}" ]; then
   export _BK_WORKFLOW_SESSION_ID="${_BK_WORKFLOW_EPOCH}-${BASHPID}-${RANDOM}"
 fi
 
+# Capture the caller's root once; applications can change cwd without metadata exports.
+_BK_DEFAULT_RESULTS_DIR="${_BK_DEFAULT_RESULTS_DIR:-${PWD}/results}"
+export _BK_DEFAULT_RESULTS_DIR
+
+_bk_initialize_metadata() {
+  local kind="$1" info="$2" items="$3"
+  "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/runtime_metadata.py" \
+    --session "$_BK_WORKFLOW_SESSION_ID" --kind "$kind" --info "$info" --items "$items"
+}
+
+_bk_prepare_runtime() {
+  _bk_initialize_metadata input \
+    "${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}" \
+    "${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}" || return 1
+  _bk_initialize_metadata timing \
+    "${BK_TIMING_OBSERVATIONS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/timing_observations.json}" \
+    "${BK_TIMING_OBSERVATION_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.timing_observation_items.jsonl}"
+}
+
 # Set execution scope once, before changing directory or entering a pipeline.
 bk_run_context() {
   local results_dir="${BK_RUN_RESULTS_DIR:-${PWD}/results}"
@@ -49,36 +68,158 @@ bk_run_context() {
 
 _bk_execute_command() {
   local stage="$1" tool="$2" profile="$3" log_file="$4"
-  shift 4
+  local elapsed_variable="$5" elapsed_value=""
+  shift 5
   local token="" command_status=0
-  local results_dir="${BK_RUN_RESULTS_DIR:-${BK_BENCHKIT_ROOT}/results}"
+  local results_dir="${BK_RUN_RESULTS_DIR:-${_BK_DEFAULT_RESULTS_DIR}}"
   local recorder="${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py"
+  local scope_args=()
+  if [ -n "${_BK_EXECUTION_OUTPUT:-}" ]; then
+    scope_args=(--output "$_BK_EXECUTION_OUTPUT")
+  fi
+  if [ -n "${_BK_EXECUTION_INPUTS:-}" ]; then
+    scope_args+=(--inputs "$_BK_EXECUTION_INPUTS")
+  fi
   token=$("${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
     start --session "$_BK_WORKFLOW_SESSION_ID" --exp "${BK_RUN_EXP:-}" \
-    --stage "$stage" --tool "$tool" --profile "$profile") || token=""
+    --stage "$stage" --tool "$tool" --profile "$profile" "${scope_args[@]}") || token=""
+  if [ -n "$elapsed_variable" ] && [ -z "$token" ]; then
+    echo "Benchkit timing: requested elapsed time is unavailable" >&2
+    return 1
+  fi
   if [ -n "$log_file" ]; then
     "$@" > "$log_file" 2>&1 || command_status=$?
   else
     "$@" || command_status=$?
   fi
   if [ -n "$token" ]; then
-    "${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
-      finish "$token" "$command_status" || \
-      echo "Benchkit timing: stage completion could not be recorded" >&2
+    if [ -n "$elapsed_variable" ]; then
+      if elapsed_value=$("${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
+          finish "$token" "$command_status" --print-elapsed); then
+        printf -v "$elapsed_variable" '%s' "$elapsed_value"
+      else
+        echo "Benchkit timing: requested elapsed time could not be recorded" >&2
+        [ "$command_status" -ne 0 ] || command_status=1
+      fi
+    else
+      "${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
+        finish "$token" "$command_status" || \
+        echo "Benchkit timing: stage completion could not be recorded" >&2
+    fi
   fi
   return "$command_status"
 }
 
 bk_run() {
-  local log_file=""
-  if [ "${1:-}" = --log ]; then
-    [ "$#" -ge 2 ] || return 2
-    log_file="$2"
-    shift 2
-  fi
-  [ "${1:-}" = -- ] && shift
+  local _bk_log="" _bk_elapsed="" _bk_seconds="" _bk_state="" _bk_status=0
+  local _BK_EXECUTION_OUTPUT=""
+  local _BK_EXECUTION_INPUTS="" _bk_input_dir="" _bk_input_file
+  local _bk_input_files=() _bk_launcher=() _bk_parameter_input=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --input-file)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || return 2
+        _bk_input_files+=("$2"); shift 2 ;;
+      --parameter-input) _bk_parameter_input=1; shift ;;
+      --launcher)
+        shift
+        while [ "$#" -gt 0 ] && [ "$1" != -- ]; do
+          _bk_launcher+=("$1"); shift
+        done
+        [ "${#_bk_launcher[@]}" -gt 0 ] && [ "$#" -gt 0 ] || return 2
+        shift; break ;;
+      --log|--elapsed)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || return 2
+        case "$1" in
+          --log) _bk_log="$2" ;;
+          --elapsed) _bk_elapsed="$2" ;;
+        esac
+        shift 2 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
   [ "$#" -gt 0 ] || return 2
-  _bk_execute_command benchmark none "" "$log_file" "$@"
+  if [ -n "$_bk_elapsed" ]; then
+    [[ "$_bk_elapsed" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]] || return 2
+    printf -v "$_bk_elapsed" '%s' '' || return 2
+  fi
+  if [ -n "$_bk_log" ]; then
+    case "$_bk_log" in
+      /*) ;;
+      *) _bk_log="${PWD}/${_bk_log}" ;;
+    esac
+    _bk_state=$(mktemp) || return 1
+    if ! "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/run_output.py" \
+        snapshot --state "$_bk_state" --log "$_bk_log"; then
+      rm -f "$_bk_state"
+      return 1
+    fi
+  fi
+  # Explicit context remains a compatibility interface for existing callers.
+  if [ -n "$_bk_log" ] && [ -z "${BK_RUN_EXP:-}" ]; then
+    _BK_EXECUTION_OUTPUT="$_bk_log"
+    if ! _bk_prepare_runtime; then
+      rm -f "$_bk_state"
+      return 1
+    fi
+  fi
+  if [ "${#_bk_input_files[@]}" -gt 0 ] || [ "$_bk_parameter_input" -eq 1 ]; then
+    if [ -z "$_BK_EXECUTION_OUTPUT" ]; then
+      rm -f "$_bk_state"
+      echo "bk_run: input collection requires an output log without legacy context" >&2
+      return 2
+    fi
+    if ! _bk_input_dir=$(mktemp -d "${_BK_DEFAULT_RESULTS_DIR}/.run-input.XXXXXX"); then
+      rm -f "$_bk_state"
+      return 1
+    fi
+    _BK_EXECUTION_INPUTS="${_bk_input_dir}/input_info.json"
+    for _bk_input_file in "${_bk_input_files[@]}"; do
+      BK_INPUT_INFO_FILE="$_BK_EXECUTION_INPUTS" \
+        BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
+        bk_record_input --file "$_bk_input_file" || _bk_status=$?
+      [ "$_bk_status" -eq 0 ] || break
+    done
+    if [ "$_bk_parameter_input" -eq 1 ] && [ "$_bk_status" -eq 0 ]; then
+      BK_INPUT_INFO_FILE="$_BK_EXECUTION_INPUTS" \
+        BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
+        bk_record_input --dataset-id command-parameters --command "$(basename "$1")" -- "${@:2}" || _bk_status=$?
+    fi
+  fi
+  if [ "$_bk_status" -eq 0 ]; then
+    _bk_execute_command benchmark none "" "$_bk_log" "${_bk_elapsed:+_bk_seconds}" "${_bk_launcher[@]}" "$@" || _bk_status=$?
+  fi
+  [ -z "$_bk_input_dir" ] || rm -rf "$_bk_input_dir"
+  if [ -n "$_bk_log" ]; then
+    if ! "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/run_output.py" \
+        collect --state "$_bk_state" --log "$_bk_log"; then
+      [ "$_bk_status" -ne 0 ] || _bk_status=1
+    fi
+    rm -f "$_bk_state"
+    if [ "$_bk_status" -ne 0 ]; then
+      echo "Benchkit run: command or output collection failed (status $_bk_status)" >&2
+      bk_diagnose_log "$_bk_log"
+    fi
+  fi
+  [ -z "$_bk_elapsed" ] || printf -v "$_bk_elapsed" '%s' "$_bk_seconds"
+  return "$_bk_status"
+}
+
+bk_profile() {
+  [ "${1:-}" = --from-log ] && [ "$#" -ge 4 ] || return 2
+  local _BK_EXECUTION_OUTPUT="$2"
+  case "$_BK_EXECUTION_OUTPUT" in
+    /*) ;;
+    *) _BK_EXECUTION_OUTPUT="${PWD}/${_BK_EXECUTION_OUTPUT}" ;;
+  esac
+  shift 2
+  [ "${1:-}" = -- ] && shift
+  "$@"
+}
+
+bk_diagnose_log() {
+  tail -c 16384 -- "$1" | tail -n 80 >&2 || true
 }
 
 # Execute a prepared profiler command, including MPI/container launchers.
@@ -105,7 +246,7 @@ bk_profile_execute() {
     collect|export|plan) ;;
     *) echo "bk_profile_execute: unknown phase" >&2; return 2 ;;
   esac
-  _bk_execute_command "$phase" "$tool" "$profile" "$log_file" "$@"
+  _bk_execute_command "$phase" "$tool" "$profile" "$log_file" "" "$@"
 }
 
 bk_generate_ncu_plan() {
@@ -136,6 +277,8 @@ bk_generate_ncu_plan() {
 #   0 - success
 #   1 - missing or invalid --fom
 bk_emit_result() {
+  local _bk_result_logs=()
+  local timing_parser="" timing_producer="" output_index
   _bk_fom=""
   _bk_fom_unit=""
   _bk_fom_version=""
@@ -148,6 +291,16 @@ bk_emit_result() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
+      --timing-parser|--timing-producer)
+        [ "$#" -ge 2 ] || return 1
+        if [ "$1" = --timing-parser ]; then timing_parser="$2"; else timing_producer="$2"; fi
+        shift
+        ;;
+      --from-log)
+        shift
+        [ "$#" -gt 0 ] || return 1
+        _bk_result_logs+=(--output "$1")
+        ;;
       --fom)
         shift
         if [ $# -eq 0 ]; then
@@ -250,6 +403,21 @@ bk_emit_result() {
       _bk_fom=$(awk "BEGIN {printf \"%.17g\", $_bk_fom}")
       ;;
   esac
+
+  if [ "${#_bk_result_logs[@]}" -gt 0 ]; then
+    "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py" \
+      --results-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}" bind \
+      --input-info "${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}" \
+      --input-items "${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}" \
+      --session "$_BK_WORKFLOW_SESSION_ID" --exp "$_bk_exp" "${_bk_result_logs[@]}" || \
+      echo "Benchkit timing: output association unavailable; FOM is retained" >&2
+  fi
+  if [ -n "$timing_parser" ]; then
+    for ((output_index=1; output_index<${#_bk_result_logs[@]}; output_index+=2)); do
+      _bk_emit_timing_artifact "${_bk_result_logs[$output_index]}" "$_bk_exp" "$_bk_fom" \
+        "$timing_producer" "$timing_parser" || echo 'Benchkit timing: parser observation unavailable; FOM is retained' >&2
+    done
+  fi
 
   # Build output line
   _bk_output="FOM:${_bk_fom}"
@@ -1146,7 +1314,7 @@ bk_record_input_info() {
     return 1
   fi
 
-  _bk_input_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
+  _bk_input_info_file="${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}"
   _bk_input_info_dir=$(dirname "$_bk_input_info_file")
   mkdir -p "$_bk_input_info_dir" || return 1
   _bk_input_info_tmp=$(mktemp "${_bk_input_info_file}.tmp.XXXXXX") || return 1
@@ -1188,8 +1356,8 @@ bk_record_input_info() {
 }
 
 bk_reset_input_info() {
-  _bk_reset_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
-  _bk_reset_items_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
+  _bk_reset_info_file="${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}"
+  _bk_reset_items_file="${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}"
   rm -f "$_bk_reset_info_file" "$_bk_reset_items_file"
 }
 
@@ -1249,6 +1417,7 @@ _bk_record_input_item() {
   _bk_item_arguments=()
   _bk_item_parameter_keys=()
   _bk_item_parameter_values=()
+  local observation_args=() item_json
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1359,6 +1528,14 @@ _bk_record_input_item() {
         esac
         shift
         ;;
+      --file|--directory|--expected-manifest)
+        if [ $# -lt 2 ]; then
+          echo "bk_record_input_item: missing collection argument" >&2
+          return 1
+        fi
+        observation_args+=("$1" "$2")
+        shift
+        ;;
       --recipe)
         if [ $# -lt 2 ]; then
           echo "bk_record_input_item: --recipe requires a value" >&2
@@ -1421,11 +1598,10 @@ _bk_record_input_item() {
     return 1
   fi
 
-  _bk_item_info_file="${BK_INPUT_INFO_FILE:-results/input_info.json}"
-  _bk_item_items_file="${BK_INPUT_INFO_ITEMS_FILE:-results/.input_info_items.jsonl}"
-  mkdir -p "$(dirname "$_bk_item_items_file")" || return 1
+  _bk_item_info_file="${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}"
+  _bk_item_items_file="${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}"
 
-  {
+  item_json=$(
     _bk_input_item_first=1
     printf '{'
     _bk_input_item_string_field "dataset_id" "$_bk_item_dataset_id"
@@ -1473,7 +1649,16 @@ _bk_record_input_item() {
       _bk_input_item_first=0
     fi
     printf '}\n'
-  } >> "$_bk_item_items_file"
+  ) || return 1
+
+  if [ "${#observation_args[@]}" -gt 0 ]; then
+    item_json=$(printf '%s\n' "$item_json" | "${PYTHON_BIN:-python3}" \
+      "${BK_BENCHKIT_ROOT}/scripts/input_manifest.py" "${observation_args[@]}" \
+      --metadata-output "$_bk_item_info_file" --metadata-output "$_bk_item_items_file") || return 1
+  fi
+  _bk_initialize_metadata input "$_bk_item_info_file" "$_bk_item_items_file" || return 1
+  mkdir -p "$(dirname "$_bk_item_items_file")" || return 1
+  printf '%s\n' "$item_json" >> "$_bk_item_items_file" || return 1
 
   _bk_record_input_info_items_file "$_bk_item_info_file" "$_bk_item_items_file"
 }
@@ -1496,6 +1681,7 @@ bk_record_input() {
   _bk_input_expected_size_bytes=""
   _bk_input_arguments=()
   _bk_input_parameter_args=()
+  local observation_kind="" observation_args=() expected_manifest=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1534,6 +1720,23 @@ bk_record_input() {
           --expected-sha256) _bk_input_expected_sha256="$2" ;;
           --expected-size-bytes) _bk_input_expected_size_bytes="$2" ;;
         esac
+        shift
+        ;;
+      --file|--directory)
+        if [ $# -lt 2 ] || [ -z "$2" ] || [ -n "$observation_kind" ]; then
+          echo "bk_record_input: specify one nonempty --file or --directory" >&2
+          return 1
+        fi
+        observation_kind="${1#--}"
+        observation_args+=("$1" "$2")
+        shift
+        ;;
+      --expected-manifest)
+        if [ $# -lt 2 ] || [ -z "$2" ]; then
+          echo "bk_record_input: --expected-manifest requires a value" >&2
+          return 1
+        fi
+        expected_manifest="$2"
         shift
         ;;
       --repo-url|--source-url|--public-url)
@@ -1622,6 +1825,32 @@ bk_record_input() {
     esac
     shift
   done
+
+  if [ -n "$observation_kind" ]; then
+    if [ "$_bk_input_verify_requested" -eq 1 ]; then
+      echo "bk_record_input: do not mix collection and single-file verification options" >&2
+      return 1
+    fi
+    if [ -z "$_bk_input_type" ]; then
+      case "$observation_kind" in
+        file) _bk_input_type=file ;;
+        directory) _bk_input_type=dataset ;;
+      esac
+    fi
+    case "$observation_kind:$_bk_input_type" in
+      file:file|file:matrix|file:archive|file:tar|file:tgz|directory:input|directory:dataset|directory:restart) ;;
+      *) echo "bk_record_input: collection kind and input type do not match" >&2; return 1 ;;
+    esac
+    if [ -n "$expected_manifest" ]; then
+      observation_args+=(--expected-manifest "$expected_manifest")
+    fi
+    if [ -z "$_bk_input_dataset_id" ]; then
+      _bk_input_dataset_id="input-${observation_kind}"
+    fi
+  elif [ -n "$expected_manifest" ]; then
+    echo "bk_record_input: --expected-manifest requires --file or --directory" >&2
+    return 1
+  fi
 
   _bk_input_has_parameters=0
   if [ "${#_bk_input_parameter_args[@]}" -gt 0 ]; then
@@ -1771,6 +2000,7 @@ bk_record_input() {
     _bk_input_call+=(--recipe "$_bk_input_recipe")
   fi
   _bk_input_call+=("${_bk_input_parameter_args[@]}")
+  _bk_input_call+=("${observation_args[@]}")
   if [ -n "$_bk_input_command" ]; then
     _bk_input_call+=(--command "$_bk_input_command" -- "${_bk_input_arguments[@]}")
   fi
@@ -1783,8 +2013,8 @@ bk_record_runtime_parameter_input() {
 }
 
 bk_reset_timing_observations() {
-  _bk_reset_timing_file="${BK_TIMING_OBSERVATIONS_FILE:-results/timing_observations.json}"
-  _bk_reset_timing_items_file="${BK_TIMING_OBSERVATION_ITEMS_FILE:-results/.timing_observation_items.jsonl}"
+  _bk_reset_timing_file="${BK_TIMING_OBSERVATIONS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/timing_observations.json}"
+  _bk_reset_timing_items_file="${BK_TIMING_OBSERVATION_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.timing_observation_items.jsonl}"
   rm -f "$_bk_reset_timing_file" "$_bk_reset_timing_items_file"
 }
 
@@ -1969,8 +2199,9 @@ bk_record_timing_observation() {
     fi
   fi
 
-  _bk_timing_info_file="${BK_TIMING_OBSERVATIONS_FILE:-results/timing_observations.json}"
-  _bk_timing_items_file="${BK_TIMING_OBSERVATION_ITEMS_FILE:-results/.timing_observation_items.jsonl}"
+  _bk_timing_info_file="${BK_TIMING_OBSERVATIONS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/timing_observations.json}"
+  _bk_timing_items_file="${BK_TIMING_OBSERVATION_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.timing_observation_items.jsonl}"
+  _bk_initialize_metadata timing "$_bk_timing_info_file" "$_bk_timing_items_file" || return 1
   mkdir -p "$(dirname "$_bk_timing_info_file")" "$(dirname "$_bk_timing_items_file")" || return 1
 
   jq -n -c \
@@ -2725,7 +2956,7 @@ bk_profiler() {
   # Preserve the profiler command status after metadata/archive creation. If the
   # archive itself cannot be written, that failure is more actionable to CI.
   bk_profiler_write_meta "$_bk_stage_dir" "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_profiler_report_format" "$_bk_profiler_run_names" "$_bk_profiler_run_events" "$_bk_profiler_extra_args" "$_bk_profiler_report_extra_args"
-  if tar -czf "$_bk_profiler_archive" "$_bk_stage_dir"; then
+  if tar -czf "$_bk_profiler_archive" -C "$(dirname "$_bk_stage_dir")" "$(basename "$_bk_stage_dir")"; then
     _bk_profiler_archive_status=0
   else
     _bk_profiler_archive_status=$?
@@ -3172,3 +3403,6 @@ bk_fetch_recorded_source() {
 
   bk_fetch_source "$_bk_recorded_src" "$_bk_recorded_dest" "$_bk_recorded_ref" "$_bk_recorded_expected"
 }
+
+# shellcheck source=scripts/profiling/acquisition.sh
+source "${BK_BENCHKIT_ROOT}/scripts/profiling/acquisition.sh"

@@ -128,6 +128,12 @@ qws_emit_timing_artifact_json() {
     '
 }
 
+qws_observe_timing() {
+  if grep -Eq '^[[:space:]]*rank[[:space:]]+func_id[[:space:]]+calls[[:space:]]+total[(]s[)][[:space:]]+average[(]s[)]|^QWS_TIMER_SCHEMA' "$1"; then
+    qws_emit_timing_artifact_json "$@"
+  fi
+}
+
 qws_write_timing_artifact() {
   local log_file="$1"
   local exp="$2"

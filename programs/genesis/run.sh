@@ -28,14 +28,9 @@ input=${header}.inp
 resultsdir=${SCRIPT_DIR}/results
 artifactsdir=${SCRIPT_DIR}/artifacts
 mkdir -p ${resultsdir}
-bk_run_context --results-dir "${resultsdir}" --exp "$exp"
-export BK_INPUT_INFO_FILE="${resultsdir}/input_info.json"
-export BK_INPUT_INFO_ITEMS_FILE="${resultsdir}/.input_info_items.jsonl"
-bk_reset_input_info
 #tmpdir="/vol0003/share/rccs-sdt/TMP_FugakuNEXT_CICD_LOG/${system}"
 #mkdir -p ${tmpdir}
 output="${resultsdir}/log_${header}.txt"
-stderr="${resultsdir}/log_${header}_err.txt"
 binary="spdyn"
 inputdir="../../../inputs/apoa1/"
 
@@ -163,8 +158,8 @@ run_genesis_nvidia_gpu() {
     genesis_configure_ncu_profile "$system_name" "$profiler_tool_var" "$profiler_level_var" "$module_var" || return 1
 
     echo "Running ${system_name} as NVIDIA GPU benchmark run without profiler"
-    bk_run -- "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub 2>&1 | tee ${output}
-    genesis_run_configured_ncu_profiles "$system_name" "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
+    bk_run --log "$output" -- "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub
+    bk_profile --from-log "$output" -- genesis_run_configured_ncu_profiles "$system_name" "${nvidia_mpi_cmd[@]}" ./${binary} ${input}.sub || return 1
 }
 
 genesis_rikyu_apptainer_run_prefix() {
@@ -206,9 +201,7 @@ case "$system" in
 	echo "${mpi_cmd} ./${binary} ${input}.sub"
 	# Intentional word splitting: mpi_cmd contains the launcher and its arguments.
 	# shellcheck disable=SC2086
-	bk_run -- ${mpi_cmd} ./${binary} ${input}.sub
-	[[ -f ./stdout.1.0 ]] && cp ./stdout.1.0 ${output}
-	[[ -f ./stderr.1.0 ]] && cp ./stderr.1.0 ${stderr}
+	bk_run --log "$output" -- ${mpi_cmd} ./${binary} ${input}.sub
     ;;
   # FugakuLN retired; previous LN run kept for reference.
   # FugakuLN)
@@ -259,7 +252,7 @@ if [[ -z "$fom_val" ]]; then
 fi
 
 {
-    bk_emit_result --fom "$fom_val" --fom-unit s --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+    bk_emit_result --from-log "$output" --fom "$fom_val" --fom-unit s --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
     genesis_emit_estimation_data_from_log "$output" "$fom_val"
 } >> ${resultsdir}/result
 # if information is requierd

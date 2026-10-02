@@ -5,7 +5,7 @@ nodes="$2"
 numproc_node="$3"
 nthreads="$4"
 export OMP_NUM_THREADS=$nthreads
-mkdir -p results && > results/result
+mkdir -p results && : > results/result
 
 source "${PWD}/scripts/bk_functions.sh"
 
@@ -54,14 +54,14 @@ get_fom () {
   FOM2=`get_etime_total $LOG`
   FOM_O=`echo $FOM2 $FOM1 | awk '{print $1-$2}'`
   if [ $# -eq 1 ]; then
-      bk_emit_result --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_result --from-log "$LOG" --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
       bk_emit_section solver "$FOM1"
       bk_emit_section other "$FOM_O"
   else
       # 第2引数をExp名として使用
       # 注意: 暫定的にtarget情報をExpに付け加えます。
       TARGET=$(echo "$2" | sed 's/target: //' | sed 's/ $//')
-      bk_emit_result --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_result --from-log "$LOG" --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
       bk_emit_section solver "$FOM1"
       bk_emit_section other "$FOM_O"
   fi
@@ -90,9 +90,7 @@ case "$system" in
         cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,2,2/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
         export OMP_NUM_THREADS=12
         export FLIB_BARRIER=HARD
-        mpiexec -np 4 -std-proc run.log $BIN alt_qxs
-        this_log=`ls ./run.log.*.0|tail -n 1`
-	[[ -f $this_log ]] && cp $this_log run.log
+        bk_run --log run.log -- mpiexec -np 4 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
         check run.log
         get_fom run.log >> $RESULT
         ;;
@@ -100,9 +98,7 @@ case "$system" in
         cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,16,16,24/" -e "s/xxx_grid_size_xxx/2,2,4,3/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
         export OMP_NUM_THREADS=12
         export FLIB_BARRIER=HARD
-        mpiexec -np 48 -std-proc run.log $BIN alt_qxs
-        this_log=`ls ./run.log.*.0|tail -n 1`
-	[[ -f $this_log ]] && cp $this_log run.log
+        bk_run --log run.log -- mpiexec -np 48 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
         check run.log
         get_fom run.log >> $RESULT
         ;;
@@ -121,22 +117,22 @@ case "$system" in
   MiyabiG )
       # openacc
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml
-      mpiexec -np 1 ./bridge_openacc.elf alt_accel > run.log
+      bk_run --log run.log -- mpiexec -np 1 ./bridge_openacc.elf alt_accel
       check run.log
       get_fom run.log "target: OpenACC " > $RESULT
-      mpiexec -np 1 ./bridge_cuda.elf alt_accel > run_cuda.log
+      bk_run --log run_cuda.log -- mpiexec -np 1 ./bridge_cuda.elf alt_accel
       check run_cuda.log
       get_fom run_cuda.log "target: CUCA" >> $RESULT
       ;;
   MiyabiC )
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
-      mpiexec -np 2 ./bridge.elf alt_simd > run.log
+      bk_run --log run.log -- mpiexec -np 2 ./bridge.elf alt_simd
       check run.log
       get_fom run.log >> $RESULT
       ;;
   AVX512 )
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/8/" > main.yaml
-      mpiexec -np 1 ./bridge.elf alt_simd > run.log
+      bk_run --log run.log -- mpiexec -np 1 ./bridge.elf alt_simd
       check run.log
       get_fom run.log >> $RESULT
       ;;

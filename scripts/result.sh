@@ -75,7 +75,15 @@ build_profile_data_summary() {
 }
 
 has_profiler_archive() {
-  local archive
+  local archive managed_state
+  if [ -f results/.workflow_session.json ]; then
+    managed_state=$("${PYTHON_BIN:-python3}" "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" \
+      --results-dir results has-profiles) || managed_state=""
+    case "$managed_state" in
+      true) return 0 ;;
+      false) return 1 ;;
+    esac
+  fi
   for archive in results/padata*.tgz; do
     if [[ -f "$archive" ]]; then
       return 0
@@ -1086,6 +1094,11 @@ write_result_json() {
   # counter events, while ncu exposes the Nsight Compute option preset.
   local profile_data_block=""
   local profile_data_summary=""
+  if [ -f results/.workflow_session.json ]; then
+    "${PYTHON_BIN:-python3}" "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" \
+      --results-dir results publish-primary --exp "$exp" --destination "padata${idx}.tgz" || \
+      echo 'WARNING: scoped profile archive could not be published' >&2
+  fi
   profile_data_summary=$(build_profile_data_summary "results/padata${idx}.tgz")
   if [ -n "$profile_data_summary" ]; then
     profile_data_block=",
@@ -1094,6 +1107,15 @@ write_result_json() {
 
   # Build fom_breakdown if sections exist
   if [ -n "$sections_json" ]; then
+    if [ -f results/.workflow_session.json ]; then
+      local managed_sections
+      if managed_sections=$(printf '%s' "$sections_json" | "${PYTHON_BIN:-python3}" \
+          "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" --results-dir results enrich-sections --exp "$exp"); then
+        sections_json="$managed_sections"
+      else
+        echo 'WARNING: scoped section artifacts could not be attached' >&2
+      fi
+    fi
     # Validate overlap section names
     if [ -n "$overlaps_json" ]; then
       local overlap_count

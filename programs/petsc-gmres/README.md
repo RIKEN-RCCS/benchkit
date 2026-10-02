@@ -69,6 +69,14 @@ Every copy has SHA-256
 `01971e1fb37268a195ff3d96c7800d3f7cf6a37c2ddfe397825c62b3b592bdaf` —
 check a fresh copy against it before use.
 
+`run.sh` checks the matrix against `input-manifest.json` before starting MPI.
+The manifest contains the size and SHA-256 documented here. Changing
+`BK_PETSC_GMRES_MATRIX` changes the lookup location, not the expected dataset.
+The common helper records the verified content identity and manifest in Result
+metadata; a mismatch or failed MPI process stops result emission. This does not
+add a numerical convergence or error-range acceptance criterion. Input hashing
+adds a full file read before the solver's measured interval.
+
 To re-stage on a system: copy the `stokes2.dat` file (3,092,468,720 bytes)
 from an existing location above. To regenerate from scratch, run the
 FreeFEM script (`mpirun -np 8 FreeFem++-mpi StokesPETSc0.edp`) which writes

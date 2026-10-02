@@ -376,7 +376,7 @@ for mode in host container; do
     bk_run -- "${app[@]}" >/dev/null
     plan=$(genesis_generate_ncu_plan single "${app[@]}" 2>discovery.log)
     test -s "$plan"
-    genesis_run_ncu_profile sample sample 'regex:.*sample.*' 0 1 single '' '{}' \
+    genesis_run_ncu_profile sample sample 'regex:.*sample.*' 0 1 single '' '' \
       "${app[@]}" >profile.log 2>&1
     jq -e '
       .producer == "benchkit" and
@@ -388,7 +388,7 @@ for mode in host container; do
       ([.stages[] | select(.stage == "export" and .tool == "ncu")] | length) == 2 and
       all(.stages[]; .status == "completed" and .exit_code == 0)
     ' "$resultsdir"/workflow_timing_*.json >/dev/null
-    test -f "$resultsdir/padata_sample.tgz"
+    test -n "$(find "$resultsdir" -name profile.tgz -print -quit)"
     test ! -e "$resultsdir/timing_observations.json"
   )
 done

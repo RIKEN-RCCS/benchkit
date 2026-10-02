@@ -3,13 +3,11 @@
 set -e
 system="$1"
 nodes="$2"
-TOPDIR="${PWD}"
+elapse_scale=""
+elapse_letkf=""
 mkdir -p results && : > results/result
 
 source "${PWD}/scripts/bk_functions.sh"
-export BK_INPUT_INFO_FILE="${TOPDIR}/results/input_info.json"
-export BK_INPUT_INFO_ITEMS_FILE="${TOPDIR}/results/.input_info_items.jsonl"
-bk_reset_input_info
 
 case "$system" in
   Fugaku|FugakuCN)
@@ -48,21 +46,13 @@ case "$system" in
 
         # SCALE-RM
         echo "SCALE-RM   run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 12 -std-proc log/NOUT_scale-rm_ens bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "SCALE-RM   run ending ... elapse (`echo $elapse` sec)"
-        elapse_scale=$elapse
+        bk_run --log scale.log --elapsed elapse_scale -- mpiexec -n 12 -std-proc log/NOUT_scale-rm_ens bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
+        echo "SCALE-RM   run ending ... elapse ($elapse_scale sec)"
 
         # LETKF
         echo "LETKF      run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 12 -std-proc log/NOUT_letkf bin/letkf conf/letkf_20210730060030.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "LETKF      run ending ... elapse (`echo $elapse` sec)"
-        elapse_letkf=$elapse
+        bk_run --log letkf.log --elapsed elapse_letkf -- mpiexec -n 12 -std-proc log/NOUT_letkf bin/letkf conf/letkf_20210730060030.conf
+        echo "LETKF      run ending ... elapse ($elapse_letkf sec)"
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
         bk_record_input \
@@ -81,7 +71,7 @@ case "$system" in
           --type archive \
           --result-exp SC23_128x128 \
           --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
-        bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes"  --numproc-node 4 --nthreads 12 >> ../results/result
+        bk_emit_result --from-log scale.log --from-log letkf.log --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes"  --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
       75)
         echo "copy essential files ... `date`"
@@ -106,21 +96,13 @@ case "$system" in
 
         # SCALE-RM
         echo "SCALE-RM   run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 300 -std-proc log/NOUT_scale-rm_ens bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "SCALE-RM   run ending ... elapse (`echo $elapse` sec)"
-        elapse_scale=$elapse
+        bk_run --log scale.log --elapsed elapse_scale -- mpiexec -n 300 -std-proc log/NOUT_scale-rm_ens bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
+        echo "SCALE-RM   run ending ... elapse ($elapse_scale sec)"
 
         # LETKF
         echo "LETKF      run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 300 -std-proc log/NOUT_letkf bin/letkf conf/letkf_20210730060030.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "LETKF      run ending ... elapse (`echo $elapse` sec)"
-        elapse_letkf=$elapse
+        bk_run --log letkf.log --elapsed elapse_letkf -- mpiexec -n 300 -std-proc log/NOUT_letkf bin/letkf conf/letkf_20210730060030.conf
+        echo "LETKF      run ending ... elapse ($elapse_letkf sec)"
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
         bk_record_input \
@@ -139,7 +121,7 @@ case "$system" in
           --type archive \
           --result-exp SC23_1280x1280 \
           --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
-        bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" --numproc-node 4 --nthreads 12 >> ../results/result
+        bk_emit_result --from-log scale.log --from-log letkf.log --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_1280x1280 --nodes "$nodes" --numproc-node 4 --nthreads 12 >> ../results/result
       ;;
     esac
   ;;
@@ -180,21 +162,13 @@ case "$system" in
 
         # SCALE-RM
         echo "SCALE-RM   run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 12 --oversubscribe bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "SCALE-RM   run ending ... elapse (`echo $elapse` sec)"
-        elapse_scale=$elapse
+        bk_run --log scale.log --elapsed elapse_scale -- mpiexec -n 12 --oversubscribe bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
+        echo "SCALE-RM   run ending ... elapse ($elapse_scale sec)"
 
         # LETKF
         echo "LETKF      run starting ... `date`"
-        startms=$(date +'%s.%3N')
-        mpiexec -n 12 --oversubscribe bin/letkf conf/letkf_20210730060030.conf
-        endms=$(date +'%s.%3N')
-        elapse=$(echo "$endms $startms" | awk '{printf "%.3f\n", $1 - $2}')
-        echo "LETKF      run ending ... elapse (`echo $elapse` sec)"
-        elapse_letkf=$elapse
+        bk_run --log letkf.log --elapsed elapse_letkf -- mpiexec -n 12 --oversubscribe bin/letkf conf/letkf_20210730060030.conf
+        echo "LETKF      run ending ... elapse ($elapse_letkf sec)"
 
         FOM=$(echo "$elapse_scale $elapse_letkf" | awk '{printf "%.3f\n", $1 + $2}')
         bk_record_input \
@@ -213,7 +187,7 @@ case "$system" in
           --type archive \
           --result-exp SC23_128x128 \
           --recipe "SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run."
-        bk_emit_result --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" --numproc-node 12 --nthreads 1 >> ../results/result
+        bk_emit_result --from-log scale.log --from-log letkf.log --fom "$FOM" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 --nodes "$nodes" --numproc-node 12 --nthreads 1 >> ../results/result
       ;;
     esac
   ;;

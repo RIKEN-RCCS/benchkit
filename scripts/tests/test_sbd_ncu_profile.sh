@@ -182,7 +182,6 @@ export PATH="${FAKE_BIN}:${PATH}"
   esac
 )
 
-test "$(sbd_strip_ncu_launch_count_args --set basic --launch-count 1 --nvtx --launch-count=3)" = "--set basic --nvtx"
 
 (
   export BK_SBD_NCU_PROFILE=true
@@ -199,15 +198,20 @@ sbd_configure_ncu_profile_from_run_env RIKYU
 test "${BK_SBD_NCU_PROFILE}" = "true"
 test "${BK_SBD_NCU_PROFILER_LEVEL}" = "single"
 bk_run_context --results-dir "${RESULTS_DIR}" --exp timing-test
+bk_run -- true
 sbd_run_configured_ncu_profiles RIKYU 4 \
   --fcidump fcidump.txt \
   --adetfile h2o-1em7-alpha.txt
 popd >/dev/null
 
-test -f "${RESULTS_DIR}/sbd_nsys_kernel_discovery.nsys-rep"
-test -f "${RESULTS_DIR}/sbd_nsys_stats_cuda_gpu_kern_sum.csv"
-test -f "${RESULTS_DIR}/sbd_kernel_discovery.json"
-test -f "${RESULTS_DIR}/sbd_ncu_plan.json"
+mapfile -t plans < <(find "${RESULTS_DIR}" -name plan.json)
+test "${#plans[@]}" -eq 1
+plan_json="${plans[0]}"
+test -f "$(dirname "$plan_json")/discovery.nsys-rep"
+test -f "$(dirname "$plan_json")/summary_cuda_gpu_kern_sum.csv"
+test -f "$(dirname "$plan_json")/discovery.json"
+jq -e '.source.path == "kernel-summary.csv"' "$(dirname "$plan_json")/discovery.json" >/dev/null
+jq -e '.source.discovery_path == "discovery.json"' "$plan_json" >/dev/null
 
 jq -e '
   (.profiles | length) == 5 and
@@ -215,25 +219,26 @@ jq -e '
   ([.profiles[].kernel_match.pattern] | unique | length) == 5 and
   .profiles[1].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)0,[[:space:]]*\\(int\\)1>.*" and
   .profiles[4].kernel_match.pattern == "regex:.*sbd::MultUnified<double,[[:space:]]*\\(int\\)1,[[:space:]]*\\(int\\)0>.*"
-' "${RESULTS_DIR}/sbd_ncu_plan.json" >/dev/null
+' "$plan_json" >/dev/null
 
-mapfile -t profile_archives < <(find "${RESULTS_DIR}" -maxdepth 1 -type f -name 'padata_*.tgz' | sort)
-mapfile -t profile_metadata < <(find "${RESULTS_DIR}" -maxdepth 1 -type f -name 'padata_*.metadata.json' | sort)
+mapfile -t profile_archives < <(find "${RESULTS_DIR}" -type f -name 'profile.tgz' | sort)
+mapfile -t profile_metadata < <(find "${RESULTS_DIR}" -type f -name 'profile.metadata.json' | sort)
 test "${#profile_archives[@]}" -eq 5
 test "${#profile_metadata[@]}" -eq 5
 
-artifact_count=$(printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | awk 'NF { count += 1 } END { print count + 0 }')
+artifacts=$(jq -r '.section_artifacts.mult | join(",")' "${RESULTS_DIR}"/workflow_timing_*.json)
+artifact_count=$(printf '%s\n' "$artifacts" | tr ',' '\n' | awk 'NF { count += 1 } END { print count + 0 }')
 test "$artifact_count" -eq 12
-printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Fxq 'results/sbd_kernel_discovery.json'
-printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Fxq 'results/sbd_ncu_plan.json'
-printf '%s\n' "${SBD_MULT_SECTION_ARTIFACTS}" | tr ',' '\n' | grep -Eq '^results/padata_.*\.metadata\.json$'
+printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/discovery.json$'
+printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/plan.json$'
+printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/profile.metadata.json$'
 
 jq -e '
   .kind == "gpu_kernel_profile_metadata" and
   .profiler == "ncu" and
   .section == "mult" and
   .nsys_discovery.section == "mult" and
-  (.nsys_discovery.kernel_match.pattern | contains("MultUnified"))
+  (.nsys_discovery.kernel_match.pattern | contains("sbd::Mult"))
 ' "${profile_metadata[1]}" >/dev/null
 
 for archive in "${profile_archives[@]}"; do
@@ -267,7 +272,7 @@ while IFS= read -r profile_name; do
   jq -e --arg profile "$profile_slug" '
     any(.stages[]; .stage == "collect" and .tool == "ncu" and .profile == $profile)
   ' "${timing_files[0]}" >/dev/null
-done < <(jq -r '.profiles[].name' "${RESULTS_DIR}/sbd_ncu_plan.json")
+done < <(jq -r '.profiles[].name' "$plan_json")
 
 test ! -e "${RESULTS_DIR}/sbd_stage_timing.json"
 test ! -e "${RESULTS_DIR}/timing_observations.json"

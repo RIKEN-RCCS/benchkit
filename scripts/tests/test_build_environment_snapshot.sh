@@ -14,6 +14,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/project/scripts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/src" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
+cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/project/scripts/"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
 cp -R "${REPO_DIR}/scripts/build_tool_wrappers" "${TMP_DIR}/project/scripts/build_tool_wrappers"

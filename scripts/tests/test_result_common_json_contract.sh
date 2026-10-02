@@ -32,43 +32,24 @@ BK_SOURCE_REF_KIND=branch
 BK_SOURCE_RESOLVED_COMMIT=abcdef1234567890abcdef1234567890abcdef12
 EOF
 
-cat > "${TMP_DIR}/results/input_info.json" <<'EOF'
-{
-  "schema_version": 1,
-  "inputs": [
-    {
-      "dataset_id": "demo-case0",
-      "dataset_version": "2026-09",
-      "kind": "repo-local-input",
-      "result_exp": "CASE0",
-      "verification_status": "covered_by_source_commit",
-      "repo_relative_path": "inputs/demo-case0"
-    },
-    {
-      "dataset_id": "demo-case1",
-      "dataset_version": "2026-09",
-      "kind": "runtime-parameters",
-      "source": "inline",
-      "parameter_set_id": "CASE1",
-      "result_exp": "CASE1",
-      "command": "./demo",
-      "arguments": ["--case", "1"],
-      "verification_status": "self_contained"
-    }
-  ]
-}
-EOF
 
-# Preserve existing records while adding a verified file through the public helper.
+# Exercise incremental records through the public helper in one execution.
 (
   cd "$TMP_DIR"
   source "${REPO_DIR}/scripts/bk_functions.sh"
-  jq -c '.inputs[]' results/input_info.json > results/.input_info_items.jsonl
+  bk_record_input --dataset-id demo-case0 --version 2026-09 \
+    --path inputs/demo-case0 --result-exp CASE0
+  bk_record_input --dataset-id demo-case1 --version 2026-09 \
+    --parameter-set-id CASE1 --result-exp CASE1 --command ./demo -- --case 1
   printf abc > input.bin
+  cat > expected-input.json <<'EOF'
+{"schema_version":1,"kind":"file","files":[{"path":"input","size_bytes":3,"sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}]}
+EOF
   bk_record_input --dataset-id demo-case0-matrix --version v1 --type matrix \
-    --result-exp CASE0 --verify-file "$TMP_DIR/input.bin" \
-    --expected-sha256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad \
-    --expected-size-bytes 3
+    --result-exp CASE0 --file "$TMP_DIR/input.bin" --expected-manifest expected-input.json
+  mkdir input-tree
+  printf xyz > input-tree/component
+  bk_record_input --directory input-tree --result-exp CASE1
 )
 
 cat > "${TMP_DIR}/results/timing_observations.json" <<'EOF'
@@ -289,6 +270,7 @@ jq -e '
   .input_info.inputs[1].verification_status == "verified" and
   .input_info.inputs[1].sha256 == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" and
   .input_info.inputs[1].size_bytes == 3 and
+  .input_info.inputs[1].manifest.files[0].path == "input" and
   (.input_info.inputs[1] | has("repo_relative_path") | not) and
   .timing_observations.schema_version == 1 and
   (.timing_observations.observations | length) == 1 and
@@ -320,10 +302,14 @@ jq -e '
 jq -e '
   .Exp == "CASE1" and
   .input_info.schema_version == 1 and
-  (.input_info.inputs | length) == 1 and
+  (.input_info.inputs | length) == 2 and
   .input_info.inputs[0].dataset_id == "demo-case1" and
   .input_info.inputs[0].kind == "runtime-parameters" and
   .input_info.inputs[0].arguments == ["--case", "1"] and
+  .input_info.inputs[1].verification_status == "declared" and
+  .input_info.inputs[1].dataset_version == .input_info.inputs[1].content_digest and
+  .input_info.inputs[1].manifest.files[0].path == "component" and
+  .input_info.inputs[1].file_count == 1 and
   (.timing_observations.observations | length) == 1 and
   .timing_observations.observations[0].id == "demo-case1-timers" and
   .timing_observations.observations[0].summary.timer_count == 4

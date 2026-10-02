@@ -18,6 +18,7 @@ mkdir -p \
   "${TMP_DIR}/tools"
 
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
+cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/project/scripts/"
 cp "${REPO_DIR}/scripts/build_with_cache.sh" "${TMP_DIR}/project/scripts/build_with_cache.sh"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/matrix_generate.sh" "${TMP_DIR}/project/scripts/matrix_generate.sh"
