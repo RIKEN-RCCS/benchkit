@@ -15,6 +15,7 @@ from utils.result_detail_view import (
 from utils.result_records import (
     format_numeric_value,
     input_info_items_for_result,
+    select_display_toolchain,
     summarize_input_info,
 )
 from utils.trigger_display import summarize_execution_trigger
@@ -420,7 +421,7 @@ def _environment_rows(environment_snapshot: Any) -> list[tuple[str, Any]]:
         ("Scheduler", summary.get("scheduler") or scheduler.get("kind")),
         ("Benchkit commit", summary.get("benchkit_commit") or benchkit.get("commit_hash")),
     ]
-    toolchain = _display_toolchain(payload.get("toolchain"))
+    toolchain = select_display_toolchain(payload.get("toolchain"))
     modules = toolchain.get("modules") if isinstance(toolchain, dict) else []
     if modules:
         rows.append(("Modules", ", ".join(str(item) for item in modules[:20])))
@@ -428,18 +429,6 @@ def _environment_rows(environment_snapshot: Any) -> list[tuple[str, Any]]:
     if commands:
         rows.append(("Build tools", "; ".join(commands)))
     return rows
-
-
-def _display_toolchain(toolchain: Any) -> dict[str, Any]:
-    if not isinstance(toolchain, dict):
-        return {}
-    if isinstance(toolchain.get("commands"), dict) or isinstance(toolchain.get("modules"), list):
-        return toolchain
-    for stage in ("build_actual", "build_run", "build", "run"):
-        stage_toolchain = toolchain.get(stage)
-        if isinstance(stage_toolchain, dict) and stage_toolchain:
-            return stage_toolchain
-    return {}
 
 
 def _toolchain_commands(commands: Any) -> list[str]:

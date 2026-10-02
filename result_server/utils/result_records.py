@@ -6,6 +6,19 @@ from datetime import datetime
 from utils.result_file import get_file_confidential_tags, resolve_safe_child_path
 
 
+def select_display_toolchain(toolchain):
+    """Select flat or stage-specific toolchain metadata for presentation."""
+    if not isinstance(toolchain, dict):
+        return {}
+    if isinstance(toolchain.get("commands"), dict) or isinstance(toolchain.get("modules"), list):
+        return toolchain
+    for stage in ("build_actual", "build_run", "build", "run"):
+        stage_toolchain = toolchain.get(stage)
+        if isinstance(stage_toolchain, dict) and stage_toolchain:
+            return stage_toolchain
+    return {}
+
+
 def load_visible_result_json(
     filename,
     directory,
