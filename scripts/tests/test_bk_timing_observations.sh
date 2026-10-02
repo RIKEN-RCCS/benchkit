@@ -12,9 +12,8 @@ fi
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-source "${REPO_DIR}/scripts/bk_functions.sh"
-
 pushd "${TMP_DIR}" >/dev/null
+source "${REPO_DIR}/scripts/bk_functions.sh"
 mkdir -p results
 
 cat > results/detail_CASE0.json <<'JSON'

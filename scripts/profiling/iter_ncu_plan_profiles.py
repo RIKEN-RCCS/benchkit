@@ -29,6 +29,8 @@ def _profile_pattern(profile: dict[str, Any]) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", required=True, type=Path, help="input ncu_plan.json")
+    parser.add_argument("--metadata", help="emit selection metadata for one profile")
+    parser.add_argument("--section", default="")
     args = parser.parse_args(argv)
 
     with args.plan.open(encoding="utf-8") as handle:
@@ -38,6 +40,17 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(profiles, list) or not profiles:
         print(f"{args.plan} has no profiles", file=sys.stderr)
         return 1
+
+    if args.metadata:
+        profile = next((item for item in profiles if item.get("name") == args.metadata), None)
+        if profile is None:
+            return 1
+        discovery = dict(profile.get("selection") or {})
+        discovery.update({key: profile.get(key) for key in
+                          ("kernel_name", "kernel_match", "launch_skip", "launch_count", "metric_set")})
+        discovery.update(section=args.section, profile_name=profile.get("name"))
+        print(json.dumps(discovery, separators=(",", ":")))
+        return 0
 
     for profile in profiles:
         if not isinstance(profile, dict):

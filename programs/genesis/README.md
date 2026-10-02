@@ -57,14 +57,9 @@ multi-node p8 runs. RIKYU follows the same default additional NCU acquisition
 policy as the other NVIDIA GPU systems; set `BK_PROFILER=none` or
 `GENESIS_RIKYU_PROFILER_TOOL=none` to run without profiling.
 
-The current GENESIS wrapper can collect multiple NCU windows as separate
-archives:
-
-```text
-results/padata_inter.tgz
-results/padata_intra.tgz
-results/padata_pairlist.tgz
-```
+The common acquisition workflow collects multiple NCU windows as separate
+archives in unique `results/profile_<id>/` directories. GENESIS supplies kernel
+selectors, sections, and host/container launch builders, not output paths.
 
 The default profile names are:
 
@@ -113,7 +108,7 @@ BK_GENESIS_NCU_PROFILE_MODE=discovery
 
 When `BK_GENESIS_NCU_PROFILE_MODE=discovery`, `run.sh` keeps the normal
 unprofiled benchmark run, then runs a short NSYS discovery pass, writes
-`results/kernel_discovery.json` and `results/ncu_plan.json`, and runs the
+discovery and plan JSON in a common-owned workspace, and runs the
 selected NCU windows. The generated NCU profiles default to the top three
 GPU-time kernels with `launch_skip=1` and `launch_count=10`; the NCU archives
 are registered as section artifacts and are used by the GPU estimation packages
@@ -190,25 +185,25 @@ FugakuNEXT.
 GENESIS does not choose individual GPU estimator packages. It marks GPU-related
 sections as `gpu_kernel_ensemble_average`; the common section package decides
 which concrete GPU estimator packages to run. This keeps GENESIS-side ownership
-limited to app concepts: section names, timing extraction, artifact candidates,
+limited to app concepts: section names, timing extraction, launch conditions,
 and kernel selectors.
 
 Benchkit operators can override the concrete GPU estimator package set with the
 generic `BK_GPU_KERNEL_ENSEMBLE_PACKAGES` variable when needed. That knob is not
 GENESIS-specific and should not be required for normal GENESIS maintenance.
 
-Current GPU section/artifact mapping:
+Current GPU section/kernel mapping:
 
 ```text
-pairlist       -> results/padata_pairlist.tgz -> build_pairlist
-pme_real_inter -> results/padata_inter.tgz    -> force_inter_cell
-pme_real_intra -> results/padata_intra.tgz    -> force_intra_cell
+pairlist       -> build_pairlist
+pme_real_inter -> force_inter_cell
+pme_real_intra -> force_intra_cell
 ```
 
-`programs/genesis/run.sh` registers these artifact paths when each NCU profile
-archive is created, then writes them as `SECTION: ... artifact:...` entries in
-`results/result`. `scripts/result.sh` turns those lines into
-`fom_breakdown.sections[].artifacts[]` in the Result JSON. `estimate.sh`
+Common acquisition registers archives and metadata against the originating
+execution and section. `scripts/result.sh` attaches them to
+`fom_breakdown.sections[].artifacts[]` in the Result JSON, regardless of whether
+profiling ran before or after section emission. `estimate.sh`
 consumes that Result JSON; it should not infer profiler output paths by scanning
 the filesystem or by knowing profiler archive names.
 

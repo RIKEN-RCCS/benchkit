@@ -7,9 +7,8 @@ REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-source "${REPO_DIR}/scripts/bk_functions.sh"
-
 pushd "${TMP_DIR}" >/dev/null
+source "${REPO_DIR}/scripts/bk_functions.sh"
 
 bk_record_input_info <<'EOF'
 {
@@ -269,5 +268,42 @@ if command -v jq >/dev/null 2>&1; then
 fi
 
 popd >/dev/null
+
+(
+  cd "$TMP_DIR"
+  bk_reset_input_info
+  mkdir -p input-tree/nested
+  printf abc > input-tree/nested/input
+  bk_record_input --directory input-tree --type restart
+  if command -v jq >/dev/null 2>&1; then
+    jq -e '
+      .inputs[0].dataset_id == "input-directory" and
+      .inputs[0].verification_status == "declared" and
+      .inputs[0].dataset_version == .inputs[0].content_digest and
+      .inputs[0].manifest.files[0].path == "nested/input" and
+      .inputs[0].manifest.files[0].size_bytes == 3
+    ' results/input_info.json >/dev/null
+    jq '.inputs[0].manifest' results/input_info.json > expected-tree.json
+    bk_record_input --directory input-tree --expected-manifest expected-tree.json
+    jq -e '.inputs[1].verification_status == "verified"' results/input_info.json >/dev/null
+  fi
+  cp results/input_info.json expected-info.json
+  cp results/.input_info_items.jsonl expected-items.jsonl
+  reject_verification --file missing
+  reject_verification --directory input-tree --file input-tree/nested/input
+  reject_verification --file input-tree/nested/input --verify-file input-tree/nested/input
+  reject_verification --expected-manifest expected-tree.json
+  reject_verification --directory input-tree --type matrix
+  reject_verification --directory "$TMP_DIR"
+  (
+    PYTHON_BIN=false reject_verification --file input-tree/nested/input
+  )
+  bk_record_input --file input-tree/nested/input
+  if command -v jq >/dev/null 2>&1; then
+    jq -e '.inputs[-1].verification_status == "declared" and .inputs[-1].file_count == 1' results/input_info.json >/dev/null
+  fi
+)
+
+"${PYTHON_BIN:-python3}" "${SCRIPT_DIR}/test_input_manifest.py"
 
 echo "bk_record_input_info test passed"

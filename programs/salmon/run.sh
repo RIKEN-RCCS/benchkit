@@ -45,7 +45,6 @@ FUGAKU_RESTART_NML="Si-3-3-3-tddft.nml"
 
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
-bk_reset_input_info
 
 if [[ ! -x artifacts/salmon ]]; then
   echo "Required artifact not found or not executable: artifacts/salmon" >&2
@@ -98,6 +97,11 @@ if uses_prestaged_restart "${system}"; then
     exit 1
   fi
 
+  bk_record_input --directory "${restart_dir}" --type restart \
+    --dataset-id salmon-folded-restart \
+    --parameter input_set "${tddft_nml}" \
+    --recipe "Offline ground-state data folded to a complex Gamma-point TDDFT restart; the run consumes the restart, pseudopotentials, and TDDFT input."
+
   cp artifacts/salmon "${WORK_DIR}/salmon"
   chmod +x "${WORK_DIR}/salmon"
   cp "${restart_dir}/${tddft_nml}" "${restart_dir}"/*.psp8 "${WORK_DIR}/"
@@ -107,26 +111,6 @@ if uses_prestaged_restart "${system}"; then
   # I/O instead of the benchmark itself.
   ln -s "${restart_dir}/restart" "${WORK_DIR}/restart"
   grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/${tddft_nml}" >&2 || true
-  case "${tddft_nml}" in
-    Si-3-3-3-tddft.nml)
-      salmon_dataset_id="salmon-si-3x3x3-folded-restart"
-      salmon_dataset_version="Si-3-3-3-tddft"
-      ;;
-    Si-2-2-2-tddft.nml)
-      salmon_dataset_id="salmon-si-2x2x2-folded-restart"
-      salmon_dataset_version="Si-2-2-2-tddft"
-      ;;
-    *)
-      salmon_dataset_id="salmon-folded-restart"
-      salmon_dataset_version="${tddft_nml%.nml}"
-      ;;
-  esac
-  bk_record_input \
-    --dataset-id "${salmon_dataset_id}" \
-    --version "${salmon_dataset_version}" \
-    --type restart \
-    --parameter input_set "${tddft_nml}" \
-    --recipe "Offline ground-state data folded to a complex Gamma-point TDDFT restart; the run consumes the restart, pseudopotentials, and TDDFT input."
 else
   case "${system}" in
     RC_GH200|RC_GENOA)
@@ -145,6 +129,11 @@ else
     exit 1
   fi
 
+  bk_record_input --file "${input_archive}" --type archive \
+    --dataset-id salmon-si-1x1x1-archive \
+    --parameter input_set "Si-1-1-1 GS/RT inputs" \
+    --recipe "Archive containing SALMON ground-state and TDDFT input files; the run generates the restart consumed by TDDFT."
+
   mkdir -p "${WORK_DIR}/input"
   tar -xzf "${input_archive}" -C "${WORK_DIR}/input"
 
@@ -161,12 +150,6 @@ else
   chmod +x "${WORK_DIR}/salmon"
   cp "${input_dir}"/* "${WORK_DIR}/"
   grep -Ein '^[[:space:]]*theory[[:space:]]*=' "${WORK_DIR}/Si-1-1-1.nml" "${WORK_DIR}/Si-1-1-1-tddft.nml" >&2 || true
-  bk_record_input \
-    --dataset-id salmon-si-1x1x1-archive \
-    --version Si-1-1-1 \
-    --type archive \
-    --parameter input_set "Si-1-1-1 GS/RT inputs" \
-    --recipe "Archive containing SALMON ground-state and TDDFT input files; the run generates the restart consumed by TDDFT."
 fi
 cd "${WORK_DIR}"
 
@@ -246,8 +229,6 @@ WRAPPER
 esac
 
 run_salmon() {
-  local logfile="$1"
-  shift
   case "${system}" in
     RIKYU)
       # --mca fcoll individual is REQUIRED. MPI_File_read_all reads the
@@ -256,73 +237,24 @@ run_salmon() {
       # deadlocks whenever the nproc_rgrid product exceeds 2, and even when
       # it does not it costs 66.9s vs 41.7s on the restart read.
       if [[ "${n_ranks}" -gt 1 ]]; then
-        mpirun -n "${n_ranks}" --mca fcoll individual ./wrapper.sh "$@" > "${logfile}" 2>&1
+        mpirun -n "${n_ranks}" --mca fcoll individual ./wrapper.sh "$@"
       else
-        mpirun -n "${n_ranks}" --mca fcoll individual "$@" > "${logfile}" 2>&1
+        mpirun -n "${n_ranks}" --mca fcoll individual "$@"
       fi
       ;;
     RC_GENOA)
-      mpirun -n "${n_ranks}" --bind-to core --map-by "ppr:${numproc_node}:node:PE=${nthreads}" "$@" > "${logfile}" 2>&1
+      mpirun -n "${n_ranks}" --bind-to core --map-by "ppr:${numproc_node}:node:PE=${nthreads}" "$@"
       ;;
     *)
-      mpiexec -n "${n_ranks}" "$@" > "${logfile}" 2>&1
+      mpiexec -n "${n_ranks}" "$@"
       ;;
   esac
 }
 
-run_salmon_or_diagnose() {
-  local stage="$1"
-  local marker_file="$2"
-  local logfile="$3"
-  shift 3
-
-  if run_salmon "${logfile}" "$@"; then
-    return 0
-  fi
-
-  echo "SALMON ${stage} run failed" >&2
-  echo "---- ${logfile} tail ----" >&2
-  tail -n 80 "${logfile}" >&2 || true
-  echo "---- files updated since ${stage} start ----" >&2
-  print_salmon_output_diagnostics "${marker_file}"
-  exit 1
-}
-
-salmon_output_has_marker_since() {
+salmon_output_completed() {
   local logfile="$1"
-  local marker_file="$2"
   local success_pattern='total[[:space:]]+calculation[[:space:]]+time|total[[:space:]]+.*elapsed[[:space:]]+time|elapsed[[:space:]]+time'
-
-  if grep -Eiq "${success_pattern}" "${logfile}"; then
-    return 0
-  fi
-
-  while IFS= read -r -d '' output_file; do
-    if grep -Eiq "${success_pattern}" "${output_file}"; then
-      return 0
-    fi
-  done < <(find . -type f -newer "${marker_file}" ! -path "./input/*" -print0)
-
-  return 1
-}
-
-print_salmon_output_diagnostics() {
-  local marker_file="$1"
-  local output_file
-
-  find . -maxdepth 4 -type f -newer "${marker_file}" ! -path "./input/*" -printf '%p\n' \
-    | sort \
-    | sed -n '1,120p' >&2
-
-  while IFS= read -r -d '' output_file; do
-    echo "---- ${output_file} tail ----" >&2
-    tail -n 20 "${output_file}" >&2 || true
-  done < <(
-    find . -maxdepth 5 -type f -newer "${marker_file}" \
-      \( -name 'stdout*' -o -name 'stderr*' -o -name '*.log' \) \
-      ! -path "./input/*" -print0 \
-      | sort -z
-  )
+  grep -Eiq "${success_pattern}" "${logfile}"
 }
 
 if uses_prestaged_restart "${system}"; then
@@ -340,20 +272,18 @@ if uses_prestaged_restart "${system}"; then
   # One timed RT run at the current layout, emitting one result line.
   run_rt_once () {
     local label="$1" logfile="rt_$1.log"
-    touch .rt_start_marker
     if uses_stdin_input "${system}"; then
-      run_salmon_or_diagnose RT .rt_start_marker "${logfile}" ./salmon < "${tddft_nml}"
+      bk_run --log "${logfile}" --input-file "${tddft_nml}" -- run_salmon ./salmon < "${tddft_nml}"
     else
       # Fugaku (Fujitsu MPI): -stdin FILE must be an mpiexec-level argument,
       # not shell redirection -- plain `< file` only feeds rank 0's stdin
       # under pjsub's mpiexec, not all ranks.
-      run_salmon_or_diagnose RT .rt_start_marker "${logfile}" -stdin "${tddft_nml}" ./salmon
+      bk_run --log "${logfile}" --input-file "${tddft_nml}" -- run_salmon -stdin "${tddft_nml}" ./salmon
     fi
     cp "${logfile}" "${RESULTS_DIR}/"
-    if ! salmon_output_has_marker_since "${logfile}" .rt_start_marker; then
+    if ! salmon_output_completed "${logfile}"; then
       echo "SALMON RT run failed (${label})" >&2
-      tail -n 40 "${logfile}" >&2 || true
-      print_salmon_output_diagnostics .rt_start_marker
+      bk_diagnose_log "${logfile}"
       exit 1
     fi
     # FOM is SALMON's own rt-iterations timer, not wall clock: the one-time
@@ -363,20 +293,11 @@ if uses_prestaged_restart "${system}"; then
     local rt_s
     rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${logfile}")
     if [[ -z "${rt_s}" ]]; then
-      # Fujitsu MPI ignores plain shell redirection for the application's
-      # own stdout and writes each rank under ./output.$PJM_JOBID/ -- the
-      # success marker above already falls back to those files, and so
-      # must the FOM extraction.
-      while IFS= read -r -d '' output_file; do
-        rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${output_file}")
-        [[ -n "${rt_s}" ]] && break
-      done < <(find . -type f -newer .rt_start_marker ! -path "./input/*" -print0)
-    fi
-    if [[ -z "${rt_s}" ]]; then
       echo "could not read 'rt iterations' from ${logfile}" >&2
       exit 1
     fi
     bk_emit_result \
+      --from-log "${logfile}" \
       --fom "${rt_s}" \
       --fom-unit s \
       --fom-version "rt_iterations_s_folded_restart" \
@@ -402,50 +323,38 @@ if uses_prestaged_restart "${system}"; then
     run_rt_once default
   fi
 else
-  touch .gs_start_marker
-  gs_start=$(date +%s.%N)
+  gs_elapsed=""
+  rt_elapsed=""
   if uses_stdin_input "${system}"; then
-    run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}" < Si-1-1-1.nml
+    bk_run --log gs.log --elapsed gs_elapsed -- run_salmon "${exec_gs[@]}" < Si-1-1-1.nml
   else
-    run_salmon_or_diagnose GS .gs_start_marker gs.log "${exec_gs[@]}"
+    bk_run --log gs.log --elapsed gs_elapsed -- run_salmon "${exec_gs[@]}"
   fi
-  gs_end=$(date +%s.%N)
 
   if [[ -d data_for_restart ]]; then
     rm -rf restart
     mv data_for_restart restart
   fi
 
-  touch .rt_start_marker
-  rt_start=$(date +%s.%N)
   if uses_stdin_input "${system}"; then
-    run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}" < Si-1-1-1-tddft.nml
+    bk_run --log rt.log --elapsed rt_elapsed -- run_salmon "${exec_rt[@]}" < Si-1-1-1-tddft.nml
   else
-    run_salmon_or_diagnose RT .rt_start_marker rt.log "${exec_rt[@]}"
+    bk_run --log rt.log --elapsed rt_elapsed -- run_salmon "${exec_rt[@]}"
   fi
-  rt_end=$(date +%s.%N)
-
-  gs_elapsed=$(awk -v start="${gs_start}" -v end="${gs_end}" 'BEGIN {printf "%.6f", end - start}')
-  rt_elapsed=$(awk -v start="${rt_start}" -v end="${rt_end}" 'BEGIN {printf "%.6f", end - start}')
   total_elapsed=$(awk -v gs="${gs_elapsed}" -v rt="${rt_elapsed}" 'BEGIN {printf "%.6f", gs + rt}')
 
   cp gs.log rt.log "${RESULTS_DIR}/"
 
-  if ! salmon_output_has_marker_since gs.log .gs_start_marker || ! salmon_output_has_marker_since rt.log .rt_start_marker; then
+  if ! salmon_output_completed gs.log || ! salmon_output_completed rt.log; then
     echo "SALMON success marker not found in both gs.log and rt.log" >&2
-    echo "---- gs.log tail ----" >&2
-    tail -n 40 gs.log >&2 || true
-    echo "---- rt.log tail ----" >&2
-    tail -n 40 rt.log >&2 || true
-    echo "---- files updated since GS start ----" >&2
-    print_salmon_output_diagnostics .gs_start_marker
-    echo "---- files updated since RT start ----" >&2
-    print_salmon_output_diagnostics .rt_start_marker
+    bk_diagnose_log gs.log
+    bk_diagnose_log rt.log
     exit 1
   fi
 
   {
     bk_emit_result \
+      --from-log gs.log --from-log rt.log \
       --fom "${total_elapsed}" \
       --fom-unit s \
       --fom-version "total_elapsed_time_s" \

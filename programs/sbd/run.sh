@@ -70,7 +70,6 @@ case "${system}" in
     ;;
 esac
 
-bk_run_context --results-dir "${RESULTS_DIR}" --exp "${experiment}"
 
 for input_file in fcidump.txt "${determinant_file}"; do
   if [[ ! -f "${INPUT_DIR}/${input_file}" ]]; then
@@ -121,7 +120,7 @@ mult_time=$(grep -E 'Elapsed time for mult ' diag.log | tail -n 1 | awk '{print 
 
 if [[ -z "${davidson_time}" || -z "${energy}" ]]; then
   echo "SBD completion markers not found" >&2
-  tail -n 80 diag.log >&2
+  bk_diagnose_log diag.log
   exit 1
 fi
 if ! awk -v actual="${energy}" -v reference="${reference_energy}" \
@@ -138,12 +137,12 @@ if ! awk -v actual="${energy}" -v reference="${reference_energy}" \
 fi
 
 cp diag.log "${RESULTS_DIR}/"
-bk_emit_result --fom "${davidson_time}" --fom-unit s \
+bk_emit_result --from-log diag.log --fom "${davidson_time}" --fom-unit s \
   --fom-version "davidson_internal_s" --exp "${experiment}" \
   --nodes "${nodes}" --numproc-node "${numproc_node}" \
   --nthreads "${nthreads}" >> "${RESULTS_DIR}/result"
-sbd_run_optional_ncu_profiles "${system}" "${n_ranks}" "${diag_args[@]}"
+bk_profile --from-log diag.log -- sbd_run_optional_ncu_profiles "${system}" "${n_ranks}" "${diag_args[@]}"
 if [[ -n "${mult_time}" ]]; then
-  bk_emit_section mult "${mult_time}" "" "${SBD_MULT_SECTION_ARTIFACTS:-}" >> "${RESULTS_DIR}/result"
+  bk_emit_section mult "${mult_time}" >> "${RESULTS_DIR}/result"
 fi
 printf 'SBD energy: %s\n' "${energy}" >&2

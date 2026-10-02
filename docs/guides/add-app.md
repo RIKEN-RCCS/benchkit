@@ -219,7 +219,70 @@ bk_record_input \
 digest や source URL などの field が必要になった場合は、app 側に Result JSON schema を直書きさせるより、共通helperまたは共通の受け渡し形式を拡張します。
 公開 surface では detailed local path を出さず、dataset identity と検証状態を優先して見せる前提で設計してください。
 
-#### Verifying pre-staged files
+#### Recording a file or input directory
+
+Pass the prepared input location to the common helper before launching the
+benchmark. No application-specific JSON generation or hashing loop is needed:
+
+```bash
+bk_record_input --directory "$input_dir" || exit 1
+# For a single matrix or archive:
+bk_record_input --file "$input_file" || exit 1
+```
+
+The helper uses Python 3 (standard library only, selectable with `PYTHON_BIN`) to
+stream each regular file through SHA-256. It embeds a versioned `manifest` with
+relative file names, byte counts, and full hashes in `input_info`, alongside
+`content_digest`, `manifest_digest`, `file_count`, total `size_bytes`, and
+`collection_elapsed_seconds`. Result packaging preserves this evidence. No input
+bytes are copied into the result. Root paths and symlink targets are not stored.
+Relative file names remain part of the manifest, so select an input-only directory
+with names suitable for the result's access policy.
+
+Without an explicit dataset ID, the ID is `input-file` or `input-directory`.
+Without an explicit version, the version is the content digest. Relocating an
+unchanged input does not change its identity. Directory identity includes relative
+file names and contents, but not timestamps, permissions, or empty directories.
+Single-file identity does not depend on its basename. Existing dataset labels,
+`--type`, `--recipe`, `--parameter`, and `--result-exp` can still be supplied.
+
+Collection alone remains `verification_status: "declared"`: it records the input
+observed, not whether that input is the intended or scientifically valid one.
+To verify against a trusted definition, supply an expected manifest maintained
+outside the input directory:
+
+```bash
+bk_record_input --directory "$input_dir" \
+  --expected-manifest "$trusted_manifest" || exit 1
+```
+
+The expected manifest uses exactly the generated `manifest` schema: integer
+`schema_version: 1`, `kind: "file"` or `"directory"`, and a `files` array of
+`path`, nonnegative integer `size_bytes`, and lowercase 64-character `sha256`.
+A single file uses the neutral path `input`. Verification requires the exact file
+set and bytes to match before any record is appended. Only a match is marked
+`verified`. Generating expectations from the same unchecked input immediately
+before comparison provides no independent verification.
+
+The directory root may be a symlink. Nested symlinks are followed only within the
+resolved input root; external links, cycles, broken links, special files,
+unreadable files, directories with no regular files, and detected concurrent
+changes cause errors.
+Collection is bounded to 10,000 tree entries, 64 directory levels, and a 4 MiB
+manifest. Metadata output must be outside the input. Partial collections are not
+recorded. There is no mtime cache: large inputs incur a full read on every call,
+and collection duration is recorded separately. The application must keep inputs
+unchanged through consumption; this is not a filesystem snapshot or a sandbox
+against a malicious concurrent writer. Files not read by the application but
+present in the selected directory also contribute to its identity.
+
+For generated or rewritten runtime inputs, record the final file before launch
+and scope it with `--result-exp`, in addition to recording the prepared source
+input. Common helpers retain their output location from the directory where
+`bk_functions.sh` was sourced. Applications do not export metadata filenames or
+reset the common metadata stores when changing directory.
+
+#### Verifying pre-staged files with explicit expectations
 
 An application can verify a regular file before launching the benchmark:
 
@@ -250,8 +313,9 @@ surface. Digest verification does not grant public access or publication approva
 Applications own the expected digests, sizes, file lists, versions, generation
 recipes, and numerical acceptance criteria. Obtain expectations from a trusted
 input definition, not by hashing the same untrusted file immediately before this
-call. For a multi-file restart, record each required file using `--type file`
-and a stable component dataset ID. Stop before launching if any check fails;
+call. For a multi-file restart, prefer directory collection with an expected
+manifest, or record each required file using `--type file` and a stable component
+dataset ID. Stop before launching if any check fails;
 successfully checked components do not prove that unlisted files were checked.
 Hashing a manifest alone does not verify the files it names. Verification applies
 to the bytes read at verification time; applications must keep those inputs
@@ -269,6 +333,140 @@ Portal の `/results/usage` では、通常の benchmark result に対する入�
 
 `None` や `Declared` はただちに CI failure ではありません。
 ただし、長期運用や多拠点再現に使う入力では、可能なら `Covered` または `Verified` に近づけてください。
+
+### Execution and log collection
+
+Keep launcher arguments, input preparation, success criteria, and FOM parsing in
+the application. Use the common runner for execution bookkeeping:
+
+```bash
+bk_run --log solve.log -- mpiexec -n "$ranks" ./solver input.dat
+# Parse the application's FOM from solve.log.
+bk_emit_result --from-log solve.log --exp "$experiment" --fom "$fom" --fom-unit s
+```
+
+The application supplies the result file it actually reads, not an execution
+session or a metadata storage path. Common runtime records are initialized
+automatically. `--from-log` associates the result with that file's current
+execution; the experiment name is supplied only when emitting the result.
+Repeat `--from-log` when one result combines multiple runs, such as GS and RT.
+Use distinct output files for experiments that need to be profiled later.
+
+For an effective input file produced by preprocessing, add `--input-file path`
+to `bk_run`. Repeat it for multiple files. The common runner hashes the files
+before launching, then associates their observations when the result is emitted.
+File contents and local paths are not copied into the record. This observes the
+input; it does not assert that the input matches a trusted reference. Use
+`bk_record_input --expected-manifest` when reference verification is required.
+
+For an application whose public scientific inputs are its command arguments:
+
+```bash
+bk_run --log solve.log --parameter-input \
+  --launcher mpiexec -n "$ranks" -- ./solver "${solver_args[@]}"
+```
+
+`--launcher` separates launcher options from the application's command and
+arguments. Only the application's executable basename and arguments are
+recorded, without repeating them in a separate metadata call. Argument recording
+is opt-in: do not use `--parameter-input` with secrets or nonpublic paths in the
+application arguments. Neither option requires metadata paths, resets, or a
+second experiment name in the application.
+
+An optional profiler hook can run before or after result emission:
+
+```bash
+bk_profile --from-log solve.log -- profile_solver
+```
+
+The hook still owns the application-specific profiling command and kernel
+selection. The common wrapper associates its timing with the selected output,
+even if another experiment ran in between. Missing or conflicting associations
+produce a warning and are not guessed from the most recent result. Unassociated
+output-scoped timing is retained locally but not attached to arbitrary Results.
+The old `bk_run_context` interface is retained for compatibility, not required
+in application scripts. Do not mix explicit legacy context with output-scoped
+calls in the same execution.
+
+For ordinary profiler acquisition, the hook can use
+`bk_capture_profile fapp single -- <launcher and application arguments>`.
+For selected GPU windows, use the common acquisition workflow:
+
+```bash
+profile_solver() {
+  bk_acquire_ncu --profile-name solve --kernel-regex 'regex:.*solve.*' \
+    --launch-skip 0 --launch-count 1 --level single --section solve \
+    -- mpirun -np "$ranks" ./solver input.dat
+}
+```
+
+The common layer allocates a unique workspace, captures and exports the report,
+packages the archive, generates metadata, and records the section association.
+Do not construct archive/metadata paths or maintain artifact-list variables in
+the application. Repeated profile names in different runs do not overwrite one
+another. `result.sh` attaches registered artifacts by experiment and section,
+including when profiling happens after the section line has already been emitted.
+The archive format remains `bk_profiler_artifact/{meta.json,raw,reports}`.
+
+`bk_discover_ncu_plan` owns NSYS acquisition, CSV export, discovery/plan files,
+and their registration. It accepts `--csv` for an existing kernel summary and
+the selection options of the plan generator (for example `--top-k`). Iterate
+the returned plan using `bk_ncu_plan_profiles`; supply it to `bk_acquire_ncu`
+with `--plan` to include selection provenance automatically. Application-specific
+kernel-to-section mapping and any shortened scientific input remain app-owned.
+
+For rank-selective or container execution, pass Bash command-builder functions:
+
+- `--command-builder`: receives names of three arrays: profiler prefix,
+  application command, and output command. Populate only the output array.
+- `--export-builder`: receives the application-array name, output-array name,
+  and export command arguments. Select the environment for this once-only export.
+
+The same builders work for NSYS and NCU. They do not create directories, archives,
+or metadata, and receive paths as opaque profiler arguments. The host defaults
+need no builders. Common `--timeout` bounds NCU collection; a nonzero collection
+status or missing report is not registered as a usable profile. Export remains
+best-effort and its failure is recorded. Callers retain their existing policy
+for whether an optional profile failure stops the application workflow.
+
+For an application's detailed timing table, use `bk_emit_result` with
+`--timing-parser <function>` and optionally `--timing-producer <name>`. The parser
+receives the source log, experiment, and FOM, and writes its scientific JSON
+observation to stdout (or nothing when no table exists). Common code owns saving
+and registering it. Parser failure warns without discarding the FOM. This does
+not promote the observed timers into validated section/overlap timings.
+
+`bk_run --log` captures launcher stdout/stderr and collects new or changed rank
+zero `stdout.<sequence>.0` / `stderr.<sequence>.0` files in the working directory
+or its `output.*` trees. It does not search input directories, arbitrary logs, or
+other ranks. Old unchanged output is excluded; appended output contributes only
+new complete lines. Each invocation captures its output before the next stage
+starts. Applications must not create marker files, find the newest MPI log, or
+depend on scheduler job IDs to locate their output. Use conventional stdout/stderr
+prefixes when configuring per-rank launcher output.
+
+Collection requires Python, does not follow symlinks, and is bounded to 10,000
+directory entries, five levels, and 256 MiB of rank-zero output per scan. Errors
+stop the run; a nonzero command exit code is preserved. The common runner prints
+at most 80 lines from the final 16 KiB of the log on failure. After application-specific validation fails,
+`bk_diagnose_log solve.log` provides the same diagnostic. Separate simultaneous
+executions into separate working directories. This is not a filesystem sandbox;
+launchers must finish writing before returning. If an overwritten file starts
+with the exact previous content and grows, it is treated as an append.
+
+When elapsed wall time itself is needed for an application-defined FOM or section:
+
+```bash
+bk_run --log phase.log --elapsed phase_seconds -- ./solver input.dat
+```
+
+The named shell variable receives the common monotonic timing measurement,
+including launcher and timing-recorder overhead but excluding rank-log collection.
+Call directly, not through command substitution or a pipeline, to retain the
+variable. A requested elapsed measurement is required: failure to record it fails
+the call rather than reusing an old value. Ordinary timing observations remain
+best-effort when `--elapsed` is absent. Application-internal solver timers and
+scientific acceptance criteria must not be replaced with this elapsed time.
 
 ### build environment snapshot の方針
 
@@ -528,7 +726,11 @@ bk_emit_overlap compute_kernel,communication 0.05 >> results/result
 section / overlap / profiler archive は、詳細分析や推定を使う場合の任意拡張です。
 
 ### Measurement Artifacts（任意）
-詳細データがある場合、profiler archive は従来通り `results/padata[0-9].tgz` として保存できます：
+New application integrations use the managed acquisition helpers above.
+`result.sh` publishes a single primary archive to the legacy
+`results/padata<index>.tgz` name when applicable; applications do not calculate
+that index. The following is the legacy archive format for existing producers,
+not a setup step for new run scripts:
 ```bash
 # PAデータの作成例
 mkdir -p pa
@@ -538,10 +740,14 @@ tar -czf ../results/padata0.tgz ./pa
 
 ### Fugaku で `fapp` を使う場合
 
-Fugaku 系アプリでは、アプリ側が profiler tool を内部で選び、Benchkit 共通の `bk_profiler` helper に渡す形が扱いやすいです。
-`bk_profiler` は profiler ごとの raw data / postprocess report をまとめて `results/padata*.tgz` に保存し、archive 内の `bk_profiler_artifact/meta.json` に metadata を入れます。Benchkit や推定 package はこの `meta.json` を見て、tool、level、report kind を機械的に判断できます。
+Select the profiler in the application and call `bk_capture_profile` inside
+`bk_profile --from-log`. The low-level `bk_profiler` remains available for
+existing callers, but new applications need not supply storage paths.
 
-アプリが独自の詳細 timer table を持つ場合は、まず小さな `results/*.json` として保存し、`bk_record_timing_observation` で登録してください。この JSON は Result 送信時に Measurement Artifacts として保存されます。`timing_observations` は未レビューの観測値を残すための任意機能であり、`SECTION:` / `OVERLAP:` や `fom_breakdown` へ昇格するには、timer ID、inclusive / exclusive の扱い、overlap window の意味を別途レビューします。
+For detailed timer tables, supply the parser through `bk_emit_result
+--timing-parser` as described above. The resulting JSON is uploaded as a
+Measurement Artifact. Timer IDs, inclusive/exclusive semantics, and overlap
+windows still require scientific review before use as sections or overlaps.
 
 `fapp` では共通 level として次を扱います。
 
@@ -569,7 +775,7 @@ bash programs/qws/run.sh Fugaku 1 4 12
 - `BK_PROFILER_REPORT_ARGS`
   - `fapp -A` / `fapppx -A` にそのまま渡す追加引数
 - `BK_PROFILER_DIR`
-  - raw profile data の出力先ディレクトリ名（既定値: `pa`）
+  - legacy low-level callers only; managed acquisition owns raw storage.
 
 archive の中身は概ね次の形になります。
 
@@ -595,9 +801,9 @@ MPI launcher 経由のアプリでは、`bk_profiler ncu` が既定で `--target
 MiyabiG と RC_GH200 のように計算ノード構成が同じ Grace-Hopper GPU 系の場合は、ジョブ投入方式だけを system 設定に任せ、アプリ側の build/run と profiler 採取は共通化するのが自然です。
 
 ```bash
-BK_PROFILER_ARGS="--set full --kernel-name regex:your_kernel" \
-bk_profiler ncu --level single --archive ../results/padata0.tgz --raw-dir ncu -- \
-    mpirun -np 1 ./your_gpu_app input.inp
+bk_profile --from-log solve.log -- bk_acquire_ncu \
+    --profile-name solve --kernel-regex 'regex:your_kernel' \
+    --level single --section solve -- mpirun -np 1 ./your_gpu_app input.inp
 ```
 
 `ncu` の既定 level は `single` です。最初は採取時間を抑えるため、`single` または `simple` から始めてください。

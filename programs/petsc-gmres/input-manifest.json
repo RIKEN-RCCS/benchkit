@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "file",
+  "files": [
+    {
+      "path": "input",
+      "size_bytes": 3092468720,
+      "sha256": "01971e1fb37268a195ff3d96c7800d3f7cf6a37c2ddfe397825c62b3b592bdaf"
+    }
+  ]
+}

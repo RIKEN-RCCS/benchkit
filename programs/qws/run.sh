@@ -24,72 +24,23 @@ qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
 # source "${PWD}/programs/qws/estimate.sh"
 
 mkdir -p results && : > results/result
-bk_reset_timing_observations
-
-record_qws_runtime_parameter_inputs() {
-    bk_reset_input_info
-    bk_record_input \
-        --dataset-id qws-case0-parameters \
-        --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
-        --parameter-set-id CASE0 \
-        --result-exp CASE0 \
-        --command ./main \
-        -- "${qws_case0_args[@]}"
-    bk_record_input \
-        --dataset-id qws-case1-parameters \
-        --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
-        --parameter-set-id CASE1 \
-        --result-exp CASE1 \
-        --command ./main \
-        -- "${qws_case1_args[@]}"
-    bk_record_input \
-        --dataset-id qws-case7-parameters \
-        --dataset-version "${BK_SOURCE_REF_NAME:-$BRANCH}" \
-        --parameter-set-id CASE7 \
-        --result-exp CASE7 \
-        --command ./main \
-        -- "${qws_case7_args[@]}"
-}
 
 # print_results: extract FOM from the benchmark output and append a result line.
 print_results() {
     local outfile=$1
     local exp=$2
     local np=$3
-    local artifact_file="../results/qws_timing_${exp}.json"
-    local artifact_path="results/qws_timing_${exp}.json"
     ./check.sh "$outfile" "data/$exp"
     local fom
     fom=$(qws_extract_fom_from_log "$outfile")
-    qws_write_timing_artifact "$outfile" "$exp" "$artifact_file" "$fom"
-    if [[ -f "$artifact_file" ]]; then
-        BK_TIMING_OBSERVATIONS_FILE="../results/timing_observations.json" \
-        BK_TIMING_OBSERVATION_ITEMS_FILE="../results/.timing_observation_items.jsonl" \
-            bk_record_timing_observation \
-                --artifact "$artifact_path" \
-                --artifact-file "$artifact_file" \
-                --result-exp "$exp" \
-                --producer qws
-    fi
-    bk_emit_result --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
+    bk_emit_result --from-log "$outfile" --timing-parser qws_observe_timing --timing-producer qws \
+        --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
     # Disabled: this emitted synthetic section timings and dummy estimation
     # artifacts. Re-enable only after QWS provides real app-side timings.
     # qws_emit_estimation_data_from_fom "$fom"
 }
 
-# Disabled: dummy PA archives are confusing on the production portal because
-# they look like downloadable measurement artifacts.
-# emit_qws_dummy_padata() {
-#     mkdir -p pa
-#     echo dummy > ./pa/padat.0
-#     echo dummy > ./pa/padat.1
-#     echo dummy > ./pa/padat.2
-#     echo dummy > ./pa/padat.3
-#     tar -czf "$1" ./pa
-# }
-
 bk_fetch_recorded_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
-record_qws_runtime_parameter_inputs
 
 if [[ -f artifacts/main ]]; then
     cp artifacts/main "${REPO_DIR}"
@@ -104,25 +55,19 @@ case "$system" in
     Fugaku|FugakuCN)
         case "$nodes" in
             1)
-                mpiexec -n 1 ./main "${qws_case0_args[@]}" > CASE0
-                print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE0 1 >> ../results/result
-                mpiexec -n 2 ./main "${qws_case1_args[@]}" > CASE1
-                print_results output.${PJM_JOBID}/0/2/stdout.2.0 CASE1 2 >> ../results/result
+                bk_run --log CASE0 --parameter-input --launcher mpiexec -n 1 -- ./main "${qws_case0_args[@]}"
+                print_results CASE0 CASE0 1 >> ../results/result
+                bk_run --log CASE1 --parameter-input --launcher mpiexec -n 2 -- ./main "${qws_case1_args[@]}"
+                print_results CASE1 CASE1 2 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
-                    bk_run_context --results-dir ../results --exp CASE0
-                    bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 1 ./main "${qws_case0_args[@]}" > CASE0.profile
-                # else
-                #     emit_qws_dummy_padata ../results/padata0.tgz
+                    bk_profile --from-log CASE0 -- bk_capture_profile "$qws_profiler_tool" "$qws_profiler_level" -- mpiexec -n 1 ./main "${qws_case0_args[@]}"
                 fi
                 ;;
             2)
-                mpiexec -n 8 ./main "${qws_case7_args[@]}" > CASE7
-                print_results output.${PJM_JOBID}/0/1/stdout.1.0 CASE7 4 >> ../results/result
+                bk_run --log CASE7 --parameter-input --launcher mpiexec -n 8 -- ./main "${qws_case7_args[@]}"
+                print_results CASE7 CASE7 4 >> ../results/result
                 if bk_profiler_enabled "$qws_profiler_tool"; then
-                    bk_run_context --results-dir ../results --exp CASE7
-                    bk_profiler "$qws_profiler_tool" --level "$qws_profiler_level" --archive ../results/padata0.tgz --raw-dir pa -- mpiexec -n 8 ./main "${qws_case7_args[@]}" > CASE7.profile
-                # else
-                #     emit_qws_dummy_padata ../results/padata0.tgz
+                    bk_profile --from-log CASE7 -- bk_capture_profile "$qws_profiler_tool" "$qws_profiler_level" -- mpiexec -n 8 ./main "${qws_case7_args[@]}"
                 fi
                 ;;
             *)
@@ -142,44 +87,44 @@ case "$system" in
         export OMP_NUM_THREADS="$nthreads"
         export OMP_PLACES=cores
         export OMP_PROC_BIND=close
-        mpirun --bind-to none -n 1 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun --bind-to none -n 1 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_GH200)
         module load system/qc-gh200 nvhpc-hpcx/25.9
-        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_GENOA)
         module load system/genoa mpi/openmpi-x86_64
-        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=96 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=96 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_DGXSP)
         source /etc/profile.d/modules.sh
         module load system/ng-dgx nvhpc-hpcx/26.3
-        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=20 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=20 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_FX700)
         module load system/fx700 FJSVstclanga
-        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=12 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=12 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     MiyabiG)
         module purge
         module load nvidia/26.3 nv-hpcx/26.3
-        mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     MiyabiC)
-        mpirun -n 1 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     GenkaiA|GenkaiB|GenkaiC)
         qws_numproc=$((nodes * numproc_node))
         module load intel/2023.2 mvapich/3.0-intel2023.2
-        mpirun -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Grand_C|Grand_G)
@@ -196,16 +141,14 @@ case "$system" in
             type -a mpirun mpiexec mpiexec.hydra mpiicc mpiicpc mpiicpx 2>&1 >&2 || true
             echo "qws: loaded modules:" >&2
             module list >&2 || true
-            echo "qws: environment:" >&2
-            env | sort >&2
             exit 1
         fi
-        "$qws_mpi_launcher" -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher "$qws_mpi_launcher" -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     AOBA_A|AOBA_B|AOBA_S)
         qws_numproc=$((nodes * numproc_node))
-        mpirun -np ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -np ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     SQUID_CPU)
@@ -216,7 +159,7 @@ case "$system" in
         fi
         module load BaseCPU
         export OMP_NUM_THREADS="${nthreads}"
-        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     SQUID_GPU)
@@ -227,7 +170,7 @@ case "$system" in
         fi
         module load BaseGPU
         export OMP_NUM_THREADS="${nthreads}"
-        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} --bind-to none ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} --bind-to none -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     SQUID_VECTOR)
@@ -238,7 +181,7 @@ case "$system" in
         fi
         module load BaseVEC
         export OMP_NUM_THREADS="${nthreads}"
-        mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun "${qws_mpi_opts[@]}" -np ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Odyssey)
@@ -251,7 +194,7 @@ case "$system" in
         module load odyssey fj fjmpi
         export OMP_NUM_THREADS=12
         export PLE_MPI_STD_EMPTYFILE=off
-        mpiexec -n 1 -ofout CASE0 ./main "${qws_case0_args[@]}"
+        bk_run --log CASE0 --parameter-input --launcher mpiexec -n 1 -ofout stdout.1.0 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     Aquarius)
@@ -260,26 +203,26 @@ case "$system" in
         source /work/opt/local/x86_64/cores/intel/2023.0.0/mpi/latest/env/vars.sh
         export OMP_NUM_THREADS=8
         export I_MPI_PIN=1
-        mpiexec -n 1 ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpiexec -n 1 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     Pegasus)
         qws_numproc=$((nodes * numproc_node))
         module load intel/2025.3.1 intmpi/2025.3.1
-        mpirun -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Sirius)
         qws_numproc=$((nodes * numproc_node))
         module load aocc/5.0.0 openmpi/5.0.10/aocc5.0.0
-        mpirun -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     TSUBAME4)
         qws_numproc=$((nodes * numproc_node))
         module load openmpi/5.0.10-gcc aocc/4.1.0
         export OMPI_CC=clang OMPI_CXX=clang++ OMPI_FC=flang
-        mpirun -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     OCTOPUS)
@@ -288,7 +231,7 @@ case "$system" in
         export OMP_NUM_THREADS="${nthreads}"
         export OMP_PROC_BIND=close
         export OMP_PLACES=cores
-        mpirun -n ${qws_numproc} ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n ${qws_numproc} -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Camphor3)
@@ -313,7 +256,7 @@ case "$system" in
         if [[ "${SLURM_CONF:-}" == /etc/slurm/sysA/* ]]; then
             unset SLURM_CONF
         fi
-        srun -n 1 -c "${nthreads}" ./main "${qws_case0_args[@]}" > CASE0
+        bk_run --log CASE0 --parameter-input --launcher srun -n 1 -c "${nthreads}" -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     *)

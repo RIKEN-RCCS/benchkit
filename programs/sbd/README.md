@@ -10,7 +10,7 @@ profiling run on supported NVIDIA GPU systems. Set `BK_SBD_NCU_PROFILE=false`
 or `SBD_PROFILER_TOOL=none` to skip the additional profile flow. The profile
 flow runs rank-0 host
 `nsys profile --trace=cuda --sample=none`, exports the CUDA kernel summary,
-generates `results/sbd_kernel_discovery.json` and `results/sbd_ncu_plan.json`,
+generates discovery and plan JSON in a common-owned `results/profile_<id>/` directory,
 and then uses that plan for rank-0 Nsight Compute acquisition when
 `BK_SBD_NCU_PROFILE_MODE=discovery`.
 

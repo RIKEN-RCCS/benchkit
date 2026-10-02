@@ -10,6 +10,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 mkdir -p "${TMP_DIR}/programs" "${TMP_DIR}/scripts" "${TMP_DIR}/results"
 cp -R "${REPO_DIR}/programs/genesis" "${TMP_DIR}/programs/genesis"
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/scripts/bk_functions.sh"
+cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/scripts/"
 cp -R "${REPO_DIR}/scripts/estimation" "${TMP_DIR}/scripts/estimation"
 cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
 

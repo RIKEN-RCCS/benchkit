@@ -54,17 +54,17 @@ fi
 case "$system" in
   FugakuCN)
     export OMP_NUM_THREADS="${nthreads}"
-    mpiexec -n "${n_ranks}" ./les3x.mpi
+    bk_run --log les3x.stdout.log -- mpiexec -n "${n_ranks}" ./les3x.mpi
 
-    if [[ -f output.${PJM_JOBID}/0/1/stdout.1.0 ]]; then
-      cp output.${PJM_JOBID}/0/1/stdout.1.0 les3x.log.P0001
+    if grep -q 'USRT:TIME-LOOP' les3x.stdout.log; then
+      cp les3x.stdout.log les3x.log.P0001
       sed -i -e "s/D+/E+/g" -e "s/D-/E-/g" les3x.log.P*
     fi
     ;;
   RC_GH200)
     module purge
     module load system/qc-gh200 nvhpc/24.3
-    mpiexec -np "${n_ranks}" ./les3x.mpi
+    bk_run --log les3x.stdout.log -- mpiexec -np "${n_ranks}" ./les3x.mpi
     ;;
 esac
 
@@ -85,6 +85,7 @@ if ! awk -v fom="$fom" 'BEGIN { exit !(fom <= 100) }'; then
 fi
 
 bk_emit_result \
+  --from-log les3x.stdout.log \
   --fom "$fom" \
   --fom-unit s \
   --fom-version "67.01" \

@@ -18,7 +18,6 @@ ARTIFACT="${PWD}/artifacts/GMRES-PETSc"
 RESULTS_DIR="${PWD}/results"
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
-bk_reset_input_info
 
 if [[ ! -x "${ARTIFACT}" ]]; then
   echo "Required artifact not found or not executable: ${ARTIFACT}" >&2
@@ -44,24 +43,36 @@ logpetsc="petsc.log"
 # not monotonically better -- 80 converged and then broke down on a rerun of
 # the same config.
 KSP_RESTART="${BK_PETSC_GMRES_RESTART:-100}"
-touch .run_marker
+case "${system}" in
+  RIKYU) DATA="${BK_PETSC_GMRES_MATRIX:-/data1/rkp00015/CX_input/petsc-gmres/stokes2.dat}" ;;
+  Fugaku) DATA="${BK_PETSC_GMRES_MATRIX:-/vol0500/share/ra250029/CX_input/petsc-gmres/stokes2.dat}" ;;
+  RC_DGXSP) DATA="${BK_PETSC_GMRES_MATRIX:-/lvs0/rccs-nghpcadu/CX_input/petsc-gmres/stokes2.dat}" ;;
+  *) echo "Unknown system: ${system}" >&2; exit 1 ;;
+esac
+
+matrix_name="$(basename "${DATA}" .dat)"
+bk_record_input \
+  --file "${DATA}" --expected-manifest "${APP_DIR}/input-manifest.json" \
+  --dataset-id petsc-gmres-stokes2 \
+  --type matrix \
+  --result-exp "${matrix_name}" \
+  --parameter ksp_gmres_restart "${KSP_RESTART}" \
+  --recipe "Stokes flow saddle-point matrix generated with Gmsh/FreeFEM and stored in PETSc binary format."
 
 case "${system}" in
   RIKYU)
-    DATA="${BK_PETSC_GMRES_MATRIX:-/data1/rkp00015/CX_input/petsc-gmres/stokes2.dat}"
     module load nvhpc-hpcx/26.3
     # One MPI rank per GPU: each rank gets a distinct GPU via
     # CUDA_VISIBLE_DEVICES (set inside mpirun so OMPI_COMM_WORLD_LOCAL_RANK
     # is available per-rank), and -mat_type aijcusparse puts the matrix
     # on-device. Without these the solve runs on CPU even though GPUs
     # are allocated.
-    mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to core --map-by core \
+    bk_run --log "${logfile}" -- mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to core --map-by core \
       bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
-      -log_view ":${logpetsc}" -log_view_gpu_time \
-      > "${logfile}" 2>&1 || true
+      -log_view ":${logpetsc}" -log_view_gpu_time
     ;;
   Fugaku)
     # /vol0002 is at quota (0 byte hard limit -- true for every group
@@ -72,39 +83,27 @@ case "${system}" in
     # this was staged) is what actually resolves from a compute-node job;
     # found by testing the real run.sh in a real job, not by trusting the
     # canonical-looking path a filesystem tool reported.
-    DATA="${BK_PETSC_GMRES_MATRIX:-/vol0500/share/ra250029/CX_input/petsc-gmres/stokes2.dat}"
     module load lang/tcsds-1.2.43
     module load LLVM/llvmorg-22.1.0
-    mpiexec -n "${n_ranks}" \
+    bk_run --log "${logfile}" -- mpiexec -n "${n_ranks}" \
       "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
-      -log_view ":${logpetsc}" \
-      > "${logfile}" 2>&1 || true
-    # Fugaku's PJM mpiexec writes each rank's real stdout/stderr under
-    # ./output.$PJM_JOBID/, ignoring plain shell redirection for the
-    # application's own output -- fall back to searching for it if the
-    # marker wasn't captured above (same pattern as this repo's sbd).
-    if ! grep -q "^FOM: ranks=" "${logfile}" 2>/dev/null; then
-      found=$(find . -maxdepth 5 -type f -newer .run_marker -name 'stdout*' 2>/dev/null | sort | head -n 1)
-      [[ -n "${found}" ]] && logfile="${found}"
-    fi
+      -log_view ":${logpetsc}"
     ;;
   RC_DGXSP)
     # GPU run (1 rank/GPU) -- see build.sh. /lvs0 group storage IS mounted
     # and readable on the ng-dgx compute nodes (verified with a compute-node
     # read test), so the data lives in the site's CX_input like everywhere
     # else.
-    DATA="${BK_PETSC_GMRES_MATRIX:-/lvs0/rccs-nghpcadu/CX_input/petsc-gmres/stokes2.dat}"
     source /etc/profile.d/modules.sh
     module load system/ng-dgx nvhpc-hpcx
-    mpirun -np "${n_ranks}" \
+    bk_run --log "${logfile}" -- mpirun -np "${n_ranks}" \
       bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
-      -log_view ":${logpetsc}" -log_view_gpu_time \
-      > "${logfile}" 2>&1 || true
+      -log_view ":${logpetsc}" -log_view_gpu_time
     ;;
   *)
     echo "Unknown system: ${system}" >&2
@@ -112,24 +111,9 @@ case "${system}" in
     ;;
 esac
 
-if [[ ! -f "${DATA}" ]]; then
-  echo "Benchmark matrix not found at ${DATA} -- see README.md for how to stage it" >&2
-  exit 1
-fi
-
-matrix_name="$(basename "${DATA}" .dat)"
-bk_record_input \
-  --dataset-id "petsc-gmres-${matrix_name}" \
-  --version "${matrix_name}" \
-  --type matrix \
-  --result-exp "${matrix_name}" \
-  --parameter ksp_gmres_restart "${KSP_RESTART}" \
-  --recipe "Stokes flow saddle-point matrix generated with Gmsh/FreeFEM and stored in PETSc binary format."
-
 if ! grep -q "^FOM: ranks=" "${logfile}" 2>/dev/null; then
   echo "petsc-gmres success marker not found" >&2
-  echo "---- ${logfile} tail ----" >&2
-  tail -n 80 "${logfile}" >&2 || true
+  bk_diagnose_log "${logfile}"
   exit 1
 fi
 
@@ -140,6 +124,7 @@ ksp_iter_time=$(grep "^FOM: ranks=" "${logfile}" | sed -E 's/.*ksp_iter_time_s=(
 # FOM line, so sections emitted first are silently dropped from the Result
 # JSON while result.sh still exits 0.
 bk_emit_result \
+  --from-log "${logfile}" \
   --fom "${ksp_iter_time}" \
   --fom-unit s \
   --fom-version ksp_iter_time \
