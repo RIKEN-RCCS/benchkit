@@ -4,7 +4,11 @@ from utils.measurement_artifacts import (
     profile_archive_filename_candidates,
     stored_measurement_artifact_filename_from_path,
 )
-from utils.result_records import build_labeled_value_rows, format_numeric_value
+from utils.result_records import (
+    build_labeled_value_rows,
+    format_numeric_value,
+    select_display_toolchain,
+)
 from utils.trigger_display import summarize_execution_trigger
 
 
@@ -570,7 +574,7 @@ def _build_environment_rows(environment_snapshot):
     ci = payload.get("ci") if isinstance(payload.get("ci"), dict) else {}
     benchkit = payload.get("benchkit") if isinstance(payload.get("benchkit"), dict) else {}
     toolchain = payload.get("toolchain") if isinstance(payload.get("toolchain"), dict) else {}
-    display_toolchain = _display_toolchain(toolchain)
+    display_toolchain = select_display_toolchain(toolchain)
 
     rows = build_labeled_value_rows([
         ("Snapshot Hash", environment_snapshot.get("hash", "N/A")),
@@ -593,18 +597,6 @@ def _build_environment_rows(environment_snapshot):
     if commands:
         rows.append({"label": "Build Tools", "list": commands})
     return rows
-
-
-def _display_toolchain(toolchain):
-    if not isinstance(toolchain, dict):
-        return {}
-    if isinstance(toolchain.get("commands"), dict) or isinstance(toolchain.get("modules"), list):
-        return toolchain
-    for stage in ("build_actual", "build_run", "build", "run"):
-        stage_toolchain = toolchain.get(stage)
-        if isinstance(stage_toolchain, dict) and stage_toolchain:
-            return stage_toolchain
-    return {}
 
 
 def _build_toolchain_command_summary(commands):
