@@ -4,6 +4,29 @@ This directory owns QWS-specific build, run, and estimation settings. Shared
 Benchkit CI, top-level estimation packages, and section packages should not
 depend on QWS-local variables or dummy section names.
 
+## Flow2
+
+Both Flow2 routes initially run CPU-only CASE0 on one node with one MPI rank.
+Thread counts and time limits are application settings in `list.csv`, not
+full-node scheduler reservation sizes. Other MPI layouts are rejected because
+CASE0 has a single-rank process grid.
+
+| System | Modules | Build location |
+| --- | --- | --- |
+| `Flow2_Type1` | `oneapi/2026.1.0`, `impi/2021.18` | Login node, separate from the PBS run job |
+| `Flow2_Type2` | `nvhpc/26.5`, `nv-hpcx/26.5` | ARM64 compute node, inside the PBS run job |
+
+Type I uses Intel MPI wrappers with an explicit `-march=x86-64-v4` target for
+AMD CPUs instead of QWS's Intel-only `-xCORE-AVX512` default. See the
+[Intel compiler target documentation](https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/developer-guide-reference/2024-0/march.html).
+Type II uses QWS's Grace CPU implementation, with `mpic++ -mp` for C++/OpenMP;
+it does not offload to the GPUs reserved by the single-node queue. Its time
+limit includes compilation. Both routes retain QWS's output validation and
+solver-time FOM extraction.
+
+Module definitions have been checked, but QWS compilation and execution on
+these systems still require validation on the actual nodes.
+
 ## Estimation Sections
 
 `programs/qws/estimate.sh` is a reference lightweight app wrapper. It declares

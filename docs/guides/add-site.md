@@ -610,7 +610,9 @@ buildを生成しません。どちらも初期設定は1ノード占有です�
 `single`キューは複数ノードや部分共有の指定には使えません。複数ノードや
 BeeGFSの利用では対応するキューへ設定を変更してください。`share`キューでは
 予約CPU/GPU数も変更する必要があり、キュー名だけの置換はできません。
-システム登録のみではアプリ対応や実行条件は追加されません。
+システム登録のみではアプリ対応や実行条件は追加されません。QWSには両タイプの
+CPU版CASE0経路を追加しています。moduleとbuild場所の詳細・実機検証状況は
+[QWS README](../../programs/qws/README.md#flow2)を参照してください。
 
 構成は[公式仕様](https://www.cc.nagoya-u.ac.jp/ja/system/specs/)、利用範囲は
 [公式ジョブクラス一覧](https://www.cc.nagoya-u.ac.jp/ja/usage/fees/job-classes/)

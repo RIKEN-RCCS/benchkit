@@ -546,6 +546,80 @@ printf 'launcher warning\n' >&2
         self.assertNotIn("999", (self.root / "results/log_p8.txt").read_text())
         self.assertIn("dynamics = 3.5", (self.root / "results/log_p8.txt").read_text())
 
+    def test_qws_flow2_build_and_run_routes(self):
+        (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
+        (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
+        work = self.root / "qws"
+        work.mkdir()
+        (self.root / "bin").mkdir()
+        commands = {
+            "git": "printf '%040d\\n' 1",
+            "sleep": ":", "sync": ":",
+            "module": 'printf "%s\\n" "$*" >> ../modules.log',
+            "make": 'printf "%s\\n" "$@" > ../make.args; printf executable > main',
+            "mpirun": '''printf '%s\\n' "$@" > ../mpi.args
+printf '%s\\n' "$OMP_NUM_THREADS" > ../threads
+[ "${FAIL_MPI:-0}" != 1 ] || exit 7
+printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
+''',
+        }
+        for name, code in commands.items():
+            path = self.root / "bin" / name
+            path.write_text("#!/bin/sh\n" + code + "\n")
+            path.chmod(0o700)
+        check = work / "check.sh"
+        check.write_text('''#!/bin/sh
+[ "${FAIL_CHECK:-0}" != 1 ] || exit 8
+[ "$2" = data/CASE0 ] && grep -q "etime for solver" "$1"
+''')
+        check.chmod(0o700)
+        self.env["PATH"] = str(self.root / "bin") + os.pathsep + self.env["PATH"]
+        self.env["QWS_PROFILER_TOOL"] = "none"
+        for system in ("Flow2_Type1", "Flow2_Type2"):
+            with self.subTest(system=system):
+                modules = self.root / "modules.log"
+                modules.unlink(missing_ok=True)
+                self.assert_ok(self.run_shell(f"bash programs/qws/build.sh {system}"))
+                self.assertTrue((self.root / "artifacts/main").is_file())
+                build_modules = modules.read_text().splitlines()
+                self.assertEqual(build_modules[0], "purge")
+                make_args = (self.root / "make.args").read_text().splitlines()
+                self.assertIn("mpi=1", make_args)
+                self.assertIn("omp=1", make_args)
+                if system == "Flow2_Type1":
+                    self.assertIn("compiler=intel", make_args)
+                    flags = next(arg for arg in make_args if arg.startswith("CFLAGS="))
+                    self.assertIn("-march=", flags)
+                    self.assertNotIn("-xCORE", flags)
+                else:
+                    self.assertIn("arch=grace", make_args)
+                    self.assertIn("CXX=mpic++ -mp", make_args)
+                modules.unlink()
+                # A synthetic thread count checks forwarding without fixing list.csv policy.
+                self.assert_ok(self.run_shell(f"bash programs/qws/run.sh {system} 1 1 3"))
+                self.assertEqual(modules.read_text().splitlines(), build_modules)
+                args = (self.root / "mpi.args").read_text().splitlines()
+                self.assertEqual(args[:2], ["-n", "1"])
+                if system == "Flow2_Type2":
+                    self.assertIn("ppr:1:node:PE=3", args)
+                self.assertEqual((self.root / "threads").read_text().strip(), "3")
+                result_file = self.root / "results/result"
+                self.assertIn("FOM:", result_file.read_text())
+                self.assertIn("Exp:CASE0", result_file.read_text())
+                for failure in ("FAIL_MPI", "FAIL_CHECK"):
+                    self.env[failure] = "1"
+                    result = self.run_shell(f"bash programs/qws/run.sh {system} 1 1 3")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn("FOM:", result_file.read_text())
+                    del self.env[failure]
+                for nodes, ranks in ((2, 1), (1, 2)):
+                    (self.root / "mpi.args").unlink(missing_ok=True)
+                    result = self.run_shell(f"bash programs/qws/run.sh {system} {nodes} {ranks} 3")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("one node and one MPI rank", result.stderr)
+                    self.assertFalse((self.root / "mpi.args").exists())
+                    self.assertNotIn("FOM:", result_file.read_text())
+
     def test_qws_does_not_depend_on_scheduler_output_sequence_numbers(self):
         (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
         (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
