@@ -47,6 +47,24 @@ fi
 cd "${REPO_DIR}"
 
 case "$system" in
+    Flow2_Type1|Flow2_Type2)
+        if [[ "$nodes" != 1 || "$numproc_node" != 1 ]]; then
+            echo "qws: Flow2 CASE0 requires one node and one MPI rank" >&2
+            exit 1
+        fi
+        module purge
+        if [[ "$system" = Flow2_Type1 ]]; then
+            module load oneapi/2026.1.0 impi/2021.18
+            qws_mpi_opts=()
+        else
+            module load nvhpc/26.5 nv-hpcx/26.5
+            qws_mpi_opts=(--bind-to core --map-by "ppr:1:node:PE=${nthreads}")
+        fi
+        export OMP_PLACES=cores
+        export OMP_PROC_BIND=close
+        bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 "${qws_mpi_opts[@]}" -- ./main "${qws_case0_args[@]}"
+        print_results CASE0 CASE0 1 >> ../results/result
+        ;;
     Fugaku|FugakuCN)
         case "$nodes" in
             1)

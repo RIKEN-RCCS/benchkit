@@ -32,6 +32,19 @@ case "$system" in
 	module load nvhpc-hpcx/26.3
 	make -j 8 omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1
 	;;
+    Flow2_Type1)
+	module purge
+	module load oneapi/2026.1.0 impi/2021.18
+	# Use the AVX-512 ISA without the upstream Intel-only CPU target.
+	make -j 8 fugaku_benchmark= omp=1 compiler=intel arch=skylake rdma= mpi=1 powerapi= \
+	    CFLAGS="-O3 -march=x86-64-v4 -fno-alias -qopt-zmm-usage=high -Wno-unknown-pragmas -DARCH_AVX512"
+	;;
+    Flow2_Type2)
+	module purge
+	module load nvhpc/26.5 nv-hpcx/26.5
+	# A command-line CXX override must retain the upstream OpenMP option.
+	make -j 8 fugaku_benchmark= omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi= CXX="mpic++ -mp"
+	;;
     RC_GH200)
 	module load system/qc-gh200 nvhpc-hpcx/25.9
 	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
