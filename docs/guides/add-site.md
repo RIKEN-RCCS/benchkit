@@ -602,14 +602,26 @@ PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -
 | `Flow2_Type2` | `native` | 計算ノードの同一ジョブでbuildとrun | `t2-single` |
 
 Type IIはログインノードとCPUアーキテクチャが異なるため、ログインノードでの
-buildを生成しません。どちらも初期設定は1ノード占有です。PBSの`ncpus`は
-`system_info.csv`のCPU socket数 * core数、Type IIの`ngpus`は同じCSVのGPU数
-から決めます。`mpiprocs` / `ompthreads`はアプリの`list.csv`から取得し、
-1 GPU = 1 MPIプロセスとは固定しません。メモリ指定はキューの既定値を使います。
+buildを生成しません。どちらも初期設定は1ノード占有です。single向けには
+`select=${nodes}:mpiprocs=${numproc_node}:ompthreads=${nthreads}`を使います。
+CPU/GPU数とメモリはキュー側の既定値に任せ、`ncpus` / `ngpus`は明示しません。
+`mpiprocs` / `ompthreads`はアプリの`list.csv`から取得し、
+1 GPU = 1 MPIプロセスとは固定しません。
 
 `single`キューは複数ノードや部分共有の指定には使えません。複数ノードや
 BeeGFSの利用では対応するキューへ設定を変更してください。`share`キューでは
-予約CPU/GPU数も変更する必要があり、キュー名だけの置換はできません。
+資源指定も異なり、キュー名だけの置換はできません。`t1-share`の`-l numa=1`、
+`t2-share`の`-l gpu=1`では最小ジョブの実行が確認されています。
+`t2-share`は`select=1:ngpus=1:mpiprocs=1:ompthreads=36`も受理しますが、
+同じ`ngpus`指定をsingleへ流用することはできません。
+singleの上記`select`書式とshareのGPU付き`select`書式は保留ジョブでの
+受理確認までであり、QWSのbuild / MPI実行の成功を意味しません。
+
+課題はBudget / execution routeの`allocation_project_id`から共通層が
+`-W group_list=<allocation>`へ変換します。同一アカウントが複数課題に所属する
+場合も、選択したBudgetの課題を明示します。実課題IDをCSVやアプリのrun.shへ
+固定しないでください。
+
 システム登録のみではアプリ対応や実行条件は追加されません。QWSには両タイプの
 CPU版CASE0経路を追加しています。moduleとbuild場所の詳細・実機検証状況は
 [QWS README](../../programs/qws/README.md#flow2)を参照してください。
