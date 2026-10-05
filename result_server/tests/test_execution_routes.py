@@ -173,6 +173,47 @@ def test_empty_or_matching_pipeline_allocation_is_accepted(project, allocation):
     assert generate(project, "Fugaku", BK_ALLOCATION_PROJECT_ID=allocation).returncode == 0
 
 
+@pytest.mark.parametrize("system,mode,queue", [
+    ("Flow2_Type1", "cross", "PBS_FLOW2_CPU"),
+    ("Flow2_Type2", "native", "PBS_FLOW2_GPU"),
+])
+def test_flow2_route_passes_project_group_to_scheduler(project, system, mode, queue):
+    directory, _ = project
+    # Use the site templates, but keep application resource choices synthetic.
+    (directory / "config/queue.csv").write_text((ROOT / "config/queue.csv").read_text())
+    additions = {
+        "config/system.csv": f"{system},{mode},legacy-build,legacy-run,{queue},test-single\n",
+        "programs/demo/list.csv": f"{system},yes,1,2,3,0:05:00\n",
+    }
+    for name, text in additions.items():
+        path = directory / name
+        path.write_text(path.read_text() + text)
+    path = directory / "routes.json"
+    config = json.loads(path.read_text())
+    config["routes"][0]["systems"] = [system]
+    path.write_text(json.dumps(config))
+
+    result = generate(project, system)
+    assert result.returncode == 0, result.stderr
+    generated = (directory / ".gitlab-ci.generated.yml").read_text()
+    assert (
+        'SCHEDULER_PARAMETERS: "-q test-single -W group_list=budget-example '
+        '-l select=1:mpiprocs=2:ompthreads=3 -l walltime=0:05:00"'
+    ) in generated
+    assert "ncpus=" not in generated
+    assert "ngpus=" not in generated
+    assert 'tags: ["research-run"]' in generated
+    assert 'BK_ROUTE_ALLOCATION_PROJECT_ID: "budget-example"' in generated
+    assert "budget-example" not in result.stdout + result.stderr
+    for overrides in (
+        {"BK_ALLOCATION_PROJECT_ID": "different-budget"},
+        {"BK_SCHEDULER_EXTRA_ARGS": "-W group_list=different-budget"},
+    ):
+        result = generate(project, system, **overrides)
+        assert result.returncode != 0
+        assert "different-budget" not in result.stdout + result.stderr
+
+
 def test_generated_setup_records_resolved_budget_in_snapshot(project):
     assert generate(project, "Fugaku", BK_ALLOCATION_PROJECT_ID="").returncode == 0
     text = (project[0] / ".gitlab-ci.generated.yml").read_text()

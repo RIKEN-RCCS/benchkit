@@ -92,7 +92,8 @@ commit actual configurations or copy them into public issues, PRs, or logs.
   needed. The key remains required. Generated jobs explicitly bind an empty
   allocation; a nonempty pipeline allocation is still a conflict.
 - Nonempty allocation binding currently supports the existing semantic allocation
-  adapters: Fugaku/FugakuCN (`-g`) and RIKYU (`--account`). Other systems fail
+  adapters: Fugaku/FugakuCN (`-g`), RIKYU (`--account`), and
+  Flow2_Type1/Flow2_Type2 (`-W group_list=<allocation>`). Other systems fail
   closed until an appropriate adapter is available. For a nonempty allocation,
   the queue template must include `${scheduler_extra_args}`. Allocation-free
   routes do not require an allocation adapter or that template placeholder.

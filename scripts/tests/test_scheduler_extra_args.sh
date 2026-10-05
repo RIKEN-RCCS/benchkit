@@ -17,6 +17,17 @@ test "$(get_scheduler_extra_args Fugaku)" = "-g rkp00010"
 test "$(get_scheduler_extra_args FugakuCN)" = "-g rkp00010"
 test "$(get_scheduler_extra_args RC_GH200)" = ""
 
+for system in Flow2_Type1 Flow2_Type2; do
+    test "$(scheduler_args_from_allocation_project "$system" budget-example)" = "-W group_list=budget-example"
+    test "$(scheduler_args_from_allocation_project "$system" '')" = ""
+    for invalid in 'budget-example,other' 'budget-example -q other' '-other' 'budget$(id)'; do
+        if scheduler_args_from_allocation_project "$system" "$invalid" >/dev/null 2>&1; then
+            echo "$system must reject invalid allocation IDs" >&2
+            exit 1
+        fi
+    done
+done
+
 export BK_ALLOCATION_PROJECT_ID="rkp00010 --qos=debug"
 if get_scheduler_extra_args RIKYU >/dev/null 2>&1; then
     echo "RIKYU must reject invalid BK_ALLOCATION_PROJECT_ID" >&2

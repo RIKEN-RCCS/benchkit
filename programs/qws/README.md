@@ -24,8 +24,10 @@ it does not offload to the GPUs reserved by the single-node queue. Its time
 limit includes compilation. Both routes retain QWS's output validation and
 solver-time FOM extraction.
 
-Module definitions have been checked, but QWS compilation and execution on
-these systems still require validation on the actual nodes.
+Module loading has been checked on both node types. The single-node queues
+accept `select` with MPI/OpenMP layout and determine CPU/GPU reservations
+without explicit `ncpus` or `ngpus`. Held-job acceptance has been checked, but
+QWS compilation and execution still require validation on the actual nodes.
 
 ## Estimation Sections
 

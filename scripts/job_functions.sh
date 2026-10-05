@@ -122,6 +122,9 @@ scheduler_args_from_allocation_project() {
       Fugaku|FugakuCN)
         printf '%s\n' "-g ${allocation_project_id}"
         ;;
+      Flow2_Type1|Flow2_Type2)
+        printf '%s\n' "-W group_list=${allocation_project_id}"
+        ;;
     esac
     return 0
 }
