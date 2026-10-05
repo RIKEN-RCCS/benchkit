@@ -260,3 +260,46 @@ def test_explicit_audience_and_check_mode(project, config):
     )
     assert result.returncode == 0
     assert "budget-example" not in result.stdout + result.stderr
+
+
+@pytest.fixture
+def snapshot(config):
+    route = copy.deepcopy(config["routes"][0])
+    route["systems"] = ["Fugaku"]
+    return dict(version=1, registry_revision=3, budget_id="budget", destination_id=route["id"],
+                target=config["target"], route=route)
+
+
+@pytest.mark.parametrize("selected", ["", "Legacy", "Fugaku,Legacy", "*"])
+def test_snapshot_cannot_expand_or_switch_selected_system(project, snapshot, selected):
+    project[1].pop("BK_EXECUTION_ROUTES_FILE")
+    result = generate(project, selected, BK_EXECUTION_ROUTE_SNAPSHOT=json.dumps(snapshot))
+    assert result.returncode != 0
+    assert not (project[0] / ".gitlab-ci.generated.yml").exists()
+
+
+@pytest.mark.parametrize("field", ["CI_SERVER_URL", "CI_PROJECT_PATH"])
+def test_snapshot_rejects_different_ci_target(project, snapshot, field):
+    project[1].pop("BK_EXECUTION_ROUTES_FILE")
+    result = generate(project, "Fugaku", BK_EXECUTION_ROUTE_SNAPSHOT=json.dumps(snapshot), **{field: "different"})
+    assert result.returncode != 0
+
+
+def test_snapshot_cannot_be_combined_with_file_routes(project, snapshot):
+    assert generate(project, "Fugaku", BK_EXECUTION_ROUTE_SNAPSHOT=json.dumps(snapshot)).returncode != 0
+
+
+@pytest.mark.parametrize("raw", ["", "not-json", "{}", '{"version":1,"version":1}', "x" * (1024 * 1024 + 1)])
+def test_invalid_snapshot_never_falls_back(project, raw):
+    with pytest.raises((routes.RouteError, ValueError)):
+        routes.load_snapshot(raw, project[0] / "config/system.csv", project[1], "Fugaku")
+
+
+@pytest.mark.parametrize("change", [{"registry_revision": True}, {"registry_revision": -1},
+                                    {"destination_id": "other"}, {"version": 2}, {"token": "DO_NOT_EXPORT"}])
+def test_snapshot_envelope_is_validated(project, snapshot, change):
+    snapshot.update(change)
+    project[1].pop("BK_EXECUTION_ROUTES_FILE")
+    result = generate(project, "Fugaku", BK_EXECUTION_ROUTE_SNAPSHOT=json.dumps(snapshot))
+    assert result.returncode != 0
+    assert "DO_NOT_EXPORT" not in result.stdout + result.stderr

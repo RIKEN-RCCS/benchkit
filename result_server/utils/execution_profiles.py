@@ -753,13 +753,22 @@ class ExecutionProfileStore:
     ) -> None:
         existing = conn.execute(
             """
-            SELECT id, status, approved_by, approved_at, created_at
+            SELECT id, status, approved_by, approved_at, created_at, metadata_json
             FROM execution_profiles
             WHERE id = ?
             """,
             (profile["id"],),
         ).fetchone()
         created_at = existing["created_at"] if existing else now
+        # Budget bindings are changed only through the separately authorized path.
+        profile = dict(profile)
+        metadata = dict(profile.get("metadata_json") or {})
+        metadata.pop("budget_binding", None)
+        if existing:
+            previous = json.loads(existing["metadata_json"] or "{}")
+            if "budget_binding" in previous:
+                metadata["budget_binding"] = previous["budget_binding"]
+        profile["metadata_json"] = metadata
         approved_by = ""
         approved_at = ""
         if profile["status"] == "approved":
@@ -1951,20 +1960,23 @@ class ExecutionProfileStore:
     def list_profiles(self) -> list[dict[str, Any]]:
         self.migrate()
         with self.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM execution_profiles
-                ORDER BY enabled DESC, id COLLATE NOCASE
-                """
-            ).fetchall()
-            scope_rows = conn.execute(
-                """
-                SELECT profile_id, scope_type, value
-                FROM execution_profile_scopes
-                ORDER BY scope_type, value COLLATE NOCASE
-                """
-            ).fetchall()
+            return self._list_profiles_in_conn(conn)
+
+    def _list_profiles_in_conn(self, conn) -> list[dict[str, Any]]:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM execution_profiles
+            ORDER BY enabled DESC, id COLLATE NOCASE
+            """
+        ).fetchall()
+        scope_rows = conn.execute(
+            """
+            SELECT profile_id, scope_type, value
+            FROM execution_profile_scopes
+            ORDER BY scope_type, value COLLATE NOCASE
+            """
+        ).fetchall()
 
         scopes: dict[str, dict[str, list[str]]] = {}
         for row in scope_rows:
@@ -2008,6 +2020,22 @@ class ExecutionProfileStore:
                 }
             )
         return profiles
+
+    def set_budget_binding(self, profile_id, binding, *, expected_fingerprint, actor):
+        from .budget_profile_binding import selection_fingerprint
+
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            profile = next((item for item in self._list_profiles_in_conn(conn) if item["id"] == profile_id), None)
+            if profile is None or selection_fingerprint(profile) != expected_fingerprint:
+                raise ValueError("Profile changed; reload before saving the Budget selection")
+            metadata = dict(profile["metadata_json"])
+            metadata["budget_binding"] = binding
+            now = _utc_now_iso()
+            conn.execute("UPDATE execution_profiles SET metadata_json=?, updated_at=? WHERE id=?",
+                         (_json_dump(metadata), now, profile_id))
+            self._add_profile_event_in_conn(conn, profile_id=profile_id, actor=actor,
+                                           event_type="budget_binding_updated", payload={}, created_at=now)
 
     def delete_profile(self, profile_id: str, *, actor: str = "") -> bool:
         self.migrate()
