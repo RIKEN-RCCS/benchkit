@@ -87,6 +87,15 @@ def hash_file(path, expected_fingerprint):
     return count, digest.hexdigest()
 
 
+def _expected_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise InputError("expected manifest contains a duplicate JSON key")
+        value[key] = item
+    return value
+
+
 def load_expected(path, kind):
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as stream:
@@ -95,7 +104,7 @@ def load_expected(path, kind):
         raw = stream.read(MAX_MANIFEST_BYTES + 1)
     if len(raw) > MAX_MANIFEST_BYTES:
         raise InputError("expected manifest exceeds collection limits")
-    value = json.loads(raw)
+    value = json.loads(raw, object_pairs_hook=_expected_object)
     if not isinstance(value, dict) or set(value) != {"schema_version", "kind", "files"}:
         raise InputError("invalid expected manifest")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1 or value["kind"] != kind:

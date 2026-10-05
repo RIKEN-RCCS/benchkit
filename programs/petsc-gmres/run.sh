@@ -50,7 +50,8 @@ case "${system}" in
   *) echo "Unknown system: ${system}" >&2; exit 1 ;;
 esac
 
-matrix_name="$(basename "${DATA}" .dat)"
+# The verified dataset defines the experiment, not its lookup filename.
+matrix_name="stokes2"
 bk_record_input \
   --file "${DATA}" --expected-manifest "${APP_DIR}/input-manifest.json" \
   --dataset-id petsc-gmres-stokes2 \

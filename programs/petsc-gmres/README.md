@@ -72,6 +72,7 @@ check a fresh copy against it before use.
 `run.sh` checks the matrix against `input-manifest.json` before starting MPI.
 The manifest contains the size and SHA-256 documented here. Changing
 `BK_PETSC_GMRES_MATRIX` changes the lookup location, not the expected dataset.
+Result `Exp` remains `stokes2` even when the matrix file is relocated or renamed.
 The common helper records the verified content identity and manifest in Result
 metadata; a mismatch or failed MPI process stops result emission. This does not
 add a numerical convergence or error-range acceptance criterion. Input hashing
