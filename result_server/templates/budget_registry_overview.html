@@ -19,7 +19,7 @@
             <td><a href="{{ edit_url }}#budget-editor">{{ item.label }} @ {{ item.system }}</a></td>
             <td>{% for target in destinations %}<div>{{ target.system }}</div>{% else %}-{% endfor %}</td>
             <td>{% for allocation in destinations | map(attribute='allocation_project_id') | unique %}<div>{{ allocation or 'Not specified' }}</div>{% else %}-{% endfor %}</td>
-            <td>{{ item.status_label }}</td>
+            <td><span class="budget-status budget-status--{{ item.status_state }}">{{ item.status_label }}</span></td>
             <td>{{ item.valid_from or 'No start date' }} / {{ item.valid_until or 'No end date' }}</td>
             <td><a href="{{ url_for('budget_registry.index', edit=item.id) }}#budget-managers">{{ assigned | length }} managers</a></td>
         </tr>
