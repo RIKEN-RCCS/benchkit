@@ -104,13 +104,15 @@ for listfile in programs/*/list.csv; do
     # scheduler quantities such as total ranks, CPU sockets, and GPU cards.
     proc=$((nodes * numproc_node))
     cpu_per_node=$(get_system_cpu_per_node "$system")
+    cpu_cores_per_node=$(get_system_cpu_cores_per_node "$system")
     gpu_per_node=$(get_system_gpu_per_node "$system")
     [[ "$cpu_per_node" =~ ^[0-9]+$ ]] || cpu_per_node=0
+    [[ "$cpu_cores_per_node" =~ ^[0-9]+$ ]] || cpu_cores_per_node=0
     [[ "$gpu_per_node" =~ ^[0-9]+$ ]] || gpu_per_node=0
     cpu_sockets=$((nodes * cpu_per_node))
     gpu_cards=$((nodes * gpu_per_node))
     scheduler_extra_args=$(get_scheduler_extra_args "$system")
-	export elapse nodes queue_group scheduler_extra_args numproc_node nthreads proc cpu_per_node gpu_per_node cpu_sockets gpu_cards
+	export elapse nodes queue_group scheduler_extra_args numproc_node nthreads proc cpu_per_node cpu_cores_per_node gpu_per_node cpu_sockets gpu_cards
 
 	read -r submit_cmd template <<< "$(get_queue_template "$system")"
     if [[ -z "$submit_cmd" || -z "$template" ]]; then
@@ -120,6 +122,11 @@ for listfile in programs/*/list.csv; do
 
     if [[ -n "$(execution_route_field "$system" allocation_project_id)" && "$template" != *'${scheduler_extra_args}'* ]]; then
       echo "ERROR: execution route requires a queue template with scheduler_extra_args" >&2
+      exit 1
+    fi
+
+    if [[ "$template" == *'${cpu_cores_per_node}'* && "$cpu_cores_per_node" -eq 0 ]]; then
+      echo "ERROR: queue template requires positive CPU socket and core counts for $system" >&2
       exit 1
     fi
 
