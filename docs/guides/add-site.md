@@ -562,8 +562,8 @@ system,mode,tag_build,tag_run,queue,queue_group
 # 既存エントリ...
 # cross モード（ビルドと実行が別ノード）
 NewSystem,cross,newsystem_login,newsystem_jacamar,PBS_NewSystem,default
-# native モード（同一ノードでビルドと実行）
-NewSystemLN,native,,newsystem_login,none,default
+# native モード（計算ノードの同一ジョブでビルドと実行）
+NewAccelerator,native,,newsystem_jacamar,PBS_NewSystem,accelerator
 ```
 
 - `system`: システム名（アプリの `list.csv` から参照される）
@@ -572,6 +572,14 @@ NewSystemLN,native,,newsystem_login,none,default
 - `tag_run`: 実行用GitLab Runnerタグ（`native`の場合はbuild_runジョブ用）
 - `queue`: `config/queue.csv` のキュー名（ログインノードは `none`）
 - `queue_group`: キューグループ名
+
+ログインノードで対象アーキテクチャ向けにコンパイルできない場合は、`native`
+を選び、`tag_run` に計算ノードへ投入するRunnerのtagを指定します。`tag_build`
+は空にし、`queue` / `queue_group` は対象計算ノードのものを使います。
+この場合、CIは独立したログインノードbuildを生成せず、schedulerに投入する
+同一の`build_run`ジョブ内でbuild、runの順に実行します。`list.csv`の`elapse`
+にはコンパイル時間も含めてください。`native`自体はアプリのコンパイラや
+moduleを選びません。それらは引き続きアプリの`build.sh` / `run.sh`が持ちます。
 
 ### `config/queue.csv` にキューシステムを追加（必要な場合）
 
@@ -582,9 +590,33 @@ queue,submit_cmd,template
 PBS_NewSystem,qsub,"-q ${queue_group} -l select=${nodes} -l walltime=${elapse} -W group_list=your_group"
 ```
 
-テンプレート内で使える変数：`${queue_group}`, `${scheduler_extra_args}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）, `${cpu_per_node}`, `${gpu_per_node}`, `${cpu_sockets}`（`nodes * cpu_per_node`）, `${gpu_cards}`（`nodes * gpu_per_node`）
+テンプレート内で使える変数：`${queue_group}`, `${scheduler_extra_args}`, `${nodes}`, `${numproc_node}`, `${nthreads}`, `${elapse}`, `${proc}`（`nodes * numproc_node`）, `${cpu_per_node}`, `${cpu_cores_per_node}`（CPU socket数 * socketあたりcore数）, `${gpu_per_node}`, `${cpu_sockets}`（`nodes * cpu_per_node`）, `${gpu_cards}`（`nodes * gpu_per_node`）
 
 `${cpu_per_node}` と `${gpu_per_node}` は `config/system_info.csv` から取得します。CPU socket 数や GPU card 数を scheduler に明示するサイトでは、`system_info.csv` の値も投入条件に使われます。
+
+### 不老・弐（Flow2）
+
+| system | mode | build / run | 初期キュー |
+| --- | --- | --- | --- |
+| `Flow2_Type1` | `cross` | ログインノードでbuild、計算ノードでrun | `t1-single` |
+| `Flow2_Type2` | `native` | 計算ノードの同一ジョブでbuildとrun | `t2-single` |
+
+Type IIはログインノードとCPUアーキテクチャが異なるため、ログインノードでの
+buildを生成しません。どちらも初期設定は1ノード占有です。PBSの`ncpus`は
+`system_info.csv`のCPU socket数 * core数、Type IIの`ngpus`は同じCSVのGPU数
+から決めます。`mpiprocs` / `ompthreads`はアプリの`list.csv`から取得し、
+1 GPU = 1 MPIプロセスとは固定しません。メモリ指定はキューの既定値を使います。
+
+`single`キューは複数ノードや部分共有の指定には使えません。複数ノードや
+BeeGFSの利用では対応するキューへ設定を変更してください。`share`キューでは
+予約CPU/GPU数も変更する必要があり、キュー名だけの置換はできません。
+システム登録のみではアプリ対応や実行条件は追加されません。
+
+構成は[公式仕様](https://www.cc.nagoya-u.ac.jp/ja/system/specs/)、利用範囲は
+[公式ジョブクラス一覧](https://www.cc.nagoya-u.ac.jp/ja/usage/fees/job-classes/)
+を参照してください。旧不老のPJM設定とは区別します。
+
+### site-localな投入引数と実行profile
 
 `${scheduler_extra_args}` は site-local な追加投入引数です。例えば scheduler account や project group のように、同じ system でも runner や課題枠ごとに変わる値は OSS repo の `system.csv` や `queue.csv` に固定せず、GitLab CI variable などで `BK_SCHEDULER_EXTRA_ARGS` または `BK_SCHEDULER_EXTRA_ARGS_<SYSTEM>` として渡します。
 

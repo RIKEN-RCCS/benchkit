@@ -135,6 +135,14 @@ get_system_cpu_per_node() {
     return 0
 }
 
+# Full-node CPU reservations are independent of the application's MPI layout.
+get_system_cpu_cores_per_node() {
+    local system="$1"
+    local info_file="${SYSTEM_INFO_FILE:-config/system_info.csv}"
+    awk -F, -v s="$system" '$1==s && $4 ~ /^[0-9]+$/ && $5 ~ /^[0-9]+$/ {print $4 * $5}' "$info_file"
+    return 0
+}
+
 # A dash in system_info.csv means "no GPU"; matrix_generate.sh normalizes
 # non-numeric values to zero before doing scheduler arithmetic.
 get_system_gpu_per_node() {
