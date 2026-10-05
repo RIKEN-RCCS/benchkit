@@ -246,6 +246,24 @@ file names and contents, but not timestamps, permissions, or empty directories.
 Single-file identity does not depend on its basename. Existing dataset labels,
 `--type`, `--recipe`, `--parameter`, and `--result-exp` can still be supplied.
 
+#### Experiment names and input identity
+
+The application owns the scientific case name (`Exp`), dataset labels, trusted
+input definition and numerical acceptance criteria. A lookup-path override must
+not change `Exp` for the same case: do not derive it from a staging directory,
+matrix basename or archive filename. Define it from the benchmark case instead.
+Use the same case name for an explicit `--result-exp` scope and result emission.
+
+The common layer collects bytes, validates the expected manifest and associates
+input observations with Results. It does not infer a scientific case from a path
+or digest. Keep content identity in `content_digest`/`dataset_version`, separate
+from `Exp`. An explicitly supplied version remains an application label; it does
+not override or replace the observed content digest. Matching names alone do not
+establish matching inputs, and matching bytes alone do not establish scientific
+comparability across execution conditions.
+
+#### Observation and verification
+
 Collection alone remains `verification_status: "declared"`: it records the input
 observed, not whether that input is the intended or scientifically valid one.
 To verify against a trusted definition, supply an expected manifest maintained
@@ -259,6 +277,7 @@ bk_record_input --directory "$input_dir" \
 The expected manifest uses exactly the generated `manifest` schema: integer
 `schema_version: 1`, `kind: "file"` or `"directory"`, and a `files` array of
 `path`, nonnegative integer `size_bytes`, and lowercase 64-character `sha256`.
+Duplicate JSON keys are rejected, including in individual file entries.
 A single file uses the neutral path `input`. Verification requires the exact file
 set and bytes to match before any record is appended. Only a match is marked
 `verified`. Generating expectations from the same unchecked input immediately
@@ -276,11 +295,13 @@ unchanged through consumption; this is not a filesystem snapshot or a sandbox
 against a malicious concurrent writer. Files not read by the application but
 present in the selected directory also contribute to its identity.
 
-For generated or rewritten runtime inputs, record the final file before launch
-and scope it with `--result-exp`, in addition to recording the prepared source
-input. Common helpers retain their output location from the directory where
-`bk_functions.sh` was sourced. Applications do not export metadata filenames or
-reset the common metadata stores when changing directory.
+For generated or rewritten runtime inputs, prefer `bk_run --input-file` so the
+common runner observes the final file before launch and associates it through
+`bk_emit_result --from-log`. Record the prepared source input separately when
+needed. Use `--result-exp` for an explicitly scoped input recorded outside that
+output-associated execution path. Common helpers retain their output location
+from the directory where `bk_functions.sh` was sourced. Applications do not export
+metadata filenames or reset the common metadata stores when changing directory.
 
 #### Verifying pre-staged files with explicit expectations
 

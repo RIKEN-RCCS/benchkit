@@ -155,6 +155,29 @@ class InputManifestTests(unittest.TestCase):
         expected.write_text("{}")
         self.assert_cli_failure("--directory", self.source, "--expected-manifest", expected)
 
+    def test_expected_manifest_rejects_duplicate_keys(self):
+        source = self.source / "config"
+        expected = self.root / "expected.json"
+        manifest = collector.collect(source, "file")["manifest"]
+        raw = collector.canonical_json(manifest).decode("ascii")
+        entry = manifest["files"][0]
+        cases = [
+            raw.replace('"schema_version":1', '"schema_version":2,"schema_version":1'),
+            raw.replace('"files":', '"files":[],"files":'),
+            raw.replace('"sha256":', '"sha256":"' + "0" * 64 + '","sha256":'),
+            raw.replace('"size_bytes":', '"size_bytes":0,"size_bytes":'),
+            raw.replace('"path":', '"path":"DO_NOT_EXPORT","path":'),
+            raw.replace('"sha256":', '"sha256":' + json.dumps(entry["sha256"]) + ',"sha256":'),
+        ]
+        for value in cases:
+            with self.subTest(manifest=value):
+                expected.write_text(value)
+                result = self.run_cli("--file", source, "--expected-manifest", expected)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("DO_NOT_EXPORT", result.stderr)
+                self.assertNotIn(str(self.root), result.stderr)
+
 
 class ApplicationInputTests(unittest.TestCase):
     def setUp(self):
@@ -219,6 +242,28 @@ exit "${TEST_MPI_STATUS:-0}"
         failed = self.run_app(app)
         self.assertEqual(failed.returncode, 13)
         self.assertEqual((self.root / "results/result").read_text(), "")
+
+    def test_petsc_input_location_does_not_change_experiment_identity(self):
+        app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
+        identities = []
+        for relative in ("matrix.dat", "relocated/renamed-input.bin"):
+            data = self.root / relative
+            data.parent.mkdir(parents=True, exist_ok=True)
+            data.write_bytes(b"abc")
+            if not identities:
+                (app / "input-manifest.json").write_bytes(
+                    collector.canonical_json(collector.collect(data, "file")["manifest"]))
+            self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
+            passed = self.run_app(app)
+            self.assertEqual(passed.returncode, 0, passed.stderr)
+            result = (self.root / "results/result").read_text().split()
+            experiment = next(field.removeprefix("Exp:") for field in result if field.startswith("Exp:"))
+            info = json.loads((self.root / "results/input_info.json").read_text())["inputs"][0]
+            self.assertTrue(experiment)
+            self.assertEqual(info["verification_status"], "verified")
+            self.assertEqual(info["result_exp"], experiment)
+            identities.append((experiment, info["dataset_id"], info["dataset_version"], info["sha256"]))
+        self.assertEqual(*identities)
 
     def prepare_restart(self):
         source = self.root / "restart-source"

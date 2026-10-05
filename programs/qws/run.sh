@@ -18,10 +18,8 @@ source "${PWD}/scripts/bk_functions.sh"
 source "${PWD}/programs/qws/parse_timing.sh"
 qws_profiler_tool=$(bk_resolve_profiler_tool fapp QWS_PROFILER_TOOL)
 qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
-# QWS synthetic estimation metadata is disabled for production runs. Keep
-# QWS result output limited to measured benchmark FOM until QWS emits real
-# app-side section timings and artifacts.
-# source "${PWD}/programs/qws/estimate.sh"
+# Section and overlap estimates require reviewed application timing data;
+# they cannot be inferred by dividing the solver FOM.
 
 mkdir -p results && : > results/result
 
@@ -35,9 +33,6 @@ print_results() {
     fom=$(qws_extract_fom_from_log "$outfile")
     bk_emit_result --from-log "$outfile" --timing-parser qws_observe_timing --timing-producer qws \
         --fom "$fom" --fom-unit s --fom-version DDSolverJacobi --exp "$exp" --nodes "$nodes" --numproc-node "$np" --nthreads "$nthreads"
-    # Disabled: this emitted synthetic section timings and dummy estimation
-    # artifacts. Re-enable only after QWS provides real app-side timings.
-    # qws_emit_estimation_data_from_fom "$fom"
 }
 
 bk_fetch_recorded_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
@@ -76,12 +71,6 @@ case "$system" in
                 ;;
         esac
         ;;
-    # FugakuLN retired; previous LN smoke run kept for reference.
-    # FugakuLN)
-    #     echo 'dummy call for CI test: QWS program: ./main 32 6 4 3 1 1 1 1 -1 -1 6 50'
-    #     bk_emit_result --fom 123.56 --fom-unit s --fom-version dummy --exp CheckingPrivateRepo --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ../results/result
-    #     emit_qws_dummy_padata ../results/padata0.tgz
-    #     ;;
     RIKYU)
         module load nvhpc-hpcx/26.3
         export OMP_NUM_THREADS="$nthreads"
