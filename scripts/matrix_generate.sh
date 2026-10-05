@@ -18,15 +18,6 @@ PARENT_PIPELINE_CREATED_AT="${CI_PIPELINE_CREATED_AT:-}"
 
 source ./scripts/job_functions.sh
 
-_BK_EXECUTION_ROUTES=""
-if [[ -n "${BK_EXECUTION_ROUTES_FILE:-}" ]]; then
-  _BK_EXECUTION_ROUTES=$(python3 scripts/execution_routes.py --system-file "$SYSTEM_FILE")
-  if [[ -n "${BK_ROUTE_ALLOCATION_PROJECT_ID:-}" ]]; then
-    echo "ERROR: BK_ROUTE_ALLOCATION_PROJECT_ID is reserved for generated jobs" >&2
-    exit 1
-  fi
-fi
-
 CODE_FILTER=""
 SYSTEM_FILTER=""
 NODES_FILTER=""
@@ -47,6 +38,14 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+_BK_EXECUTION_ROUTES=""
+if [[ -v BK_EXECUTION_ROUTE_SNAPSHOT || -n "${BK_EXECUTION_ROUTES_FILE:-}" ]]; then
+  _BK_EXECUTION_ROUTES=$(python3 scripts/execution_routes.py --system-file "$SYSTEM_FILE" --selected-system "$SYSTEM_FILTER")
+  if [[ -n "${BK_ROUTE_ALLOCATION_PROJECT_ID:-}" ]]; then
+    echo "ERROR: BK_ROUTE_ALLOCATION_PROJECT_ID is reserved for generated jobs" >&2
+    exit 1
+  fi
+fi
 
 echo "# Auto-generated GitLab CI configuration" > "$OUTPUT_FILE"
 echo "

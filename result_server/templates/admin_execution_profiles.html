@@ -58,6 +58,8 @@
         color: #334155;
         font-weight: 700;
     }
+    .profile-form [hidden] { display: none; }
+    #profile-budget { margin: 1rem 0 1.5rem; }
     .profile-form input,
     .profile-form select,
     .profile-form textarea {
@@ -411,6 +413,30 @@
     </form>
 </section>
 
+{% if budget_editor and edit_profile %}
+<section class="section-block" id="profile-budget">
+    <h2 class="section-title">Budget</h2>
+    {% if budget_editor.error %}<p role="status">{{ budget_editor.error }}</p>{% endif %}
+    {% if budget_editor.choices %}
+    <form method="POST" action="{{ url_for('admin.save_execution_profile_budget', profile_id=edit_profile.id) }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <input type="hidden" name="registry_revision" value="{{ budget_editor.revision }}">
+        <input type="hidden" name="profile_fingerprint" value="{{ budget_editor.fingerprint }}">
+        <label class="profile-form-wide">Budget @ Managed system
+            <select name="destination_id" required>
+                <option value="">Select Budget</option>
+                {% for choice in budget_editor.choices %}
+                <option value="{{ choice.id }}" {% if choice.id == budget_editor.selected %}selected{% endif %}>{{ choice.budget_label }} @ {{ choice.managed_system }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="profile-form-actions"><button type="submit" class="btn btn-primary">Save Budget</button></div>
+    </form>
+    {% endif %}
+    {% if budget_editor.submission_paused %}<p role="status">Budget submission paused</p>{% endif %}
+</section>
+{% endif %}
+
 {% if submit_result %}
 <section class="page-card">
     <h2 class="section-title">GitLab Pipeline Trigger</h2>
@@ -489,7 +515,9 @@
                                 <input type="hidden" name="profile_id" value="{{ profile.id }}">
                                 <input type="hidden" name="target_ref" value="{{ default_target_ref }}">
                                 <input type="hidden" name="confirm_submit" value="on">
-                                {% if gitlab_targets %}
+                                {% if 'budget_binding' in (profile.metadata_json or {}) %}
+                                <span>Budget</span>
+                                {% elif gitlab_targets %}
                                 {% if gitlab_targets | length > 1 %}
                                 <select name="gitlab_target" aria-label="GitLab target">
                                     {% for target in gitlab_targets %}
@@ -570,14 +598,14 @@
         </label>
         <label>
             Profile
-            <select name="profile_id" required>
+            <select name="profile_id" required data-trigger-profile>
                 <option value="">Select profile</option>
                 {% for profile in registered_profiles %}
-                <option value="{{ profile.id }}" {% if selected_trigger_profile == profile.id %}selected{% endif %}>{{ profile.id }}</option>
+                <option value="{{ profile.id }}" data-budget="{{ 1 if 'budget_binding' in (profile.metadata_json or {}) else 0 }}" {% if selected_trigger_profile == profile.id %}selected{% endif %}>{{ profile.id }}</option>
                 {% endfor %}
             </select>
         </label>
-        <label>
+        <label data-trigger-target>
             GitLab Target
             <select name="gitlab_target">
                 {% if gitlab_targets %}
@@ -589,6 +617,7 @@
                 {% endif %}
             </select>
         </label>
+        <span data-trigger-budget hidden>Budget</span>
         <label>
             Target Ref
             <input type="text" name="target_ref" placeholder="{{ default_target_ref }}" value="{{ edit_trigger.target_ref if edit_trigger else default_target_ref }}">
@@ -806,6 +835,18 @@
 </section>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    const profileSelect = document.querySelector("[data-trigger-profile]");
+    const targetField = document.querySelector("[data-trigger-target]");
+    const budgetField = document.querySelector("[data-trigger-budget]");
+    function updateBudgetTarget() {
+        if (!profileSelect || !targetField || !budgetField) return;
+        const bound = profileSelect.selectedOptions[0]?.dataset.budget === "1";
+        targetField.hidden = bound;
+        targetField.querySelector("select").disabled = bound;
+        budgetField.hidden = !bound;
+    }
+    if (profileSelect) profileSelect.addEventListener("change", updateBudgetTarget);
+    updateBudgetTarget();
     const buttons = Array.from(document.querySelectorAll("[data-profile-filter]"));
     const rows = Array.from(document.querySelectorAll("[data-profile-row]"));
     function matches(row, filter) {

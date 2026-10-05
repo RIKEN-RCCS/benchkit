@@ -8,8 +8,28 @@ label or a mechanism for changing the operating-system user.
 
 The project-file workflow below describes the current prototype. Budget-first
 management is being developed around a shared [encrypted budget registry](budget-registry.md).
-Its storage foundation is available, but Portal selection and CI handoff are
-not yet integrated. Do not treat the prototype as the completed management workflow.
+Its storage foundation, explicit Portal selection and snapshot handoff are
+available. Budget-backed submission requires an explicitly enabled CI target/ref;
+legacy profiles are not automatically migrated.
+
+## Selected Snapshot Handoff
+
+The Budget planner can supply `BK_EXECUTION_ROUTE_SNAPSHOT` as JSON containing
+`version`, `registry_revision`, `budget_id`, `destination_id`, `target` and one
+`route`. The route uses the fields below; its ID must equal `destination_id`, and
+its systems list must contain exactly the system selected for matrix generation.
+The generator validates the snapshot against the current GitLab server/project
+and system catalog. An invalid or empty snapshot fails before job generation;
+it never falls back to CSV tags. A snapshot cannot be combined with
+`BK_EXECUTION_ROUTES_FILE`.
+
+This handoff needs no manually maintained project-file copy. Bound Portal
+profiles use it for manual, scheduled and watch submissions after the
+[capability gate](budget-registry.md#enable-submission) is enabled. The CLI
+validator accepts `--selected-system` with `--check` for snapshot validation.
+Snapshot IDs and allocation are operational data, not public metadata. Do not
+print the variable or treat it as proof of authorization; the access controls
+described below still apply.
 
 ## Configure a Project
 
@@ -84,7 +104,7 @@ commit actual configurations or copy them into public issues, PRs, or logs.
 - `BK_EXECUTION_ACTIVITY`, application parameters, and system identity are
   unchanged. Do not derive public responsibility labels from runner accounts.
 
-Portal users continue selecting the GitLab target and execution profile.
+For legacy profiles, Portal users continue selecting the GitLab target and execution profile.
 There is no new per-submit tag selector. A profile may omit its allocation and
 use the configured route, or declare a matching allocation. Mismatches are
 reported by the matrix generation job; the Portal does not read GitLab project

@@ -1,8 +1,9 @@
 # Encrypted Budget Registry
 
 The budget registry is an independent SQLCipher database for shared execution
-configuration. An opt-in Portal management view is available; profile selection
-and pipeline submission are not yet connected. No existing databases are
+configuration. An opt-in Portal management view and explicit profile bindings
+are available. Budget-backed submission requires a separately enabled CI target/ref.
+No existing databases are
 converted and no shared database is opened automatically at application startup.
 
 The separate [runner observations view](runner-monitoring.md) provides read-only
@@ -137,6 +138,101 @@ Key rotation is not implemented by this CLI. It requires coordinated clients,
 an encrypted export or supported rekey procedure, verified recovery, and an
 explicit treatment of backups encrypted with the old key. Do not regenerate
 the key file for an existing database.
+
+## Profile Comparison Preview
+
+An operator with filesystem access to both databases and the registry key can
+compare one existing profile database with registered destinations:
+
+```sh
+python -m result_server.budget_profile_preview --database "$DB_PATH" \
+  --key-file "$DB_KEY_FILE" --profile-database "$PROFILE_DB_PATH"
+```
+
+Use the GitLab target configuration of that profile database's Portal instance.
+Run separately for each instance; profile IDs are not globally unique. Both
+databases are opened read-only, without creation or migration. Their snapshots
+are individually consistent, not an atomic cross-database snapshot.
+
+The JSON lists each profile/system/saved-trigger combination and same-system
+Budget candidates, with reasons requiring review. An absent saved trigger leaves
+the previous target unknown; an empty target in a saved trigger uses the configured
+default, as submission does. Empty profile allocation is unspecified, never an
+implicit match to a scheduler default. Unbounded system scopes are not expanded.
+Target comparison uses the effective server/project binding, not display labels.
+
+Output is for administrators, not public artifacts: it includes record IDs and
+system names, but omits allocation values, credentials, endpoint URLs and profile
+metadata. No candidate is automatically selected or declared ready to execute.
+This preview does not compare runner tags, check token availability, or authorize
+a submission. Future application must recheck permissions, validity, connections,
+runner constraints and registry revision. No profiles, jobs or settings are changed.
+
+## Selected-Destination Planning
+
+`utils.budget_pipeline.build_budget_pipeline_plan` provides a planning API for a
+trusted stored profile, authenticated registry actor, explicitly selected
+destination and expected registry revision. It resolves the destination using
+current Budget permissions and validity, derives the GitLab project and runner
+settings, and refuses conflicting profile allocation or scheduler overrides.
+One plan selects one canonical execution system, even when its profile or
+managed system covers several targets. It does not infer a Budget from an empty
+allocation or the first configured GitLab target.
+
+The plan carries a value snapshot in `BK_EXECUTION_ROUTE_SNAPSHOT`; the CI
+generator verifies its schema, selected system and server/project binding before
+generating jobs. Credential references remain outside that variable. The
+snapshot includes operational IDs, tags and allocation: keep it out of public
+output and restrict pipeline-variable and artifact access. It is not signed and
+does not authorize a CI editor to use an otherwise inaccessible resource.
+
+The planning API itself does not save a selection, read a token or submit a
+pipeline. Manual, scheduled and watch submission paths use a separately stored
+binding and recheck its authority and configuration. A previously generated
+plan is not a durable permission grant.
+
+### Profile Bindings
+
+CX administrators can edit a registered, approved, single-system profile and
+save its Budget selection. Budget managers continue managing their assigned
+Budget settings; this does not grant access to the CX administrator profile
+editor. No applicant membership is introduced. Multi-system profiles remain
+unchanged and cannot be silently narrowed by selecting a single destination.
+
+The binding is stored in the existing profile database metadata, not the Budget
+database, with its authorizing identity, profile fingerprint and reviewed route
+snapshot. No schema migration or automatic assignment is performed. Generic
+profile updates and request approvals cannot create, remove or replace a binding.
+Relevant profile changes require reviewing the selection again. Saving checks
+the rendered profile state and registry revision to detect concurrent edits.
+
+Submissions recheck the saved authorizing identity against the current user
+directory, Budget permissions and validity, and the reviewed execution settings.
+Unrelated registry revisions do not invalidate an unchanged destination. Missing
+or malformed bindings, revoked authority and changed settings block submission;
+they do not fall back to the legacy GitLab selector. Bindings are not implicitly
+cleared by an empty form value. Legacy profiles without a binding retain their
+existing behavior. Trigger request records include the resolved snapshot; treat
+these records and the profile database as operational data, not public exports.
+Budget database encryption does not encrypt this separate profile database.
+
+### Enable Submission
+
+Before enabling a Budget-backed target/ref, deploy CI code that consumes and
+validates `BK_EXECUTION_ROUTE_SNAPSHOT`, verify runner/ref access and variable
+restrictions, and configure `RESULT_SERVER_BUDGET_PIPELINE_TARGET_REFS` on each
+submitting process. Its value is a JSON object mapping configured GitLab target
+IDs to exact refs, for example `{"example":["develop"]}`. There is no wildcard
+or default-target grant. A missing, invalid or nonmatching grant blocks network
+submission, including scheduled and watch triggers, while selection and dry-run
+planning remain available. Ordinary legacy submissions are unaffected.
+
+The standalone trigger runner also needs the Budget database/key path settings,
+SQLCipher runtime, and its own explicit `RESULT_SERVER_REDIS_PREFIX` alongside
+`REDIS_URL` for the matching user directory. Never borrow another instance's
+identity namespace. Identity failures are fail-closed, and credentials are not
+stored in bindings or snapshots. Allowlisting a ref is an operator assertion of
+CI capability, not a signed attestation or protection against CI editors.
 
 ## Registry Contracts
 

@@ -118,16 +118,42 @@ def load_routes(path, system_file, env):
     return resolve_routes(config, systems, env)
 
 
+def load_snapshot(raw, system_file, env, selected_system):
+    """Validate a single selected destination, never expanding the job scope."""
+    if len(raw) > 1024 * 1024:
+        raise RouteError("execution route snapshot is too large")
+    snapshot = json.loads(raw, object_pairs_hook=_object)
+    _fields(snapshot, ("version", "registry_revision", "budget_id", "destination_id", "target", "route"))
+    if type(snapshot["registry_revision"]) is not int or snapshot["registry_revision"] < 0:
+        raise RouteError("invalid registry revision")
+    _identifier(snapshot["budget_id"])
+    _identifier(snapshot["destination_id"])
+    route = snapshot["route"]
+    if (not isinstance(route, dict) or route.get("id") != snapshot["destination_id"]
+            or route.get("systems") != [selected_system]):
+        raise RouteError("snapshot requires exactly its selected destination and system")
+    with open(system_file, newline="", encoding="utf-8") as handle:
+        systems = {row["system"]: row["mode"] for row in csv.DictReader(handle)}
+    return resolve_routes(dict(version=snapshot["version"], target=snapshot["target"], routes=[route]), systems, env)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate without printing resolved values")
     parser.add_argument("--system-file", default="config/system.csv")
+    parser.add_argument("--selected-system", default="")
     args = parser.parse_args()
     try:
         path = os.environ.get("BK_EXECUTION_ROUTES_FILE", "")
-        if not path or not Path(path).is_file():
-            raise RouteError("BK_EXECUTION_ROUTES_FILE must name a readable JSON file")
-        routes = load_routes(path, args.system_file, os.environ)
+        if "BK_EXECUTION_ROUTE_SNAPSHOT" in os.environ:
+            if path:
+                raise RouteError("snapshot and file routes cannot be combined")
+            routes = load_snapshot(os.environ["BK_EXECUTION_ROUTE_SNAPSHOT"], args.system_file,
+                                   os.environ, args.selected_system)
+        else:
+            if not path or not Path(path).is_file():
+                raise RouteError("BK_EXECUTION_ROUTES_FILE must name a readable JSON file")
+            routes = load_routes(path, args.system_file, os.environ)
     except RouteError as exc:
         print("Execution route configuration: " + str(exc), file=sys.stderr)
         return 1
