@@ -12,19 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from utils.budget_registry_display import decorate_catalog  # noqa: E402
 
 
-@pytest.mark.parametrize('enabled,start,end,configured,expected', [
-    (False, '', '', True, 'Disabled'),
-    (True, '2030-01-03', '', True, 'Not started'),
-    (True, '', '2030-01-01', True, 'Expired'),
-    (True, '2030-01-02', '2030-01-02', True, 'Within validity'),
-    (True, '', '', True, 'Within validity'),
-    (True, '', '', False, 'Not configured'),
+@pytest.mark.parametrize('enabled,start,end,configured,expected,state', [
+    (False, '', '', True, 'Disabled', 'disabled'),
+    (False, '2030-01-03', '', False, 'Disabled', 'disabled'),
+    (True, '2030-01-03', '', True, 'Not started', 'pending'),
+    (True, '', '2030-01-01', True, 'Expired', 'expired'),
+    (True, '2030-01-02', '2030-01-02', True, 'Within validity', 'valid'),
+    (True, '', '', True, 'Within validity', 'valid'),
+    (True, '', '', False, 'Not configured', 'unconfigured'),
 ])
-def test_budget_status(enabled, start, end, configured, expected):
+def test_budget_status(enabled, start, end, configured, expected, state):
     budget = dict(id='budget', label='Example', enabled=enabled, valid_from=start, valid_until=end)
     catalog = dict(budgets=[budget], destinations=[dict(budget_id='budget')] if configured else [], history=[])
     decorate_catalog(catalog, today=date(2030, 1, 2))
     assert budget['status_label'] == expected
+    assert budget['status_state'] == state
 
 
 def test_history_summarizes_changed_field_names_without_values():

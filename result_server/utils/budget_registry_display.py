@@ -9,16 +9,17 @@ def decorate_catalog(catalog, *, today=None):
     configured = {row["budget_id"] for row in catalog["destinations"]}
     for budget in catalog["budgets"]:
         if not budget["enabled"]:
-            status = "Disabled"
+            status, state = "Disabled", "disabled"
         elif budget["valid_from"] and today < budget["valid_from"]:
-            status = "Not started"
+            status, state = "Not started", "pending"
         elif budget["valid_until"] and today > budget["valid_until"]:
-            status = "Expired"
+            status, state = "Expired", "expired"
         elif budget["id"] not in configured:
-            status = "Not configured"
+            status, state = "Not configured", "unconfigured"
         else:
-            status = "Within validity"
+            status, state = "Within validity", "valid"
         budget["status_label"] = status
+        budget["status_state"] = state
 
     budgets = {row["id"]: row["label"] for row in catalog["budgets"]}
     labels = {

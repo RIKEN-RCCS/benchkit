@@ -104,6 +104,22 @@ def batch_portal(portal, tmp_path):
     return portal
 
 
+def test_overview_distinguishes_disabled_and_valid_budgets(portal, registry):
+    revision = seed(registry)
+    client = portal[0].test_client()
+    login(client)
+    before = registry.catalog(ADMIN)
+    page = client.get('/budgets/')
+    assert b'class="budget-status budget-status--valid">Within validity</span>' in page.data
+    assert registry.catalog(ADMIN) == before
+    registry.save_budget(ADMIN, revision, id='research', label='Research budget',
+                         system='ExampleSystem', enabled=False)
+    before = registry.catalog(ADMIN)
+    page = client.get('/budgets/')
+    assert b'class="budget-status budget-status--disabled">Disabled</span>' in page.data
+    assert registry.catalog(ADMIN) == before
+
+
 def test_registration_has_one_entry_and_legacy_batch_redirects(batch_portal, registry, configured_target):
     app, _ = batch_portal
     client = app.test_client()

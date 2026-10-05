@@ -23,6 +23,10 @@
     .budget-section table {width:100%;border-collapse:collapse;font-size:14px;}
     .budget-section th,.budget-section td {text-align:left;padding:10px;border-bottom:1px solid #e0e6e2;max-width:280px;overflow-wrap:anywhere;vertical-align:top;}
     .budget-section th {background:#eef3f0;color:#253c30;}
+    .budget-status {display:inline-block;box-sizing:border-box;max-width:100%;padding:3px 8px;border:1px solid;border-radius:4px;font-size:13px;font-weight:600;line-height:1.4;}
+    .budget-status--valid {background:#e8f5ec;color:#185c37;border-color:#94bea1;}
+    .budget-status--disabled,.budget-status--expired {background:#fcebea;color:#932c28;border-color:#dca19d;}
+    .budget-status--pending,.budget-status--unconfigured {background:#fff4d6;color:#72500c;border-color:#ccb46f;}
     .budget-form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-width:900px;}
     .budget-fieldset {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border:0;border-bottom:1px solid #d3ded8;padding:0 0 20px;margin:0;min-width:0;grid-column:1/-1;}
     .budget-fieldset legend {font-size:16px;font-weight:600;padding:0 0 14px;}
