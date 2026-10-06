@@ -65,12 +65,13 @@ only one route. Cross-build systems require both tags; native systems require
 only `run_tag`. IDs and tags use letters, digits, dots, underscores, colons, or
 hyphens and must start with a letter or digit.
 
-The generator requires Python 3 and jq. To validate a local file, set
+The generator uses Bash, jq, and standard shell utilities; Python is not required
+for matrix generation or execution-route validation. To validate a local file, set
 `BK_EXECUTION_ROUTES_FILE`, `CI_SERVER_URL`, and `CI_PROJECT_PATH` in the local
 environment and run:
 
 ```sh
-python3 scripts/execution_routes.py --check
+bash scripts/execution_routes.sh --check
 ```
 
 Check mode reports validity without printing configuration values. Do not

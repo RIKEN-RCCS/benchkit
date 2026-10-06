@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -344,3 +345,84 @@ def test_snapshot_envelope_is_validated(project, snapshot, change):
     result = generate(project, "Fugaku", BK_EXECUTION_ROUTE_SNAPSHOT=json.dumps(snapshot))
     assert result.returncode != 0
     assert "DO_NOT_EXPORT" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("source", ["file", "snapshot", "legacy"])
+def test_matrix_generation_without_python(project, snapshot, source):
+    directory, env = project
+    bin_dir = directory / "shell-only-bin"
+    bin_dir.mkdir()
+    for name in ("bash", "jq", "awk", "sed", "tr", "dirname", "basename", "grep", "cat"):
+        (bin_dir / name).symlink_to(shutil.which(name))
+    env["PATH"] = str(bin_dir)
+    assert shutil.which("python3", path=env["PATH"]) is None
+    assert shutil.which("python", path=env["PATH"]) is None
+    if source != "file":
+        env.pop("BK_EXECUTION_ROUTES_FILE")
+    if source == "snapshot":
+        env["BK_EXECUTION_ROUTE_SNAPSHOT"] = json.dumps(snapshot)
+    result = generate(project, "Fugaku")
+    assert result.returncode == 0, result.stderr
+    generated = (directory / ".gitlab-ci.generated.yml").read_text()
+    expected_tag = "legacy-run" if source == "legacy" else "research-run"
+    assert f'tags: ["{expected_tag}"]' in generated
+    assert "budget-example" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("source", ["file", "snapshot"])
+@pytest.mark.parametrize("field", ["version", "target", "server_url", "project_path", "run_tag", "systems"])
+def test_duplicate_keys_are_rejected_before_object_construction(project, config, snapshot, source, field):
+    document = config if source == "file" else snapshot
+    raw = json.dumps(document)
+    # Also catch duplicates whose spelling differs only by JSON escaping.
+    escaped_key = "\\u%04x%s" % (ord(field[0]), field[1:])
+    raw = raw.replace(f'"{field}":', f'"{escaped_key}": null, "{field}":', 1)
+    if source == "file":
+        (project[0] / "routes.json").write_text(raw)
+    else:
+        project[1].pop("BK_EXECUTION_ROUTES_FILE")
+        project[1]["BK_EXECUTION_ROUTE_SNAPSHOT"] = raw
+    result = generate(project, "Fugaku")
+    assert result.returncode != 0
+    assert not (project[0] / ".gitlab-ci.generated.yml").exists()
+    assert "budget-example" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("field", ["target", "routes"])
+def test_duplicate_nonempty_containers_are_rejected(project, config, field):
+    value = json.dumps(config[field])
+    raw = json.dumps(config).replace(f'"{field}":', f'"{field}": {value}, "{field}":', 1)
+    (project[0] / "routes.json").write_text(raw)
+    assert generate(project, "Fugaku").returncode != 0
+
+
+def test_object_order_does_not_change_resolved_routes(project, config):
+    path = project[0] / "routes.json"
+    path.write_text(json.dumps(config, sort_keys=True))
+    assert generate(project, "Fugaku").returncode == 0
+
+
+def test_system_name_does_not_conflict_with_validator_errors(config, env):
+    config["routes"][0]["systems"] = ["error"]
+    assert routes.resolve_routes(config, {"error": "native"}, env)["error"]["id"] == "research"
+
+
+@pytest.mark.parametrize("suffix", [' {}', ' null', ' [1]', ' bad-json', '\x00'])
+def test_file_requires_one_complete_json_document(project, suffix):
+    path = project[0] / "routes.json"
+    path.write_bytes(path.read_bytes() + suffix.encode())
+    assert generate(project, "Fugaku").returncode != 0
+
+
+def test_file_size_limit_is_enforced(project):
+    (project[0] / "routes.json").write_text(" " * (1024 * 1024 + 1))
+    assert generate(project, "Fugaku").returncode != 0
+
+
+def test_shell_validator_check_mode_handles_quoted_catalog(project):
+    path = project[0] / "config/system.csv"
+    path.write_text(path.read_text().replace("Fugaku,cross", '"Fugaku","cross"'))
+    result = subprocess.run(["bash", "scripts/execution_routes.sh", "--check"],
+                            cwd=project[0], env=project[1], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "budget-example" not in result.stdout + result.stderr
