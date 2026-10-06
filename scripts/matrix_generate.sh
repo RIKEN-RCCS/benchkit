@@ -40,7 +40,7 @@ done
 
 _BK_EXECUTION_ROUTES=""
 if [[ -v BK_EXECUTION_ROUTE_SNAPSHOT || -n "${BK_EXECUTION_ROUTES_FILE:-}" ]]; then
-  _BK_EXECUTION_ROUTES=$(python3 scripts/execution_routes.py --system-file "$SYSTEM_FILE" --selected-system "$SYSTEM_FILTER")
+  _BK_EXECUTION_ROUTES=$(bash scripts/execution_routes.sh --system-file "$SYSTEM_FILE" --selected-system "$SYSTEM_FILTER")
   if [[ -n "${BK_ROUTE_ALLOCATION_PROJECT_ID:-}" ]]; then
     echo "ERROR: BK_ROUTE_ALLOCATION_PROJECT_ID is reserved for generated jobs" >&2
     exit 1
