@@ -284,11 +284,10 @@ class TestResultDetailTemplate:
             html = _render_result_detail(FULL_RESULT, FULL_QUALITY)
 
         assert "vectorChart" in html
-        assert "vendor/chartjs/chart.umd.min.js" in html
+        assert "js/result_charts.js" in html
         assert "cdn.jsdelivr.net/npm/chart.js" not in html
-        assert "logarithmic" in html
         assert "message_size" in html
-        assert "Failed to load chart library" in html
+        assert "Chart unavailable" in html
 
     def test_pa_data_summary_section(self, app):
         with app.test_request_context():
