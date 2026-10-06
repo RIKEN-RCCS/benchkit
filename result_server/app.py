@@ -180,7 +180,7 @@ def create_app(prefix="", base_dir=None):
     if base_dir is None:
         raise ValueError("base_dir must be specified")
 
-    app = Flask(__name__, template_folder="templates")
+    app = Flask(__name__, template_folder="templates", static_url_path=f"{prefix}/static")
     _configure_proxy_fix(app)
 
     secret_key = os.environ.get("FLASK_SECRET_KEY")

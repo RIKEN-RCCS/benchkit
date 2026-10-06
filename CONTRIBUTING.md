@@ -12,6 +12,17 @@ Please make sure that:
 - you are authorized to contribute it on behalf of your organization if your work is owned or controlled by that organization
 - you understand that contributions to this repository are public and will be distributed under the repository license
 
+## External Dependencies
+
+Do not introduce third-party library or application implementations into the
+Benchkit source tree, including bundled or minified copies. Declare external
+dependencies or use an explicit build-time source retrieval step instead.
+Record the source and version, and follow the applicable license terms.
+
+Do not remove copyright notices or relabel external code as original work.
+Changes that separate existing bundled code must preserve a reproducible source
+retrieval path and the application's behavior.
+
 ## Developer Certificate of Origin
 
 This project uses the Developer Certificate of Origin (DCO) instead of a separate contributor license agreement.
