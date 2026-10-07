@@ -1,3 +1,8 @@
-# Optional Linux x86-64 SQLCipher driver. Other platforms require a vetted
-# sqlcipher3 build linked with SQLCipher 4 and SQLITE_TEMP_STORE=2 or 3.
-sqlcipher3-binary==0.6.0
+# Optional CPython 3.12/3.13 Linux x86-64 wheels, verified against PyPI.
+# Install separately from unhashed requirements. Other runtimes/platforms need
+# a vetted sqlcipher3 build with SQLCipher 4 and SQLITE_TEMP_STORE=2 or 3.
+--require-hashes
+--only-binary=:all:
+sqlcipher3-binary==0.6.0 \
+    --hash=sha256:c8a7076a18b4f6fc9b580b0f24aa526d6a47605b1e3e6491ee3e9f2977940d8e \
+    --hash=sha256:8a6afbdef7cbbb33b1228ce96edc1bfe7f15bdf2a5e8bdab87261ab52e4111e6

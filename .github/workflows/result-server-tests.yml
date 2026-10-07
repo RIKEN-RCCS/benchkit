@@ -54,11 +54,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install encrypted database test dependencies
-        run: python -m pip install -r requirements-result-server.txt -r requirements-budget-db.txt
+        run: |
+          python -m pip install -r requirements-result-server.txt
+          python -m pip install --report "$RUNNER_TEMP/sqlcipher-install.json" -r requirements-budget-db.txt
+      - name: Record SQLCipher wheel and runtime versions
+        run: python result_server/tests/report_sqlcipher_runtime.py "$RUNNER_TEMP/sqlcipher-install.json"
       - name: Require SQLCipher and run encrypted database tests
         run: |
           python -c 'from sqlcipher3 import dbapi2'
-          python -m pytest -q result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py
+          python -m pytest -q result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py result_server/tests/test_sqlcipher_runtime_report.py
 
   profile-data-shell-group:
     name: profile-data-shell / ${{ matrix.shell-group }}
