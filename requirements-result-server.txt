@@ -1,5 +1,6 @@
 # result_server is tested and deployed on Python 3.12+; archive handling uses explicit path/type validation.
-Flask>=3.0,<4.0
+# Session fixes: GHSA-68rp-wp8r-4726 and GHSA-4grg-w6v8-c28g.
+Flask>=3.1.3,<4.0
 Flask-Session>=0.8,<1.0
 cachelib>=0.13,<1.0
 Flask-WTF>=1.2,<2.0
