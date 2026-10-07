@@ -19,6 +19,12 @@ Benchkit source tree, including bundled or minified copies. Declare external
 dependencies or use an explicit build-time source retrieval step instead.
 Record the source and version, and follow the applicable license terms.
 
+Document dependencies by their role and supported or minimum versions so others
+can build and run Benchkit. A tested version pin is not an inventory of a live
+CX server. Do not publish deployment-specific software inventories or operational
+records as dependency documentation. See [Security Policy](SECURITY.md#dependency-and-deployment-responsibilities)
+for the division between project maintenance and server operation.
+
 Do not remove copyright notices or relabel external code as original work.
 Changes that separate existing bundled code must preserve a reproducible source
 retrieval path and the application's behavior.

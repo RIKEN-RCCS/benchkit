@@ -68,6 +68,17 @@ This includes:
 ## Runtime Requirements
 
 - `result_server` requires Python 3.12 or later.
+- Portal packages are declared in [requirements-result-server.txt](requirements-result-server.txt).
+- Encrypted Budget and Runner databases additionally require the optional
+  SQLCipher dependency; see [installation requirements](docs/guides/budget-registry.md#install-and-initialize).
+- Shell workflows use Bash, jq, curl, and standard shell utilities. Runner,
+  scheduler, compiler, and profiler requirements depend on the selected workflow;
+  see the [developer reference](docs/guides/developer-reference.md#runtime-requirements)
+  and [site setup guide](docs/guides/add-site.md).
+
+Compatibility requirements do not describe a live server's installed versions
+or replace security updates. Each operator maintains its deployment as described
+in the [security policy](SECURITY.md#dependency-and-deployment-responsibilities).
 
 ## License
 
