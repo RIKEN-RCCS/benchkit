@@ -49,33 +49,24 @@ environment for artifact verification and compare installed files separately.
 
 This uses the [sqlcipher3 maintainer's binary distribution](https://github.com/coleifer/sqlcipher3),
 not a Python standard-library feature. Other platforms need a vetted
-`sqlcipher3` build with SQLCipher 4 and `SQLITE_TEMP_STORE=2` or `3`. Review the
-bundled SQLite, crypto provider, platform support, and license notices before
-deployment. Update and test the dependency as security releases become available.
+`sqlcipher3` build with SQLCipher >=4.5.1,<5 and `SQLITE_TEMP_STORE=2` or `3`.
+Operators select a supported build for their platform and apply and test
+applicable security updates, including updates to its bundled components.
 
-### Dependency Records and Disclosure
+### Dependency Maintenance
 
-Dependency tracking and public disclosure are separate decisions. Maintain an
-access-controlled deployment inventory of the installed distribution, artifact
-hashes, upstream references, bundled SQLCipher/SQLite/crypto components, and
-license notices. Verify artifact integrity and update the inventory when the
-deployment changes; restricting access does not replace these checks.
-
-Public documentation may contain reviewed dependency requirements, distribution
-hashes, upstream references, verification procedures, and applicable license
-notices without publishing a deployment inventory or environment-to-component
-mapping. Keep deployment paths and operational configuration out of public
-records. Never include keys or credentials in either inventory. This guidance
-does not assert that a particular distribution's bundled components have already
-been independently verified.
+SQLCipher follows the same [dependency and deployment responsibilities](../../SECURITY.md#dependency-and-deployment-responsibilities)
+as other external software. This guide defines installation and compatibility
+requirements, not a public inventory of any deployed server. Operators manage
+their installed versions, security updates, and operational records privately.
+Do not include keys or credentials in those records.
 
 For a dependency update, review each supported wheel from the
 [release metadata](https://pypi.org/pypi/sqlcipher3-binary/0.6.0/json), compare its
-downloaded SHA-256 with the published digest, and review its contents and notices
-before replacing the version and hashes together. Run the encrypted database
-tests on both supported Python versions in fresh environments and refresh the
-component inventory. A matching hash identifies an artifact; it does not prove
-source-to-binary reproducibility, license completeness, or absence of vulnerabilities.
+downloaded SHA-256 with the published digest, check upstream release and security
+notes, and replace the version and hashes together. Run the encrypted database
+tests on both supported Python versions in fresh environments. A matching hash
+identifies an artifact; it does not guarantee absence of vulnerabilities.
 These requirements do not vendor the wheels or their source code into this repository.
 
 The encrypted database CI job records the installed wheel filename and SHA-256
@@ -84,7 +75,8 @@ crypto provider versions, for each supported Python version. The runtime probe
 uses an in-memory database and an ephemeral key; it does not open configured
 databases or read deployment keys. Only selected package metadata is logged, not
 the raw pip report or deployment paths. This evidence describes the CI environment,
-not a running deployment, and does not replace license or build provenance review.
+not a running deployment or a certification of upstream binaries. It does not
+require operators to publish equivalent records for their servers.
 
 ### Initialization
 
