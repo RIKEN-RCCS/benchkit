@@ -1,6 +1,7 @@
-"""Browser regression checks; requires externally installed Playwright/Chromium."""
+"""Optional browser checks; see requirements-browser-tests.txt and docs/ci.md."""
 
 import copy
+from importlib.metadata import version
 import os
 from pathlib import Path
 import sys
@@ -34,6 +35,7 @@ class ResultChartsBrowserTests(unittest.TestCase):
     def setUpClass(cls):
         cls.playwright = sync_playwright().start()
         cls.browser = cls.playwright.chromium.launch(headless=True)
+        print(f"Browser test runtime: Playwright {version('playwright')}, Chromium {cls.browser.version}", flush=True)
         cls.app = build_portal_shell_app(templates_dir=str(ROOT / "result_server/templates"))
 
     @classmethod

@@ -19,6 +19,44 @@ Benchkit uses GitHub as the public development repository and GitLab CI for benc
 | `Shellcheck` | Shell script changes under `scripts/`, `programs/`, or `benchpark-bridge/scripts/` / `scripts/`、`programs/`、または`benchpark-bridge/scripts/`配下のshell script変更 | Gates `bash -n` syntax failures and shellcheck error-level issues; pull requests also run warning-level shellcheck for changed app scripts / `bash -n`構文エラーとshellcheckのerror級をgateする。pull requestでは変更されたapp scriptをwarning級でも確認する |
 | `Repository Policy` | All pull requests and pushes to `develop` or `main` / 全pull requestと`develop`または`main`へのpush | Validates tracked text files, commit-message metadata, and current PR base / 管理下text file、commit message metadata、PR baseが最新であることを検証する |
 
+## Optional Browser Tests
+
+`scripts/tests/test_result_charts_browser.py` checks the native result plots at
+desktop and mobile sizes. It is an optional developer test, not part of the
+default CI jobs or Portal runtime. Browser code is not bundled in this repository.
+
+Use a separate Python 3.12+ environment with the result server dependencies and
+`requirements-browser-tests.txt`. The validated browser dependency is
+[Playwright Python 1.63.0](https://pypi.org/project/playwright/1.63.0/), from PyPI.
+Its packaged `playwright/driver/package/browsers.json` selects Chromium and
+Chromium Headless Shell **153.0.8010.12**, Playwright revision **1243**;
+the installer also selects FFmpeg revision **1011**. These are Playwright build
+revisions, not Chromium source commits. The test uses the default headless shell,
+not an arbitrary system Chrome executable.
+
+From the repository root, with that environment active:
+
+```sh
+python -m pip install -r requirements-result-server.txt
+python -m pip install -r requirements-browser-tests.txt
+python -m playwright install --dry-run --only-shell chromium
+python -m playwright install --only-shell chromium
+python scripts/tests/test_result_charts_browser.py
+```
+
+The dry run shows the selected revisions and download URLs. The default source
+is Playwright's Microsoft-managed CDN (`cdn.playwright.dev`), with
+`playwright.download.prss.microsoft.com` among installer fallbacks. Browser
+downloads happen during test setup, not when viewing the Portal. OS libraries
+must meet the [upstream browser requirements](https://playwright.dev/python/docs/browsers);
+installing system packages is a separate administrator-controlled step.
+
+When updating Playwright, change the pin, inspect the new package's browser
+manifest and installer dry run, reinstall the corresponding browser, and rerun
+all five checks. Update the version/revision record above together. The test
+prints the actual Playwright and launched Chromium versions. Keep downloaded
+packages, browsers, and optional screenshots outside the source distribution.
+
 ## GitLab Secrets / GitLab secret
 
 GitHub ActionsからGitLabへpushまたはpipeline triggerを行うworkflowでは、以下のsecretを使います。
