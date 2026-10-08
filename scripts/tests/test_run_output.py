@@ -11,10 +11,6 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import run_output
 
 
 class RunOutputTests(unittest.TestCase):
@@ -22,20 +18,36 @@ class RunOutputTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.repo = Path(__file__).resolve().parents[2]
+        self.state = self.root / "state"
+        tools = self.root / "bin"
+        tools.mkdir()
+        for name in ("bash", "realpath", "mktemp", "rm", "find", "head", "sort",
+                     "stat", "dd", "sha256sum", "tail", "od", "tr", "cat", "mv"):
+            (tools / name).symlink_to(shutil.which(name))
+        self.env = dict(os.environ, PATH=str(tools))
         self.log = self.root / "combined.log"
         self.log.write_bytes(b"launcher\n")
         self.rank = self.root / "output.job/0/1/stdout.1.0"
         self.rank.parent.mkdir(parents=True)
         self.rank.write_bytes(b"old success\n")
 
+    def collector(self, command, *, check=True):
+        result = subprocess.run([shutil.which("bash"), str(self.repo / "scripts/run_output.sh"),
+                                 command, "--state", str(self.state), "--log", str(self.log)],
+                                cwd=self.root, env=self.env, capture_output=True, timeout=15)
+        if check:
+            self.assertEqual(result.returncode, 0, result.stderr)
+        return result
+
     def test_collects_only_current_rank_zero_output(self):
-        state = run_output.snapshot(self.root, self.log)
+        self.collector("snapshot")
         (self.rank.parent / "stdout.1.1").write_bytes(b"other rank\n")
         (self.root / "input").mkdir()
         (self.root / "input/stdout.1.0").write_bytes(b"input contents\n")
         (self.root / "stdout.2.0").write_bytes(b"current output\n")
         (self.root / "stderr.2.0").write_bytes(b"current error\n")
-        run_output.collect(state, self.log)
+        self.collector("collect")
         text = self.log.read_text()
         for included in ("launcher", "current output", "current error"):
             self.assertIn(included, text)
@@ -47,7 +59,7 @@ class RunOutputTests(unittest.TestCase):
             with self.subTest(operation=operation):
                 self.log.write_bytes(b"")
                 self.rank.write_bytes(b"old success\n")
-                state = run_output.snapshot(self.root, self.log)
+                self.collector("snapshot")
                 if operation == "replace":
                     replacement = self.rank.with_suffix(".replacement")
                     replacement.write_bytes(b"new success\n")
@@ -57,16 +69,16 @@ class RunOutputTests(unittest.TestCase):
                         output.write(b"new success\n")
                 else:
                     self.rank.write_bytes(b"new success\n")
-                run_output.collect(state, self.log)
+                self.collector("collect")
                 self.assertIn("new success", self.log.read_text())
                 self.assertNotIn("old success", self.log.read_text())
 
     def test_partial_old_line_cannot_complete_a_success_pattern(self):
         self.rank.write_bytes(b"old partial")
-        state = run_output.snapshot(self.root, self.log)
+        self.collector("snapshot")
         with self.rank.open("ab") as output:
             output.write(b" success\nnew line\n")
-        run_output.collect(state, self.log)
+        self.collector("collect")
         self.assertNotIn("success", self.log.read_text())
         self.assertIn("new line", self.log.read_text())
 
@@ -76,16 +88,170 @@ class RunOutputTests(unittest.TestCase):
         (self.root / "stdout.9.0").symlink_to(outside)
         (self.root / "output.link").symlink_to(outside.parent, target_is_directory=True)
         os.mkfifo(self.root / "stdout.8.0")
-        state = run_output.snapshot(self.root, self.log)
-        self.assertEqual(len(state["files"]), 1)
-        self.rank.write_bytes(b"new output\n")
-        with patch.object(run_output, "MAX_BYTES", 1):
-            with self.assertRaises(ValueError):
-                run_output.collect(state, self.log)
+        self.collector("snapshot")
+        self.collector("collect")
         self.assertEqual(self.log.read_bytes(), b"launcher\n")
-        with patch.object(run_output, "MAX_ENTRIES", 1):
-            with self.assertRaises(ValueError):
-                run_output.snapshot(self.root, self.log)
+        with self.rank.open("wb") as stream:
+            stream.truncate(256 * 1024 * 1024 + 1)
+        self.assertNotEqual(self.collector("collect", check=False).returncode, 0)
+        self.assertEqual(self.log.read_bytes(), b"launcher\n")
+        self.rank.unlink()
+        for index in range(10001):
+            (self.root / f"ignored-{index}").touch()
+        self.assertNotEqual(self.collector("snapshot", check=False).returncode, 0)
+
+    def test_binary_output_unusual_paths_and_depth(self):
+        directory = self.root / "output. space\n'[]$()" / "0" / "1"
+        directory.mkdir(parents=True)
+        rank = directory / "stdout.3.0"
+        rank.write_bytes(b"old\0\n")
+        too_deep = self.root / "output.deep/1/2/3/4/5/stdout.1.0"
+        too_deep.parent.mkdir(parents=True)
+        too_deep.write_bytes(b"too deep\n")
+        self.collector("snapshot")
+        with rank.open("ab") as stream:
+            stream.write(b"new\0binary\n")
+        too_deep.write_bytes(b"changed but too deep\n")
+        self.collector("collect")
+        self.assertEqual(self.log.read_bytes(), b"launcher\n\nnew\0binary\n")
+
+    def test_failed_scan_does_not_publish_partial_output(self):
+        self.collector("snapshot")
+        (self.root / "stdout.1.0").write_bytes(b"valid new output\n")
+        with (self.root / "stdout.9.0").open("wb") as stream:
+            stream.truncate(256 * 1024 * 1024 + 1)
+        self.assertNotEqual(self.collector("collect", check=False).returncode, 0)
+        self.assertEqual(self.log.read_bytes(), b"launcher\n")
+
+    def test_incomplete_state_is_rejected(self):
+        self.collector("snapshot")
+        self.state.write_bytes(self.state.read_bytes()[:-1])
+        self.assertNotEqual(self.collector("collect", check=False).returncode, 0)
+        self.assertEqual(self.log.read_bytes(), b"launcher\n")
+
+    def test_source_changes_and_replacements_during_read_are_rejected(self):
+        self.collector("snapshot")
+        wrapper = self.root / "bin/dd"
+        wrapper.unlink()
+        wrapper.write_text('''#!/bin/bash
+set -eu
+for argument in "$@"; do
+  case "$argument" in if=*) source_file="${argument#if=}" ;; esac
+done
+case "$CHANGE_MODE" in
+  symlink) rm -- "$source_file"; "$REAL_LN" -s "$OUTSIDE" "$source_file" ;;
+  fifo) rm -- "$source_file"; "$REAL_MKFIFO" "$source_file" ;;
+esac
+"$REAL_DD" "$@"
+[ "$CHANGE_MODE" != mutate ] || printf changed >> "$source_file"
+''')
+        wrapper.chmod(0o700)
+        outside = self.root / "private"
+        outside.write_bytes(b"must not collect\n")
+        self.env.update(REAL_DD=shutil.which("dd"), REAL_LN=shutil.which("ln"),
+                        REAL_MKFIFO=shutil.which("mkfifo"), OUTSIDE=str(outside))
+        for mode in ("mutate", "symlink", "fifo"):
+            with self.subTest(mode=mode):
+                self.rank.unlink()
+                self.rank.write_bytes(b"new output\n")
+                self.env["CHANGE_MODE"] = mode
+                self.assertNotEqual(self.collector("collect", check=False).returncode, 0)
+                self.assertEqual(self.log.read_bytes(), b"launcher\n")
+
+
+class RuntimeMetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.repo = Path(__file__).resolve().parents[2]
+        tools = self.root / "bin"
+        tools.mkdir()
+        for name in ("bash", "dirname", "basename", "mkdir", "flock", "cmp", "rm"):
+            (tools / name).symlink_to(shutil.which(name))
+        self.env = dict(os.environ, PATH=str(tools))
+        self.directory = self.root / "results space\n'[]$()"
+        self.directory.mkdir()
+        self.info = self.directory / "info.json"
+        self.items = self.directory / "items.jsonl"
+        self.context = self.directory / ".workflow_session.json"
+
+    def command(self, session, kind="timing", items=None):
+        return [shutil.which("bash"), str(self.repo / "scripts/runtime_metadata.sh"),
+                "--session", session, "--kind", kind, "--info", str(self.info),
+                "--items", str(items or self.items)]
+
+    def initialize(self, session, **options):
+        subprocess.run(self.command(session, **options), env=self.env,
+                       check=True, capture_output=True, timeout=15)
+
+    def seed(self):
+        for path in (self.info, self.items, self.context):
+            path.write_bytes(b"recorded data")
+
+    def test_once_per_session_and_item_destination(self):
+        self.seed()
+        self.initialize("first")
+        self.assertFalse(any(path.exists() for path in (self.info, self.items, self.context)))
+        self.seed()
+        self.initialize("first")
+        self.assertTrue(all(path.read_bytes() == b"recorded data"
+                            for path in (self.info, self.items, self.context)))
+        replacement = self.directory / "other-items"
+        replacement.touch()
+        self.initialize("first", items=replacement)
+        self.assertFalse(replacement.exists())
+        self.assertTrue(self.items.exists())
+        self.seed()
+        self.initialize("second")
+        self.assertFalse(any(path.exists() for path in (self.info, self.items, self.context)))
+
+    def test_input_initialization_leaves_timing_context(self):
+        self.seed()
+        self.initialize("first", kind="input")
+        self.assertFalse(self.info.exists())
+        self.assertFalse(self.items.exists())
+        self.assertTrue(self.context.exists())
+
+    def test_concurrent_children_do_not_reset_same_session(self):
+        self.initialize("shared")
+        self.seed()
+        processes = [subprocess.Popen(self.command("shared"), env=self.env,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                     for _ in range(8)]
+        try:
+            for process in processes:
+                _, error = process.communicate(timeout=15)
+                self.assertEqual(process.returncode, 0, error)
+            self.assertEqual(self.info.read_bytes(), b"recorded data")
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
+
+    def test_failed_reset_does_not_mark_session_initialized(self):
+        self.info.mkdir()
+        result = subprocess.run(self.command("first"), env=self.env,
+                                capture_output=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.info.rmdir()
+        self.seed()
+        self.initialize("first")
+        self.assertFalse(self.info.exists())
+
+    def test_session_read_error_keeps_existing_records(self):
+        self.initialize("first")
+        self.seed()
+        comparator = self.root / "bin/cmp"
+        comparator.unlink()
+        comparator.write_text("#!/bin/bash\nexit 2\n")
+        comparator.chmod(0o700)
+        result = subprocess.run(self.command("second"), env=self.env,
+                                capture_output=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(all(path.read_bytes() == b"recorded data"
+                            for path in (self.info, self.items, self.context)))
 
 
 class RunHelperTests(unittest.TestCase):
@@ -284,6 +450,26 @@ bk_run --log result.log -- true
 test ! -e .run_marker
 ''')
         self.assert_ok(result)
+
+    def test_log_capture_and_session_reset_do_not_require_python(self):
+        result = self.run_shell('''
+mkdir results
+printf stale > results/input_info.json
+printf stale > results/.workflow_session.json
+export PYTHON_BIN=/nonexistent/python
+bk_run --log captured.log -- bash -c 'printf "current output\\n" > stdout.1.0'
+grep -q 'current output' captured.log
+test ! -e results/input_info.json
+test ! -e results/.workflow_session.json
+status=0
+bk_run --log failed.log -- bash -c 'printf "rank failure\\n" > stderr.1.0; exit 23' || status=$?
+test "$status" -eq 23
+grep -q 'rank failure' failed.log
+! grep -q 'current output' failed.log
+''')
+        self.assert_ok(result)
+        # Timing is still a separate Python dependency, not silently claimed here.
+        self.assertIn("/nonexistent/python", result.stderr)
 
     def test_direct_output_remains_unmodified(self):
         result = self.run_shell("bk_run -- printf 'hello'; bk_run --elapsed duration -- printf ' world'")
@@ -485,16 +671,15 @@ test "$status" -eq 23
 
     def test_output_collection_failure_preserves_command_failure(self):
         result = self.run_shell('''
-collector_without_finish() {
-  if [[ "$1" == */run_output.py && "$2" == collect ]]; then
+bash() {
+  if [[ "$1" == */run_output.sh && "$2" == collect ]]; then
     return 9
   fi
-  "$REAL_PYTHON" "$@"
+  command bash "$@"
 }
-REAL_PYTHON="$PYTHON_BIN"
 for expected in 0 23; do
   status=0
-  PYTHON_BIN=collector_without_finish bk_run --log failure.log -- bash -c 'exit "$1"' bash "$expected" || status=$?
+  bk_run --log failure.log -- bash -c 'exit "$1"' bash "$expected" || status=$?
   if [ "$expected" -eq 0 ]; then
     test "$status" -ne 0
   else

@@ -236,12 +236,22 @@ Each system can define queue group, build mode, run mode, node count, and relate
 Typical requirements include:
 
 - Bash and standard shell tooling
+- GNU coreutils, GNU findutils, and `flock` (util-linux) for common log collection
+  and session initialization
 - GitLab CI runner support
 - site-specific scheduler/runtime support
 - Python 3.12 or later for result shaping and portal components
 - Flask-related Python packages for `result_server`
 - package-specific runtimes for external estimation tools
 - optional profiler tools depending on system support
+
+Benchmark timing, input-manifest verification, and result/profile association
+also currently use Python 3, selectable with `PYTHON_BIN`.
+
+Common workflow requirements do not restrict application-specific languages or
+tools. Applications may use dependencies verified on their target build/run
+paths. A tool available on one site's application path must not be assumed to
+exist on every runner by common code.
 
 For local portal work, see the route, template, and utility layout under `result_server/`.
 

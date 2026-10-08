@@ -20,7 +20,7 @@ export _BK_DEFAULT_RESULTS_DIR
 
 _bk_initialize_metadata() {
   local kind="$1" info="$2" items="$3"
-  "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/runtime_metadata.py" \
+  bash "${BK_BENCHKIT_ROOT}/scripts/runtime_metadata.sh" \
     --session "$_BK_WORKFLOW_SESSION_ID" --kind "$kind" --info "$info" --items "$items"
 }
 
@@ -150,7 +150,7 @@ bk_run() {
       *) _bk_log="${PWD}/${_bk_log}" ;;
     esac
     _bk_state=$(mktemp) || return 1
-    if ! "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/run_output.py" \
+    if ! bash "${BK_BENCHKIT_ROOT}/scripts/run_output.sh" \
         snapshot --state "$_bk_state" --log "$_bk_log"; then
       rm -f "$_bk_state"
       return 1
@@ -192,7 +192,7 @@ bk_run() {
   fi
   [ -z "$_bk_input_dir" ] || rm -rf "$_bk_input_dir"
   if [ -n "$_bk_log" ]; then
-    if ! "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/run_output.py" \
+    if ! bash "${BK_BENCHKIT_ROOT}/scripts/run_output.sh" \
         collect --state "$_bk_state" --log "$_bk_log"; then
       [ "$_bk_status" -ne 0 ] || _bk_status=1
     fi
