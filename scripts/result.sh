@@ -77,7 +77,7 @@ build_profile_data_summary() {
 has_profiler_archive() {
   local archive managed_state
   if [ -f results/.workflow_session.json ]; then
-    managed_state=$("${PYTHON_BIN:-python3}" "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" \
+    managed_state=$(bash "$(dirname "${BASH_SOURCE[0]}")/result_server/workflow_timing.sh" \
       --results-dir results has-profiles) || managed_state=""
     case "$managed_state" in
       true) return 0 ;;
@@ -819,9 +819,9 @@ build_timing_observations_block() {
   local timing_observations_file="results/timing_observations.json"
   local workflow_json='{"schema_version":1,"observations":[]}'
   local workflow_recorder
-  workflow_recorder="$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py"
+  workflow_recorder="$(dirname "${BASH_SOURCE[0]}")/result_server/workflow_timing.sh"
   if [ -f results/.workflow_session.json ]; then
-    if ! workflow_json=$("${PYTHON_BIN:-python3}" "$workflow_recorder" --results-dir results manifest); then
+    if ! workflow_json=$(bash "$workflow_recorder" --results-dir results manifest); then
       echo "WARNING: workflow timing observations could not be collected" >&2
       workflow_json='{"schema_version":1,"observations":[]}'
     fi
@@ -1101,7 +1101,7 @@ write_result_json() {
   local profile_data_block=""
   local profile_data_summary=""
   if [ -f results/.workflow_session.json ]; then
-    "${PYTHON_BIN:-python3}" "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" \
+    bash "$(dirname "${BASH_SOURCE[0]}")/result_server/workflow_timing.sh" \
       --results-dir results publish-primary --exp "$exp" --destination "padata${idx}.tgz" || \
       echo 'WARNING: scoped profile archive could not be published' >&2
   fi
@@ -1115,8 +1115,8 @@ write_result_json() {
   if [ -n "$sections_json" ]; then
     if [ -f results/.workflow_session.json ]; then
       local managed_sections
-      if managed_sections=$(printf '%s' "$sections_json" | "${PYTHON_BIN:-python3}" \
-          "$(dirname "${BASH_SOURCE[0]}")/profiling/workflow_timing.py" --results-dir results enrich-sections --exp "$exp"); then
+      if managed_sections=$(printf '%s' "$sections_json" | bash \
+          "$(dirname "${BASH_SOURCE[0]}")/result_server/workflow_timing.sh" --results-dir results enrich-sections --exp "$exp"); then
         sections_json="$managed_sections"
       else
         echo 'WARNING: scoped section artifacts could not be attached' >&2

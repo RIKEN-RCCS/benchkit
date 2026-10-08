@@ -229,9 +229,11 @@ test "${#profile_metadata[@]}" -eq 5
 artifacts=$(jq -r '.section_artifacts.mult | join(",")' "${RESULTS_DIR}"/workflow_timing_*.json)
 artifact_count=$(printf '%s\n' "$artifacts" | tr ',' '\n' | awk 'NF { count += 1 } END { print count + 0 }')
 test "$artifact_count" -eq 12
-printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/discovery.json$'
-printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/plan.json$'
-printf '%s\n' "$artifacts" | tr ',' '\n' | grep -Eq '^results/profile_[a-f0-9]+/profile.metadata.json$'
+for filename in discovery.json plan.json profile.metadata.json; do
+  reference=$(printf '%s\n' "$artifacts" | tr ',' '\n' | awk -F / -v name="$filename" '$NF == name {print; exit}')
+  test -n "$reference"
+  test -f "${RESULTS_DIR}/${reference#results/}"
+done
 
 jq -e '
   .kind == "gpu_kernel_profile_metadata" and

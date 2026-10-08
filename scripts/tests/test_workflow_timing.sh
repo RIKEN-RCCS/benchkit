@@ -9,13 +9,13 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 trap 'echo "workflow timing test failed at line $LINENO" >&2' ERR
 
 source "${REPO_DIR}/scripts/bk_functions.sh"
-RECORDER="${REPO_DIR}/scripts/profiling/workflow_timing.py"
+RECORDER="${REPO_DIR}/scripts/result_server/workflow_timing.sh"
 RESULTS_DIR="${TMP_DIR}/results"
 export RESULTS_DIR
 mkdir -p "$RESULTS_DIR" "${TMP_DIR}/nested/work" "${TMP_DIR}/bin"
 
 manifest() {
-  "$PYTHON_BIN" "$RECORDER" --results-dir "$RESULTS_DIR" manifest
+  bash "$RECORDER" --results-dir "$RESULTS_DIR" manifest
 }
 
 timing_file() {
@@ -36,13 +36,12 @@ probe_command() {
   jq -e '
     .schema_version == 1 and .kind == "workflow_stage_timing" and
     .producer == "benchkit" and .exp == "CASE0" and
-    .elapsed_clock == "monotonic" and
+    .elapsed_clock == "realtime" and .elapsed_scope == "command" and
     (.session_id | type == "string" and length > 0) and
     (.stages[-1] |
       .stage == "benchmark" and .tool == "none" and .status == "running" and
       (.id | type == "string" and length > 0) and
       (.started_at | type == "string" and length > 0) and
-      (.started_monotonic_ns | type == "number" and . > 0) and
       (has("finished_at") | not) and (has("elapsed_seconds") | not) and
       (has("exit_code") | not))
   ' "$file" >/dev/null || return 99
@@ -144,40 +143,46 @@ bash -c '
   bk_run -- bash -c '\''kill -TERM "$PPID"'\''
 ' bash "$REPO_DIR" >"${TMP_DIR}/interrupted.log" 2>&1 || actual_status=$?
 test "$actual_status" -eq 143
-jq -e '.stages[-1] | .status == "running" and has("started_monotonic_ns") and
+jq -e '.stages[-1] | .status == "running" and has("started_at") and
   (has("finished_at") | not) and (has("elapsed_seconds") | not) and
   (has("exit_code") | not)' "$TIMING_FILE" >/dev/null
 
 # Recorder unavailability must neither clobber known records nor mask status.
 cp "$TIMING_FILE" "${TMP_DIR}/before-unavailable.json"
+bash() {
+  local arg
+  if [[ "$1" == */profiling/workflow_timing.sh ]]; then
+    for arg in "$@"; do [ "$arg" != start ] || return 9; done
+  fi
+  command bash "$@"
+}
 for expected_status in 0 7 124; do
   actual_status=0
-  output=$(PYTHON_BIN="${TMP_DIR}/missing-python" bk_run -- \
+  output=$(bk_run -- \
     bash -c 'printf "plan.json\n"; exit "$1"' bash "$expected_status" \
     2>"${TMP_DIR}/unavailable.log") || actual_status=$?
   test "$actual_status" -eq "$expected_status"
   test "$output" = plan.json
 done
 cmp "$TIMING_FILE" "${TMP_DIR}/before-unavailable.json"
+unset -f bash
 
-timing_python_without_finish() {
+bash() {
   local arg
-  for arg in "$@"; do
-    if [ "$arg" = finish ]; then
-      return 9
-    fi
-  done
-  "$PYTHON_FOR_TEST" "$@"
+  if [[ "$1" == */profiling/workflow_timing.sh ]]; then
+    for arg in "$@"; do [ "$arg" != finish ] || return 9; done
+  fi
+  command bash "$@"
 }
-PYTHON_FOR_TEST="$PYTHON_BIN"
 for expected_status in 0 7 124; do
   actual_status=0
-  PYTHON_BIN=timing_python_without_finish bk_run -- bash -c 'exit "$1"' bash "$expected_status" \
+  bk_run -- bash -c 'exit "$1"' bash "$expected_status" \
     2>"${TMP_DIR}/finish-unavailable.log" || actual_status=$?
   test "$actual_status" -eq "$expected_status"
   jq -e '.stages[-1] | .status == "running" and
     (has("exit_code") | not) and (has("elapsed_seconds") | not)' "$TIMING_FILE" >/dev/null
 done
+unset -f bash
 cp "$TIMING_FILE" "${TMP_DIR}/before-unavailable.json"
 jq -e --slurpfile known "${TMP_DIR}/known.json" '
   .session_id == $known[0].session_id and
@@ -413,8 +418,11 @@ cmp "$TIMING_FILE" "${TMP_DIR}/previous-session.json"
 (
   unset _BK_WORKFLOW_SESSION_ID
   source "${REPO_DIR}/scripts/bk_functions.sh"
-  PYTHON_BIN="${TMP_DIR}/missing-python" \
-    bk_run_context --results-dir "$RESULTS_DIR" --exp UNAVAILABLE \
+  bash() {
+    if [[ "$1" == */profiling/workflow_timing.sh ]]; then return 9; fi
+    command bash "$@"
+  }
+  bk_run_context --results-dir "$RESULTS_DIR" --exp UNAVAILABLE \
     2>"${TMP_DIR}/context-unavailable.log"
   manifest | jq -e '.schema_version == 1 and .observations == []' >/dev/null
   cd "$TMP_DIR"
@@ -424,5 +432,41 @@ cmp "$TIMING_FILE" "${TMP_DIR}/previous-session.json"
   jq -e '(.timing_observations.observations // []) == []' results/result1.json >/dev/null
 )
 cmp "$TIMING_FILE" "${TMP_DIR}/previous-session.json"
+
+# Failed serialization must preserve the last complete public record.
+(
+  results="${TMP_DIR}/broken-state"
+  recorder="${REPO_DIR}/scripts/profiling/workflow_timing.sh"
+  token=$(bash "$recorder" --results-dir "$results" start --session test --exp Sample --stage benchmark)
+  filename=${token%%:*}
+  scope=${filename#workflow_timing_}; scope=${scope%.json}
+  original=$(sha256sum "$results/$filename")
+  printf 'invalid-stage-id\n' >> "$results/.workflow_state/$scope/order"
+  if bash "$recorder" --results-dir "$results" start --session test --exp Sample --stage benchmark \
+      > /dev/null 2>"${TMP_DIR}/broken-state.log"; then
+    echo 'Corrupt timing state was accepted' >&2
+    exit 1
+  fi
+  test "$(sha256sum "$results/$filename")" = "$original"
+)
+
+# The sender still accepts earlier clock records and skips malformed observations.
+(
+  RESULTS_DIR="${TMP_DIR}/legacy-timing"
+  mkdir "$RESULTS_DIR"
+  printf '{"session_id":"legacy"}\n' > "$RESULTS_DIR/.workflow_session.json"
+  filename=$(printf 'workflow_timing_%064d.json' 1)
+  jq -n '{schema_version:1,kind:"workflow_stage_timing",producer:"benchkit",
+    session_id:"legacy",exp:"legacy-case",elapsed_clock:"monotonic",
+    stages:[{stage:"benchmark",status:"completed",elapsed_seconds:0.25,exit_code:0}]}' \
+    > "$RESULTS_DIR/$filename"
+  original=$(sha256sum "$RESULTS_DIR/$filename")
+  manifest | jq -e '(.observations | length) == 1 and
+    .observations[0].summary.completed_count == 1' >/dev/null
+  test "$(sha256sum "$RESULTS_DIR/$filename")" = "$original"
+  jq 'del(.stages[0].status)' "$RESULTS_DIR/$filename" > "${TMP_DIR}/invalid-timing.json"
+  mv "${TMP_DIR}/invalid-timing.json" "$RESULTS_DIR/$filename"
+  manifest 2>"${TMP_DIR}/invalid-timing.log" | jq -e '.observations == []' >/dev/null
+)
 
 echo "workflow timing tests passed"
