@@ -8,8 +8,28 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: result-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  test-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Test CI scope selection
+        run: python3 -m unittest discover -s scripts/tests -p test_ci_test_scope.py
+      - name: Select test scope
+        id: scope
+        run: python3 scripts/tests/ci_test_scope.py
+
   pytest:
+    needs: test-scope
+    if: needs.test-scope.outputs.full == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -20,10 +40,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
@@ -41,6 +61,8 @@ jobs:
         run: python result_server/tests/run_result_server_tests.py
 
   encrypted-budget-db:
+    needs: test-scope
+    if: needs.test-scope.outputs.full == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -48,9 +70,9 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install encrypted database test dependencies
@@ -65,6 +87,8 @@ jobs:
           python -m pytest -q result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py result_server/tests/test_sqlcipher_runtime_report.py
 
   profile-data-shell-group:
+    needs: test-scope
+    if: needs.test-scope.outputs.full == 'true'
     name: profile-data-shell / ${{ matrix.shell-group }}
     runs-on: ubuntu-latest
     strategy:
@@ -77,21 +101,33 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run ${{ matrix.shell-group }} shell tests
         run: bash scripts/tests/run_profile_data_shell_tests.sh "${{ matrix.shell-group }}"
 
   profile-data-shell:
     runs-on: ubuntu-latest
-    needs: profile-data-shell-group
+    needs: [test-scope, profile-data-shell-group]
     if: ${{ always() }}
 
     steps:
       - name: Check shell test groups
+        env:
+          SCOPE_STATUS: ${{ needs.test-scope.result }}
+          FULL_TESTS: ${{ needs.test-scope.outputs.full }}
+          SHELL_STATUS: ${{ needs.profile-data-shell-group.result }}
         run: |
           set -euo pipefail
-          if [ "${{ needs.profile-data-shell-group.result }}" != "success" ]; then
+          if [ "$SCOPE_STATUS" != "success" ]; then
+            echo "Test scope selection failed"
+            exit 1
+          fi
+          if [ "$FULL_TESTS" = "false" ] && [ "$SHELL_STATUS" = "skipped" ]; then
+            echo "Shell tests not applicable to this non-executable change"
+            exit 0
+          fi
+          if [ "$FULL_TESTS" != "true" ] || [ "$SHELL_STATUS" != "success" ]; then
             echo "One or more shell test groups failed"
             exit 1
           fi

@@ -19,6 +19,37 @@ Benchkit uses GitHub as the public development repository and GitLab CI for benc
 | `Shellcheck` | Shell script changes under `scripts/`, `programs/`, or `benchpark-bridge/scripts/` / `scripts/`、`programs/`、または`benchpark-bridge/scripts/`配下のshell script変更 | Gates `bash -n` syntax failures and shellcheck error-level issues; pull requests also run warning-level shellcheck for changed app scripts / `bash -n`構文エラーとshellcheckのerror級をgateする。pull requestでは変更されたapp scriptをwarning級でも確認する |
 | `Repository Policy` | All pull requests and pushes to `develop` or `main` / 全pull requestと`develop`または`main`へのpush | Validates tracked text files, commit-message metadata, and current PR base / 管理下text file、commit message metadata、PR baseが最新であることを検証する |
 
+## Test Scope and Runner Updates
+
+`Result Server Tests` starts on every pull request and protected-branch push.
+A lightweight selector skips its runtime suites only for modifications to
+existing regular, non-executable Markdown documentation (repository root,
+`docs/`, or `programs/<app>/README.md`), the root `LICENSE`, or initial C/C++
+`//` comment headers with an unchanged body and line count. Source line
+continuations, unsupported encodings, additions, deletions, renames, file-mode
+changes, mixed code changes, and unavailable history select the full suite.
+Preserving line count matters because source locations can affect `__LINE__`.
+This is intentionally narrower than accepting a contributor's "comments only"
+label. Python runs here on the GitHub-hosted CI runner, not on HPC build/run nodes.
+
+The selector compares the tested PR merge against its base, or the entire push
+against its previous SHA. Manual runs always select the full suite. Repository
+Policy and DCO remain independent; skipped tests are not reported as executed.
+The shell aggregate rejects failed scope selection or an unexpected skip.
+New revisions cancel older Result Server Tests runs for the same PR; protected
+branch push runs are not cancelled. Push verification and GitLab sync are retained.
+
+GitHub jobs retain `ubuntu-latest` and follow GitHub-hosted image updates.
+Review announced image transitions and investigate any compatibility failures;
+an older OS label is not the default workaround. The Node24 Actions are
+fixed to the upstream release commits for
+[checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1) and
+[setup-python v7.0.0](https://github.com/actions/setup-python/releases/tag/v7.0.0).
+When updating them, review upstream release notes and runner requirements,
+resolve release tags to commits, update all workflow references, and verify
+pull-request checks. Push-only synchronization must also be verified after
+merge; do not start benchmark workflows merely to test an Action upgrade.
+
 ## Optional Browser Tests
 
 `scripts/tests/test_result_charts_browser.py` checks the native result plots at
