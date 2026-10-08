@@ -279,16 +279,18 @@ popd >/dev/null
   printf abc > input-tree/nested/input
   bk_record_input --directory input-tree --type restart
   if command -v jq >/dev/null 2>&1; then
+    bash "$REPO_DIR/scripts/result_server/input_info.sh" --results-dir results > finalized.json
     jq -e '
       .inputs[0].dataset_id == "input-directory" and
       .inputs[0].verification_status == "declared" and
       .inputs[0].dataset_version == .inputs[0].content_digest and
       .inputs[0].manifest.files[0].path == "nested/input" and
       .inputs[0].manifest.files[0].size_bytes == 3
-    ' results/input_info.json >/dev/null
-    jq '.inputs[0].manifest' results/input_info.json > expected-tree.json
+    ' finalized.json >/dev/null
+    jq '.inputs[0].manifest' finalized.json > expected-tree.json
     bk_record_input --directory input-tree --expected-manifest expected-tree.json
-    jq -e '.inputs[1].verification_status == "verified"' results/input_info.json >/dev/null
+    bash "$REPO_DIR/scripts/result_server/input_info.sh" --results-dir results \
+      | jq -e 'any(.inputs[]; .verification_status == "verified")' >/dev/null
   fi
   cp results/input_info.json expected-info.json
   cp results/.input_info_items.jsonl expected-items.jsonl
@@ -303,13 +305,13 @@ popd >/dev/null
   test "$(< input-tree/nested/input)" = abc
   (
     PYTHON_BIN=false bk_record_input --file input-tree/nested/input
-    jq -e '.inputs[-1].collection_status == "unavailable" and (.inputs[-1] | has("content_digest") | not)' results/input_info.json >/dev/null
+    jq -e '.inputs[-1].observation_capture.collection_status == "recorded"' results/input_info.json >/dev/null
   )
   bk_record_input --file missing
-  jq -e '.inputs[-1].collection_status == "unavailable"' results/input_info.json >/dev/null
+  jq -e '.inputs[-1].observation_capture.collection_status == "unavailable"' results/input_info.json >/dev/null
   bk_record_input --file input-tree/nested/input
   if command -v jq >/dev/null 2>&1; then
-    jq -e '.inputs[-1].verification_status == "declared" and .inputs[-1].file_count == 1' results/input_info.json >/dev/null
+    jq -e '.inputs[-1].observation_capture | .verification_status == "declared" and .file_count == 1' results/input_info.json >/dev/null
   fi
 )
 

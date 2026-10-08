@@ -23,7 +23,6 @@ state="$results/.workflow_state"
 mkdir -p -- "$state/outputs"
 
 session="" exp="" stage="" tool=none profile="" output="" inputs=""
-input_info="$results/input_info.json" input_items="$results/.input_info_items.jsonl"
 section="" token="" code="" started="" finished="" print_elapsed=0
 outputs=() artifacts=()
 if [ "$command" = finish ]; then
@@ -41,8 +40,6 @@ while [ "$#" -gt 0 ]; do
     --profile) profile=$2 ;;
     --output) output=$2; outputs+=("$2") ;;
     --inputs) inputs=$2 ;;
-    --input-info) input_info=$2 ;;
-    --input-items) input_items=$2 ;;
     --section) section=$2 ;;
     --artifact) artifacts+=("$2") ;;
     --started) started=$2 ;;
@@ -243,16 +240,9 @@ case "$command" in
       [[ -z "${meta[2]}" || "${meta[2]}" = "$exp" ]] || fail
       scopes+=("$scope")
     done
-    input_documents=()
     for scope in "${scopes[@]}"; do
       load_scope "$scope"; meta[2]=$exp; save_meta; publish
-      [ ! -s "$directory/inputs.jsonl" ] || input_documents+=("$results/workflow_timing_$scope.json")
     done
-    # Input metadata merging retains its existing runtime until input collection migrates.
-    if [ "${#input_documents[@]}" -gt 0 ]; then
-      "${PYTHON_BIN:-python3}" "$ROOT/profiling/workflow_inputs.py" \
-        "$input_info" "$input_items" "$exp" "${input_documents[@]}"
-    fi
     ;;
   workspace|register)
     [ -n "$session" ] || exit 2
