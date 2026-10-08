@@ -198,7 +198,7 @@ $(emit_execution_route_setup "$system")
     - BK_SYSTEM=\"$system\" BK_SNAPSHOT_STAGE=run bash scripts/collect_environment_snapshot.sh results/environment_snapshot_run.json
     - BK_SYSTEM=\"$system\" BK_NODE_STATUS_SNAPSHOT_STAGE=run bash scripts/collect_node_status_snapshot.sh results/node_status_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
-    - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
+    - bash scripts/run_benchmark.sh $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
     - chmod -R a+rX results 2>/dev/null || true
@@ -206,6 +206,7 @@ $(emit_execution_route_setup "$system")
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
   artifacts:
+    when: always
     paths:
       - results/
     expire_in: 1 week
@@ -253,7 +254,7 @@ $(emit_execution_route_setup "$system")
     - bash scripts/record_timestamp.sh results/build_end
     - BK_SYSTEM=\"$system\" BK_NODE_STATUS_SNAPSHOT_STAGE=run bash scripts/collect_node_status_snapshot.sh results/node_status_snapshot_run.json
     - bash scripts/record_timestamp.sh results/run_start
-    - bash $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
+    - bash scripts/run_benchmark.sh $program_path/run.sh $system $nodes ${numproc_node} ${nthreads}
     - bash scripts/record_timestamp.sh results/run_end
     - echo \"Job completed\"
     - chmod -R a+rX artifacts results 2>/dev/null || true
@@ -261,6 +262,7 @@ $(emit_execution_route_setup "$system")
   # after_script:
   #   - bash scripts/wait_for_nfs.sh results
   artifacts:
+    when: always
     paths:
       - results/
     expire_in: 1 week

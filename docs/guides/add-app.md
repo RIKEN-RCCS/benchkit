@@ -247,13 +247,13 @@ Single-file identity does not depend on its basename. Existing dataset labels,
 
 #### Experiment names and input identity
 
-The application owns the scientific case name (`Exp`), dataset labels, trusted
-input definition and numerical acceptance criteria. A lookup-path override must
+The application owns the scientific case name (`Exp`), dataset labels and
+numerical acceptance criteria. A lookup-path override must
 not change `Exp` for the same case: do not derive it from a staging directory,
 matrix basename or archive filename. Define it from the benchmark case instead.
 Use the same case name for an explicit `--result-exp` scope and result emission.
 
-The common layer collects bytes, validates the expected manifest and associates
+The common layer records the observed content identity and associates
 input observations with Results. It does not infer a scientific case from a path
 or digest. Keep content identity in `content_digest`/`dataset_version`, separate
 from `Exp`. An explicitly supplied version remains an application label; it does
@@ -261,38 +261,25 @@ not override or replace the observed content digest. Matching names alone do not
 establish matching inputs, and matching bytes alone do not establish scientific
 comparability across execution conditions.
 
-#### Observation and verification
+#### Recording the observed input
 
-Collection alone remains `verification_status: "declared"`: it records the input
-observed, not whether that input is the intended or scientifically valid one.
-To verify against a trusted definition, supply an expected manifest maintained
-outside the input directory:
+Input identity is provenance, like the application commit and Benchkit commit.
+A different input is not a reason for Benchkit to reject execution. Record the
+actual input and interpret its FOM together with that record; scientific
+acceptance criteria remain application-owned.
 
-```bash
-bk_record_input --directory "$input_dir" \
-  --expected-manifest "$trusted_manifest" || exit 1
-```
+Successful collection records `collection_status: "recorded"`, the content
+digest and manifest. It does not certify scientific validity. If collection is
+unavailable, the record says `collection_status: "unavailable"` with a reason,
+without inventing a digest; the application can still run. Invalid helper
+arguments and destinations that would overwrite input remain errors.
 
-The expected manifest uses exactly the generated `manifest` schema: integer
-`schema_version: 1`, `kind: "file"` or `"directory"`, and a `files` array of
-`path`, nonnegative integer `size_bytes`, and lowercase 64-character `sha256`.
-Duplicate JSON keys are rejected, including in individual file entries.
-A single file uses the neutral path `input`. Verification requires the exact file
-set and bytes to match before any record is appended. Only a match is marked
-`verified`. Generating expectations from the same unchecked input immediately
-before comparison provides no independent verification.
-
-The directory root may be a symlink. Nested symlinks are followed only within the
-resolved input root; external links, cycles, broken links, special files,
-unreadable files, directories with no regular files, and detected concurrent
-changes cause errors.
-Collection is bounded to 10,000 tree entries, 64 directory levels, and a 4 MiB
-manifest. Metadata output must be outside the input. Partial collections are not
-recorded. There is no mtime cache: large inputs incur a full read on every call,
-and collection duration is recorded separately. The application must keep inputs
-unchanged through consumption; this is not a filesystem snapshot or a sandbox
-against a malicious concurrent writer. Files not read by the application but
-present in the selected directory also contribute to its identity.
+Select an input directory containing the files used by the application.
+Collection reads the files on each call, so large inputs have an additional read
+cost outside the measured solver interval. Keep inputs unchanged through
+consumption; a recorded digest is not a filesystem snapshot. Unreadable files,
+unsafe links, special files, collection limits and detected changes are reported
+as unavailable observations, not as scientifically invalid inputs.
 
 For generated or rewritten runtime inputs, prefer `bk_run --input-file` so the
 common runner observes the final file before launch and associates it through
@@ -302,46 +289,8 @@ output-associated execution path. Common helpers retain their output location
 from the directory where `bk_functions.sh` was sourced. Applications do not export
 metadata filenames or reset the common metadata stores when changing directory.
 
-#### Verifying pre-staged files with explicit expectations
-
-An application can verify a regular file before launching the benchmark:
-
-```bash
-bk_record_input \
-  --dataset-id myapp-case0-matrix \
-  --version v1 \
-  --type matrix \
-  --result-exp CASE0 \
-  --verify-file "$input_file" \
-  --expected-sha256 "$expected_sha256" \
-  --expected-size-bytes "$expected_size_bytes" || exit 1
-```
-
-All three verification options are required together. Supported types are
-`file`, `matrix`, and `archive` (including `tar` and `tgz`). The helper checks the
-byte count and complete SHA-256, then records `sha256`, numeric `size_bytes`, and
-`verification_status: "verified"`. Missing files, invalid expectations, read/hash
-failures, and mismatches return nonzero without adding an input record. Existing
-calls without these options retain their previous behavior.
-
-`--verify-file` is a local lookup path, not a metadata field: it is not saved or
-printed in verification errors. `--path` retains its separate meaning as a
-repository-relative metadata path. Dataset IDs, versions, parameters, and recipes
-remain application-provided metadata and must be suitable for their publication
-surface. Digest verification does not grant public access or publication approval.
-
-Applications own the expected digests, sizes, file lists, versions, generation
-recipes, and numerical acceptance criteria. Obtain expectations from a trusted
-input definition, not by hashing the same untrusted file immediately before this
-call. For a multi-file restart, prefer directory collection with an expected
-manifest, or record each required file using `--type file` and a stable component
-dataset ID. Stop before launching if any check fails;
-successfully checked components do not prove that unlisted files were checked.
-Hashing a manifest alone does not verify the files it names. Verification applies
-to the bytes read at verification time; applications must keep those inputs
-unchanged until they are consumed. Symlinks are followed and their target bytes
-are checked on each invocation; no size/mtime cache is used. Verify large inputs
-outside the measured solver interval and budget for the read cost separately.
+Dataset labels, versions, parameters and recipes must be suitable for their
+publication surface. Input recording does not grant publication or access rights.
 
 Portal の `/results/usage` では、通常の benchmark result に対する入力出自の状態を `Input Status` として表示します。
 この値は estimation 専用ではなく、Result JSON の `input_info` を見た current-state summary です。
@@ -352,7 +301,7 @@ Portal の `/results/usage` では、通常の benchmark result に対する入�
 - `Verified`: manifest / content digest などの証跡と `verification_status: "verified"` がある
 
 `None` や `Declared` はただちに CI failure ではありません。
-ただし、長期運用や多拠点再現に使う入力では、可能なら `Covered` または `Verified` に近づけてください。
+`Verified` は参照値との一致を示すだけで、科学的妥当性や実行の許可条件ではありません。
 
 ### Execution and log collection
 
@@ -376,8 +325,8 @@ For an effective input file produced by preprocessing, add `--input-file path`
 to `bk_run`. Repeat it for multiple files. The common runner hashes the files
 before launching, then associates their observations when the result is emitted.
 File contents and local paths are not copied into the record. This observes the
-input; it does not assert that the input matches a trusted reference. Use
-`bk_record_input --expected-manifest` when reference verification is required.
+input; it does not assert that the input matches a trusted reference. Observation
+failure is recorded separately and does not replace the application's exit status.
 
 For an application whose public scientific inputs are its command arguments:
 

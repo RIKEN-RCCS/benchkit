@@ -246,9 +246,46 @@ Typical requirements include:
 - package-specific runtimes for external estimation tools
 - optional profiler tools depending on system support
 
+### Input and Execution Evidence
+
+Input collection records actual content, not an execution allowlist. Changed
+inputs, unavailable observations and application failures are distinct states.
+`collection_status` is `recorded` or `unavailable`; unavailable observations
+include a bounded `collection_error` code and no fabricated digest. Declared
+dataset versions remain labels, not substitutes for an observed content digest.
+
+Existing `--expected-manifest` calls perform informational comparison only:
+`verification_status` is `verified` for a match, `mismatch` for different content,
+or `unavailable` if the reference cannot be read or validated. Actual content is
+recorded independently. References retain the manifest schema with integer
+`schema_version: 1`, `kind`, and `files` containing relative `path`, nonnegative
+`size_bytes`, and full lowercase `sha256`; duplicate keys are invalid. The legacy
+`--verify-file` / `--expected-sha256` / `--expected-size-bytes` trio also records
+differences instead of rejecting execution. Invalid call syntax remains an error.
+
+Collection is bounded to 10,000 entries, 64 directory levels and a 4 MiB manifest.
+External nested symlinks, cycles, special files and detected concurrent changes
+cannot produce a complete observation. Metadata destinations must remain outside
+the input; this safety constraint is separate from content comparison.
+
+Generated run/build-run jobs retain `results/` artifacts on failure. The common
+run wrapper writes `execution.json` and `execution.log`, preserving the application
+exit code even when metadata storage fails. A forcibly interrupted wrapper can
+leave a `running` record; this is not evidence of success. Logged commands retain
+their output even if subsequent FOM extraction fails. The CI-only filename
+`execution-output_<scope>_<stage-id>.log` associates each log with its
+`workflow_timing_<scope>.json` record and stage ID. If the timing recorder is
+unavailable, a uniquely named log is retained without claiming an association.
+Source and environment records remain alongside these artifacts. No FOM or successful
+Result is invented for failed or FOM-less runs; these execution records remain CI
+evidence, not new Portal result rows. Access to CI logs/artifacts must be restricted
+appropriately; they can contain application output and are not public metadata.
+
+### Runtime Details
+
 Command timing and execution/profile association use shell tools on compute
 nodes. Their JSON consumer uses `jq` on the result sender. Input-manifest
-verification and merging execution-scoped input observations still use Python 3,
+collection and merging execution-scoped input observations still use Python 3,
 selectable with `PYTHON_BIN`; NCU planning also retains its Python runtime.
 
 Elapsed time uses two realtime clock samples immediately around the command,
