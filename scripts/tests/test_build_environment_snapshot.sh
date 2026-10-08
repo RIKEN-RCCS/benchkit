@@ -18,6 +18,9 @@ cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/project/scripts/"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/json_output.sh" "${TMP_DIR}/project/scripts/json_output.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
+mkdir -p "${TMP_DIR}/project/scripts/result_server"
+cp "${REPO_DIR}/scripts/result_server/"{input_info.sh,input_manifest.jq,workflow_timing.sh} \
+  "${TMP_DIR}/project/scripts/result_server/"
 cp -R "${REPO_DIR}/scripts/build_tool_wrappers" "${TMP_DIR}/project/scripts/build_tool_wrappers"
 
 cat > "${TMP_DIR}/project/results/result" <<'EOF'

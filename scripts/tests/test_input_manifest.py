@@ -10,10 +10,41 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+REPO = Path(__file__).resolve().parents[2]
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import input_manifest as collector
+
+def canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+
+
+def input_info(root):
+    result = subprocess.run(["bash", str(REPO / "scripts/result_server/input_info.sh"),
+                             "--results-dir", str(root / "results")],
+                            env={k: v for k, v in os.environ.items() if not k.startswith(("BK_", "_BK_"))},
+                            text=True, capture_output=True, timeout=15, check=True)
+    return json.loads(result.stdout)
+
+
+def run_collection(root, *args, env=None, metadata_output=None):
+    env = {k: v for k, v in (env or os.environ).items() if not k.startswith(("BK_", "_BK_"))}
+    if metadata_output is not None:
+        env["BK_INPUT_INFO_FILE"] = str(metadata_output)
+    return subprocess.run(["bash", "-c", '''
+set -e
+source "$1/scripts/bk_functions.sh"
+shift
+bk_record_input --dataset-id demo "$@"
+''', "collect", str(REPO), *map(str, args)],
+        cwd=root, env=env, text=True, capture_output=True, timeout=15)
+
+
+def observed(source, kind):
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        result = run_collection(root, "--" + kind, source)
+        if result.returncode:
+            raise AssertionError(result.stderr)
+        return input_info(root)["inputs"][0]
 
 
 class InputManifestTests(unittest.TestCase):
@@ -28,16 +59,10 @@ class InputManifestTests(unittest.TestCase):
         (self.source / "config").write_bytes(b"config")
 
     def run_cli(self, *args):
-        return subprocess.run(
-            [sys.executable, collector.__file__, *map(str, args)],
-            input='{"dataset_id":"demo"}', text=True, capture_output=True, timeout=10,
-        )
-
-    def assert_cli_failure(self, *args):
-        result = self.run_cli(*args)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertNotIn(str(self.root), result.stderr)
+        result = run_collection(self.root, *args)
+        if result.returncode == 0:
+            result.stdout = json.dumps(input_info(self.root)["inputs"][0])
+        return result
 
     def assert_unavailable(self, *args, reference=False):
         result = self.run_cli(*args)
@@ -56,8 +81,8 @@ class InputManifestTests(unittest.TestCase):
         copied = self.root / "copied"
         shutil.copytree(self.source, copied)
         os.utime(copied / "config", (1, 1))
-        first = collector.collect(self.source, "directory")
-        second = collector.collect(copied, "directory")
+        first = observed(self.source, "directory")
+        second = observed(copied, "directory")
         self.assertEqual(first["manifest_digest"], second["manifest_digest"])
         self.assertEqual(first["manifest"], second["manifest"])
         self.assertEqual(first["size_bytes"], len(b"abcconfig"))
@@ -65,31 +90,52 @@ class InputManifestTests(unittest.TestCase):
         self.assertEqual(first["verification_status"], "declared")
         self.assertNotIn(str(self.root), json.dumps(first))
         (copied / "config").write_bytes(b"Config")
-        changed = collector.collect(copied, "directory")
+        changed = observed(copied, "directory")
         self.assertNotEqual(first["content_digest"], changed["content_digest"])
 
-    def test_file_identity_does_not_include_basename_and_reads_in_chunks(self):
+    def test_compute_capture_without_python_jq_or_curl_preserves_identity(self):
+        commands = self.root / "bin"
+        commands.mkdir()
+        for name in ("bash", "dirname", "basename", "realpath", "mktemp", "rm", "mkdir", "stat", "find", "head",
+                     "sort", "sha256sum", "dd", "tee", "wc", "mkfifo", "cmp", "date", "awk", "tr",
+                     "cp", "mv", "cat", "flock", "od", "sed", "cut"):
+            (commands / name).symlink_to(shutil.which(name))
+        env = dict(os.environ, PATH=str(commands), PYTHON_BIN="/unavailable/python")
+        for name in ('quote"\\line\n\t\x7f', '\u65e5\U0001f600'):
+            (self.source / name).write_bytes(b"sample")
+        result = run_collection(self.root, "--directory", self.source, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / "results/input_info.json").exists(), result.stderr)
+        before = (self.root / "results/input_info.json").read_bytes()
+        item = input_info(self.root)["inputs"][0]
+        self.assertEqual(item["collection_status"], "recorded")
+        self.assertEqual(item["file_count"], 4)
+        expected = "sha256:" + hashlib.sha256(canonical_json(item["manifest"])).hexdigest()
+        self.assertEqual(item["content_digest"], expected)
+        self.assertEqual(item["dataset_version"], expected)
+        self.assertEqual((self.root / "results/input_info.json").read_bytes(), before)
+
+    def test_file_identity_does_not_include_basename_and_handles_empty_files(self):
         one = self.source / "config"
         two = self.root / "renamed"
         two.write_bytes(one.read_bytes())
-        with patch.object(collector, "CHUNK_BYTES", 2):
-            first = collector.collect(one, "file")
-        second = collector.collect(two, "file")
+        first = observed(one, "file")
+        second = observed(two, "file")
         self.assertEqual(first["manifest"], second["manifest"])
         self.assertEqual(first["sha256"], hashlib.sha256(b"config").hexdigest())
         self.assertEqual(first["manifest"]["files"][0]["path"], "input")
         two.write_bytes(b"")
-        self.assertEqual(collector.collect(two, "file")["sha256"], hashlib.sha256(b"").hexdigest())
+        self.assertEqual(observed(two, "file")["sha256"], hashlib.sha256(b"").hexdigest())
 
     def test_reference_differences_record_actual_content_without_rejection(self):
-        observed = collector.collect(self.source, "directory")
+        original = observed(self.source, "directory")
         expected_file = self.root / "expected.json"
-        expected_file.write_bytes(collector.canonical_json(observed["manifest"]))
+        expected_file.write_bytes(canonical_json(original["manifest"]))
         result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
         self.assertEqual(result.returncode, 0, result.stderr)
         verified = json.loads(result.stdout)
         self.assertEqual(verified["verification_status"], "verified")
-        self.assertEqual(verified["dataset_version"], observed["content_digest"])
+        self.assertEqual(verified["dataset_version"], original["content_digest"])
         (self.source / "extra").write_bytes(b"extra")
         result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -99,7 +145,7 @@ class InputManifestTests(unittest.TestCase):
         result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
         changed = json.loads(result.stdout)
         self.assertEqual(changed["verification_status"], "mismatch")
-        self.assertNotEqual(changed["content_digest"], observed["content_digest"])
+        self.assertNotEqual(changed["content_digest"], original["content_digest"])
         (self.source / "config").unlink()
         result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -108,14 +154,14 @@ class InputManifestTests(unittest.TestCase):
     def test_internal_symlinks_match_copied_content(self):
         link = self.source / "link"
         link.symlink_to("nested/wave data")
-        first = collector.collect(self.source, "directory")
+        first = observed(self.source, "directory")
         link.unlink()
         link.write_bytes(b"abc")
-        second = collector.collect(self.source, "directory")
+        second = observed(self.source, "directory")
         self.assertEqual(first["manifest_digest"], second["manifest_digest"])
         alias = self.root / "alias"
         alias.symlink_to(self.source, target_is_directory=True)
-        self.assertEqual(collector.collect(alias, "directory")["manifest"], second["manifest"])
+        self.assertEqual(observed(alias, "directory")["manifest"], second["manifest"])
 
     def test_unsafe_or_unreadable_inputs_fail_without_location_disclosure(self):
         link = self.source / "link"
@@ -139,38 +185,47 @@ class InputManifestTests(unittest.TestCase):
         self.assert_unavailable("--file", self.root / "missing")
 
     def test_changes_during_collection_do_not_produce_a_manifest(self):
-        original = collector.hash_file
-
-        def replace_after_read(path, identity):
-            result = original(path, identity)
-            path.write_bytes(b"replacement")
-            return result
-
-        with patch.object(collector, "hash_file", side_effect=replace_after_read):
-            with self.assertRaises(collector.InputError):
-                collector.collect(self.source, "directory")
-        with patch.object(collector, "hash_file", side_effect=PermissionError):
-            with self.assertRaises(PermissionError):
-                collector.collect(self.source, "directory")
+        commands = self.root / "bin"
+        commands.mkdir()
+        wrapper = commands / "dd"
+        wrapper.write_text('#!/bin/bash\n' + shutil.which("dd") + ' "$@"\n'
+                           'printf changed >> "$TEST_INPUT"\n')
+        wrapper.chmod(0o700)
+        env = dict(os.environ, PATH=str(commands) + os.pathsep + os.environ["PATH"],
+                   TEST_INPUT=str(self.source / "config"))
+        result = run_collection(self.root, "--directory", self.source, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        item = input_info(self.root)["inputs"][0]
+        self.assertEqual(item["collection_status"], "unavailable")
+        self.assertNotIn("content_digest", item)
 
     def test_manifest_validation_and_limits(self):
         expected = self.root / "expected.json"
-        valid = collector.collect(self.source / "config", "file")["manifest"]
+        valid = observed(self.source / "config", "file")["manifest"]
         for field, value in (("sha256", "short"), ("size_bytes", True), ("path", "../outside")):
             invalid = {**valid, "files": [{**valid["files"][0], field: value}]}
             expected.write_text(json.dumps(invalid))
             self.assert_unavailable("--file", self.source / "config", "--expected-manifest", expected, reference=True)
         expected.write_text('{"schema_version": 1}')
         self.assert_unavailable("--file", self.source / "config", "--expected-manifest", expected, reference=True)
-        with patch.object(collector, "MAX_ENTRIES", 1):
-            with self.assertRaises(collector.InputError):
-                collector.collect(self.source, "directory")
-        observed = collector.collect(self.source / "nested/wave data", "file", valid)
-        self.assertEqual(observed["verification_status"], "mismatch")
-        self.assertEqual(observed["sha256"], hashlib.sha256(b"abc").hexdigest())
+        deep = self.source
+        for _ in range(66):
+            deep = deep / "d"
+            deep.mkdir()
+        self.assert_unavailable("--directory", self.source)
+
+    def test_invalid_utf8_name_is_unavailable_not_a_replaced_name(self):
+        path = os.fsencode(self.source) + b"/invalid-\xff"
+        with open(path, "wb") as stream:
+            stream.write(b"input")
+        self.assert_unavailable("--directory", self.source)
 
     def test_generated_metadata_and_expectations_must_be_outside_directory(self):
-        self.assert_cli_failure("--directory", self.source, "--metadata-output", self.source / "result.json")
+        destination = self.source / "result.json"
+        result = run_collection(self.root, "--directory", self.source, metadata_output=destination)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("metadata output must be outside the input", result.stderr)
+        self.assertFalse(destination.exists())
         expected = self.source / "expected.json"
         expected.write_text("{}")
         self.assert_unavailable("--directory", self.source, "--expected-manifest", expected, reference=True)
@@ -178,8 +233,8 @@ class InputManifestTests(unittest.TestCase):
     def test_expected_manifest_rejects_duplicate_keys(self):
         source = self.source / "config"
         expected = self.root / "expected.json"
-        manifest = collector.collect(source, "file")["manifest"]
-        raw = collector.canonical_json(manifest).decode("ascii")
+        manifest = observed(source, "file")["manifest"]
+        raw = canonical_json(manifest).decode("ascii")
         entry = manifest["files"][0]
         cases = [
             raw.replace('"schema_version":1', '"schema_version":2,"schema_version":1'),
@@ -247,19 +302,19 @@ exit "${TEST_MPI_STATUS:-0}"
         app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
         data = self.root / "matrix.dat"
         data.write_bytes(b"abc")
-        manifest = collector.collect(data, "file")["manifest"]
-        (app / "input-manifest.json").write_bytes(collector.canonical_json(manifest))
+        manifest = observed(data, "file")["manifest"]
+        (app / "input-manifest.json").write_bytes(canonical_json(manifest))
         self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
         data.write_bytes(b"abd")
         changed = self.run_app(app)
         self.assertEqual(changed.returncode, 0, changed.stderr)
         self.assertTrue((self.root / "mpi-started").exists())
-        info = json.loads((self.root / "results/input_info.json").read_text())
+        info = input_info(self.root)
         self.assertEqual(info["inputs"][0]["sha256"], hashlib.sha256(b"abd").hexdigest())
         data.write_bytes(b"abc")
         passed = self.run_app(app)
         self.assertEqual(passed.returncode, 0, passed.stderr)
-        info = json.loads((self.root / "results/input_info.json").read_text())
+        info = input_info(self.root)
         self.assertEqual(info["inputs"][0]["verification_status"], "declared")
         self.assertIn("FOM:", (self.root / "results/result").read_text())
         self.env["TEST_MPI_STATUS"] = "13"
@@ -279,13 +334,13 @@ exit "${TEST_MPI_STATUS:-0}"
             data.write_bytes(b"abc")
             if not identities:
                 (app / "input-manifest.json").write_bytes(
-                    collector.canonical_json(collector.collect(data, "file")["manifest"]))
+                    canonical_json(observed(data, "file")["manifest"]))
             self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
             passed = self.run_app(app)
             self.assertEqual(passed.returncode, 0, passed.stderr)
             result = (self.root / "results/result").read_text().split()
             experiment = next(field.removeprefix("Exp:") for field in result if field.startswith("Exp:"))
-            info = json.loads((self.root / "results/input_info.json").read_text())["inputs"][0]
+            info = input_info(self.root)["inputs"][0]
             self.assertTrue(experiment)
             self.assertEqual(info["verification_status"], "declared")
             self.assertEqual(info["result_exp"], experiment)
@@ -309,7 +364,7 @@ exit "${TEST_MPI_STATUS:-0}"
             (source / "restart/wfn.bin").write_bytes(content)
             result = self.run_app(app)
             self.assertEqual(result.returncode, 0, result.stderr)
-            info = json.loads((self.root / "results/input_info.json").read_text())
+            info = input_info(self.root)
             restart = next(item for item in info["inputs"] if item["kind"] == "pre-staged-restart")
             effective = next(item for item in info["inputs"] if item["kind"] == "pre-staged-file")
             self.assertEqual(restart["verification_status"], "declared")
@@ -327,7 +382,7 @@ exit "${TEST_MPI_STATUS:-0}"
         result = self.run_app(app)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.root / "mpi-started").exists())
-        info = json.loads((self.root / "results/input_info.json").read_text())
+        info = input_info(self.root)
         restart = next(item for item in info["inputs"] if item["kind"] == "pre-staged-restart")
         self.assertEqual(restart["collection_status"], "unavailable")
         self.assertNotIn("content_digest", restart)
@@ -339,7 +394,7 @@ exit "${TEST_MPI_STATUS:-0}"
         data = self.root / "matrix.dat"
         data.write_bytes(b"abc")
         (petsc / "input-manifest.json").write_bytes(
-            collector.canonical_json(collector.collect(data, "file")["manifest"]))
+            canonical_json(observed(data, "file")["manifest"]))
         self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
         salmon = self.prepare_app("salmon", "salmon")
         self.prepare_restart()

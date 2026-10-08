@@ -241,7 +241,8 @@ Typical requirements include:
 - GNU `date` with `%s`/`%N` support and `awk` for command elapsed time
 - GitLab CI runner support
 - site-specific scheduler/runtime support
-- Python 3.12 or later for result shaping and portal components
+- `jq` and `curl` on the result sender, not on common build/run paths
+- Python 3.12 or later for Result Server and Portal components
 - Flask-related Python packages for `result_server`
 - package-specific runtimes for external estimation tools
 - optional profiler tools depending on system support
@@ -283,10 +284,29 @@ appropriately; they can contain application output and are not public metadata.
 
 ### Runtime Details
 
-Command timing and execution/profile association use shell tools on compute
-nodes. Their JSON consumer uses `jq` on the result sender. Input-manifest
-collection and merging execution-scoped input observations still use Python 3,
-selectable with `PYTHON_BIN`; NCU planning also retains its Python runtime.
+Command timing, input capture and execution/profile association use Bash and
+standard shell tools on compute nodes, without Python, `jq` or `curl`.
+File content is streamed once into SHA-256 and byte counting; source bytes are
+not copied into artifacts. Bounded file inventories before and after collection
+detect changes. The result sender uses `jq` to finalize the canonical manifest,
+content digest and dataset version, and merge inputs from current-session,
+experiment-bound workflow records. It leaves the original execution artifacts
+unchanged. Applications continue using the same input and execution helpers.
+Intermediate items carry an `observation_capture` with per-file hashes and
+collection status; finalized Result inputs retain the existing manifest/digest
+fields. Unbound or older-session records remain CI evidence, not Result inputs.
+
+Optional expected manifests are bounded private companions under
+`results/.input_references/`; public observation artifacts carry only an opaque
+reference, not reference contents or source locations. The sender validates the
+reference before informational comparison and never exports malformed content.
+CI artifact access controls must protect these companions, just as execution
+logs; a dot-prefixed directory alone does not make its contents private. Do not
+include them in public artifact bundles.
+Unavailable reference observations do not discard the actual input manifest.
+NCU planning retains its separate Python runtime; its acquisition metadata
+writer still requires `jq` or Python. These profiler-specific paths are separate
+from ordinary input capture and execution association.
 
 Elapsed time uses two realtime clock samples immediately around the command,
 outside record serialization and lock acquisition. Records identify this as

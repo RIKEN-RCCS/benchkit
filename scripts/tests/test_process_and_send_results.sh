@@ -22,6 +22,8 @@ cp "${REPO_DIR}/scripts/result_server/send_results.sh" "${TMP_DIR}/project/scrip
 cp "${REPO_DIR}/scripts/result_server/process_and_send_results.sh" "${TMP_DIR}/project/scripts/result_server/process_and_send_results.sh"
 cp "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/project/scripts/result_server/"
 cp "${REPO_DIR}/scripts/result_server/node_status_snapshot.jq" "${TMP_DIR}/project/scripts/result_server/"
+cp "${REPO_DIR}/scripts/result_server/"{input_info.sh,input_manifest.jq,workflow_timing.sh} \
+  "${TMP_DIR}/project/scripts/result_server/"
 
 cat > "${TMP_DIR}/project/results/result" <<'EOF'
 FOM:1.25 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:2 nthreads:3

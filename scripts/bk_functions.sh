@@ -443,8 +443,6 @@ bk_emit_result() {
   if [ "${#_bk_result_logs[@]}" -gt 0 ]; then
     bash "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh" \
       --results-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}" bind \
-      --input-info "${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}" \
-      --input-items "${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}" \
       --session "$_BK_WORKFLOW_SESSION_ID" --exp "$_bk_exp" "${_bk_result_logs[@]}" || \
       echo "Benchkit timing: output association unavailable; FOM is retained" >&2
   fi
@@ -1450,6 +1448,7 @@ _bk_record_input_item() {
   _bk_item_size_bytes=""
   _bk_item_collection_status=""
   _bk_item_collection_error=""
+  _bk_item_observation=""
   _bk_item_recipe=""
   _bk_item_command=""
   _bk_item_arguments=()
@@ -1653,7 +1652,7 @@ _bk_record_input_item() {
   if [ "${#observation_args[@]}" -gt 0 ]; then
     local observed_json observation_status source_path metadata_path destination
     IFS= read -r -d '' source_path < <(realpath -mz -- "${observation_args[1]}") || return 1
-    for destination in "$_bk_item_info_file" "$_bk_item_items_file"; do
+    for destination in "$_bk_item_info_file" "$_bk_item_items_file" "${_BK_DEFAULT_RESULTS_DIR}/.input_references"; do
       IFS= read -r -d '' metadata_path < <(realpath -mz -- "$destination") || return 1
       if [[ "$metadata_path" = "$source_path" ]] || \
         { [[ "${observation_args[0]}" = --directory && "$metadata_path" = "${source_path%/}/"* ]]; }; then
@@ -1661,10 +1660,10 @@ _bk_record_input_item() {
         return 1
       fi
     done
-    if observed_json=$(printf '%s\n' "$item_json" | "${PYTHON_BIN:-python3}" \
-        "${BK_BENCHKIT_ROOT}/scripts/input_manifest.py" "${observation_args[@]}" \
-        --metadata-output "$_bk_item_info_file" --metadata-output "$_bk_item_items_file" 2>/dev/null); then
-      item_json="$observed_json"
+    if observed_json=$(bash "${BK_BENCHKIT_ROOT}/scripts/input_manifest.sh" "${observation_args[@]}" \
+        --references-dir "${_BK_DEFAULT_RESULTS_DIR}/.input_references" 2>/dev/null); then
+      _bk_item_observation="$observed_json"
+      item_json=$(_bk_input_item_json) || return 1
     else
       observation_status=$?
       if [ "$observation_status" -eq 2 ]; then
@@ -1706,6 +1705,9 @@ _bk_input_item_json() {
     _bk_input_item_string_field "collection_status" "$_bk_item_collection_status"
     _bk_input_item_string_field "collection_error" "$_bk_item_collection_error"
     _bk_input_item_string_field "sha256" "$_bk_item_sha256"
+    if [ -n "$_bk_item_observation" ]; then
+      printf ',"observation_capture":%s' "$_bk_item_observation"
+    fi
     if [ -n "$_bk_item_size_bytes" ]; then
       printf ',"size_bytes":%s' "$_bk_item_size_bytes"
     fi

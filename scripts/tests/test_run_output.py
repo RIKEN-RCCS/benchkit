@@ -255,6 +255,16 @@ class RuntimeMetadataTests(unittest.TestCase):
 
 
 class RunHelperTests(unittest.TestCase):
+    def input_info(self, path=None):
+        env = dict(os.environ)
+        if path:
+            env["BK_INPUT_INFO_FILE"] = str(path)
+        result = subprocess.run(["bash", str(self.repo / "scripts/result_server/input_info.sh"),
+                                 "--results-dir", str(self.root / "results")],
+                                env=env, text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -482,14 +492,16 @@ grep -q 'rank failure' failed.log
         tools.mkdir()
         for name in ("bash", "date", "awk", "dirname", "basename", "mkdir", "mktemp",
                      "rm", "mv", "cp", "cat", "flock", "cmp", "sha256sum", "cut",
-                     "od", "tr", "realpath", "find", "head", "sort", "stat", "dd", "tail"):
+                     "od", "tr", "realpath", "find", "head", "sort", "stat", "dd", "tail",
+                     "tee", "wc", "mkfifo"):
             (tools / name).symlink_to(shutil.which(name))
         self.env.update(PATH=str(tools), PYTHON_BIN="/nonexistent/python")
         result = self.run_shell('''
 ! command -v python3
 ! command -v jq
 ! command -v curl
-bk_run --log out.log --elapsed duration -- printf 'output'
+printf 'actual input' > input
+bk_run --log out.log --input-file input --elapsed duration -- printf 'output'
 [[ "$duration" =~ ^[0-9]+[.][0-9]+$ ]]
 bk_emit_result --from-log out.log --exp Sample --fom "$duration" > results/result
 status=0
@@ -503,6 +515,10 @@ test "$status" -eq 23
         self.assertEqual(document["elapsed_clock"], "realtime")
         self.assertEqual([stage["exit_code"] for stage in document["stages"]], [0, 23])
         self.assertNotIn("/nonexistent/python", result.stderr)
+        item, = self.input_info()["inputs"]
+        self.assertEqual(item["result_exp"], "Sample")
+        self.assertEqual(item["sha256"], hashlib.sha256(b"actual input").hexdigest())
+        self.assertEqual(json.loads(path.read_text()), document)
 
     def test_clock_samples_surround_command_not_recorder(self):
         result = self.run_shell('''
@@ -630,7 +646,7 @@ bk_emit_result --from-log out.log --exp Sample --fom 1 > ../results/result
 test ! -d results
 ''')
         self.assert_ok(result)
-        items = json.loads((self.root / "results/input_info.json").read_text())["inputs"]
+        items = self.input_info()["inputs"]
         self.assertEqual([item["dataset_id"] for item in items], ["first", "second"])
         result = self.run_shell('bk_run --log new.log -- true')
         self.assert_ok(result)
@@ -653,7 +669,7 @@ bk_emit_result --from-log out.log --exp Sample --fom 1 > ../results/result
 bk_emit_result --from-log out.log --exp Sample --fom 1 >> ../results/result
 ''')
         self.assert_ok(result)
-        items = json.loads((self.root / "results/input_info.json").read_text())["inputs"]
+        items = self.input_info()["inputs"]
         self.assertEqual(len(items), 2)
         self.assertTrue(all(item["result_exp"] == "Sample" for item in items))
         file_item = next(item for item in items if "sha256" in item)
@@ -676,10 +692,32 @@ bk_record_input --dataset-id later --parameter value three
 test ! -f results/input_info.json
 ''')
         self.assert_ok(result)
-        items = json.loads((self.root / "custom/inputs.json").read_text())["inputs"]
-        self.assertEqual([item["dataset_id"] for item in items],
-                         ["declared", "command-parameters", "later"])
-        self.assertEqual(items[1]["result_exp"], "Sample")
+        items = self.input_info(self.root / "custom/inputs.json")["inputs"]
+        self.assertCountEqual([item["dataset_id"] for item in items],
+                              ["declared", "command-parameters", "later"])
+        parameters = next(item for item in items if item["dataset_id"] == "command-parameters")
+        self.assertEqual(parameters["result_exp"], "Sample")
+
+    def test_sender_omits_old_and_unbound_inputs_and_handles_large_records(self):
+        self.assert_ok(self.run_shell('''
+bk_run --log old.log --parameter-input -- printf old
+bk_emit_result --from-log old.log --exp Old --fom 1 > results/result
+'''))
+        self.assert_ok(self.run_shell('''
+bk_run --log current.log --parameter-input -- printf current
+bk_emit_result --from-log current.log --exp Current --fom 1 > results/result
+bk_run --log unbound.log --parameter-input -- printf unbound
+'''))
+        for path in (self.root / "results").glob("workflow_timing_*.json"):
+            record = json.loads(path.read_text())
+            if record["exp"] == "Current":
+                record["inputs"][0]["arguments"] = ["x" * 200000]
+                path.write_text(json.dumps(record))
+        before = {p.name: p.read_bytes() for p in (self.root / "results").glob("*.json")}
+        item, = self.input_info()["inputs"]
+        self.assertEqual(item["result_exp"], "Current")
+        self.assertEqual(item["arguments"], ["x" * 200000])
+        self.assertEqual(before, {p.name: p.read_bytes() for p in (self.root / "results").glob("*.json")})
 
     def test_missing_input_is_recorded_without_stopping_launch_and_arguments_are_opt_in(self):
         result = self.run_shell('''
@@ -690,7 +728,7 @@ bk_run --log out.log -- printf '%s' do-not-publish
 bk_emit_result --from-log out.log --exp Sample --fom 1 >> results/result
 ''')
         self.assert_ok(result)
-        item = json.loads((self.root / "results/input_info.json").read_text())["inputs"][0]
+        item = self.input_info()["inputs"][0]
         self.assertEqual(item["collection_status"], "unavailable")
         self.assertEqual(item["result_exp"], "Missing")
         self.assertNotIn("content_digest", item)
@@ -708,7 +746,7 @@ grep -q launched failed.log
         self.assert_ok(result)
         path, = (self.root / "results").glob("workflow_timing_*.json")
         record = json.loads(path.read_text())
-        self.assertEqual(record["inputs"][0]["collection_status"], "unavailable")
+        self.assertEqual(record["inputs"][0]["observation_capture"]["collection_status"], "unavailable")
         self.assertEqual(record["stages"][0]["exit_code"], 23)
         self.assertFalse((self.root / "results/result").exists())
 
@@ -735,7 +773,7 @@ exit 17
         for path in records:
             record = json.loads(path.read_text())
             stage, = record["stages"]
-            text, code = expected[record["inputs"][0]["sha256"]]
+            text, code = expected[record["inputs"][0]["observation_capture"]["manifest"]["files"][0]["sha256"]]
             self.assertEqual(stage["exit_code"], code)
             scope = path.stem.removeprefix("workflow_timing_")
             log = self.root / "results" / f"execution-output_{scope}_{stage['id']}.log"

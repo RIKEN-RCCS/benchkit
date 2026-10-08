@@ -790,17 +790,14 @@ build_node_status_snapshot_block() {
 node_status_snapshot_block=$(build_node_status_snapshot_block) || exit 1
 
 build_input_info_block() {
-  local input_info_file="results/input_info.json"
-
-  if [ ! -f "$input_info_file" ]; then
-    printf '%s' ""
-    return 0
+  local input_info_json
+  if ! input_info_json=$(bash "$(dirname "${BASH_SOURCE[0]}")/result_server/input_info.sh" --results-dir results); then
+    echo "ERROR: input observations could not be assembled" >&2
+    return 1
   fi
 
-  local input_info_json
-  if ! input_info_json=$(jq -cS 'if type == "object" then . else error("input_info must be a JSON object") end' "$input_info_file" 2>/dev/null); then
-    echo "ERROR: results/input_info.json must be a valid JSON object" >&2
-    return 1
+  if [ "$input_info_json" = '{"schema_version":1,"inputs":[]}' ]; then
+    return 0
   fi
 
   if [ -z "$input_info_json" ] || [ "$input_info_json" = "null" ]; then
