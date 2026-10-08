@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# shellcheck source=scripts/json_output.sh
+source "$(dirname "${BASH_SOURCE[0]}")/json_output.sh"
+
 stage="${1:-unknown}"
 output="${2:-results/ci_timing_context.json}"
 
@@ -24,11 +27,6 @@ value_with_source() {
   printf '\t\n'
 }
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "CI timing context not recorded: jq not found"
-  exit 0
-fi
-
 mkdir -p "$(dirname "$output")"
 
 ci_job_started_at=""
@@ -47,33 +45,23 @@ if [ -n "$ci_job_started_at" ]; then
   ci_job_started_epoch=$(timestamp_to_epoch "$ci_job_started_at" || true)
 fi
 
-jq -n \
-  --arg stage "$stage" \
-  --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg ci_job_started_at "$ci_job_started_at" \
-  --arg ci_job_started_at_source "$ci_job_started_at_source" \
-  --arg ci_job_started_epoch "$ci_job_started_epoch" \
-  --arg ci_pipeline_created_at "$ci_pipeline_created_at" \
-  --arg ci_pipeline_created_at_source "$ci_pipeline_created_at_source" \
-  --arg parent_pipeline_created_at "$parent_pipeline_created_at" \
-  --arg parent_pipeline_created_at_source "$parent_pipeline_created_at_source" \
-  '
-  {schema_version: 1, stage: $stage, collected_at: $collected_at}
-  + (if $ci_job_started_at != "" then {
-      ci_job_started_at: $ci_job_started_at,
-      ci_job_started_at_source: $ci_job_started_at_source
-    } else {} end)
-  + (if $ci_job_started_epoch != "" then {
-      ci_job_started_epoch: ($ci_job_started_epoch | tonumber)
-    } else {} end)
-  + (if $ci_pipeline_created_at != "" then {
-      ci_pipeline_created_at: $ci_pipeline_created_at,
-      ci_pipeline_created_at_source: $ci_pipeline_created_at_source
-    } else {} end)
-  + (if $parent_pipeline_created_at != "" then {
-      parent_pipeline_created_at: $parent_pipeline_created_at,
-      parent_pipeline_created_at_source: $parent_pipeline_created_at_source
-    } else {} end)
-  ' > "$output"
+fields=(json schema_version 1 string stage "$stage"
+  string collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+if [ -n "$ci_job_started_at" ]; then
+  fields+=(string ci_job_started_at "$ci_job_started_at"
+    string ci_job_started_at_source "$ci_job_started_at_source")
+fi
+if [[ "$ci_job_started_epoch" =~ ^-?(0|[1-9][0-9]*)$ ]]; then
+  fields+=(json ci_job_started_epoch "$ci_job_started_epoch")
+fi
+if [ -n "$ci_pipeline_created_at" ]; then
+  fields+=(string ci_pipeline_created_at "$ci_pipeline_created_at"
+    string ci_pipeline_created_at_source "$ci_pipeline_created_at_source")
+fi
+if [ -n "$parent_pipeline_created_at" ]; then
+  fields+=(string parent_pipeline_created_at "$parent_pipeline_created_at"
+    string parent_pipeline_created_at_source "$parent_pipeline_created_at_source")
+fi
+bk_json_object "${fields[@]}" > "$output"
 
 echo "Recorded CI timing context: stage=${stage} ci_job_started_at=${ci_job_started_at:-not_available}"

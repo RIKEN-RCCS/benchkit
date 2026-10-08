@@ -499,12 +499,16 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 特殊な独自ビルド command でこれらを経由しない場合は、その command 用の wrapper を共通層に追加してから使ってください。
 この snapshot には、主要 compiler / MPI / CUDA / profiler / container command の path と version、loaded modules、allowlist された build 環境変数が含まれます。
 `TOKEN`、`SECRET`、`PASSWORD`、`AUTH`、`KEY`、`CERT` などを名前に含む環境変数は値を redacted として記録します。
+環境と CI 時刻の collector は Bash と通常の shell utilities で記録し、JSON の生成に jq / Python を必要としません。command の version は存在する場合だけ観測します。
 
 この actual build snapshot は、将来の build cache key や、同じ source から異なる binary が生じた場合の原因確認に使う前提の記録です。
 
 ### run placement / node status snapshot の方針
 
-CI の共通 job は、benchmark 本体の `run_start` より前に `results/node_status_snapshot_run.json` を記録します。
+CI の共通 job は、benchmark 本体の `run_start` より前に `results/node_status_snapshot_run.json.capture` を記録します。
+計算ノード側は Bash と通常の shell utilities で値を採取し、jq / Python / curl を必要としません。
+send_results 側で capture を解釈・集計し、従来の `results/node_status_snapshot_run.json` を生成します。
+既存の完成済み snapshot も引き続き受け付けます。新しい capture が不正な場合は送信を停止し、古い snapshot で代替しません。
 app の `run.sh` からこの snapshot 用 helper を呼ぶ必要はありません。
 
 この snapshot は scheduler-neutral な診断情報で、scheduler kind、scheduler が示す node list、観測できた host 数、CPU 数、memory、load average、GPU の軽量状態、run 前に見える GPU compute process の件数と memory 合計を記録します。

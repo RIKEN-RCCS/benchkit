@@ -11,6 +11,8 @@ shift
 
 wrapper_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root="${BK_BENCHKIT_ROOT:-$(cd "${wrapper_dir}/../.." && pwd -P)}"
+# shellcheck source=scripts/json_output.sh
+source "${repo_root}/scripts/json_output.sh"
 original_path="${PATH:-}"
 path_without_wrapper=""
 
@@ -44,18 +46,7 @@ if [ -z "$real_tool" ]; then
 fi
 
 json_string() {
-  local value="$1"
-
-  if PATH="$path_without_wrapper" command -v python3 >/dev/null 2>&1; then
-    JSON_VALUE="$value" PATH="$path_without_wrapper" python3 -c \
-      'import json, os; print(json.dumps(os.environ.get("JSON_VALUE", "")))'
-    return 0
-  fi
-
-  printf '"%s"' "$(printf '%s' "$value" | sed \
-    -e 's/\\/\\\\/g' \
-    -e 's/"/\\"/g' \
-    -e 's/[[:cntrl:]]//g')"
+  bk_json_quote "$1"
 }
 
 fallback_resolved_path() {
@@ -187,16 +178,13 @@ fallback_environment_json() {
   local vars="${BK_SNAPSHOT_ENV_VARS:-$default_vars}"
   local first=true
   local name value
+  local -A seen=()
 
   printf '{'
   for name in $vars; do
-    case "$name" in
-      [A-Za-z_][A-Za-z0-9_]*)
-        ;;
-      *)
-        continue
-        ;;
-    esac
+    [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    [ -z "${seen[$name]:-}" ] || continue
+    seen[$name]=1
     if [ "$name" = "PATH" ]; then
       value="$path_without_wrapper"
     elif [ -z "${!name+x}" ]; then
@@ -383,8 +371,7 @@ if [ "${BK_BUILD_TOOL_WRAPPER_SNAPSHOT:-true}" != "false" ]; then
   mkdir -p "$(dirname "$snapshot_file")"
   snapshot_written=false
   if [ "${BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK:-false}" != "true" ] \
-    && [ -f "$collector" ] \
-    && PATH="$path_without_wrapper" command -v jq >/dev/null 2>&1; then
+    && [ -f "$collector" ]; then
     if ! (
       cd "$repo_root" &&
       PATH="$path_without_wrapper" \

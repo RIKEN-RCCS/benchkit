@@ -16,6 +16,7 @@ mkdir -p "${TMP_DIR}/unknown/results"
 pushd "${TMP_DIR}/unknown" >/dev/null
 BK_NODE_STATUS_SNAPSHOT_REMOTE=0 \
   bash "${REPO_DIR}/scripts/collect_node_status_snapshot.sh" results/node_status_snapshot_run.json >/dev/null
+bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh"
 jq -e '
   .schema_version == 1 and
   .kind == "node_status_snapshot" and
@@ -27,6 +28,10 @@ jq -e '
 popd >/dev/null
 
 mkdir -p "${TMP_DIR}/slurm/results" "${TMP_DIR}/bin"
+mkdir -p "${TMP_DIR}/compute-bin"
+for tool in bash dirname basename mkdir date awk sed tr mktemp rm getconf cat sort timeout; do
+  ln -s "$(command -v "$tool")" "${TMP_DIR}/compute-bin/$tool"
+done
 
 cat > "${TMP_DIR}/bin/hostname" <<'EOF'
 #!/bin/bash
@@ -46,6 +51,7 @@ EOF
 cat > "${TMP_DIR}/bin/srun" <<'EOF'
 #!/bin/bash
 set -euo pipefail
+[ "${BK_TEST_REMOTE_FAIL:-false}" != true ] || exit 17
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -N|-n|--nodes|--ntasks|--ntasks-per-node)
@@ -99,7 +105,7 @@ EOF
 chmod +x "${TMP_DIR}/bin/hostname" "${TMP_DIR}/bin/scontrol" "${TMP_DIR}/bin/srun" "${TMP_DIR}/bin/nvidia-smi"
 
 pushd "${TMP_DIR}/slurm" >/dev/null
-PATH="${TMP_DIR}/bin:${PATH}" \
+PATH="${TMP_DIR}/bin:${TMP_DIR}/compute-bin" \
 SLURM_JOB_ID=123 \
 SLURM_JOB_PARTITION=gpu \
 SLURM_JOB_NODELIST="node-[a-b]" \
@@ -110,6 +116,7 @@ SLURM_CPUS_PER_TASK=32 \
 SLURM_JOB_GPUS="0,1,2,3" \
 BK_NODE_STATUS_SNAPSHOT_TIMEOUT_SECONDS=5 \
   bash "${REPO_DIR}/scripts/collect_node_status_snapshot.sh" results/node_status_snapshot_run.json >/dev/null
+bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh"
 
 jq -e '
   .schema_version == 1 and
@@ -133,5 +140,33 @@ if jq -e 'tostring | contains("1234")' results/node_status_snapshot_run.json >/d
   exit 1
 fi
 popd >/dev/null
+
+capture="${TMP_DIR}/slurm/results/node_status_snapshot_run.json.capture"
+jq '.remote_workers = "{invalid-json"' "$capture" > "${TMP_DIR}/invalid.json.capture"
+bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/invalid.json"
+jq -e '.collection_status == "partial" and .summary.observed_host_count == 1 and
+  (.collection_warnings | index("worker_output_parse_failed") != null)' "${TMP_DIR}/invalid.json" >/dev/null
+
+jq '.remote_workers = ""' "$capture" > "${TMP_DIR}/empty-workers.json.capture"
+bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/empty-workers.json"
+jq -e '.collection_status == "partial" and .summary.observed_host_count == 1' \
+  "${TMP_DIR}/empty-workers.json" >/dev/null
+
+cat "$capture" "$capture" > "${TMP_DIR}/multiple.json.capture"
+printf '%s\n' 'previous snapshot' > "${TMP_DIR}/multiple.json"
+if bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/multiple.json" 2>/dev/null; then
+  echo 'Multiple capture documents unexpectedly accepted' >&2
+  exit 1
+fi
+test "$(cat "${TMP_DIR}/multiple.json")" = 'previous snapshot'
+
+PATH="${TMP_DIR}/bin:${TMP_DIR}/compute-bin" BK_TEST_REMOTE_FAIL=true \
+SLURM_JOB_ID=123 SLURM_JOB_NODELIST='node-[a-b]' \
+  bash "${REPO_DIR}/scripts/collect_node_status_snapshot.sh" "${TMP_DIR}/failed.json" >/dev/null
+bash "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/failed.json"
+jq -e '.collection_status == "partial" and
+  .scheduler.slurm.remote_collection_status == "failed" and
+  .summary.observed_host_count == 1 and
+  (.collection_warnings | index("slurm_remote_collection_failed") != null)' "${TMP_DIR}/failed.json" >/dev/null
 
 echo "node status snapshot test passed"
