@@ -47,6 +47,7 @@ scripts/tests/test_bk_input_info.sh
 scripts/tests/test_bk_timing_observations.sh
 scripts/tests/test_qws_timing_artifact.sh
 scripts/tests/test_build_environment_snapshot.sh
+scripts/tests/test_compute_snapshot_dependencies.sh
 scripts/tests/test_node_status_snapshot.sh
 scripts/tests/test_ci_timing_context.sh
 scripts/tests/test_ncu_plan_generation.sh

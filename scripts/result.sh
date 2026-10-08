@@ -743,6 +743,12 @@ environment_snapshot_block=$(build_environment_snapshot_block)
 build_node_status_snapshot_block() {
   local snapshot_file="results/node_status_snapshot_run.json"
 
+  if [ -f "${snapshot_file}.capture" ]; then
+    if ! bash "$(dirname "${BASH_SOURCE[0]}")/result_server/finalize_node_status_snapshot.sh" "$snapshot_file"; then
+      echo "Error: node status capture could not be finalized" >&2
+      return 1
+    fi
+  fi
   if [ ! -f "$snapshot_file" ]; then
     printf '%s' ""
     return 0
@@ -781,7 +787,7 @@ build_node_status_snapshot_block() {
     }'
 }
 
-node_status_snapshot_block=$(build_node_status_snapshot_block)
+node_status_snapshot_block=$(build_node_status_snapshot_block) || exit 1
 
 build_input_info_block() {
   local input_info_file="results/input_info.json"

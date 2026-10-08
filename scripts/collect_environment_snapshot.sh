@@ -1,20 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# shellcheck source=scripts/json_output.sh
+source "$(dirname "${BASH_SOURCE[0]}")/json_output.sh"
+
 out_file="${1:-results/environment_snapshot.json}"
 snapshot_stage="${BK_SNAPSHOT_STAGE:-unknown}"
 mkdir -p "$(dirname "$out_file")"
 
 json_string_array() {
-  jq -R -s -c 'split("\n") | map(select(length > 0))'
-}
-
-json_empty_object_if_blank() {
-  if [ -n "$1" ]; then
-    printf '%s' "$1"
-  else
-    printf '{}'
-  fi
+  bk_json_lines_array
 }
 
 command_path() {
@@ -109,8 +104,12 @@ snapshot_tool_commands_json() {
 
   local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
   local cmd path real_path version sha256
+  local fields=()
+  local -A seen=()
 
   for cmd in $commands; do
+    [ -z "${seen[$cmd]:-}" ] || continue
+    seen[$cmd]=1
     path=$(command_path "$cmd")
     if [ -z "$path" ]; then
       continue
@@ -118,14 +117,11 @@ snapshot_tool_commands_json() {
     real_path=$(resolved_command_path "$path")
     version=$(snapshot_command_version "$cmd")
     sha256=$(command_sha256 "$real_path")
-    jq -n -c \
-      --arg name "$cmd" \
-      --arg path "$path" \
-      --arg real_path "$real_path" \
-      --arg version "$version" \
-      --arg sha256 "$sha256" \
-      '{key: $name, value: {path: $path, real_path: $real_path, version: $version, sha256: $sha256}}'
-  done | jq -s -c 'from_entries'
+    fields+=(json "$cmd" "$(bk_json_object \
+      string path "$path" string real_path "$real_path" \
+      string version "$version" string sha256 "$sha256")")
+  done
+  bk_json_object "${fields[@]}"
 }
 
 snapshot_env_is_sensitive() {
@@ -148,15 +144,13 @@ snapshot_environment_json() {
 
   local vars="${BK_SNAPSHOT_ENV_VARS:-$default_vars}"
   local name value
+  local fields=()
+  local -A seen=()
 
   for name in $vars; do
-    case "$name" in
-      [A-Za-z_][A-Za-z0-9_]*)
-        ;;
-      *)
-        continue
-        ;;
-    esac
+    [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    [ -z "${seen[$name]:-}" ] || continue
+    seen[$name]=1
     if [ -z "${!name+x}" ]; then
       continue
     fi
@@ -165,8 +159,9 @@ snapshot_environment_json() {
     else
       value="${!name}"
     fi
-    jq -n -c --arg key "$name" --arg value "$value" '{key: $key, value: $value}'
-  done | jq -s -c 'from_entries'
+    fields+=(string "$name" "$value")
+  done
+  bk_json_object "${fields[@]}"
 }
 
 module_list_json="[]"
@@ -205,98 +200,31 @@ hostname_value=$(hostname 2>/dev/null || true)
 uname_value=$(uname -srmo 2>/dev/null || uname -a 2>/dev/null || true)
 cpu_model=$(awk -F: '/model name|Hardware|Processor/ {gsub(/^ +/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)
 
-jq -n \
-  --arg schema_version "1" \
-  --arg stage "$snapshot_stage" \
-  --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg system "${BK_SYSTEM:-${system:-}}" \
-  --arg execution_activity "${BK_EXECUTION_ACTIVITY:-}" \
-  --arg allocation_project_id "${BK_ALLOCATION_PROJECT_ID:-}" \
-  --arg runner_description "${CI_RUNNER_DESCRIPTION:-}" \
-  --arg runner_id "${CI_RUNNER_ID:-}" \
-  --arg runner_tags "${CI_RUNNER_TAGS:-}" \
-  --arg hostname "$hostname_value" \
-  --arg uname "$uname_value" \
-  --arg cpu_model "$cpu_model" \
-  --arg scheduler_kind "$scheduler_kind" \
-  --arg slurm_job_id "${SLURM_JOB_ID:-${SLURM_JOBID:-}}" \
-  --arg slurm_partition "${SLURM_JOB_PARTITION:-}" \
-  --arg pbs_jobid "${PBS_JOBID:-}" \
-  --arg jacamar_scheduler_action "${JACAMAR_SCHEDULER_ACTION:-}" \
-  --arg ci_server "${CI_SERVER_URL:-}" \
-  --arg ci_project "${CI_PROJECT_PATH:-}" \
-  --arg ci_pipeline_id "${CI_PIPELINE_ID:-}" \
-  --arg ci_job_id "${CI_JOB_ID:-}" \
-  --arg ci_job_name "${CI_JOB_NAME:-}" \
-  --arg ci_commit_ref "${CI_COMMIT_REF_NAME:-}" \
-  --arg ci_commit_sha "${CI_COMMIT_SHA:-}" \
-  --arg benchkit_commit "$git_commit" \
-  --arg benchkit_branch "$git_branch" \
-  --arg benchkit_dirty "$git_dirty" \
-  --arg gcc_version "$(snapshot_command_version gcc)" \
-  --arg mpicc_version "$(snapshot_command_version mpicc)" \
-  --arg nvcc_version "$(snapshot_command_version nvcc)" \
-  --arg python_version "$(snapshot_command_version python3)" \
-  --arg container_image_path "${BK_SOURCE_CONTAINER_PATH:-}" \
-  --arg container_image_sha256sum "${BK_SOURCE_CONTAINER_SHA256:-}" \
-  --argjson modules "$module_list_json" \
-  --argjson commands "$(json_empty_object_if_blank "$tool_commands_json")" \
-  --argjson environment "$(json_empty_object_if_blank "$tool_environment_json")" \
-  '{
-    schema_version: ($schema_version | tonumber),
-    stage: $stage,
-    collected_at: $collected_at,
-    system: {
-      name: $system,
-      allocation_project_id: $allocation_project_id,
-      host: {
-        hostname: $hostname,
-        uname: $uname,
-        cpu_model: $cpu_model
-      }
-    },
-    execution: {
-      activity: $execution_activity
-    },
-    scheduler: {
-      kind: $scheduler_kind,
-      slurm_job_id: $slurm_job_id,
-      slurm_partition: $slurm_partition,
-      pbs_jobid: $pbs_jobid,
-      jacamar_scheduler_action: $jacamar_scheduler_action
-    },
-    runner: {
-      description: $runner_description,
-      id: $runner_id,
-      tags: $runner_tags
-    },
-    ci: {
-      server_url: $ci_server,
-      project_path: $ci_project,
-      pipeline_id: $ci_pipeline_id,
-      job_id: $ci_job_id,
-      job_name: $ci_job_name,
-      commit_ref_name: $ci_commit_ref,
-      commit_sha: $ci_commit_sha
-    },
-    benchkit: {
-      branch: $benchkit_branch,
-      commit_hash: $benchkit_commit,
-      dirty: $benchkit_dirty
-    },
-    toolchain: {
-      gcc: $gcc_version,
-      mpicc: $mpicc_version,
-      nvcc: $nvcc_version,
-      python3: $python_version,
-      modules: $modules,
-      commands: $commands,
-      environment: $environment,
-      container: {
-        image_path: $container_image_path,
-        image_sha256sum: $container_image_sha256sum
-      }
-    }
-  }' > "$out_file"
+bk_json_object \
+  json schema_version 1 string stage "$snapshot_stage" \
+  string collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  json system "$(bk_json_object string name "${BK_SYSTEM:-${system:-}}" \
+    string allocation_project_id "${BK_ALLOCATION_PROJECT_ID:-}" \
+    json host "$(bk_json_object string hostname "$hostname_value" \
+      string uname "$uname_value" string cpu_model "$cpu_model")")" \
+  json execution "$(bk_json_object string activity "${BK_EXECUTION_ACTIVITY:-}")" \
+  json scheduler "$(bk_json_object string kind "$scheduler_kind" \
+    string slurm_job_id "${SLURM_JOB_ID:-${SLURM_JOBID:-}}" \
+    string slurm_partition "${SLURM_JOB_PARTITION:-}" string pbs_jobid "${PBS_JOBID:-}" \
+    string jacamar_scheduler_action "${JACAMAR_SCHEDULER_ACTION:-}")" \
+  json runner "$(bk_json_object string description "${CI_RUNNER_DESCRIPTION:-}" \
+    string id "${CI_RUNNER_ID:-}" string tags "${CI_RUNNER_TAGS:-}")" \
+  json ci "$(bk_json_object string server_url "${CI_SERVER_URL:-}" \
+    string project_path "${CI_PROJECT_PATH:-}" string pipeline_id "${CI_PIPELINE_ID:-}" \
+    string job_id "${CI_JOB_ID:-}" string job_name "${CI_JOB_NAME:-}" \
+    string commit_ref_name "${CI_COMMIT_REF_NAME:-}" string commit_sha "${CI_COMMIT_SHA:-}")" \
+  json benchkit "$(bk_json_object string branch "$git_branch" \
+    string commit_hash "$git_commit" string dirty "$git_dirty")" \
+  json toolchain "$(bk_json_object string gcc "$(snapshot_command_version gcc)" \
+    string mpicc "$(snapshot_command_version mpicc)" string nvcc "$(snapshot_command_version nvcc)" \
+    string python3 "$(snapshot_command_version python3)" json modules "$module_list_json" \
+    json commands "$tool_commands_json" json environment "$tool_environment_json" \
+    json container "$(bk_json_object string image_path "${BK_SOURCE_CONTAINER_PATH:-}" \
+      string image_sha256sum "${BK_SOURCE_CONTAINER_SHA256:-}")")" > "$out_file"
 
 echo "Wrote environment snapshot: $out_file"

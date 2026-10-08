@@ -15,10 +15,13 @@ trap 'chmod -R u+rwX "${TMP_DIR}" 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 mkdir -p "${TMP_DIR}/project/scripts/result_server" "${TMP_DIR}/project/results" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/collect_timing.sh" "${TMP_DIR}/project/scripts/collect_timing.sh"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
+cp "${REPO_DIR}/scripts/json_output.sh" "${TMP_DIR}/project/scripts/json_output.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
 cp "${REPO_DIR}/scripts/result_server/client_env.sh" "${TMP_DIR}/project/scripts/result_server/client_env.sh"
 cp "${REPO_DIR}/scripts/result_server/send_results.sh" "${TMP_DIR}/project/scripts/result_server/send_results.sh"
 cp "${REPO_DIR}/scripts/result_server/process_and_send_results.sh" "${TMP_DIR}/project/scripts/result_server/process_and_send_results.sh"
+cp "${REPO_DIR}/scripts/result_server/finalize_node_status_snapshot.sh" "${TMP_DIR}/project/scripts/result_server/"
+cp "${REPO_DIR}/scripts/result_server/node_status_snapshot.jq" "${TMP_DIR}/project/scripts/result_server/"
 
 cat > "${TMP_DIR}/project/results/result" <<'EOF'
 FOM:1.25 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:2 nthreads:3
@@ -228,3 +231,32 @@ if grep -q "should-not-leak" "${TMP_DIR}/process.log"; then
 fi
 
 echo "process_and_send_results read-only artifact test passed"
+
+# New captures are finalized in the writable sender workspace, not in CI artifacts.
+chmod -R u+w "${TMP_DIR}/project/results"
+BK_NODE_STATUS_SNAPSHOT_REMOTE=0 \
+  bash "${REPO_DIR}/scripts/collect_node_status_snapshot.sh" \
+  "${TMP_DIR}/project/results/node_status_snapshot_run.json" >/dev/null
+cp "${TMP_DIR}/project/results/node_status_snapshot_run.json" "${TMP_DIR}/original-node.json"
+chmod -R a-w "${TMP_DIR}/project/results"
+pushd "${TMP_DIR}/project" >/dev/null
+bash scripts/result_server/process_and_send_results.sh qws Fugaku cross build run 12345 > "${TMP_DIR}/capture-process.log"
+popd >/dev/null
+cmp "${TMP_DIR}/original-node.json" "${TMP_DIR}/project/results/node_status_snapshot_run.json"
+jq -e '.node_status_snapshot.summary.observed_host_count == 1 and
+  .node_status_snapshot.artifact.path == "results/node_status_snapshot_run.json"' \
+  "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
+
+# Invalid new evidence must not reuse an older successful snapshot or be sent.
+chmod -R u+w "${TMP_DIR}/project/results"
+printf '%s\n' '{"record_format":"unknown"}' > "${TMP_DIR}/project/results/node_status_snapshot_run.json.capture"
+before=$(wc -l < "${TMP_DIR}/curl.log")
+pushd "${TMP_DIR}/project" >/dev/null
+if bash scripts/result_server/process_and_send_results.sh qws Fugaku cross build run 12345 \
+    > "${TMP_DIR}/invalid-process.log" 2>&1; then
+  echo 'Invalid node capture unexpectedly succeeded' >&2
+  exit 1
+fi
+popd >/dev/null
+test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
+echo 'Node capture sender integration tests passed'
