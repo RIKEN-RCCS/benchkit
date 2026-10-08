@@ -230,8 +230,7 @@ bk_record_input --directory "$input_dir" || exit 1
 bk_record_input --file "$input_file" || exit 1
 ```
 
-The helper uses Python 3 (standard library only, selectable with `PYTHON_BIN`) to
-stream each regular file through SHA-256. It embeds a versioned `manifest` with
+The helper records a versioned `manifest` with
 relative file names, byte counts, and full hashes in `input_info`, alongside
 `content_digest`, `manifest_digest`, `file_count`, total `size_bytes`, and
 `collection_elapsed_seconds`. Result packaging preserves this evidence. No input
@@ -466,7 +465,7 @@ starts. Applications must not create marker files, find the newest MPI log, or
 depend on scheduler job IDs to locate their output. Use conventional stdout/stderr
 prefixes when configuring per-rank launcher output.
 
-Collection requires Python, does not follow symlinks, and is bounded to 10,000
+Collection does not follow symlinks and is bounded to 10,000
 directory entries, five levels, and 256 MiB of rank-zero output per scan. Errors
 stop the run; a nonzero command exit code is preserved. The common runner prints
 at most 80 lines from the final 16 KiB of the log on failure. After application-specific validation fails,
@@ -499,14 +498,13 @@ CI の build job では `scripts/build_tool_wrappers/` を `PATH` の先頭に�
 特殊な独自ビルド command でこれらを経由しない場合は、その command 用の wrapper を共通層に追加してから使ってください。
 この snapshot には、主要 compiler / MPI / CUDA / profiler / container command の path と version、loaded modules、allowlist された build 環境変数が含まれます。
 `TOKEN`、`SECRET`、`PASSWORD`、`AUTH`、`KEY`、`CERT` などを名前に含む環境変数は値を redacted として記録します。
-環境と CI 時刻の collector は Bash と通常の shell utilities で記録し、JSON の生成に jq / Python を必要としません。command の version は存在する場合だけ観測します。
+command の version は存在する場合だけ観測します。
 
 この actual build snapshot は、将来の build cache key や、同じ source から異なる binary が生じた場合の原因確認に使う前提の記録です。
 
 ### run placement / node status snapshot の方針
 
 CI の共通 job は、benchmark 本体の `run_start` より前に `results/node_status_snapshot_run.json.capture` を記録します。
-計算ノード側は Bash と通常の shell utilities で値を採取し、jq / Python / curl を必要としません。
 send_results 側で capture を解釈・集計し、従来の `results/node_status_snapshot_run.json` を生成します。
 既存の完成済み snapshot も引き続き受け付けます。新しい capture が不正な場合は送信を停止し、古い snapshot で代替しません。
 app の `run.sh` からこの snapshot 用 helper を呼ぶ必要はありません。
@@ -842,6 +840,10 @@ app 固有の GPU kernel window、短縮 input、module override、profiler over
 ---
 
 ## 6. ローカルテスト
+
+`build.sh` / `run.sh` で使う言語・ツールはアプリ側で選べます。
+PR 前に、対象サイトの実際の build / run 経路で動作を確認してください。
+必要な module や依存ツールは `programs/<code>/README.md` に記載します。
 
 ### 手元環境でのスクリプト確認
 ```bash
