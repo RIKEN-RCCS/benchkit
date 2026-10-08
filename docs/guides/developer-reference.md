@@ -238,6 +238,7 @@ Typical requirements include:
 - Bash and standard shell tooling
 - GNU coreutils, GNU findutils, and `flock` (util-linux) for common log collection
   and session initialization
+- GNU `date` with `%s`/`%N` support and `awk` for command elapsed time
 - GitLab CI runner support
 - site-specific scheduler/runtime support
 - Python 3.12 or later for result shaping and portal components
@@ -245,8 +246,19 @@ Typical requirements include:
 - package-specific runtimes for external estimation tools
 - optional profiler tools depending on system support
 
-Benchmark timing, input-manifest verification, and result/profile association
-also currently use Python 3, selectable with `PYTHON_BIN`.
+Command timing and execution/profile association use shell tools on compute
+nodes. Their JSON consumer uses `jq` on the result sender. Input-manifest
+verification and merging execution-scoped input observations still use Python 3,
+selectable with `PYTHON_BIN`; NCU planning also retains its Python runtime.
+
+Elapsed time uses two realtime clock samples immediately around the command,
+outside record serialization and lock acquisition. Records identify this as
+`elapsed_clock: realtime` and `elapsed_scope: command`; `command_started_at`
+is the first sample, while `started_at` records stage preparation. Negative
+elapsed time or unsupported clock output is rejected. Forward clock adjustments
+cannot be distinguished from execution time; decimal output digits do not
+guarantee clock accuracy. Earlier monotonic records included some recorder
+overhead and must not be assumed to have identical measurement boundaries.
 
 Common workflow requirements do not restrict application-specific languages or
 tools. Applications may use dependencies verified on their target build/run

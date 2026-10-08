@@ -460,7 +460,7 @@ export PYTHON_BIN=/nonexistent/python
 bk_run --log captured.log -- bash -c 'printf "current output\\n" > stdout.1.0'
 grep -q 'current output' captured.log
 test ! -e results/input_info.json
-test ! -e results/.workflow_session.json
+test -f results/.workflow_session.json
 status=0
 bk_run --log failed.log -- bash -c 'printf "rank failure\\n" > stderr.1.0; exit 23' || status=$?
 test "$status" -eq 23
@@ -468,13 +468,106 @@ grep -q 'rank failure' failed.log
 ! grep -q 'current output' failed.log
 ''')
         self.assert_ok(result)
-        # Timing is still a separate Python dependency, not silently claimed here.
-        self.assertIn("/nonexistent/python", result.stderr)
+        self.assertNotIn("/nonexistent/python", result.stderr)
+        documents = [json.loads(path.read_text()) for path in (self.root / "results").glob("workflow_timing_*.json")]
+        self.assertEqual(sorted(stage["exit_code"] for doc in documents for stage in doc["stages"]), [0, 23])
 
     def test_direct_output_remains_unmodified(self):
         result = self.run_shell("bk_run -- printf 'hello'; bk_run --elapsed duration -- printf ' world'")
         self.assert_ok(result)
         self.assertEqual(result.stdout, "hello world")
+
+    def test_timing_and_output_binding_without_python_jq_or_curl(self):
+        tools = self.root / "shell-tools"
+        tools.mkdir()
+        for name in ("bash", "date", "awk", "dirname", "basename", "mkdir", "mktemp",
+                     "rm", "mv", "cp", "cat", "flock", "cmp", "sha256sum", "cut",
+                     "od", "tr", "realpath", "find", "head", "sort", "stat", "dd", "tail"):
+            (tools / name).symlink_to(shutil.which(name))
+        self.env.update(PATH=str(tools), PYTHON_BIN="/nonexistent/python")
+        result = self.run_shell('''
+! command -v python3
+! command -v jq
+! command -v curl
+bk_run --log out.log --elapsed duration -- printf 'output'
+[[ "$duration" =~ ^[0-9]+[.][0-9]+$ ]]
+bk_emit_result --from-log out.log --exp Sample --fom "$duration" > results/result
+status=0
+bk_profile --from-log out.log -- bk_profile_execute --tool example -- bash -c 'exit 23' || status=$?
+test "$status" -eq 23
+''')
+        self.assert_ok(result)
+        path, = (self.root / "results").glob("workflow_timing_*.json")
+        document = json.loads(path.read_text())
+        self.assertEqual(document["exp"], "Sample")
+        self.assertEqual(document["elapsed_clock"], "realtime")
+        self.assertEqual([stage["exit_code"] for stage in document["stages"]], [0, 23])
+        self.assertNotIn("/nonexistent/python", result.stderr)
+
+    def test_clock_samples_surround_command_not_recorder(self):
+        result = self.run_shell('''
+bash() {
+  if [[ "$1" == */profiling/workflow_timing.sh ]]; then
+    printf 'recorder-%s\\n' "$4" >> order
+  fi
+  command bash "$@"
+}
+_bk_clock_sample() {
+  printf 'clock\\n' >> order
+  if [ -f executed ]; then
+    printf '1700000001.125000000|2023-11-14T22:13:21.125000000Z'
+  else
+    printf '1700000000.875000000|2023-11-14T22:13:20.875000000Z'
+  fi
+}
+solver() { printf 'command\\n' >> order; : > executed; }
+bk_run --elapsed duration -- solver
+test "$duration" = 0.250000000
+''')
+        self.assert_ok(result)
+        self.assertEqual((self.root / "order").read_text().splitlines(),
+                         ["recorder-start", "clock", "command", "clock", "recorder-finish"])
+        path, = (self.root / "results").glob("workflow_timing_*.json")
+        stage = json.loads(path.read_text())["stages"][0]
+        self.assertEqual(stage["elapsed_seconds"], 0.25)
+        self.assertEqual(stage["command_started_at"], "2023-11-14T22:13:20.875000000Z")
+
+    def test_backward_clock_cannot_publish_elapsed_or_hide_command_failure(self):
+        result = self.run_shell('''
+_bk_clock_sample() {
+  if [ -f executed ]; then
+    printf '1700000000.000000000|2023-11-14T22:13:20.000000000Z'
+  else
+    printf '1700000001.000000000|2023-11-14T22:13:21.000000000Z'
+  fi
+}
+solver() { : > executed; return "$1"; }
+for expected in 0 23; do
+  rm -f executed
+  duration=old
+  status=0
+  bk_run --elapsed duration -- solver "$expected" || status=$?
+  test -z "$duration"
+  if [ "$expected" -eq 0 ]; then test "$status" -ne 0; else test "$status" -eq 23; fi
+done
+''')
+        self.assert_ok(result)
+        path, = (self.root / "results").glob("workflow_timing_*.json")
+        for stage in json.loads(path.read_text())["stages"]:
+            self.assertEqual(stage["status"], "running")
+            self.assertNotIn("elapsed_seconds", stage)
+
+    def test_unsupported_date_output_stops_required_elapsed_before_launch(self):
+        result = self.run_shell('''
+date() { printf '1700000000.N|2023-11-14T22:13:20.NZ'; }
+duration=old
+status=0
+bk_run --elapsed duration -- touch must-not-run || status=$?
+test "$status" -ne 0
+test -z "$duration"
+test ! -e must-not-run
+''')
+        self.assert_ok(result)
 
     def test_result_and_delayed_profile_are_bound_by_output_not_execution_order(self):
         result = self.run_shell('''
@@ -483,7 +576,7 @@ bk_emit_result --from-log first.log --exp First --fom 1 > results/result
 bk_run --log second.log -- printf 'second\n'
 bk_emit_result --from-log second.log --exp Second --fom 2 >> results/result
 bk_profile --from-log first.log -- bk_profile_execute --tool ncu --phase collect -- true
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results manifest > manifest.json
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results manifest > manifest.json
 ''')
         self.assert_ok(result)
         observations = json.loads((self.root / "manifest.json").read_text())["observations"]
@@ -500,7 +593,7 @@ bk_run --log gs.log -- true
 bk_run --log rt.log -- true
 bk_profile --from-log gs.log -- bk_profile_execute --tool nsys --phase collect -- true
 bk_emit_result --from-log gs.log --from-log rt.log --exp Combined --fom 1 > results/result
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results manifest > manifest.json
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results manifest > manifest.json
 ''')
         self.assert_ok(result)
         observations = json.loads((self.root / "manifest.json").read_text())["observations"]
@@ -517,7 +610,7 @@ bk_profile --from-log missing.log -- bk_profile_execute --tool ncu -- true
 bk_run --log out.log -- true
 bk_emit_result --from-log out.log --exp Second --fom 2 >> results/result
 bk_run --log unbound.log -- true
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results manifest > manifest.json
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results manifest > manifest.json
 ''')
         self.assert_ok(result)
         observations = json.loads((self.root / "manifest.json").read_text())["observations"]
@@ -606,14 +699,15 @@ bk_run --log old.log -- true
 bk_emit_result --from-log old.log --exp Old --fom 1 > results/result
 '''))
         result = self.run_shell('''
-python_without_start() {
+bash() {
   local arg
-  for arg in "$@"; do [ "$arg" != start ] || return 9; done
-  "$REAL_PYTHON" "$@"
+  if [[ "$1" == */profiling/workflow_timing.sh ]]; then
+    for arg in "$@"; do [ "$arg" != start ] || return 9; done
+  fi
+  command bash "$@"
 }
-REAL_PYTHON="$PYTHON_BIN"
-PYTHON_BIN=python_without_start bk_run --log current.log -- true
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results manifest > manifest.json
+bk_run --log current.log -- true
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results manifest > manifest.json
 ''')
         self.assert_ok(result)
         self.assertEqual(json.loads((self.root / "manifest.json").read_text())["observations"], [])
@@ -641,7 +735,8 @@ grep -q 'command output' ../output.log
         result = self.run_shell('''
 duration=old
 status=0
-PYTHON_BIN=/nonexistent/python bk_run --elapsed duration -- touch must-not-run || status=$?
+_bk_clock_sample() { return 1; }
+bk_run --elapsed duration -- touch must-not-run || status=$?
 test "$status" -ne 0
 test -z "$duration"
 test ! -e must-not-run
@@ -650,21 +745,20 @@ test ! -e must-not-run
 
     def test_required_elapsed_finish_failure_cannot_reuse_old_value(self):
         result = self.run_shell('''
-clock_without_finish() {
+bash() {
   local arg
-  for arg in "$@"; do
-    [ "$arg" != finish ] || return 9
-  done
-  "$REAL_PYTHON" "$@"
+  if [[ "$1" == */profiling/workflow_timing.sh ]]; then
+    for arg in "$@"; do [ "$arg" != finish ] || return 9; done
+  fi
+  command bash "$@"
 }
-REAL_PYTHON="$PYTHON_BIN"
 duration=old
 status=0
-PYTHON_BIN=clock_without_finish bk_run --elapsed duration -- true || status=$?
+bk_run --elapsed duration -- true || status=$?
 test "$status" -ne 0
 test -z "$duration"
 status=0
-PYTHON_BIN=clock_without_finish bk_run --elapsed duration -- bash -c 'exit 23' || status=$?
+bk_run --elapsed duration -- bash -c 'exit 23' || status=$?
 test "$status" -eq 23
 ''')
         self.assert_ok(result)
@@ -854,7 +948,7 @@ exec "$@"
         self.env["QWS_PROFILER_LEVEL"] = "single"
         result = self.run_shell('''
 bash programs/qws/run.sh Fugaku 1 1 1
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results manifest > manifest.json
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results manifest > manifest.json
 ''')
         self.assert_ok(result)
         observations = json.loads((self.root / "manifest.json").read_text())["observations"]
@@ -866,7 +960,7 @@ bash programs/qws/run.sh Fugaku 1 1 1
         self.assertTrue(all(stage["stage"] == "benchmark" for stage in documents["CASE1"]["stages"]))
         self.assertTrue(list((self.root / "results").glob("profile_*/profile.tgz")))
         self.assert_ok(self.run_shell('''
-"$PYTHON_BIN" "$TEST_REPO/scripts/profiling/workflow_timing.py" --results-dir results publish-primary --exp CASE0 --destination padata0.tgz
+bash "$TEST_REPO/scripts/result_server/workflow_timing.sh" --results-dir results publish-primary --exp CASE0 --destination padata0.tgz
 '''))
         self.assertTrue((self.root / "results/padata0.tgz").is_file())
         self.assert_ok(self.run_shell('''

@@ -2,7 +2,7 @@
 # Common ownership of profiler outputs; command builders only select launchers.
 
 _bk_profile_record() {
-  "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py" \
+  bash "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh" \
     --results-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}" "$@"
 }
 

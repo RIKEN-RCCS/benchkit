@@ -60,7 +60,7 @@ bk_run_context() {
     echo "Benchkit timing: previous execution context could not be invalidated" >&2
     return 0
   fi
-  "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py" \
+  bash "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh" \
     --results-dir "$results_dir" context --session "$_BK_WORKFLOW_SESSION_ID" || \
     echo "Benchkit timing: execution context could not be recorded" >&2
   return 0
@@ -72,7 +72,8 @@ _bk_execute_command() {
   shift 5
   local token="" command_status=0
   local results_dir="${BK_RUN_RESULTS_DIR:-${_BK_DEFAULT_RESULTS_DIR}}"
-  local recorder="${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py"
+  local recorder="${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh"
+  local command_started="" command_finished=""
   local scope_args=()
   if [ -n "${_BK_EXECUTION_OUTPUT:-}" ]; then
     scope_args=(--output "$_BK_EXECUTION_OUTPUT")
@@ -80,10 +81,15 @@ _bk_execute_command() {
   if [ -n "${_BK_EXECUTION_INPUTS:-}" ]; then
     scope_args+=(--inputs "$_BK_EXECUTION_INPUTS")
   fi
-  token=$("${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
+  token=$(bash "$recorder" --results-dir "$results_dir" \
     start --session "$_BK_WORKFLOW_SESSION_ID" --exp "${BK_RUN_EXP:-}" \
     --stage "$stage" --tool "$tool" --profile "$profile" "${scope_args[@]}") || token=""
   if [ -n "$elapsed_variable" ] && [ -z "$token" ]; then
+    echo "Benchkit timing: requested elapsed time is unavailable" >&2
+    return 1
+  fi
+  command_started=$(_bk_clock_sample) || command_started=""
+  if [ -n "$elapsed_variable" ] && [ -z "$command_started" ]; then
     echo "Benchkit timing: requested elapsed time is unavailable" >&2
     return 1
   fi
@@ -92,22 +98,30 @@ _bk_execute_command() {
   else
     "$@" || command_status=$?
   fi
+  command_finished=$(_bk_clock_sample) || command_finished=""
   if [ -n "$token" ]; then
     if [ -n "$elapsed_variable" ]; then
-      if elapsed_value=$("${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
-          finish "$token" "$command_status" --print-elapsed); then
+      if elapsed_value=$(bash "$recorder" --results-dir "$results_dir" \
+          finish "$token" "$command_status" --started "$command_started" --finished "$command_finished" --print-elapsed); then
         printf -v "$elapsed_variable" '%s' "$elapsed_value"
       else
         echo "Benchkit timing: requested elapsed time could not be recorded" >&2
         [ "$command_status" -ne 0 ] || command_status=1
       fi
     else
-      "${PYTHON_BIN:-python3}" "$recorder" --results-dir "$results_dir" \
-        finish "$token" "$command_status" || \
+      bash "$recorder" --results-dir "$results_dir" \
+        finish "$token" "$command_status" --started "$command_started" --finished "$command_finished" || \
         echo "Benchkit timing: stage completion could not be recorded" >&2
     fi
   fi
   return "$command_status"
+}
+
+_bk_clock_sample() {
+  local sample
+  sample=$(LC_ALL=C date -u '+%s.%N|%Y-%m-%dT%H:%M:%S.%NZ') || return 1
+  [[ "$sample" =~ ^[0-9]{1,11}\.[0-9]{9}\|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z$ ]] || return 1
+  printf '%s\n' "$sample"
 }
 
 bk_run() {
@@ -174,15 +188,15 @@ bk_run() {
       rm -f "$_bk_state"
       return 1
     fi
-    _BK_EXECUTION_INPUTS="${_bk_input_dir}/input_info.json"
+    _BK_EXECUTION_INPUTS="${_bk_input_dir}/items.jsonl"
     for _bk_input_file in "${_bk_input_files[@]}"; do
-      BK_INPUT_INFO_FILE="$_BK_EXECUTION_INPUTS" \
+      BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
         BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
         bk_record_input --file "$_bk_input_file" || _bk_status=$?
       [ "$_bk_status" -eq 0 ] || break
     done
     if [ "$_bk_parameter_input" -eq 1 ] && [ "$_bk_status" -eq 0 ]; then
-      BK_INPUT_INFO_FILE="$_BK_EXECUTION_INPUTS" \
+      BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
         BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
         bk_record_input --dataset-id command-parameters --command "$(basename "$1")" -- "${@:2}" || _bk_status=$?
     fi
@@ -405,7 +419,7 @@ bk_emit_result() {
   esac
 
   if [ "${#_bk_result_logs[@]}" -gt 0 ]; then
-    "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.py" \
+    bash "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh" \
       --results-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}" bind \
       --input-info "${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}" \
       --input-items "${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}" \

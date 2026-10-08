@@ -480,8 +480,8 @@ When elapsed wall time itself is needed for an application-defined FOM or sectio
 bk_run --log phase.log --elapsed phase_seconds -- ./solver input.dat
 ```
 
-The named shell variable receives the common monotonic timing measurement,
-including launcher and timing-recorder overhead but excluding rank-log collection.
+The named shell variable receives the elapsed time of the command,
+including launcher time but excluding record updates and rank-log collection.
 Call directly, not through command substitution or a pipeline, to retain the
 variable. A requested elapsed measurement is required: failure to record it fails
 the call rather than reusing an old value. Ordinary timing observations remain

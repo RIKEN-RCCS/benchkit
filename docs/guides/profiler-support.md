@@ -81,7 +81,9 @@ NCU plan生成は `bk_generate_ncu_plan` へ従来のgenerator引数を渡す。
 いずれも時計操作や記録ファイルの管理は共通層が担当する。
 
 共通層は実験条件ごとの `results/workflow_timing_*.json` にstage、tool、profile、
-UTC開始・終了時刻、monotonic時計による経過秒、終了コードを保存する。
+UTC時刻、実時間時計によるコマンド経過秒、終了コードを保存する。
+`started_at`はstage準備時刻、`command_started_at`と`finished_at`は実行直前・直後の
+時計の値。`elapsed_clock: realtime`と`elapsed_scope: command`で計測方式を識別する。
 更新はlockとatomic replacementを使い、並列コマンドの追記を保持する。
 `scripts/result.sh` が現在の実行sessionの記録を `timing_observations` へ自動追加し、
 既存のapp独自timing observationも保持する。Resultの `Exp` によりscopeを絞り、
@@ -92,7 +94,9 @@ context未設定の `bk_profiler` はarchiveの出力ディレクトリを使い
 記録はコマンドのwall timeであり、MPI起動やprofilerのreport finalizationを含む。
 queue待ちやarchive圧縮は含まず、アプリのFOMを置き換えない。profile用の再実行時間を
 そのままアプリのslowdown比とは解釈せず、同条件の通常実行と比較する。
-計測用helper自身の起動・記録には小さな追加コストがある。
+記録処理・lock待ちは経過秒の計測区間から外す。時計取得とshell制御のコストは残る。
+時計の逆行は拒否するが、前進方向の時刻変更は実行時間と区別できない。
+旧monotonic記録は記録処理の一部を含み、同一の計測区間とはみなさない。
 
 失敗・timeoutはコマンドの終了コードを保持する。finishを書けずに中断したstageは
 `running` と開始時刻だけが残るため、未完了として扱い、成功やゼロ秒とみなさない。
