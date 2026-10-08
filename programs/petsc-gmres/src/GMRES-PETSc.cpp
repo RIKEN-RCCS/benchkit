@@ -1,4 +1,6 @@
-// CSR data transfered to PETSc  Copyright,  Atsushi Suzuki 30 Jul.2025
+// Copyright (c) 2025 RIKEN
+// Original author: Atsushi Suzuki
+// Licensed under the BSD-3-Clause license. See LICENSE
 //
 // A PETSc KSP (GMRES + GAMG algebraic multigrid preconditioner) benchmark:
 // load the stokes2 sparse matrix (a Stokes flow saddle-point system,
