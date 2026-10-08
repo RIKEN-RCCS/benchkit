@@ -277,6 +277,12 @@ def _input_descriptors(data, *, shorten=True):
             parts.append(version)
         if digest:
             parts.append(short_identifier(str(digest), 12) if shorten else str(digest))
+        if item.get("collection_status") == "unavailable":
+            parts.append("input observation unavailable")
+        elif item.get("verification_status") == "mismatch":
+            parts.append("differs from reference")
+        elif item.get("reference_error"):
+            parts.append("reference unavailable")
         if parts:
             descriptors.append("@".join(parts))
     return descriptors

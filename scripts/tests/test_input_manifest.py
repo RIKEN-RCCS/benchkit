@@ -39,6 +39,19 @@ class InputManifestTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertNotIn(str(self.root), result.stderr)
 
+    def assert_unavailable(self, *args, reference=False):
+        result = self.run_cli(*args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        item = json.loads(result.stdout)
+        self.assertEqual(item["verification_status"], "unavailable")
+        if reference:
+            self.assertEqual(item["collection_status"], "recorded")
+            self.assertIn("reference_error", item)
+        else:
+            self.assertEqual(item["collection_status"], "unavailable")
+            self.assertNotIn("content_digest", item)
+        self.assertNotIn(str(self.root), result.stdout + result.stderr)
+
     def test_directory_identity_is_independent_of_location_and_mtime(self):
         copied = self.root / "copied"
         shutil.copytree(self.source, copied)
@@ -68,7 +81,7 @@ class InputManifestTests(unittest.TestCase):
         two.write_bytes(b"")
         self.assertEqual(collector.collect(two, "file")["sha256"], hashlib.sha256(b"").hexdigest())
 
-    def test_expected_manifest_requires_exact_file_set_and_content(self):
+    def test_reference_differences_record_actual_content_without_rejection(self):
         observed = collector.collect(self.source, "directory")
         expected_file = self.root / "expected.json"
         expected_file.write_bytes(collector.canonical_json(observed["manifest"]))
@@ -78,12 +91,19 @@ class InputManifestTests(unittest.TestCase):
         self.assertEqual(verified["verification_status"], "verified")
         self.assertEqual(verified["dataset_version"], observed["content_digest"])
         (self.source / "extra").write_bytes(b"extra")
-        self.assert_cli_failure("--directory", self.source, "--expected-manifest", expected_file)
+        result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["verification_status"], "mismatch")
         (self.source / "extra").unlink()
         (self.source / "config").write_bytes(b"Config")
-        self.assert_cli_failure("--directory", self.source, "--expected-manifest", expected_file)
+        result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
+        changed = json.loads(result.stdout)
+        self.assertEqual(changed["verification_status"], "mismatch")
+        self.assertNotEqual(changed["content_digest"], observed["content_digest"])
         (self.source / "config").unlink()
-        self.assert_cli_failure("--directory", self.source, "--expected-manifest", expected_file)
+        result = self.run_cli("--directory", self.source, "--expected-manifest", expected_file)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["verification_status"], "mismatch")
 
     def test_internal_symlinks_match_copied_content(self):
         link = self.source / "link"
@@ -104,18 +124,19 @@ class InputManifestTests(unittest.TestCase):
         for target in (outside, self.source, self.root / "missing"):
             with self.subTest(target=target.name):
                 link.symlink_to(target)
-                self.assert_cli_failure("--directory", self.source)
+                self.assert_unavailable("--directory", self.source)
                 link.unlink()
         os.mkfifo(link)
-        self.assert_cli_failure("--directory", self.source)
-        self.assert_cli_failure("--file", link)
-        self.assert_cli_failure("--file", outside, "--expected-manifest", link)
+        self.assert_unavailable("--directory", self.source)
+        self.assert_unavailable("--file", link)
+        self.assert_unavailable("--file", outside, "--expected-manifest", link, reference=True)
         link.unlink()
         empty = self.root / "empty"
         empty.mkdir()
-        self.assert_cli_failure("--directory", empty)
-        self.assert_cli_failure("--file", self.source)
-        self.assert_cli_failure("--directory", outside)
+        self.assert_unavailable("--directory", empty)
+        self.assert_unavailable("--file", self.source)
+        self.assert_unavailable("--directory", outside)
+        self.assert_unavailable("--file", self.root / "missing")
 
     def test_changes_during_collection_do_not_produce_a_manifest(self):
         original = collector.hash_file
@@ -138,22 +159,21 @@ class InputManifestTests(unittest.TestCase):
         for field, value in (("sha256", "short"), ("size_bytes", True), ("path", "../outside")):
             invalid = {**valid, "files": [{**valid["files"][0], field: value}]}
             expected.write_text(json.dumps(invalid))
-            self.assert_cli_failure("--file", self.source / "config", "--expected-manifest", expected)
+            self.assert_unavailable("--file", self.source / "config", "--expected-manifest", expected, reference=True)
         expected.write_text('{"schema_version": 1}')
-        self.assert_cli_failure("--file", self.source / "config", "--expected-manifest", expected)
+        self.assert_unavailable("--file", self.source / "config", "--expected-manifest", expected, reference=True)
         with patch.object(collector, "MAX_ENTRIES", 1):
             with self.assertRaises(collector.InputError):
                 collector.collect(self.source, "directory")
-        with patch.object(collector, "hash_file") as hasher:
-            with self.assertRaises(collector.InputError):
-                collector.collect(self.source / "nested/wave data", "file", valid)
-            hasher.assert_not_called()
+        observed = collector.collect(self.source / "nested/wave data", "file", valid)
+        self.assertEqual(observed["verification_status"], "mismatch")
+        self.assertEqual(observed["sha256"], hashlib.sha256(b"abc").hexdigest())
 
     def test_generated_metadata_and_expectations_must_be_outside_directory(self):
         self.assert_cli_failure("--directory", self.source, "--metadata-output", self.source / "result.json")
         expected = self.source / "expected.json"
         expected.write_text("{}")
-        self.assert_cli_failure("--directory", self.source, "--expected-manifest", expected)
+        self.assert_unavailable("--directory", self.source, "--expected-manifest", expected, reference=True)
 
     def test_expected_manifest_rejects_duplicate_keys(self):
         source = self.source / "config"
@@ -173,8 +193,11 @@ class InputManifestTests(unittest.TestCase):
             with self.subTest(manifest=value):
                 expected.write_text(value)
                 result = self.run_cli("--file", source, "--expected-manifest", expected)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                item = json.loads(result.stdout)
+                self.assertEqual(item["verification_status"], "unavailable")
+                self.assertEqual(item["collection_status"], "recorded")
+                self.assertNotIn("DO_NOT_EXPORT", result.stdout)
                 self.assertNotIn("DO_NOT_EXPORT", result.stderr)
                 self.assertNotIn(str(self.root), result.stderr)
 
@@ -220,7 +243,7 @@ exit "${TEST_MPI_STATUS:-0}"
         return subprocess.run(["bash", str(app / "run.sh"), system, "1", "1", "1"],
                               cwd=self.root, env=self.env, capture_output=True, text=True, timeout=15)
 
-    def test_petsc_verifies_before_mpi_and_rejects_failed_execution(self):
+    def test_petsc_records_changed_input_and_failed_execution(self):
         app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
         data = self.root / "matrix.dat"
         data.write_bytes(b"abc")
@@ -228,20 +251,24 @@ exit "${TEST_MPI_STATUS:-0}"
         (app / "input-manifest.json").write_bytes(collector.canonical_json(manifest))
         self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
         data.write_bytes(b"abd")
-        failed = self.run_app(app)
-        self.assertNotEqual(failed.returncode, 0)
-        self.assertFalse((self.root / "mpi-started").exists())
-        self.assertFalse((self.root / "results/input_info.json").exists())
+        changed = self.run_app(app)
+        self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.assertTrue((self.root / "mpi-started").exists())
+        info = json.loads((self.root / "results/input_info.json").read_text())
+        self.assertEqual(info["inputs"][0]["sha256"], hashlib.sha256(b"abd").hexdigest())
         data.write_bytes(b"abc")
         passed = self.run_app(app)
         self.assertEqual(passed.returncode, 0, passed.stderr)
         info = json.loads((self.root / "results/input_info.json").read_text())
-        self.assertEqual(info["inputs"][0]["verification_status"], "verified")
+        self.assertEqual(info["inputs"][0]["verification_status"], "declared")
         self.assertIn("FOM:", (self.root / "results/result").read_text())
         self.env["TEST_MPI_STATUS"] = "13"
         failed = self.run_app(app)
         self.assertEqual(failed.returncode, 13)
         self.assertEqual((self.root / "results/result").read_text(), "")
+        self.assertTrue((self.root / "results/input_info.json").exists())
+        records = [json.loads(path.read_text()) for path in (self.root / "results").glob("workflow_timing_*.json")]
+        self.assertTrue(any(stage.get("exit_code") == 13 for record in records for stage in record["stages"]))
 
     def test_petsc_input_location_does_not_change_experiment_identity(self):
         app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
@@ -260,7 +287,7 @@ exit "${TEST_MPI_STATUS:-0}"
             experiment = next(field.removeprefix("Exp:") for field in result if field.startswith("Exp:"))
             info = json.loads((self.root / "results/input_info.json").read_text())["inputs"][0]
             self.assertTrue(experiment)
-            self.assertEqual(info["verification_status"], "verified")
+            self.assertEqual(info["verification_status"], "declared")
             self.assertEqual(info["result_exp"], experiment)
             identities.append((experiment, info["dataset_id"], info["dataset_version"], info["sha256"]))
         self.assertEqual(*identities)
@@ -293,14 +320,17 @@ exit "${TEST_MPI_STATUS:-0}"
             identities.append(restart["content_digest"])
         self.assertNotEqual(*identities)
 
-    def test_salmon_stops_before_mpi_when_collection_fails(self):
+    def test_salmon_records_collection_failure_without_stopping_mpi(self):
         app = self.prepare_app("salmon", "salmon")
         source = self.prepare_restart()
         os.mkfifo(source / "restart/pipe")
         result = self.run_app(app)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root / "mpi-started").exists())
-        self.assertFalse((self.root / "results/input_info.json").exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / "mpi-started").exists())
+        info = json.loads((self.root / "results/input_info.json").read_text())
+        restart = next(item for item in info["inputs"] if item["kind"] == "pre-staged-restart")
+        self.assertEqual(restart["collection_status"], "unavailable")
+        self.assertNotIn("content_digest", restart)
 
     def test_petsc_and_salmon_consume_common_rank_output(self):
         self.env["TEST_MPI_RANK_LOG"] = "1"

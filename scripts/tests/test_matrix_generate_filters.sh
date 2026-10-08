@@ -48,6 +48,7 @@ pushd "${TMP_DIR}/project" >/dev/null
 bash scripts/matrix_generate.sh code=filterapp system=FilterSystem nodes=1
 grep -q '^filterapp_FilterSystem_N1_P2_T3_run:' .gitlab-ci.generated.yml
 grep -q 'name: $CI_COMMIT_BRANCH' .gitlab-ci.generated.yml
+grep -q '^    when: always$' .gitlab-ci.generated.yml
 if grep -q '^filterapp_FilterSystem_N2_P2_T3_run:' .gitlab-ci.generated.yml; then
   echo "nodes=1 filter must not emit the 2-node fixture job" >&2
   exit 1
@@ -75,6 +76,7 @@ fi
 
 bash scripts/matrix_generate.sh code=filterapp system=NativeSystem numproc_node=2
 grep -q '^filterapp_NativeSystem_N1_P2_T3_build_run:' .gitlab-ci.generated.yml
+grep -q '^    when: always$' .gitlab-ci.generated.yml
 grep -q '^  tags: \["compute-tag"\]' .gitlab-ci.generated.yml
 grep -q 'select=1:ncpus=14:ngpus=3:mpiprocs=2:ompthreads=3' .gitlab-ci.generated.yml
 grep -q '^  needs: \["filterapp_NativeSystem_N1_P2_T3_build_run"\]' .gitlab-ci.generated.yml
@@ -84,7 +86,7 @@ if grep -Eq '^  stage: (build|run)$' .gitlab-ci.generated.yml; then
 fi
 awk '
   /bash scripts\/build_with_cache.sh filterapp NativeSystem programs\/filterapp/ { build = NR }
-  /bash programs\/filterapp\/run.sh NativeSystem 1 2 3/ { run = NR }
+  /bash scripts\/run_benchmark.sh programs\/filterapp\/run.sh NativeSystem 1 2 3/ { run = NR }
   END { exit !(build && run > build) }
 ' .gitlab-ci.generated.yml
 

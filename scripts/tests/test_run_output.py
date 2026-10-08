@@ -681,17 +681,82 @@ test ! -f results/input_info.json
                          ["declared", "command-parameters", "later"])
         self.assertEqual(items[1]["result_exp"], "Sample")
 
-    def test_missing_input_stops_launch_and_arguments_are_opt_in(self):
+    def test_missing_input_is_recorded_without_stopping_launch_and_arguments_are_opt_in(self):
         result = self.run_shell('''
-if bk_run --log fail.log --input-file missing -- touch must-not-run; then exit 1; fi
-test ! -e must-not-run
+bk_run --log fail.log --input-file missing -- touch launched
+test -e launched
+bk_emit_result --from-log fail.log --exp Missing --fom 2 > results/result
 bk_run --log out.log -- printf '%s' do-not-publish
-bk_emit_result --from-log out.log --exp Sample --fom 1 > results/result
+bk_emit_result --from-log out.log --exp Sample --fom 1 >> results/result
 ''')
         self.assert_ok(result)
-        self.assertFalse((self.root / "results/input_info.json").exists())
+        item = json.loads((self.root / "results/input_info.json").read_text())["inputs"][0]
+        self.assertEqual(item["collection_status"], "unavailable")
+        self.assertEqual(item["result_exp"], "Missing")
+        self.assertNotIn("content_digest", item)
         for path in (self.root / "results").glob("*.json"):
             self.assertNotIn("do-not-publish", path.read_text())
+
+    def test_unavailable_input_collector_does_not_mask_application_failure(self):
+        self.env["PYTHON_BIN"] = "/nonexistent/python"
+        result = self.run_shell('''
+status=0
+bk_run --log failed.log --input-file missing -- bash -c 'echo launched; exit 23' || status=$?
+test "$status" -eq 23
+grep -q launched failed.log
+''')
+        self.assert_ok(result)
+        path, = (self.root / "results").glob("workflow_timing_*.json")
+        record = json.loads(path.read_text())
+        self.assertEqual(record["inputs"][0]["collection_status"], "unavailable")
+        self.assertEqual(record["stages"][0]["exit_code"], 23)
+        self.assertFalse((self.root / "results/result").exists())
+
+    def test_retained_logs_follow_each_input_even_when_fom_extraction_fails(self):
+        (self.root / "application.sh").write_text('''
+set -euo pipefail
+source "$TEST_REPO/scripts/bk_functions.sh"
+printf first > input
+bk_run --log solver.log --input-file input -- bash -c 'echo first-output; exit 23' || :
+printf second > input
+bk_run --log solver.log --input-file input -- echo second-output
+exit 17
+''')
+        result = self.run_shell('bash "$TEST_REPO/scripts/run_benchmark.sh" application.sh')
+        self.assertEqual(result.returncode, 17, result.stderr)
+        execution = json.loads((self.root / "results/execution.json").read_text())
+        self.assertEqual(execution["status"], "failed")
+        self.assertEqual(execution["exit_code"], 17)
+        self.assertFalse((self.root / "results/result").exists())
+        records = list((self.root / "results").glob("workflow_timing_*.json"))
+        self.assertEqual(len(records), 2)
+        expected = {hashlib.sha256(content).hexdigest(): (text, code) for content, text, code in
+                    [(b"first", "first-output", 23), (b"second", "second-output", 0)]}
+        for path in records:
+            record = json.loads(path.read_text())
+            stage, = record["stages"]
+            text, code = expected[record["inputs"][0]["sha256"]]
+            self.assertEqual(stage["exit_code"], code)
+            scope = path.stem.removeprefix("workflow_timing_")
+            log = self.root / "results" / f"execution-output_{scope}_{stage['id']}.log"
+            self.assertEqual(log.read_text().strip(), text)
+
+    def test_rejected_launch_does_not_retain_previous_output_as_new_evidence(self):
+        result = self.run_shell('''
+bk_run --log solver.log -- echo previous-output
+_bk_clock_sample() { return 1; }
+if bk_run --log solver.log --elapsed seconds -- touch launched; then exit 1; fi
+test ! -e launched
+''')
+        self.assert_ok(result)
+        records = list((self.root / "results").glob("workflow_timing_*.json"))
+        self.assertEqual(len(records), 2)
+        self.assertEqual(len(list((self.root / "results").glob("execution-output_*.log"))), 1)
+        for path in records:
+            stage, = json.loads(path.read_text())["stages"]
+            scope = path.stem.removeprefix("workflow_timing_")
+            log = self.root / "results" / f"execution-output_{scope}_{stage['id']}.log"
+            self.assertEqual(log.exists(), stage["status"] == "completed")
 
     def test_failed_new_recorder_cannot_publish_previous_session(self):
         self.assert_ok(self.run_shell('''

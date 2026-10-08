@@ -22,6 +22,10 @@ class InputError(ValueError):
     pass
 
 
+class DestinationError(InputError):
+    pass
+
+
 def canonical_json(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
@@ -134,12 +138,6 @@ def load_expected(path, kind):
 def collect(source, kind, expected=None):
     started = time.monotonic()
     before, files = inventory(source, kind)
-    if expected is not None:
-        # Reject missing/extra files and size mismatches before reading large inputs.
-        sizes = [(relative, identity[3]) for relative, _, identity in files]
-        expected_sizes = [(entry["path"], entry["size_bytes"]) for entry in expected["files"]]
-        if sizes != expected_sizes:
-            raise InputError("input file list or sizes do not match the expected manifest")
     print("bk_record_input: hashing {} input file(s)".format(len(files)), file=sys.stderr)
     entries = []
     for relative, path, identity in files:
@@ -152,8 +150,6 @@ def collect(source, kind, expected=None):
     encoded = canonical_json(manifest)
     if len(encoded) > MAX_MANIFEST_BYTES:
         raise InputError("input manifest exceeds collection limits")
-    if expected is not None and manifest != expected:
-        raise InputError("input does not match the expected manifest")
     manifest_digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
     result = {
         "manifest": manifest,
@@ -161,11 +157,14 @@ def collect(source, kind, expected=None):
         "content_digest": "sha256:" + entries[0]["sha256"] if kind == "file" else manifest_digest,
         "size_bytes": sum(entry["size_bytes"] for entry in entries),
         "file_count": len(entries),
-        "verification_status": "verified" if expected is not None else "declared",
+        "verification_status": ("verified" if manifest == expected else "mismatch") if expected is not None else "declared",
+        "collection_status": "recorded",
         "collection_elapsed_seconds": round(time.monotonic() - started, 6),
     }
     if kind == "file":
         result["sha256"] = entries[0]["sha256"]
+    if expected is not None:
+        result["reference_manifest_digest"] = "sha256:" + hashlib.sha256(canonical_json(expected)).hexdigest()
     return result
 
 
@@ -183,22 +182,42 @@ def main():
             raise InputError("input metadata must be an object")
         kind = "file" if args.file is not None else "directory"
         source_path = args.file if kind == "file" else args.directory
-        root = source_path.resolve(strict=True)
+        root = source_path.resolve()
         for output in args.metadata_output:
             resolved = output.resolve()
             if resolved == root or (kind == "directory" and root in resolved.parents):
-                raise InputError("metadata output must be outside the input")
-        if args.expected_manifest is not None and kind == "directory":
-            resolved = args.expected_manifest.resolve(strict=True)
-            if resolved == root or root in resolved.parents:
-                raise InputError("expected manifest must be outside the input directory")
-        expected = load_expected(args.expected_manifest, kind) if args.expected_manifest is not None else None
-        observed = collect(source_path, kind, expected)
+                raise DestinationError("metadata output must be outside the input")
+        expected = None
+        reference_unavailable = False
+        if args.expected_manifest is not None:
+            try:
+                resolved = args.expected_manifest.resolve(strict=True)
+                if kind == "directory" and (resolved == root or root in resolved.parents):
+                    raise InputError("reference is inside input directory")
+                expected = load_expected(args.expected_manifest, kind)
+            except (OSError, ValueError, RuntimeError):
+                reference_unavailable = True
+        try:
+            observed = collect(source_path, kind, expected)
+        except (OSError, ValueError, RuntimeError):
+            observed = {"collection_status": "unavailable", "collection_error": "collection_failed",
+                        "verification_status": "unavailable"}
+        if reference_unavailable:
+            observed["verification_status"] = "unavailable"
+            observed["reference_error"] = "invalid_or_unavailable"
+        for field in ("manifest", "manifest_digest", "content_digest", "sha256", "size_bytes", "file_count",
+                      "collection_elapsed_seconds", "collection_error", "reference_error", "reference_manifest_digest"):
+            item.pop(field, None)
         item.update(observed)
-        if not item.get("dataset_version"):
+        if not item.get("dataset_version") and observed.get("content_digest"):
             item["dataset_version"] = observed["content_digest"]
+        if observed["verification_status"] in {"mismatch", "unavailable"}:
+            print("bk_record_input: input observation is " + observed["verification_status"], file=sys.stderr)
         print(canonical_json(item).decode("ascii"))
         return 0
+    except DestinationError:
+        print("bk_record_input: metadata output must be outside the input", file=sys.stderr)
+        return 2
     except InputError as exc:
         print("bk_record_input: " + str(exc), file=sys.stderr)
     except (OSError, ValueError, RuntimeError):

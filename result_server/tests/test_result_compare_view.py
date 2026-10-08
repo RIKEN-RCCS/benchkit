@@ -214,6 +214,19 @@ def test_input_comparison_uses_full_digest_beyond_display_prefix():
         assert summary["baseline"]["input_display"] == summary["latest"]["input_display"]
 
 
+def test_input_comparison_distinguishes_unavailable_and_reference_mismatch():
+    base = {"dataset_id": "demo", "collection_status": "recorded", "sha256": "a" * 64}
+    for change, message in [
+        ({"dataset_id": "demo", "collection_status": "unavailable"}, "input observation unavailable"),
+        ({**base, "verification_status": "mismatch"}, "differs from reference"),
+    ]:
+        results = [{"data": {"input_info": {"inputs": [item]}}} for item in (base, change)]
+        summary = build_result_compare_context(results)["comparison_summary"]
+        row = next(row for row in summary["diff_rows"] if row["label"] == "Input")
+        assert row["status"] == "changed"
+        assert message in summary["latest"]["input_display"]
+
+
 def test_build_result_compare_context_uses_vector_axis_metadata():
     context = build_result_compare_context(
         [

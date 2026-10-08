@@ -185,34 +185,12 @@ reject_verification --type file --expected-sha256 "$input_sha256" --expected-siz
 reject_verification --type file --verify-file "$input_path" --expected-sha256 '' --expected-size-bytes 3
 reject_verification --type file --verify-file "$input_path" --expected-sha256 invalid --expected-size-bytes 3
 reject_verification --type file --verify-file "$input_path" --expected-sha256
-for size in '' -1 03 3.0 nope 4; do
+for size in '' -1 03 3.0 nope; do
   reject_verification --type file --verify-file "$input_path" \
     --expected-sha256 "$input_sha256" --expected-size-bytes "$size"
 done
-for path in "$TMP_DIR/missing" "$TMP_DIR"; do
-  reject_verification --type file --verify-file "$path" \
-    --expected-sha256 "$input_sha256" --expected-size-bytes 3
-done
-mkfifo input-pipe
-reject_verification --type file --verify-file input-pipe \
-  --expected-sha256 "$input_sha256" --expected-size-bytes 3
 reject_verification --type restart --verify-file "$input_path" \
   --expected-sha256 "$input_sha256" --expected-size-bytes 3
-# A same-size replacement must not be accepted using cached metadata.
-printf abd > "$input_path"
-reject_verification --type file --verify-file "$input_path" \
-  --expected-sha256 "$input_sha256" --expected-size-bytes 3
-printf abc > "$input_path"
-(
-  bk_sha256_file() { return 1; }
-  reject_verification --type file --verify-file "$input_path" \
-    --expected-sha256 "$input_sha256" --expected-size-bytes 3
-)
-(
-  bk_sha256_file() { printf '%s\n' "$input_sha256"; return 1; }
-  reject_verification --type file --verify-file "$input_path" \
-    --expected-sha256 "$input_sha256" --expected-size-bytes 3
-)
 
 # Symlinks are permitted, but the target bytes are verified on every call.
 ln -s "$input_path" input-link
@@ -237,6 +215,31 @@ if grep -F "$input_path" results/input_info.json; then
   echo "bk_record_input stored an input location" >&2
   exit 1
 fi
+
+# Reference differences and unavailable observations are evidence, not launch gates.
+(
+  bk_reset_input_info
+  printf abd > "$input_path"
+  bk_record_input --dataset-id changed --type file --verify-file "$input_path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes 3
+  bk_record_input --dataset-id different-size --type file --verify-file "$input_path" \
+    --expected-sha256 "$input_sha256" --expected-size-bytes 4
+  jq -e 'all(.inputs[]; .verification_status == "mismatch" and .collection_status == "recorded" and .size_bytes == 3)' results/input_info.json >/dev/null
+  actual_sha=$(printf abd | sha256sum | cut -d ' ' -f 1)
+  jq -e --arg sha "$actual_sha" 'all(.inputs[]; .sha256 == $sha)' results/input_info.json >/dev/null
+  mkfifo input-pipe
+  for path in "$TMP_DIR/missing" "$TMP_DIR" input-pipe; do
+    bk_record_input --dataset-id unavailable --type file --verify-file "$path" \
+      --expected-sha256 "$input_sha256" --expected-size-bytes 3
+  done
+  (
+    bk_sha256_file() { printf '%s\n' "$input_sha256"; return 1; }
+    bk_record_input --dataset-id unreadable --type file --verify-file "$input_path" \
+      --expected-sha256 "$input_sha256" --expected-size-bytes 3
+  )
+  jq -e 'all(.inputs[2:][]; .collection_status == "unavailable" and (has("sha256") | not))' results/input_info.json >/dev/null
+  printf abc > "$input_path"
+)
 
 bk_write_source_info_env \
   git \
@@ -289,15 +292,21 @@ popd >/dev/null
   fi
   cp results/input_info.json expected-info.json
   cp results/.input_info_items.jsonl expected-items.jsonl
-  reject_verification --file missing
   reject_verification --directory input-tree --file input-tree/nested/input
   reject_verification --file input-tree/nested/input --verify-file input-tree/nested/input
   reject_verification --expected-manifest expected-tree.json
   reject_verification --directory input-tree --type matrix
   reject_verification --directory "$TMP_DIR"
+  PYTHON_BIN=false reject_verification --directory /
+  PYTHON_BIN=false BK_INPUT_INFO_FILE="$TMP_DIR/input-tree/nested/input" \
+    reject_verification --file input-tree/nested/input
+  test "$(< input-tree/nested/input)" = abc
   (
-    PYTHON_BIN=false reject_verification --file input-tree/nested/input
+    PYTHON_BIN=false bk_record_input --file input-tree/nested/input
+    jq -e '.inputs[-1].collection_status == "unavailable" and (.inputs[-1] | has("content_digest") | not)' results/input_info.json >/dev/null
   )
+  bk_record_input --file missing
+  jq -e '.inputs[-1].collection_status == "unavailable"' results/input_info.json >/dev/null
   bk_record_input --file input-tree/nested/input
   if command -v jq >/dev/null 2>&1; then
     jq -e '.inputs[-1].verification_status == "declared" and .inputs[-1].file_count == 1' results/input_info.json >/dev/null

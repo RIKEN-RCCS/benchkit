@@ -84,6 +84,7 @@ _bk_execute_command() {
   token=$(bash "$recorder" --results-dir "$results_dir" \
     start --session "$_BK_WORKFLOW_SESSION_ID" --exp "${BK_RUN_EXP:-}" \
     --stage "$stage" --tool "$tool" --profile "$profile" "${scope_args[@]}") || token=""
+  if [ "$stage" = benchmark ]; then _BK_EXECUTION_RECORD="$token"; fi
   if [ -n "$elapsed_variable" ] && [ -z "$token" ]; then
     echo "Benchkit timing: requested elapsed time is unavailable" >&2
     return 1
@@ -94,7 +95,10 @@ _bk_execute_command() {
     return 1
   fi
   if [ -n "$log_file" ]; then
-    "$@" > "$log_file" 2>&1 || command_status=$?
+    {
+      if [ "$stage" = benchmark ]; then _BK_EXECUTION_LAUNCHED=1; fi
+      "$@" || command_status=$?
+    } > "$log_file" 2>&1 || command_status=$?
   else
     "$@" || command_status=$?
   fi
@@ -126,7 +130,7 @@ _bk_clock_sample() {
 
 bk_run() {
   local _bk_log="" _bk_elapsed="" _bk_seconds="" _bk_state="" _bk_status=0
-  local _BK_EXECUTION_OUTPUT=""
+  local _BK_EXECUTION_OUTPUT="" _BK_EXECUTION_RECORD="" _BK_EXECUTION_LAUNCHED=0
   local _BK_EXECUTION_INPUTS="" _bk_input_dir="" _bk_input_file
   local _bk_input_files=() _bk_launcher=() _bk_parameter_input=0
   while [ "$#" -gt 0 ]; do
@@ -185,37 +189,55 @@ bk_run() {
       return 2
     fi
     if ! _bk_input_dir=$(mktemp -d "${_BK_DEFAULT_RESULTS_DIR}/.run-input.XXXXXX"); then
-      rm -f "$_bk_state"
-      return 1
-    fi
-    _BK_EXECUTION_INPUTS="${_bk_input_dir}/items.jsonl"
-    for _bk_input_file in "${_bk_input_files[@]}"; do
-      BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
-        BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
-        bk_record_input --file "$_bk_input_file" || _bk_status=$?
-      [ "$_bk_status" -eq 0 ] || break
-    done
-    if [ "$_bk_parameter_input" -eq 1 ] && [ "$_bk_status" -eq 0 ]; then
-      BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
-        BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
-        bk_record_input --dataset-id command-parameters --command "$(basename "$1")" -- "${@:2}" || _bk_status=$?
+      echo 'bk_run: input records unavailable; execution will continue' >&2
+    else
+      _BK_EXECUTION_INPUTS="${_bk_input_dir}/items.jsonl"
+      for _bk_input_file in "${_bk_input_files[@]}"; do
+        BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
+          BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
+          bk_record_input --file "$_bk_input_file" || _bk_status=$?
+        [ "$_bk_status" -eq 0 ] || break
+      done
+      if [ "$_bk_parameter_input" -eq 1 ] && [ "$_bk_status" -eq 0 ]; then
+        BK_INPUT_INFO_FILE="${_bk_input_dir}/input_info.json" \
+          BK_INPUT_INFO_ITEMS_FILE="${_bk_input_dir}/items.jsonl" \
+          bk_record_input --dataset-id command-parameters --command "$(basename "$1")" -- "${@:2}" || _bk_status=$?
+      fi
+      if [ ! -f "$_BK_EXECUTION_INPUTS" ]; then
+        _BK_EXECUTION_INPUTS=""
+        echo 'bk_run: input records unavailable; execution will continue' >&2
+      fi
     fi
   fi
   if [ "$_bk_status" -eq 0 ]; then
     _bk_execute_command benchmark none "" "$_bk_log" "${_bk_elapsed:+_bk_seconds}" "${_bk_launcher[@]}" "$@" || _bk_status=$?
   fi
   [ -z "$_bk_input_dir" ] || rm -rf "$_bk_input_dir"
-  if [ -n "$_bk_log" ]; then
+  if [ -n "$_bk_log" ] && [ "$_BK_EXECUTION_LAUNCHED" -eq 1 ]; then
     if ! bash "${BK_BENCHKIT_ROOT}/scripts/run_output.sh" \
         collect --state "$_bk_state" --log "$_bk_log"; then
       [ "$_bk_status" -ne 0 ] || _bk_status=1
     fi
-    rm -f "$_bk_state"
     if [ "$_bk_status" -ne 0 ]; then
       echo "Benchkit run: command or output collection failed (status $_bk_status)" >&2
       bk_diagnose_log "$_bk_log"
     fi
+    local retained_log log_name="" results_dir="${BK_RUN_RESULTS_DIR:-${_BK_DEFAULT_RESULTS_DIR}}"
+    if [[ "$_BK_EXECUTION_RECORD" =~ ^workflow_timing_([0-9a-f]{64})\.json:([0-9a-f]{32})$ ]]; then
+      log_name="execution-output_${BASH_REMATCH[1]}_${BASH_REMATCH[2]}.log"
+    fi
+    # Keep solver output even if subsequent application-side FOM extraction fails.
+    if retained_log=$(mktemp "$results_dir/.execution-output.XXXXXXXX"); then
+      if ! cp -- "$_bk_log" "$retained_log" || \
+        ! mv -f -- "$retained_log" "$results_dir/${log_name:-execution-output.${retained_log##*.}.log}"; then
+        rm -f -- "$retained_log"
+        echo 'Benchkit run: execution output log unavailable' >&2
+      fi
+    else
+      echo 'Benchkit run: execution output log unavailable' >&2
+    fi
   fi
+  [ -z "$_bk_state" ] || rm -f "$_bk_state"
   [ -z "$_bk_elapsed" ] || printf -v "$_bk_elapsed" '%s' "$_bk_seconds"
   return "$_bk_status"
 }
@@ -1426,6 +1448,8 @@ _bk_record_input_item() {
   _bk_item_verification_status=""
   _bk_item_sha256=""
   _bk_item_size_bytes=""
+  _bk_item_collection_status=""
+  _bk_item_collection_error=""
   _bk_item_recipe=""
   _bk_item_command=""
   _bk_item_arguments=()
@@ -1542,6 +1566,15 @@ _bk_record_input_item() {
         esac
         shift
         ;;
+      --collection-status|--collection-error)
+        [ "$#" -ge 2 ] || return 1
+        if [ "$1" = --collection-status ]; then
+          _bk_item_collection_status="$2"
+        else
+          _bk_item_collection_error="$2"
+        fi
+        shift
+        ;;
       --file|--directory|--expected-manifest)
         if [ $# -lt 2 ]; then
           echo "bk_record_input_item: missing collection argument" >&2
@@ -1615,7 +1648,47 @@ _bk_record_input_item() {
   _bk_item_info_file="${BK_INPUT_INFO_FILE:-${_BK_DEFAULT_RESULTS_DIR}/input_info.json}"
   _bk_item_items_file="${BK_INPUT_INFO_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.input_info_items.jsonl}"
 
-  item_json=$(
+  item_json=$(_bk_input_item_json) || return 1
+
+  if [ "${#observation_args[@]}" -gt 0 ]; then
+    local observed_json observation_status source_path metadata_path destination
+    IFS= read -r -d '' source_path < <(realpath -mz -- "${observation_args[1]}") || return 1
+    for destination in "$_bk_item_info_file" "$_bk_item_items_file"; do
+      IFS= read -r -d '' metadata_path < <(realpath -mz -- "$destination") || return 1
+      if [[ "$metadata_path" = "$source_path" ]] || \
+        { [[ "${observation_args[0]}" = --directory && "$metadata_path" = "${source_path%/}/"* ]]; }; then
+        echo 'bk_record_input: metadata output must be outside the input' >&2
+        return 1
+      fi
+    done
+    if observed_json=$(printf '%s\n' "$item_json" | "${PYTHON_BIN:-python3}" \
+        "${BK_BENCHKIT_ROOT}/scripts/input_manifest.py" "${observation_args[@]}" \
+        --metadata-output "$_bk_item_info_file" --metadata-output "$_bk_item_items_file" 2>/dev/null); then
+      item_json="$observed_json"
+    else
+      observation_status=$?
+      if [ "$observation_status" -eq 2 ]; then
+        echo 'bk_record_input: invalid input metadata destination or collector arguments' >&2
+        return 1
+      fi
+      _bk_item_collection_status=unavailable
+      _bk_item_collection_error=collector_failed
+      _bk_item_verification_status=unavailable
+      _bk_item_sha256="" _bk_item_size_bytes=""
+      echo 'bk_record_input: input observation unavailable; execution may continue' >&2
+      item_json=$(_bk_input_item_json) || return 1
+    fi
+  fi
+  if ! _bk_initialize_metadata input "$_bk_item_info_file" "$_bk_item_items_file" \
+    || ! mkdir -p "$(dirname "$_bk_item_items_file")" \
+    || ! printf '%s\n' "$item_json" >> "$_bk_item_items_file" \
+    || ! _bk_record_input_info_items_file "$_bk_item_info_file" "$_bk_item_items_file"; then
+    echo 'bk_record_input: input record could not be stored; execution may continue' >&2
+  fi
+  return 0
+}
+
+_bk_input_item_json() {
     _bk_input_item_first=1
     printf '{'
     _bk_input_item_string_field "dataset_id" "$_bk_item_dataset_id"
@@ -1630,6 +1703,8 @@ _bk_record_input_item() {
     _bk_input_item_string_field "source_ref" "$_bk_item_source_ref"
     _bk_input_item_string_field "resolved_commit" "$_bk_item_resolved_commit"
     _bk_input_item_string_field "verification_status" "$_bk_item_verification_status"
+    _bk_input_item_string_field "collection_status" "$_bk_item_collection_status"
+    _bk_input_item_string_field "collection_error" "$_bk_item_collection_error"
     _bk_input_item_string_field "sha256" "$_bk_item_sha256"
     if [ -n "$_bk_item_size_bytes" ]; then
       printf ',"size_bytes":%s' "$_bk_item_size_bytes"
@@ -1663,18 +1738,6 @@ _bk_record_input_item() {
       _bk_input_item_first=0
     fi
     printf '}\n'
-  ) || return 1
-
-  if [ "${#observation_args[@]}" -gt 0 ]; then
-    item_json=$(printf '%s\n' "$item_json" | "${PYTHON_BIN:-python3}" \
-      "${BK_BENCHKIT_ROOT}/scripts/input_manifest.py" "${observation_args[@]}" \
-      --metadata-output "$_bk_item_info_file" --metadata-output "$_bk_item_items_file") || return 1
-  fi
-  _bk_initialize_metadata input "$_bk_item_info_file" "$_bk_item_items_file" || return 1
-  mkdir -p "$(dirname "$_bk_item_items_file")" || return 1
-  printf '%s\n' "$item_json" >> "$_bk_item_items_file" || return 1
-
-  _bk_record_input_info_items_file "$_bk_item_info_file" "$_bk_item_items_file"
 }
 
 bk_record_input() {
@@ -1693,6 +1756,8 @@ bk_record_input() {
   _bk_input_verify_file=""
   _bk_input_expected_sha256=""
   _bk_input_expected_size_bytes=""
+  local collection_status="" collection_error=""
+  local _bk_input_actual_sha256="" _bk_input_actual_size=""
   _bk_input_arguments=()
   _bk_input_parameter_args=()
   local observation_kind="" observation_args=() expected_manifest=""
@@ -1958,26 +2023,22 @@ bk_record_input() {
     fi
     _bk_input_expected_sha256="$(bk_lower_hex "$_bk_input_expected_sha256")"
     bk_validate_hex_length "$_bk_input_expected_sha256" 64 "input sha256" || return 1
-    if [ ! -f "$_bk_input_verify_file" ] || [ ! -r "$_bk_input_verify_file" ]; then
-      echo "bk_record_input: verification requires a readable regular file" >&2
-      return 1
+    if _bk_observe_input_file "$_bk_input_verify_file"; then
+      collection_status=recorded
+      _bk_input_verification_status=mismatch
+      if [[ "$_bk_input_actual_size" = "$_bk_input_expected_size_bytes" \
+        && "$_bk_input_actual_sha256" = "$_bk_input_expected_sha256" ]]; then
+        _bk_input_verification_status=verified
+      else
+        echo 'bk_record_input: input differs from reference; observed content recorded' >&2
+      fi
+    else
+      collection_status=unavailable
+      collection_error=collection_failed
+      _bk_input_verification_status=unavailable
+      _bk_input_actual_sha256="" _bk_input_actual_size=""
+      echo 'bk_record_input: input observation unavailable; execution may continue' >&2
     fi
-    if ! _bk_input_actual_size=$( { wc -c < "$_bk_input_verify_file"; } 2>/dev/null); then
-      echo "bk_record_input: unable to read input size" >&2
-      return 1
-    fi
-    _bk_input_actual_size="${_bk_input_actual_size//[[:space:]]/}"
-    if [ "$_bk_input_actual_size" != "$_bk_input_expected_size_bytes" ]; then
-      echo "bk_record_input: input size mismatch" >&2
-      return 1
-    fi
-    # Hash through stdin so filenames cannot affect parsing or leak into diagnostics.
-    if ! _bk_input_actual_sha256=$( { bk_verify_file_sha256 /dev/stdin \
-      "$_bk_input_expected_sha256" "input" < "$_bk_input_verify_file"; } 2>/dev/null); then
-      echo "bk_record_input: input SHA-256 verification failed" >&2
-      return 1
-    fi
-    _bk_input_verification_status="verified"
   fi
 
   _bk_input_call=(
@@ -1987,7 +2048,10 @@ bk_record_input() {
     --verification-status "$_bk_input_verification_status"
   )
   if [ "$_bk_input_verify_requested" -eq 1 ]; then
-    _bk_input_call+=(--sha256 "$_bk_input_actual_sha256" --size-bytes "$_bk_input_actual_size")
+    _bk_input_call+=(--collection-status "$collection_status" --collection-error "$collection_error")
+    if [ "$collection_status" = recorded ]; then
+      _bk_input_call+=(--sha256 "$_bk_input_actual_sha256" --size-bytes "$_bk_input_actual_size")
+    fi
   fi
   if [ -n "$_bk_input_dataset_version" ]; then
     _bk_input_call+=(--dataset-version "$_bk_input_dataset_version")
@@ -2020,6 +2084,23 @@ bk_record_input() {
   fi
 
   _bk_record_input_item "${_bk_input_call[@]}"
+}
+
+_bk_observe_input_file() {
+  local path before after
+  path=$(realpath -e -- "$1" 2>/dev/null) || return 1
+  [ -f "$path" ] && [ ! -L "$path" ] || return 1
+  before=$(stat -Lc '%d:%i:%f:%s:%y:%z' -- "$path" 2>/dev/null) || return 1
+  _bk_input_actual_size=$(stat -Lc '%s' -- "$path" 2>/dev/null) || return 1
+  # Bounded, nonblocking reads prevent a replacement FIFO or growing file from hanging collection.
+  _bk_input_actual_sha256=$(
+    set -o pipefail
+    dd if="$path" iflag=nofollow,nonblock,count_bytes count="$_bk_input_actual_size" status=none 2>/dev/null |
+      bk_sha256_file /dev/stdin
+  ) || return 1
+  [[ "$_bk_input_actual_sha256" =~ ^[0-9a-f]{64}$ ]] || return 1
+  after=$(stat -Lc '%d:%i:%f:%s:%y:%z' -- "$path" 2>/dev/null) || return 1
+  [ "$before" = "$after" ]
 }
 
 bk_record_runtime_parameter_input() {
