@@ -8,6 +8,7 @@
 #   estimate_result_uuid - UUID of the estimate result to re-estimate from
 #   code                 - Program code name (e.g., "qws")
 # Optional CI variables:
+#   BK_ESTIMATE_RUNNER_TAG - Runner tag shared with ordinary estimation jobs
 #   reestimation_reason  - e.g. package-update, model-tuning, manual-rerun
 #   reestimation_trigger - e.g. ci-reestimation, portal, local-test
 #
@@ -27,6 +28,9 @@ if [[ -z "${code:-}" ]]; then
 fi
 
 OUTPUT_FILE=".gitlab-ci.estimate.yml"
+# shellcheck source=scripts/job_functions.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/../job_functions.sh"
+estimate_runner_tag=$(estimate_runner_tag_yaml)
 
 echo "Generating estimate pipeline YAML for code: $code"
 
@@ -50,7 +54,7 @@ fetch_result:
 estimate_${code}:
   stage: estimate
   needs: ["fetch_result"]
-  tags: ["general"]
+  tags: [${estimate_runner_tag}]
   script:
     - echo "Running estimation for ${code}"
     - bash scripts/estimation/run.sh ${code}

@@ -272,6 +272,13 @@ match_filter() {
     return 1
 }
 
+estimate_runner_tag_yaml() {
+    # JSON strings are valid YAML scalars; no JSON runtime is needed to emit them.
+    # shellcheck source=scripts/json_output.sh
+    source "$(dirname -- "${BASH_SOURCE[0]}")/json_output.sh"
+    bk_json_quote "${BK_ESTIMATE_RUNNER_TAG:-fncx-estimate-python}"
+}
+
 gitlab_environment_name_yaml() {
     local environment_name="${BK_GITLAB_ENVIRONMENT:-}"
     local escaped
@@ -413,17 +420,17 @@ emit_estimate_job() {
     local run_job="$3"
     local code="$4"
     local output="$5"
-    local estimate_runner_tag="${BK_ESTIMATE_RUNNER_TAG:-fncx-estimate-python}"
+    local estimate_runner_tag
     local environment_name
 
-    estimate_runner_tag=$(printf '%s' "$estimate_runner_tag" | sed 's/"/\\"/g')
+    estimate_runner_tag=$(estimate_runner_tag_yaml)
     environment_name=$(gitlab_environment_name_yaml)
 
     echo "
 ${job_prefix}_estimate:
   stage: estimate
   needs: [\"${depends_on}\"]
-  tags: [\"${estimate_runner_tag}\"]
+  tags: [${estimate_runner_tag}]
   environment:
     name: ${environment_name}
   script:
