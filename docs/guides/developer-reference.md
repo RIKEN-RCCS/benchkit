@@ -304,9 +304,14 @@ CI artifact access controls must protect these companions, just as execution
 logs; a dot-prefixed directory alone does not make its contents private. Do not
 include them in public artifact bundles.
 Unavailable reference observations do not discard the actual input manifest.
-NCU planning retains its separate Python runtime; its acquisition metadata
-writer still requires `jq` or Python. These profiler-specific paths are separate
-from ordinary input capture and execution association.
+NCU planning retains its separate Python runtime. Acquisition metadata uses
+shell JSON output: `gpu_kernel_profile_metadata` schema 2 preserves discovery
+text in `nsys_discovery_json`, alongside typed launch-window fields. Estimation
+consumers validate and normalize it to the schema-1 object form in memory,
+retaining support for existing metadata without rewriting artifacts. Invalid
+discovery metadata produces a warning and is not attached to estimates; the
+collected profile remains available. This does not change kernel selection or
+estimation algorithms.
 
 Elapsed time uses two realtime clock samples immediately around the command,
 outside record serialization and lock acquisition. Records identify this as

@@ -823,7 +823,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   ncu_archive=$(_bk_gpu_mlp_resolve_section_ncu_archive "$item_json" "$section_name")
   metadata_json_path=$(_bk_gpu_mlp_resolve_section_metadata "$item_json" "$section_name" "$ncu_archive")
   if [[ -n "$metadata_json_path" && -f "$metadata_json_path" ]]; then
-    metadata_json=$(jq -c '.' "$metadata_json_path")
+    metadata_json=$(bk_estimation_read_gpu_profile_metadata "$metadata_json_path")
   fi
 
   if [[ -z "$prediction_csv" ]]; then

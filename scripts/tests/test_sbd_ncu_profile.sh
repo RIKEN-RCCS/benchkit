@@ -239,8 +239,8 @@ jq -e '
   .kind == "gpu_kernel_profile_metadata" and
   .profiler == "ncu" and
   .section == "mult" and
-  .nsys_discovery.section == "mult" and
-  (.nsys_discovery.kernel_match.pattern | contains("sbd::Mult"))
+  (.nsys_discovery_json | fromjson | .section == "mult" and
+    (.kernel_match.pattern | contains("sbd::Mult")))
 ' "${profile_metadata[1]}" >/dev/null
 
 for archive in "${profile_archives[@]}"; do
