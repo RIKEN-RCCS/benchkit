@@ -135,6 +135,14 @@ export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
 transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 
+# The capture format and the existing object format must yield identical estimates.
+jq '.schema_version=2 | .nsys_discovery_json=(.nsys_discovery|tojson) | del(.nsys_discovery)' \
+  results/padata0.metadata.json > results/capture.json
+mv results/capture.json results/padata0.metadata.json
+transformed_capture=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+test "$transformed_single" = "$transformed_capture"
+jq -e '.schema_version == 2 and has("nsys_discovery_json")' results/padata0.metadata.json >/dev/null
+
 unset BK_GPU_KERNEL_ENSEMBLE_PACKAGES
 default_packages=$(_bk_gpu_kernel_ensemble_packages "$(cat "${TMP_DIR}/breakdown.json")" | paste -sd, -)
 test "$default_packages" = "gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v41"

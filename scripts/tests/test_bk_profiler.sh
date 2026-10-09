@@ -282,7 +282,10 @@ test "$BK_PROFILER_ARGS" = "--old-arg"
 test "$BK_PROFILER_NCU_RAW_CSV" = "false"
 test -f "$ncu_acq_archive"
 test -f "$ncu_acq_metadata"
-jq -e '
+(
+source "${REPO_DIR}/scripts/estimation/common.sh"
+bk_estimation_read_gpu_profile_metadata "$ncu_acq_metadata"
+) | jq -e '
   .kind == "gpu_kernel_profile_metadata" and
   .profiler == "ncu" and
   .section == "generic_section" and
@@ -292,7 +295,7 @@ jq -e '
   .ncu.launch_count == 3 and
   .nsys_discovery.section == "generic_section" and
   .nsys_discovery.kernel_name == "sample_kernel"
-' "$ncu_acq_metadata" >/dev/null
+' >/dev/null
 unset BK_PROFILER_ARGS
 unset BK_PROFILER_NCU_RAW_CSV
 
@@ -315,7 +318,7 @@ unset BK_PROFILER_NCU_RAW_CSV
   esac
 )
 
-if bk_run_ncu_acquisition_profile \
+bk_run_ncu_acquisition_profile \
   --profile-name "bad discovery metadata" \
   --kernel-regex 'regex:.*bad.*' \
   --launch-skip 0 \
@@ -326,10 +329,13 @@ if bk_run_ncu_acquisition_profile \
   --section "bad_section" \
   --metadata "${TMP_DIR}/ncu_bad_discovery.metadata.json" \
   --discovery-json '{' \
-  -- bash -c 'printf "ncu bad-discovery target\n"' >/dev/null 2>&1; then
-  echo "bk_run_ncu_acquisition_profile must fail when metadata JSON is invalid" >&2
-  exit 1
-fi
+  -- bash -c 'printf "ncu bad-discovery target\n"' >/dev/null 2>&1
+test -f "${TMP_DIR}/ncu_bad_discovery.tgz"
+jq -e '.nsys_discovery_json == "{"' "${TMP_DIR}/ncu_bad_discovery.metadata.json" >/dev/null
+(
+source "${REPO_DIR}/scripts/estimation/common.sh"
+bk_estimation_read_gpu_profile_metadata "${TMP_DIR}/ncu_bad_discovery.metadata.json"
+) | jq -e '. == {}' >/dev/null
 
 fapp_fail_archive="${TMP_DIR}/fapp_fail.tgz"
 fapp_fail_extract="${TMP_DIR}/fapp_fail_extract"

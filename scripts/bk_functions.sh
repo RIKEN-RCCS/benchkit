@@ -2535,122 +2535,28 @@ bk_resolve_profiler_level() {
 }
 
 bk_write_gpu_kernel_profile_metadata() {
-  _bk_metadata_path="$1"
-  _bk_archive_rel_path="$2"
-  _bk_section_name="$3"
-  _bk_profile_name="$4"
-  _bk_profile_slug="$5"
-  _bk_kernel_regex="$6"
-  _bk_launch_skip="$7"
-  _bk_launch_count="$8"
-  _bk_discovery_metadata_json="${9:-}"
-  if [ -z "$_bk_discovery_metadata_json" ]; then
-    _bk_discovery_metadata_json="{}"
-  fi
-
-  mkdir -p "$(dirname "$_bk_metadata_path")"
-  _bk_metadata_tmp="${_bk_metadata_path}.tmp.$$"
-  if command -v jq >/dev/null 2>&1; then
-    if ! printf '%s' "$_bk_discovery_metadata_json" | jq -e . >/dev/null 2>&1; then
-      echo "bk_write_gpu_kernel_profile_metadata: invalid discovery JSON" >&2
-      rm -f "$_bk_metadata_tmp"
-      return 1
-    fi
-    if jq -n \
-      --arg kind "gpu_kernel_profile_metadata" \
-      --arg profiler "ncu" \
-      --arg section "$_bk_section_name" \
-      --arg profile_name "$_bk_profile_name" \
-      --arg profile_slug "$_bk_profile_slug" \
-      --arg artifact_path "$_bk_archive_rel_path" \
-      --arg kernel_regex "$_bk_kernel_regex" \
-      --argjson launch_skip "$_bk_launch_skip" \
-      --argjson launch_count "$_bk_launch_count" \
-      --argjson discovery "$_bk_discovery_metadata_json" '
-      ($discovery
-        | if type == "object" and (.section // "") == "" and $section != ""
-          then . + {section: $section}
-          else .
-          end) as $normalized_discovery
-      | {
-          schema_version: 1,
-          kind: $kind,
-          profiler: $profiler,
-          section: $section,
-          profile_name: $profile_name,
-          profile_slug: $profile_slug,
-          artifact_path: $artifact_path,
-          ncu: {
-            kernel_regex: $kernel_regex,
-            launch_skip: $launch_skip,
-            launch_count: $launch_count
-          },
-          nsys_discovery: $normalized_discovery
-        }
-      ' > "$_bk_metadata_tmp"; then
-      mv "$_bk_metadata_tmp" "$_bk_metadata_path"
-      return 0
-    fi
-    rm -f "$_bk_metadata_tmp"
-    if ! command -v python3 >/dev/null 2>&1; then
-      return 1
-    fi
-  fi
-
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$_bk_archive_rel_path" "$_bk_section_name" "$_bk_profile_name" \
-      "$_bk_profile_slug" "$_bk_kernel_regex" "$_bk_launch_skip" \
-      "$_bk_launch_count" "$_bk_discovery_metadata_json" > "$_bk_metadata_tmp" <<'PY'
-import json
-import sys
-
-archive_rel_path, section_name, profile_name, profile_slug = sys.argv[1:5]
-kernel_regex, launch_skip, launch_count, discovery_json = sys.argv[5:9]
-try:
-    discovery = json.loads(discovery_json)
-except json.JSONDecodeError:
-    print("bk_write_gpu_kernel_profile_metadata: invalid discovery JSON", file=sys.stderr)
-    raise SystemExit(1)
-if not isinstance(discovery, dict):
-    print("bk_write_gpu_kernel_profile_metadata: discovery JSON must be an object", file=sys.stderr)
-    raise SystemExit(1)
-if not discovery.get("section") and section_name:
-    discovery["section"] = section_name
-
-json.dump(
-    {
-        "schema_version": 1,
-        "kind": "gpu_kernel_profile_metadata",
-        "profiler": "ncu",
-        "section": section_name,
-        "profile_name": profile_name,
-        "profile_slug": profile_slug,
-        "artifact_path": archive_rel_path,
-        "ncu": {
-            "kernel_regex": kernel_regex,
-            "launch_skip": int(launch_skip),
-            "launch_count": int(launch_count),
-        },
-        "nsys_discovery": discovery,
-    },
-    sys.stdout,
-    indent=2,
-    sort_keys=True,
-)
-sys.stdout.write("\n")
-PY
-    _bk_metadata_status=$?
-    if [ "$_bk_metadata_status" -eq 0 ]; then
-      mv "$_bk_metadata_tmp" "$_bk_metadata_path"
-      return 0
-    fi
-    rm -f "$_bk_metadata_tmp"
-    return "$_bk_metadata_status"
-  else
-    echo "bk_write_gpu_kernel_profile_metadata: jq or python3 is required" >&2
-    rm -f "$_bk_metadata_tmp"
+  [ "$#" -ge 8 ] && [ "$#" -le 9 ] || return 2
+  local path="$1" archive="$2" section="$3" name="$4" slug="$5" kernel="$6"
+  local skip="$7" count="$8" discovery="${9:-}" temporary
+  [[ "$skip" =~ ^(0|[1-9][0-9]*)$ && "$count" =~ ^[1-9][0-9]*$ ]] || {
+    echo 'bk_write_gpu_kernel_profile_metadata: invalid launch window' >&2
     return 1
+  }
+  [ -n "$discovery" ] || discovery='{}'
+  # shellcheck source=scripts/json_output.sh
+  source "${BK_BENCHKIT_ROOT}/scripts/json_output.sh"
+  mkdir -p "$(dirname -- "$path")" || return 1
+  temporary=$(mktemp "${path}.tmp.XXXXXX") || return 1
+  # Capture discovery verbatim; consumers with a JSON runtime interpret it later.
+  if bk_json_object json schema_version 2 string kind gpu_kernel_profile_metadata \
+      string profiler ncu string section "$section" string profile_name "$name" \
+      string profile_slug "$slug" string artifact_path "$archive" \
+      json ncu "$(bk_json_object string kernel_regex "$kernel" json launch_skip "$skip" json launch_count "$count")" \
+      string nsys_discovery_json "$discovery" > "$temporary" && mv -- "$temporary" "$path"; then
+    return 0
   fi
+  rm -f -- "$temporary"
+  return 1
 }
 
 bk_run_ncu_acquisition_profile() {

@@ -284,6 +284,21 @@ source "$TEST_REPO/scripts/bk_functions.sh"
     def assert_ok(self, result):
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def shell_only_tools(self):
+        tools = self.root / "shell-tools"
+        tools.mkdir()
+        for name in ("bash", "date", "awk", "dirname", "basename", "mkdir", "mktemp",
+                     "rm", "mv", "cp", "cat", "flock", "cmp", "sha256sum", "cut",
+                     "od", "tr", "realpath", "find", "head", "sort", "stat", "dd", "tail",
+                     "tee", "wc", "mkfifo", "tar", "gzip"):
+            (tools / name).symlink_to(shutil.which(name))
+        self.env.update(PATH=str(tools), PYTHON_BIN="/nonexistent/python")
+
+    def read_gpu_metadata(self, path):
+        return subprocess.run(["bash", "-c", 'source "$1/scripts/estimation/common.sh"; '
+                               'bk_estimation_read_gpu_profile_metadata "$2"',
+                               "bash", str(self.repo), str(path)], text=True, capture_output=True, timeout=15)
+
     def profile_tools(self):
         directory = self.root / "bin"
         directory.mkdir(exist_ok=True)
@@ -516,14 +531,7 @@ grep -q 'rank failure' failed.log
         self.assertEqual(result.stdout, "hello world")
 
     def test_timing_and_output_binding_without_python_jq_or_curl(self):
-        tools = self.root / "shell-tools"
-        tools.mkdir()
-        for name in ("bash", "date", "awk", "dirname", "basename", "mkdir", "mktemp",
-                     "rm", "mv", "cp", "cat", "flock", "cmp", "sha256sum", "cut",
-                     "od", "tr", "realpath", "find", "head", "sort", "stat", "dd", "tail",
-                     "tee", "wc", "mkfifo"):
-            (tools / name).symlink_to(shutil.which(name))
-        self.env.update(PATH=str(tools), PYTHON_BIN="/nonexistent/python")
+        self.shell_only_tools()
         result = self.run_shell('''
 ! command -v python3
 ! command -v jq
@@ -561,6 +569,60 @@ test "$status" -eq 23
         self.assertEqual(observations[0]["result_exp"], "Sample")
         self.assertNotIn("timing_capture", json.dumps(data))
         self.assertEqual((self.root / "results/timing_observations.json").read_bytes(), capture)
+
+    def test_ncu_capture_without_python_jq_or_curl(self):
+        self.shell_only_tools()
+        self.profile_tools()
+        result = self.run_shell('''
+! command -v jq
+! command -v python3
+! command -v curl
+bk_run --log out.log -- true
+bk_profile --from-log out.log -- bk_acquire_ncu --profile-name sample --kernel-regex 'regex:.*kernel.*' --section solve -- true
+bk_emit_result --from-log out.log --exp Sample --fom 1 > results/result
+''')
+        self.assert_ok(result)
+        path, = (self.root / "results").glob("profile_*/profile.metadata.json")
+        original = path.read_bytes()
+        capture = json.loads(original)
+        self.assertEqual(capture["schema_version"], 2)
+        self.assertEqual(capture["nsys_discovery_json"], "{}")
+        self.assertTrue((self.root / capture["artifact_path"]).is_file())
+        normalized = self.read_gpu_metadata(path)
+        self.assertEqual(normalized.returncode, 0, normalized.stderr)
+        self.assertEqual(json.loads(normalized.stdout)["nsys_discovery"], {"section": "solve"})
+        self.assertEqual(path.read_bytes(), original)
+        self.assertIn("FOM:1", (self.root / "results/result").read_text())
+
+    def test_gpu_metadata_preserves_capture_and_handles_invalid_discovery(self):
+        self.shell_only_tools()
+        self.env["DISCOVERY"] = '{"kernel_name":"a\\\\b\\\"c","section":"explicit"}'
+        result = self.run_shell('''
+bk_write_gpu_kernel_profile_metadata metadata.json results/profile.tgz fallback sample sample 'regex:.*".*' 2 3 "$DISCOVERY"
+cp metadata.json original.json
+if bk_write_gpu_kernel_profile_metadata metadata.json results/profile.tgz solve sample sample regex bad 1; then exit 1; fi
+mv() { return 1; }
+if bk_write_gpu_kernel_profile_metadata metadata.json results/profile.tgz solve sample sample regex 0 1; then exit 1; fi
+cmp metadata.json original.json
+''')
+        self.assert_ok(result)
+        path = self.root / "metadata.json"
+        original = path.read_bytes()
+        capture = json.loads(original)
+        self.assertEqual(capture["nsys_discovery_json"], self.env["DISCOVERY"])
+        normalized = self.read_gpu_metadata(path)
+        self.assertEqual(json.loads(normalized.stdout)["nsys_discovery"], json.loads(self.env["DISCOVERY"]))
+        self.assertEqual(path.read_bytes(), original)
+        for invalid in ("{", "[]", "{} {}", "null"):
+            with self.subTest(invalid=invalid):
+                path.write_text(json.dumps(dict(capture, nsys_discovery_json=invalid)))
+                response = self.read_gpu_metadata(path)
+                self.assertEqual(json.loads(response.stdout), {})
+                self.assertIn("invalid GPU profile metadata", response.stderr)
+        for legacy in ({"kernel_name": "legacy"}, {"schema_version": 1,
+                       "kind": "gpu_kernel_profile_metadata", "nsys_discovery": {"kernel_name": "legacy"}}):
+            path.write_text(json.dumps(legacy))
+            self.assertEqual(json.loads(self.read_gpu_metadata(path).stdout), legacy)
 
     def test_clock_samples_surround_command_not_recorder(self):
         result = self.run_shell('''

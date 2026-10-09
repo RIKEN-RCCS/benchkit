@@ -414,6 +414,28 @@ $1
 EOF
 }
 
+bk_estimation_read_gpu_profile_metadata() {
+  local metadata
+  if ! metadata=$(jq -ces '
+    if length == 1 and (.[0] | type) == "object" then .[0]
+    else error("expected one metadata object") end |
+    if .kind == "gpu_kernel_profile_metadata" and .schema_version == 2 then
+      (.nsys_discovery_json | fromjson) as $discovery |
+      if ($discovery | type) != "object" then error("invalid discovery") else . end |
+      (.section // "") as $section |
+      .nsys_discovery = ($discovery |
+        if (.section // "") == "" and $section != "" then . + {section:$section} else . end) |
+      .schema_version = 1 | del(.nsys_discovery_json)
+    elif .kind == "gpu_kernel_profile_metadata" and .schema_version != 1 then
+      error("unknown metadata version")
+    else . end
+  ' "$1" 2>/dev/null); then
+    echo 'WARNING: invalid GPU profile metadata omitted from estimate' >&2
+    metadata='{}'
+  fi
+  printf '%s\n' "$metadata"
+}
+
 bk_estimation_artifact_file_exists() {
   local rel_path="$1"
   local root="${2:-}"
