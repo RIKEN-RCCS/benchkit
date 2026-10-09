@@ -861,8 +861,32 @@ build_timing_observations_block() {
     return 1
   fi
 
-  printf '%s' "$timing_observations_json" | jq -cS --argjson workflow "$workflow_json" \
-    '.observations += $workflow.observations'
+  printf '%s' "$timing_observations_json" | jq -cS --argjson workflow "$workflow_json" '
+    def object: if type == "object" then . else error("expected object") end;
+    def optional_text: if type == "string" then . else "" end;
+    def normalize_capture:
+      if has("timing_capture") then
+        try (
+          .timing_capture as $capture |
+          if $capture.schema_version != 1 then error("unknown capture") else . end |
+          ($capture.artifact_json | fromjson | object) as $data |
+          (if $capture.summary_json == "" then
+             ($data.summary // {} | if type == "object" then . else {} end)
+           else ($capture.summary_json | fromjson | object) end) as $summary |
+          .summary = $summary |
+          .producer = (if .producer == "" then ($data.producer | optional_text) else .producer end) |
+          .result_exp = (if .result_exp == "" then ($data.exp | optional_text) else .result_exp end) |
+          .format = (if .format == "" then
+            ($data.kind | optional_text) as $kind |
+            if $kind == "" then "" elif $data.schema_version == null then $kind
+            else $kind + "/v" + ($data.schema_version | tostring) end
+            else .format end) |
+          del(.timing_capture) |
+          with_entries(select(.value != ""))
+        ) catch ("WARNING: invalid detailed timing capture omitted; FOM is retained" | stderr | empty)
+      else . end;
+    .observations |= map(normalize_capture) |
+    .observations += $workflow.observations'
 }
 
 if ! timing_observations_block=$(build_timing_observations_block); then
