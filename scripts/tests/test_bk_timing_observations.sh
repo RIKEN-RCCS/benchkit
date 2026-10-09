@@ -57,22 +57,26 @@ bk_record_timing_observation \
   --format sampled-profile/v1 \
   --summary-json '{"timer_count":20,"sampled":true}'
 
-jq -e '
-  .schema_version == 1 and
-  (.observations | length) == 2 and
-  .observations[0].id == "detail_CASE0" and
-  .observations[0].producer == "demoapp" and
-  .observations[0].format == "demo_timer_table/v1" and
-  .observations[0].result_exp == "CASE0" and
-  .observations[0].artifact.path == "results/detail_CASE0.json" and
-  .observations[0].summary.timer_count == 3 and
-  .observations[0].note == "not projected to fom_breakdown" and
-  .observations[1].id == "profiler-case1" and
-  .observations[1].kind == "sampled-profile" and
-  .observations[1].format == "sampled-profile/v1" and
-  .observations[1].producer == "profiler-x" and
-  .observations[1].summary.sampled == true
-' results/timing_observations.json >/dev/null
+# Defaults and summaries are resolved on the sender, not during collection.
+printf 'FOM:1 Exp:CASE0\nFOM:2 Exp:CASE1\n' > results/result
+bash "${REPO_DIR}/scripts/result.sh" demo SampleSystem cross build run 42 > conversion.log
+jq -se '
+  (.[0].timing_observations.observations[0]) as $first |
+  (.[1].timing_observations.observations[0]) as $second |
+  $first.id == "detail_CASE0" and
+  $first.producer == "demoapp" and
+  $first.format == "demo_timer_table/v1" and
+  $first.result_exp == "CASE0" and
+  $first.artifact.path == "results/detail_CASE0.json" and
+  $first.summary.timer_count == 3 and
+  $first.note == "not projected to fom_breakdown" and
+  $second.id == "profiler-case1" and
+  $second.kind == "sampled-profile" and
+  $second.format == "sampled-profile/v1" and
+  $second.producer == "profiler-x" and
+  $second.summary.sampled == true and
+  all(.[]; all(.timing_observations.observations[]; has("timing_capture") | not))
+' results/result0.json results/result1.json >/dev/null
 
 if bk_record_timing_observation --artifact ../outside.json >/dev/null 2>&1; then
   echo "bk_record_timing_observation accepted an unsafe artifact path" >&2

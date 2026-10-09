@@ -2155,6 +2155,7 @@ _bk_record_timing_observation_items_file() {
 # evidence. They are kept separate from SECTION/OVERLAP metadata, which is the
 # current estimation-oriented projection of app timings.
 bk_record_timing_observation() {
+  local artifact_json item_json
   _bk_timing_id=""
   _bk_timing_kind="detailed-timing"
   _bk_timing_producer=""
@@ -2263,67 +2264,29 @@ bk_record_timing_observation() {
     echo "bk_record_timing_observation: skipped missing artifact $_bk_timing_artifact_file" >&2
     return 0
   fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "bk_record_timing_observation: skipped because jq is not available" >&2
-    return 0
-  fi
-
-  _bk_timing_artifact_json=$(jq -c 'if type == "object" then . else {} end' "$_bk_timing_artifact_file" 2>/dev/null || printf '{}')
-  _bk_timing_artifact_summary=$(printf '%s' "$_bk_timing_artifact_json" | jq -c '.summary // {} | if type == "object" then . else {} end')
-  if [ -z "$_bk_timing_summary_json" ]; then
-    _bk_timing_summary_json="$_bk_timing_artifact_summary"
-  elif ! _bk_timing_summary_json=$(printf '%s' "$_bk_timing_summary_json" | jq -c 'if type == "object" then . else error("summary must be an object") end' 2>/dev/null); then
-    echo "bk_record_timing_observation: --summary-json must be a JSON object" >&2
+  # Preserve the registration-time evidence; JSON interpretation belongs to the sender.
+  if [ ! -r "$_bk_timing_artifact_file" ] || IFS= read -r -d '' artifact_json < "$_bk_timing_artifact_file"; then
+    echo "bk_record_timing_observation: unreadable or binary artifact" >&2
     return 1
   fi
-
   if [ -z "$_bk_timing_id" ]; then
     _bk_timing_id=$(basename "$_bk_timing_artifact_path" .json)
   fi
-  if [ -z "$_bk_timing_producer" ]; then
-    _bk_timing_producer=$(printf '%s' "$_bk_timing_artifact_json" | jq -r '.producer // empty')
-  fi
-  if [ -z "$_bk_timing_result_exp" ]; then
-    _bk_timing_result_exp=$(printf '%s' "$_bk_timing_artifact_json" | jq -r '.exp // empty')
-  fi
-  if [ -z "$_bk_timing_format" ]; then
-    _bk_timing_artifact_kind=$(printf '%s' "$_bk_timing_artifact_json" | jq -r '.kind // empty')
-    _bk_timing_artifact_schema=$(printf '%s' "$_bk_timing_artifact_json" | jq -r '.schema_version // empty')
-    if [ -n "$_bk_timing_artifact_kind" ] && [ -n "$_bk_timing_artifact_schema" ]; then
-      _bk_timing_format="${_bk_timing_artifact_kind}/v${_bk_timing_artifact_schema}"
-    elif [ -n "$_bk_timing_artifact_kind" ]; then
-      _bk_timing_format="$_bk_timing_artifact_kind"
-    fi
-  fi
+  # shellcheck source=scripts/json_output.sh
+  source "${BK_BENCHKIT_ROOT}/scripts/json_output.sh"
+  item_json=$(bk_json_object string id "$_bk_timing_id" string kind "$_bk_timing_kind" \
+    string producer "$_bk_timing_producer" string format "$_bk_timing_format" \
+    string result_exp "$_bk_timing_result_exp" string note "$_bk_timing_note" \
+    json artifact "$(bk_json_object string type file_reference string path "$_bk_timing_artifact_path")" \
+    json timing_capture "$(bk_json_object json schema_version 1 string artifact_json "$artifact_json" \
+      string summary_json "$_bk_timing_summary_json")") || return 1
 
   _bk_timing_info_file="${BK_TIMING_OBSERVATIONS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/timing_observations.json}"
   _bk_timing_items_file="${BK_TIMING_OBSERVATION_ITEMS_FILE:-${_BK_DEFAULT_RESULTS_DIR}/.timing_observation_items.jsonl}"
   _bk_initialize_metadata timing "$_bk_timing_info_file" "$_bk_timing_items_file" || return 1
   mkdir -p "$(dirname "$_bk_timing_info_file")" "$(dirname "$_bk_timing_items_file")" || return 1
 
-  jq -n -c \
-    --arg id "$_bk_timing_id" \
-    --arg kind "$_bk_timing_kind" \
-    --arg producer "$_bk_timing_producer" \
-    --arg format "$_bk_timing_format" \
-    --arg result_exp "$_bk_timing_result_exp" \
-    --arg artifact_path "$_bk_timing_artifact_path" \
-    --arg note "$_bk_timing_note" \
-    --argjson summary "$_bk_timing_summary_json" '
-      {
-        id: $id,
-        kind: $kind,
-        artifact: {
-          type: "file_reference",
-          path: $artifact_path
-        },
-        summary: $summary
-      }
-      + (if $producer != "" then {producer: $producer} else {} end)
-      + (if $format != "" then {format: $format} else {} end)
-      + (if $result_exp != "" then {result_exp: $result_exp} else {} end)
-      + (if $note != "" then {note: $note} else {} end)
-    ' >> "$_bk_timing_items_file"
+  printf '%s\n' "$item_json" >> "$_bk_timing_items_file" || return 1
 
   _bk_record_timing_observation_items_file "$_bk_timing_info_file" "$_bk_timing_items_file"
 }

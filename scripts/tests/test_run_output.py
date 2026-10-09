@@ -408,6 +408,34 @@ bash "$TEST_REPO/scripts/result.sh" sample SampleSystem cross build run 42 > con
         self.assertIn("FOM is retained", result.stderr)
         self.assertEqual(len(list((self.root / "results").glob("profile_*/timing.json"))), 2)
 
+    def test_invalid_timing_capture_keeps_fom_and_other_observations(self):
+        result = self.run_shell('''
+parser() { printf '{"summary":{"timer_count":1},"exp":"wrong","producer":"fallback"}'; }
+malformed() { printf '{partial'; }
+array() { printf '[]'; }
+multiple() { printf '{} {}'; }
+bk_run --log out.log -- true
+for parser_name in parser malformed array multiple; do
+  bk_emit_result --from-log out.log --timing-parser "$parser_name" --timing-producer explicit --exp Sample --fom 2 > results/result
+done
+printf '{}' > results/invalid-summary.json
+bk_record_timing_observation --artifact results/invalid-summary.json --summary-json '[]' --result-exp Sample
+printf 'invalid\\0binary' > results/binary.json
+if bk_record_timing_observation --artifact results/binary.json; then exit 1; fi
+bash "$TEST_REPO/scripts/result.sh" sample SampleSystem cross build run 42 > conversion.log
+''')
+        self.assert_ok(result)
+        self.assertIn("invalid detailed timing capture omitted", result.stderr)
+        data = json.loads((self.root / "results/result0.json").read_text())
+        self.assertEqual(data["FOM"], "2")
+        items = [item for item in data["timing_observations"]["observations"]
+                 if item["kind"] == "detailed-timing"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["summary"], {"timer_count": 1})
+        self.assertEqual(items[0]["producer"], "explicit")
+        self.assertEqual(items[0]["result_exp"], "Sample")
+        self.assertNotIn("timing_capture", json.dumps(data))
+
     def test_profile_registration_rejects_missing_scope_and_external_artifacts(self):
         self.profile_tools()
         (self.root / "outside.json").write_text("{}")
@@ -501,9 +529,10 @@ grep -q 'rank failure' failed.log
 ! command -v jq
 ! command -v curl
 printf 'actual input' > input
+parser() { printf '{"kind":"sample_timing","schema_version":1,"summary":{"timer_count":1}}'; }
 bk_run --log out.log --input-file input --elapsed duration -- printf 'output'
 [[ "$duration" =~ ^[0-9]+[.][0-9]+$ ]]
-bk_emit_result --from-log out.log --exp Sample --fom "$duration" > results/result
+bk_emit_result --from-log out.log --timing-parser parser --exp Sample --fom "$duration" > results/result
 status=0
 bk_profile --from-log out.log -- bk_profile_execute --tool example -- bash -c 'exit 23' || status=$?
 test "$status" -eq 23
@@ -519,6 +548,19 @@ test "$status" -eq 23
         self.assertEqual(item["result_exp"], "Sample")
         self.assertEqual(item["sha256"], hashlib.sha256(b"actual input").hexdigest())
         self.assertEqual(json.loads(path.read_text()), document)
+        capture = (self.root / "results/timing_observations.json").read_bytes()
+        self.env["PATH"] = os.environ["PATH"]
+        result = self.run_shell('bash "$TEST_REPO/scripts/result.sh" sample SampleSystem cross build run 42 > conversion.log')
+        self.assert_ok(result)
+        data = json.loads((self.root / "results/result0.json").read_text())
+        observations = [item for item in data["timing_observations"]["observations"]
+                        if item["kind"] == "detailed-timing"]
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["summary"], {"timer_count": 1})
+        self.assertEqual(observations[0]["format"], "sample_timing/v1")
+        self.assertEqual(observations[0]["result_exp"], "Sample")
+        self.assertNotIn("timing_capture", json.dumps(data))
+        self.assertEqual((self.root / "results/timing_observations.json").read_bytes(), capture)
 
     def test_clock_samples_surround_command_not_recorder(self):
         result = self.run_shell('''

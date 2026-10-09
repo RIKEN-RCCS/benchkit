@@ -191,7 +191,6 @@ _bk_emit_timing_artifact() {
     return 1
   fi
   [ -s "$file" ] || { rm -f "$file"; return 0; }
-  jq -e 'type == "object"' "$file" >/dev/null || { rm -f "$file"; return 1; }
   bk_record_timing_observation --artifact "results/$(basename "$work")/timing.json" \
     --id "$(basename "$work")_timing" --artifact-file "$file" --result-exp "$exp" --producer "$producer"
 }

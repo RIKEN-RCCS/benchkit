@@ -365,3 +365,11 @@ profiler region as an additive estimation section without an app-specific
 mapping review. Apps should use `bk_record_timing_observation` for this
 handoff. Referenced `results/*.json` timing files and profiler archives are
 uploaded as Measurement Artifacts by the result sender.
+
+Detailed timing registration stores an internal `timing_capture` snapshot using
+shell commands. The sender validates this JSON, derives optional summary fields,
+and removes the capture from the public Result. Explicit registration fields take
+precedence over artifact defaults. Invalid captures are diagnosed and omitted
+without dropping the FOM or valid observations. Existing normalized observations
+remain supported. Application parsers retain ownership of timer interpretation
+and their own runtime dependencies.
