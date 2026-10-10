@@ -36,7 +36,7 @@ probe_command() {
   jq -e '
     .schema_version == 1 and .kind == "workflow_stage_timing" and
     .producer == "benchkit" and .exp == "CASE0" and
-    .elapsed_clock == "realtime" and .elapsed_scope == "command" and
+    .elapsed_clock == "boottime" and .elapsed_resolution_seconds == 0.01 and .elapsed_scope == "command" and
     (.session_id | type == "string" and length > 0) and
     (.stages[-1] |
       .stage == "benchmark" and .tool == "none" and .status == "running" and
@@ -456,14 +456,16 @@ cmp "$TIMING_FILE" "${TMP_DIR}/previous-session.json"
   mkdir "$RESULTS_DIR"
   printf '{"session_id":"legacy"}\n' > "$RESULTS_DIR/.workflow_session.json"
   filename=$(printf 'workflow_timing_%064d.json' 1)
-  jq -n '{schema_version:1,kind:"workflow_stage_timing",producer:"benchkit",
-    session_id:"legacy",exp:"legacy-case",elapsed_clock:"monotonic",
-    stages:[{stage:"benchmark",status:"completed",elapsed_seconds:0.25,exit_code:0}]}' \
-    > "$RESULTS_DIR/$filename"
-  original=$(sha256sum "$RESULTS_DIR/$filename")
-  manifest | jq -e '(.observations | length) == 1 and
-    .observations[0].summary.completed_count == 1' >/dev/null
-  test "$(sha256sum "$RESULTS_DIR/$filename")" = "$original"
+  for clock in realtime monotonic; do
+    jq -n --arg clock "$clock" '{schema_version:1,kind:"workflow_stage_timing",producer:"benchkit",
+      session_id:"legacy",exp:"legacy-case",elapsed_clock:$clock,
+      stages:[{stage:"benchmark",status:"completed",elapsed_seconds:0.25,exit_code:0}]}' \
+      > "$RESULTS_DIR/$filename"
+    original=$(sha256sum "$RESULTS_DIR/$filename")
+    manifest | jq -e '(.observations | length) == 1 and
+      .observations[0].summary.completed_count == 1' >/dev/null
+    test "$(sha256sum "$RESULTS_DIR/$filename")" = "$original"
+  done
   jq 'del(.stages[0].status)' "$RESULTS_DIR/$filename" > "${TMP_DIR}/invalid-timing.json"
   mv "${TMP_DIR}/invalid-timing.json" "$RESULTS_DIR/$filename"
   manifest 2>"${TMP_DIR}/invalid-timing.log" | jq -e '.observations == []' >/dev/null

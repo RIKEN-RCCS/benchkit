@@ -549,7 +549,7 @@ test "$status" -eq 23
         path, = (self.root / "results").glob("workflow_timing_*.json")
         document = json.loads(path.read_text())
         self.assertEqual(document["exp"], "Sample")
-        self.assertEqual(document["elapsed_clock"], "realtime")
+        self.assertEqual(document["elapsed_clock"], "boottime")
         self.assertEqual([stage["exit_code"] for stage in document["stages"]], [0, 23])
         self.assertNotIn("/nonexistent/python", result.stderr)
         item, = self.input_info()["inputs"]
@@ -635,14 +635,14 @@ bash() {
 _bk_clock_sample() {
   printf 'clock\\n' >> order
   if [ -f executed ]; then
-    printf '1700000001.125000000|2023-11-14T22:13:21.125000000Z'
+    printf '101.12|2023-11-14T22:13:21.125000000Z'
   else
-    printf '1700000000.875000000|2023-11-14T22:13:20.875000000Z'
+    printf '100.87|2023-11-14T22:13:20.875000000Z'
   fi
 }
 solver() { printf 'command\\n' >> order; : > executed; }
 bk_run --elapsed duration -- solver
-test "$duration" = 0.250000000
+test "$duration" = 0.25
 ''')
         self.assert_ok(result)
         self.assertEqual((self.root / "order").read_text().splitlines(),
@@ -652,13 +652,68 @@ test "$duration" = 0.250000000
         self.assertEqual(stage["elapsed_seconds"], 0.25)
         self.assertEqual(stage["command_started_at"], "2023-11-14T22:13:20.875000000Z")
 
-    def test_backward_clock_cannot_publish_elapsed_or_hide_command_failure(self):
+    def test_utc_clock_steps_do_not_change_command_elapsed(self):
+        for end_at in ("2023-11-14T23:13:20.000000000Z",
+                       "2023-11-14T21:13:20.000000000Z"):
+            with self.subTest(end_at=end_at):
+                (self.root / "executed").unlink(missing_ok=True)
+                self.env["END_AT"] = end_at
+                result = self.run_shell('''
+_bk_clock_sample() {
+  if [ -f executed ]; then
+    printf '101.01|%s' "$END_AT"
+  else
+    printf '100.99|2023-11-14T22:13:20.000000000Z'
+  fi
+}
+solver() { : > executed; }
+bk_run --elapsed duration -- solver
+test "$duration" = 0.02
+''')
+                self.assert_ok(result)
+                path, = (self.root / "results").glob("workflow_timing_*.json")
+                document = json.loads(path.read_text())
+                self.assertEqual(document["elapsed_clock"], "boottime")
+                self.assertEqual(document["elapsed_resolution_seconds"], 0.01)
+                stage = document["stages"][-1]
+                self.assertEqual(stage["elapsed_seconds"], 0.02)
+                self.assertEqual(stage["finished_at"], end_at)
+                self.assertEqual(stage["status"], "completed")
+
+    def test_boottime_samples_are_inside_utc_collection(self):
+        result = self.run_shell('''
+date() { printf 'utc\\n' >> sampling-order; printf '2023-11-14T22:13:20.000000000Z'; }
+read() {
+  printf 'uptime\\n' >> sampling-order
+  uptime=100.25 idle=0.00
+}
+test "$(_bk_clock_sample start)" = '100.25|2023-11-14T22:13:20.000000000Z'
+test "$(_bk_clock_sample finish)" = '100.25|2023-11-14T22:13:20.000000000Z'
+''')
+        self.assert_ok(result)
+        self.assertEqual((self.root / "sampling-order").read_text().splitlines(),
+                         ["utc", "uptime", "uptime", "utc"])
+
+    def test_unavailable_or_invalid_uptime_has_no_realtime_fallback(self):
+        result = self.run_shell('''
+date() { printf '2023-11-14T22:13:20.000000000Z'; }
+for value in missing malformed 100.123 -1.00; do
+  read() {
+    [ "$value" != missing ] || return 1
+    uptime=$value idle=0.00
+  }
+  if _bk_clock_sample start; then exit 1; fi
+done
+''')
+        self.assert_ok(result)
+
+    def test_backward_boottime_cannot_publish_elapsed_or_hide_command_failure(self):
         result = self.run_shell('''
 _bk_clock_sample() {
   if [ -f executed ]; then
-    printf '1700000000.000000000|2023-11-14T22:13:20.000000000Z'
+    printf '100.00|2023-11-14T22:13:20.000000000Z'
   else
-    printf '1700000001.000000000|2023-11-14T22:13:21.000000000Z'
+    printf '101.00|2023-11-14T22:13:21.000000000Z'
   fi
 }
 solver() { : > executed; return "$1"; }

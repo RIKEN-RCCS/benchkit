@@ -108,7 +108,7 @@ emit_document() {
   printf '{"schema_version":1,"kind":"workflow_stage_timing","producer":"benchkit",'
   printf '"session_id":'; bk_json_quote "${meta[1]}"
   printf ',"exp":'; bk_json_quote "${meta[2]}"
-  printf ',"elapsed_clock":"realtime","elapsed_scope":"command"'
+  printf ',"elapsed_clock":"boottime","elapsed_resolution_seconds":0.01,"elapsed_scope":"command"'
   [ "${meta[3]}" = false ] || printf ',"output_scoped":true'
   printf ',"stages":['
   [ -f "$directory/order" ] && [ ! -L "$directory/order" ] || return 1
@@ -212,15 +212,15 @@ case "$command" in
     [ -f "$directory/$id.state" ] && [ ! -L "$directory/$id.state" ] || fail
     mapfile -d '' -t record < "$directory/$id.state"
     [ "${#record[@]}" -eq 5 ] && [ "${record[0]}" = stage-v1 ] || fail
-    sample_pattern='^([0-9]{1,11}\.[0-9]{9})\|([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z)$'
+    sample_pattern='^([0-9]{1,11}\.[0-9]{2})\|([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z)$'
     [[ "$started" =~ $sample_pattern ]] || fail
     start_seconds=${BASH_REMATCH[1]} start_at=${BASH_REMATCH[2]}
     [[ "$finished" =~ $sample_pattern ]] || fail
     end_seconds=${BASH_REMATCH[1]} end_at=${BASH_REMATCH[2]}
     elapsed=$(awk -v start="$start_seconds" -v end="$end_seconds" 'BEGIN {
       split(start, s, "."); split(end, e, ".");
-      seconds = (e[1] - s[1]) + (e[2] - s[2]) / 1000000000;
-      if (seconds < 0) exit 1; printf "%.9f", seconds;
+      ticks = (e[1] - s[1]) * 100 + e[2] - s[2];
+      if (ticks < 0) exit 1; printf "%.2f", ticks / 100;
     }')
     status=completed; [ "$code" -eq 0 ] || status=failed
     bk_json_object string id "$id" string stage "${record[1]}" string tool "${record[2]}" \

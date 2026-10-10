@@ -81,9 +81,14 @@ NCU plan生成は `bk_generate_ncu_plan` へ従来のgenerator引数を渡す。
 いずれも時計操作や記録ファイルの管理は共通層が担当する。
 
 共通層は実験条件ごとの `results/workflow_timing_*.json` にstage、tool、profile、
-UTC時刻、実時間時計によるコマンド経過秒、終了コードを保存する。
+UTC時刻、BOOTTIMEによるコマンド経過秒、終了コードを保存する。
 `started_at`はstage準備時刻、`command_started_at`と`finished_at`は実行直前・直後の
-時計の値。`elapsed_clock: realtime`と`elapsed_scope: command`で計測方式を識別する。
+UTC時計の値。経過時間は同じ実行ノードの `/proc/uptime` の差から小数2桁で算出し、
+`elapsed_clock: boottime`、`elapsed_resolution_seconds: 0.01`、
+`elapsed_scope: command`で計測方式を識別する。BOOTTIMEはsuspend時間を含む。
+UTCの前進・後退や他ノードとの時刻差をelapsed計算に使わない。
+遠隔launcherを囲む場合は呼出元ノードでの待ち時間を含み、遠隔rankの内部timerではない。
+計測不能時に実時間時計へ切り替えず、従来のrealtime/monotonic記録は読取り可能なまま保持する。
 更新はlockとatomic replacementを使い、並列コマンドの追記を保持する。
 `scripts/result.sh` が現在の実行sessionの記録を `timing_observations` へ自動追加し、
 既存のapp独自timing observationも保持する。Resultの `Exp` によりscopeを絞り、
