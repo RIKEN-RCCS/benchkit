@@ -89,7 +89,7 @@ _bk_execute_command() {
     echo "Benchkit timing: requested elapsed time is unavailable" >&2
     return 1
   fi
-  command_started=$(_bk_clock_sample) || command_started=""
+  command_started=$(_bk_clock_sample start) || command_started=""
   if [ -n "$elapsed_variable" ] && [ -z "$command_started" ]; then
     echo "Benchkit timing: requested elapsed time is unavailable" >&2
     return 1
@@ -102,7 +102,7 @@ _bk_execute_command() {
   else
     "$@" || command_status=$?
   fi
-  command_finished=$(_bk_clock_sample) || command_finished=""
+  command_finished=$(_bk_clock_sample finish) || command_finished=""
   if [ -n "$token" ]; then
     if [ -n "$elapsed_variable" ]; then
       if elapsed_value=$(bash "$recorder" --results-dir "$results_dir" \
@@ -122,10 +122,20 @@ _bk_execute_command() {
 }
 
 _bk_clock_sample() {
-  local sample
-  sample=$(LC_ALL=C date -u '+%s.%N|%Y-%m-%dT%H:%M:%S.%NZ') || return 1
-  [[ "$sample" =~ ^[0-9]{1,11}\.[0-9]{9}\|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z$ ]] || return 1
-  printf '%s\n' "$sample"
+  local boundary="${1:-start}" uptime idle utc
+  # Put the elapsed samples closest to the command, outside UTC collection.
+  if [ "$boundary" = start ]; then
+    utc=$(LC_ALL=C date -u '+%Y-%m-%dT%H:%M:%S.%NZ') || return 1
+    IFS=' ' read -r uptime idle < /proc/uptime || return 1
+  elif [ "$boundary" = finish ]; then
+    IFS=' ' read -r uptime idle < /proc/uptime || return 1
+    utc=$(LC_ALL=C date -u '+%Y-%m-%dT%H:%M:%S.%NZ') || return 1
+  else
+    return 1
+  fi
+  [[ "$uptime" =~ ^[0-9]{1,11}\.[0-9]{2}$ ]] || return 1
+  [[ "$utc" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z$ ]] || return 1
+  printf '%s|%s\n' "$uptime" "$utc"
 }
 
 bk_run() {

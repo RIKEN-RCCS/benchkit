@@ -238,7 +238,10 @@ Typical requirements include:
 - Bash and standard shell tooling
 - GNU coreutils, GNU findutils, and `flock` (util-linux) for common log collection
   and session initialization
-- GNU `date` with `%s`/`%N` support and `awk` for command elapsed time
+- GNU `date` with `%s`/`%N` support for timestamp records and `awk` for elapsed
+  formatting
+- Readable Linux `/proc/uptime` for command elapsed samples; GNU `date` supplies
+  UTC timestamps separately
 - GitLab CI runner support
 - site-specific scheduler/runtime support
 - `jq` and `curl` on the result sender, not on common build/run paths
@@ -313,14 +316,20 @@ discovery metadata produces a warning and is not attached to estimates; the
 collected profile remains available. This does not change kernel selection or
 estimation algorithms.
 
-Elapsed time uses two realtime clock samples immediately around the command,
-outside record serialization and lock acquisition. Records identify this as
-`elapsed_clock: realtime` and `elapsed_scope: command`; `command_started_at`
-is the first sample, while `started_at` records stage preparation. Negative
-elapsed time or unsupported clock output is rejected. Forward clock adjustments
-cannot be distinguished from execution time; decimal output digits do not
-guarantee clock accuracy. Earlier monotonic records included some recorder
-overhead and must not be assumed to have identical measurement boundaries.
+Elapsed time uses the first field of Linux `/proc/uptime`, read by Bash on the
+same node immediately before and after the command, outside record serialization
+and lock acquisition. Records identify `elapsed_clock: boottime`,
+`elapsed_resolution_seconds: 0.01`, and `elapsed_scope: command`. BOOTTIME includes
+suspend time; its two-decimal representation does not imply finer accuracy.
+UTC is collected before the starting uptime sample and after the ending sample,
+and retained separately in `command_started_at` and `finished_at`; `started_at`
+records stage preparation. UTC clock steps do not change elapsed time.
+No timestamps from different nodes are subtracted. When the command is a remote
+launcher, elapsed covers that launcher's wait on the calling node, rather than
+an internal timer on a remote rank. Unavailable or invalid samples and negative
+elapsed time are rejected without a realtime fallback. Earlier realtime and
+monotonic records remain readable; earlier monotonic records included some
+recorder overhead and do not have identical measurement boundaries.
 
 Common workflow requirements do not restrict application-specific languages or
 tools. Applications may use dependencies verified on their target build/run
