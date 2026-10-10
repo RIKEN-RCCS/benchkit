@@ -15,6 +15,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch protected branches
+        id: refs
+        run: |
+          set -euo pipefail
+          git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
+
       - name: Prepare GitLab repository settings
         id: gitlab-repo
         uses: ./.github/actions/prepare-gitlab-repo
@@ -25,46 +31,31 @@ jobs:
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           GITLAB_REPO_HOST_PATH: ${{ steps.gitlab-repo.outputs.host-path }}
-          GITLAB_COM_TOKEN: ${{ secrets.GITLAB_COM_TOKEN }}
-          GITLAB_COM_REPO_HOST_PATH: gitlab.com/yoshifuminakamura/benchkit.git
         run: |
           set -euo pipefail
-
           if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_REPO_HOST_PATH}" ]; then
             echo "GITLAB_TOKEN and GITLAB_REPO secrets are required."
             exit 1
           fi
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPO_HOST_PATH}"
+          git push -o ci.skip gitlab \
+            refs/remotes/origin/develop:refs/heads/develop \
+            refs/remotes/origin/main:refs/heads/main --force
+          git push -o ci.skip gitlab --tags --force
 
-          git config user.name "github-bot"
-          git config user.email "bot@example.com"
-          git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
-
-          sync_gitlab_remote() {
-            local remote_name="$1"
-            local token="$2"
-            local host_path="$3"
-            local force_mode="${4:-force}"
-
-            git remote remove "${remote_name}" 2>/dev/null || true
-            git remote add "${remote_name}" "https://oauth2:${token}@${host_path}"
-            if [ "${force_mode}" = "force" ]; then
-              git push -o ci.skip "${remote_name}" \
-                refs/remotes/origin/develop:refs/heads/develop \
-                refs/remotes/origin/main:refs/heads/main \
-                --force
-              git push -o ci.skip "${remote_name}" --tags --force
-            else
-              git push -o ci.skip "${remote_name}" \
-                refs/remotes/origin/develop:refs/heads/develop \
-                refs/remotes/origin/main:refs/heads/main
-              git push -o ci.skip "${remote_name}" --tags
-            fi
-          }
-
-          sync_gitlab_remote gitlab "${GITLAB_TOKEN}" "${GITLAB_REPO_HOST_PATH}"
-
-          if [ -n "${GITLAB_COM_TOKEN}" ]; then
-            sync_gitlab_remote gitlab-com "${GITLAB_COM_TOKEN}" "${GITLAB_COM_REPO_HOST_PATH}" no-force
-          else
+      - name: Push protected branches and tags to GitLab.com
+        if: ${{ !cancelled() && steps.refs.outcome == 'success' }}
+        env:
+          GITLAB_COM_TOKEN: ${{ secrets.GITLAB_COM_TOKEN }}
+          GITLAB_COM_REPO_HOST_PATH: gitlab.com/yoshifuminakamura/benchkit.git
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_COM_TOKEN}" ]; then
             echo "GITLAB_COM_TOKEN is not set; skipping GitLab.com mirror ${GITLAB_COM_REPO_HOST_PATH}."
+            exit 0
           fi
+          git remote add gitlab-com "https://oauth2:${GITLAB_COM_TOKEN}@${GITLAB_COM_REPO_HOST_PATH}"
+          git push -o ci.skip gitlab-com \
+            refs/remotes/origin/develop:refs/heads/develop \
+            refs/remotes/origin/main:refs/heads/main
+          git push -o ci.skip gitlab-com --tags
