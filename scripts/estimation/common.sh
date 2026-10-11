@@ -1,4 +1,6 @@
 #!/bin/bash
+
+source "${BASH_SOURCE[0]%/*}/section_artifacts.sh"
 # common.sh — Common function library for performance estimation
 #
 # Provides shared variables and functions used by application-specific
@@ -81,6 +83,7 @@ est_source_result_system=""
 est_source_result_node_count=""
 est_source_result_numproc_node=""
 est_source_result_input_info_json=""
+est_source_observation_json=""
 est_current_source_result_uuid=""
 est_current_source_result_timestamp=""
 est_current_source_result_code=""
@@ -325,6 +328,24 @@ bk_estimation_run_recorded_current_with_weakscaling() {
     "$current_model_version"
 }
 
+bk_estimation_bind_declared_future_items() {
+  local declarations="${BK_ESTIMATION_DECLARATIONS_FUTURE:-}"
+  [[ -n "$declarations" && -n "$est_input_fom_breakdown" ]] || return 0
+  est_input_fom_breakdown=$(printf '%s' "$est_input_fom_breakdown" | jq -c --arg declarations "$declarations" '
+    ($declarations | split("\n") | map(split("|"))) as $bindings
+    | .sections |= ((. // []) | map(. as $item
+        | ([$bindings[] | select(.[0] == "section" and .[1] == $item.name)][0]) as $binding
+        | if $binding != null then .estimation_package = $binding[2]
+            | if ($binding[3] // "") != "" then .required_profile = $binding[3] else . end
+          else . end))
+    | .overlaps |= ((. // []) | map(. as $item
+        | ([$bindings[] | select(.[0] == "overlap" and .[1] == ($item.sections | join(",")))][0]) as $binding
+        | if $binding != null then .estimation_package = $binding[2]
+            | if ($binding[3] // "") != "" then .required_profile = $binding[3] else . end
+          else . end))
+  ')
+}
+
 bk_estimation_run_declared_future_package() {
   local input_json="$1"
   local future_package="${BK_ESTIMATION_FUTURE_PACKAGE:-}"
@@ -335,6 +356,7 @@ bk_estimation_run_declared_future_package() {
   fi
 
   read_values "$input_json"
+  bk_estimation_bind_declared_future_items
 
   BK_ESTIMATION_PACKAGE="$future_package"
   unset BK_ESTIMATION_MODEL_NAME || true
@@ -354,10 +376,6 @@ bk_estimation_write_output() {
   mkdir -p "$(dirname "$output_file")"
   print_json > "$output_file"
   echo "Estimate written to $output_file"
-}
-
-bk_estimation_section_key() {
-  printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
 }
 
 bk_estimation_configure_gpu_kernel_defaults() {
@@ -434,52 +452,6 @@ bk_estimation_read_gpu_profile_metadata() {
     metadata='{}'
   fi
   printf '%s\n' "$metadata"
-}
-
-bk_estimation_artifact_file_exists() {
-  local rel_path="$1"
-  local root="${2:-}"
-
-  [[ -n "$rel_path" ]] || return 1
-  if [[ -f "$rel_path" ]]; then
-    return 0
-  fi
-  if [[ -n "$root" && -f "${root}/${rel_path}" ]]; then
-    return 0
-  fi
-  return 1
-}
-
-bk_estimation_resolve_section_artifact() {
-  local env_prefix="$1"
-  local root="$2"
-  local section_name="$3"
-  local section_key
-  local env_var
-  local explicit_artifact
-  local candidate
-
-  shift 3
-  section_key=$(bk_estimation_section_key "$section_name")
-  env_var="${env_prefix}_${section_key}_ARTIFACT"
-  explicit_artifact="${!env_var:-}"
-  if [[ -n "$explicit_artifact" ]]; then
-    if bk_estimation_artifact_file_exists "$explicit_artifact" "$root"; then
-      printf '%s\n' "$explicit_artifact"
-      return 0
-    fi
-    echo "Section artifact was requested but not found: ${env_var}=${explicit_artifact}" >&2
-    return 1
-  fi
-
-  for candidate in "$@"; do
-    if bk_estimation_artifact_file_exists "$candidate" "$root"; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
 }
 
 bk_estimation_input_has_fom_breakdown() {
@@ -609,6 +581,7 @@ read_values() {
   est_source_result_system="$est_system"
   est_source_result_node_count="$est_node_count"
   est_source_result_numproc_node="$est_numproc_node"
+  est_source_observation_json=$(jq -c '.observation_definition // null' "$json_file")
   est_source_result_input_info_json=$(jq -c '(.input_info // empty) | select(type == "object")' "$json_file")
 
   est_current_source_result_uuid=""
@@ -930,6 +903,8 @@ print_json() {
       --arg timestamp "$est_estimation_timestamp" \
       --arg method_class "$est_method_class" \
       --arg detail_level "$est_detail_level" \
+      --arg app_method_version "${BK_APP_ESTIMATION_METHOD_VERSION:-}" \
+      --argjson source_observation "${est_source_observation_json:-null}" \
       --arg source_result_uuid "$est_source_result_uuid" \
       --arg source_result_timestamp "$est_source_result_timestamp" \
       --arg source_result_code "$est_source_result_code" \
@@ -969,11 +944,13 @@ print_json() {
       + (if $timestamp != "" then {timestamp: $timestamp} else {} end)
       + (if $method_class != "" then {method_class: $method_class} else {} end)
       + (if $detail_level != "" then {detail_level: $detail_level} else {} end)
+      + (if $app_method_version != "" then {app_estimation_method: {version: $app_method_version}} else {} end)
       + (if $source_result_uuid != "" then {source_result_uuid: $source_result_uuid} else {} end)
       + (if $source_result_timestamp != "" then {source_result_timestamp: $source_result_timestamp} else {} end)
       + (if $source_result_uuid != "" or $source_result_timestamp != "" or $source_result_code != "" or $source_result_exp != "" or $source_result_system != "" or $source_result_node_count != "" or $source_result_numproc_node != "" or $source_result_input_info != null then {
           source_result:
-            ((if $source_result_uuid != "" then {uuid: $source_result_uuid} else {} end)
+            ((if $source_observation != null then {observation_definition: $source_observation} else {} end)
+            + (if $source_result_uuid != "" then {uuid: $source_result_uuid} else {} end)
             + (if $source_result_timestamp != "" then {timestamp: $source_result_timestamp} else {} end)
             + (if $source_result_code != "" then {code: $source_result_code} else {} end)
             + (if $source_result_exp != "" then {exp: $source_result_exp} else {} end)
