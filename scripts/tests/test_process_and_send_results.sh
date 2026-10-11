@@ -14,7 +14,14 @@ trap 'chmod -R u+rwX "${TMP_DIR}" 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/project/scripts/result_server" "${TMP_DIR}/project/results" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/collect_timing.sh" "${TMP_DIR}/project/scripts/collect_timing.sh"
-cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
+# Sender must consume the producer snapshot, never record its own environment.
+cat > "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh" <<'EOF'
+#!/bin/bash
+echo 'Sender unexpectedly collected an environment snapshot' >&2
+touch "${BK_TEST_SEND_SNAPSHOT_CALLED}"
+exit 1
+EOF
+export BK_TEST_SEND_SNAPSHOT_CALLED="${TMP_DIR}/send-snapshot-called"
 cp "${REPO_DIR}/scripts/json_output.sh" "${TMP_DIR}/project/scripts/json_output.sh"
 cp "${REPO_DIR}/scripts/result.sh" "${TMP_DIR}/project/scripts/result.sh"
 cp "${REPO_DIR}/scripts/result_server/client_env.sh" "${TMP_DIR}/project/scripts/result_server/client_env.sh"
@@ -161,6 +168,9 @@ test -f "${TMP_DIR}/project/send_results_workspace/results/result0.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/pipeline_timing.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/environment_snapshot_run.json"
+test ! -e "${BK_TEST_SEND_SNAPSHOT_CALLED}"
+cmp "${TMP_DIR}/project/results/environment_snapshot_run.json" \
+  "${TMP_DIR}/project/send_results_workspace/results/environment_snapshot_run.json"
 
 jq -e '._server_uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' \
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
@@ -175,7 +185,8 @@ jq -e '
   .environment_snapshot.summary.system == "Fugaku"
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '
-  .environment_snapshot.payload.stages.run.stage == "run"
+  .environment_snapshot.payload.stages.run.stage == "run" and
+  (.environment_snapshot.payload.stages | with_entries(select(.value != {})) | keys) == ["run"]
 ' "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 jq -e '
   type == "object" and
@@ -293,3 +304,4 @@ popd >/dev/null
 test ! -e "${TMP_DIR}/project/send_results_workspace/results/.complete"
 test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
 echo 'Result conversion completion and failure propagation tests passed'
+test ! -e "${BK_TEST_SEND_SNAPSHOT_CALLED}"
