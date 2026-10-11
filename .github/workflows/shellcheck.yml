@@ -44,7 +44,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(find scripts/ programs/ benchpark-bridge/scripts/ -name "*.sh" 2>/dev/null | sort)
+          file_list=$(mktemp)
+          trap 'rm -f "$file_list"' EXIT
+          find scripts/ programs/ benchpark-bridge/scripts/ -name "*.sh" -print0 | sort -z > "$file_list"
+          mapfile -d '' -t files < "$file_list"
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No shell files found; nothing to check."
             exit 0
@@ -55,7 +58,7 @@ jobs:
           done
           echo "bash syntax: 0"
           echo "Checking ${#files[@]} shell files at -S error level"
-          shellcheck -S error -f gcc "${files[@]}"
+          printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -S error -f gcc
           echo "shellcheck error-level: 0"
 
       - name: Run warning-level shellcheck on changed app scripts
@@ -64,14 +67,15 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-          mapfile -t files < <(
-            git diff --name-only --diff-filter=ACMRT "origin/${GITHUB_BASE_REF}...HEAD" -- ':(glob)programs/**/*.sh' |
-              sort
-          )
+          file_list=$(mktemp)
+          trap 'rm -f "$file_list"' EXIT
+          git diff --name-only -z --diff-filter=ACMRT "origin/${GITHUB_BASE_REF}...HEAD" -- ':(glob)programs/**/*.sh' |
+            sort -z > "$file_list"
+          mapfile -d '' -t files < "$file_list"
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No changed app shell files found; warning-level shellcheck skipped."
             exit 0
           fi
           echo "Checking ${#files[@]} changed app shell files at -S warning level"
-          shellcheck -S warning -f gcc "${files[@]}"
+          printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -S warning -f gcc
           echo "changed app shellcheck warning-level: 0"
