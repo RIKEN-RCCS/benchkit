@@ -38,7 +38,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install shellcheck-py
-        run: python -m pip install --quiet shellcheck-py
+        run: |
+          python -m pip install --quiet shellcheck-py
+          shellcheck --version
 
       - name: Run bash syntax checks and shellcheck at error level
         shell: bash
@@ -58,7 +60,8 @@ jobs:
           done
           echo "bash syntax: 0"
           echo "Checking ${#files[@]} shell files at -S error level"
-          printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -S error -f gcc
+          # Retain analysis of source dependencies when each input is checked separately.
+          time printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -x -S error -f gcc
           echo "shellcheck error-level: 0"
 
       - name: Run warning-level shellcheck on changed app scripts
@@ -77,5 +80,6 @@ jobs:
             exit 0
           fi
           echo "Checking ${#files[@]} changed app shell files at -S warning level"
-          printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -S warning -f gcc
+          # Retain analysis of source dependencies when each input is checked separately.
+          time printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -x -S warning -f gcc
           echo "changed app shellcheck warning-level: 0"

@@ -32,6 +32,8 @@ def checks(tmp_path):
     checker.write_text("#!" + sys.executable + "\n" + textwrap.dedent('''
         import fcntl, json, os, sys, time
         args = sys.argv[1:]
+        assert args[0] == '-x'
+        args = args[1:]
         assert len(args) == 5 and args[0] == '-S' and args[2:4] == ['-f', 'gcc']
         def update(delta):
             with open(os.environ['CHECK_STATE'], 'r+') as stream:
