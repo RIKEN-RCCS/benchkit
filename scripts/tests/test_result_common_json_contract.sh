@@ -16,6 +16,7 @@ mkdir -p "${TMP_DIR}/results"
 
 cat > "${TMP_DIR}/results/result" <<'EOF'
 FOM:1.25 FOM_unit:s FOM_version:contract-v1 Exp:CASE0 node_count:2 numproc_node:4 nthreads:8 description:smoke confidential:false
+OBSERVATION_VERSION:observation-v1
 SECTION:solve time:1.0 artifact:results/padata_solve_a.tgz,results/padata_solve_b.tgz
 SECTION:io time:0.25
 OVERLAP:solve,io time:0.10 artifact:results/overlap_a.json,results/overlap_b.json
@@ -233,6 +234,9 @@ popd >/dev/null
 RESULT_JSON="${TMP_DIR}/results/result0.json"
 RESULT_JSON1="${TMP_DIR}/results/result1.json"
 test -f "${RESULT_JSON}"
+
+jq -e '.observation_definition.version == "observation-v1"' "${RESULT_JSON}" >/dev/null
+jq -e 'has("observation_definition") | not' "${RESULT_JSON1}" >/dev/null
 
 jq -e '
   type == "object" and

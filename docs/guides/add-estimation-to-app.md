@@ -8,9 +8,13 @@
 
 詳細推定の active な参照例は GENESIS です。まず
 [GENESIS Benchkit Integration Notes](../../programs/genesis/README.md) を読み、
-`programs/genesis/sections.sh`、`programs/genesis/profile.sh`、
+`programs/genesis/section.sh`、`programs/genesis/profile.sh`、
 `programs/genesis/parse_timing.sh`、`programs/genesis/estimate.sh` の分担を見ると、
 `run.sh` / `build.sh` から profile / estimation 固有処理を分離する方向を追いやすいです。
+
+GENESISの`section.sh`は観測版、区間時間の取得方法、追加profileの定義を持ち、推定なしでも利用できます。`estimate.sh`は推定版と区間への手法割当を持ち、観測定義を参照します。宣言の読込みだけで推定やprofile採取は始まりません。必要profileは推定宣言の任意の第4列で参照でき、再推定は保存済みデータを使います。
+
+Resultの`observation_definition.version`は実測時の版です。Estimateはこれを`estimate_metadata.source_result.observation_definition`へ保持し、使用した推定版を`estimate_metadata.app_estimation_method.version`へ記録します。古いResultに観測版がない場合は未記録のままにし、現在の版で補いません。
 
 ## 目次
 
