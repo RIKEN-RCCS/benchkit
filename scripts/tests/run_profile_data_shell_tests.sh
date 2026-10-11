@@ -3,14 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ALL_GROUPS=(common result-sender estimation)
+ALL_GROUPS=(common-observation common-execution result-sender estimation)
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|result-sender|estimation|list|list-tests [GROUP]]
+Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-execution|result-sender|estimation|list|list-tests [GROUP]]
 
 Runs the shell tests covered by the Result Server Tests workflow.
-Use "all" locally for the full suite, or a group name in CI matrix jobs.
+Use "all" locally for the full suite, "common" for both common groups,
+or a group name in CI matrix jobs.
 EOF
 }
 
@@ -38,21 +39,29 @@ PY
 tests_for_group() {
   case "$1" in
     common)
+      tests_for_group common-observation
+      tests_for_group common-execution
+      ;;
+    common-observation)
       cat <<'EOF'
 scripts/tests/test_bk_profiler.sh
 scripts/tests/test_workflow_timing.sh
+scripts/tests/test_bk_timing_observations.sh
+scripts/tests/test_ncu_plan_generation.sh
+scripts/tests/test_sbd_ncu_profile.sh
+EOF
+      ;;
+    common-execution)
+      cat <<'EOF'
 scripts/tests/test_bk_run.sh
 scripts/tests/test_run_benchmark.sh
 scripts/tests/test_bk_fetch_source.sh
 scripts/tests/test_bk_input_info.sh
-scripts/tests/test_bk_timing_observations.sh
 scripts/tests/test_qws_timing_artifact.sh
 scripts/tests/test_build_environment_snapshot.sh
 scripts/tests/test_compute_snapshot_dependencies.sh
 scripts/tests/test_node_status_snapshot.sh
 scripts/tests/test_ci_timing_context.sh
-scripts/tests/test_ncu_plan_generation.sh
-scripts/tests/test_sbd_ncu_profile.sh
 scripts/tests/test_scheduler_extra_args.sh
 scripts/tests/test_matrix_generate_filters.sh
 EOF

@@ -95,7 +95,8 @@ jobs:
       fail-fast: false
       matrix:
         shell-group:
-          - common
+          - common-observation
+          - common-execution
           - result-sender
           - estimation
 
