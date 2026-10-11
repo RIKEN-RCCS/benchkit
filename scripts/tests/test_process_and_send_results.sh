@@ -134,6 +134,8 @@ printf '%s\n' '{"status":"ok"}'
 EOF
 chmod +x "${TMP_DIR}/bin/curl"
 
+printf stale-completion > "${TMP_DIR}/project/results/.complete"
+
 chmod -R a-w "${TMP_DIR}/project/results"
 chmod -R a+rX "${TMP_DIR}/project/results"
 
@@ -152,6 +154,8 @@ pushd "${TMP_DIR}/project" >/dev/null
 bash scripts/result_server/process_and_send_results.sh qws Fugaku cross qws_Fugaku_build qws_Fugaku_N1_P2_T3_run 12345 > "${TMP_DIR}/process.log"
 popd >/dev/null
 
+test "$(cat "${TMP_DIR}/project/results/.complete")" = stale-completion
+grep -q '^All result JSON files created at ' "${TMP_DIR}/project/send_results_workspace/results/.complete"
 test ! -f "${TMP_DIR}/project/results/result0.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/result0.json"
 test -f "${TMP_DIR}/project/send_results_workspace/results/server_result_meta.json"
@@ -262,3 +266,30 @@ fi
 popd >/dev/null
 test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
 echo 'Node capture sender integration tests passed'
+
+# Invalid conversion must clear a copied completion marker and never send results.
+rm -f "${TMP_DIR}/project/results/node_status_snapshot_run.json.capture"
+before=$(wc -l < "${TMP_DIR}/curl.log")
+pushd "${TMP_DIR}/project" >/dev/null
+if bash scripts/result_server/process_and_send_results.sh 'invalid"code' Fugaku cross build run 12345 \
+    > "${TMP_DIR}/invalid-json.log" 2>&1; then
+  echo 'Invalid result JSON unexpectedly succeeded' >&2
+  exit 1
+fi
+popd >/dev/null
+grep -q 'ERROR: Invalid result JSON:' "${TMP_DIR}/invalid-json.log"
+test ! -e "${TMP_DIR}/project/send_results_workspace/results/.complete"
+test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
+
+# A failure before JSON generation must also discard stale completion state.
+printf 'no result recorded\n' > "${TMP_DIR}/project/results/result"
+pushd "${TMP_DIR}/project" >/dev/null
+if bash scripts/result_server/process_and_send_results.sh qws Fugaku cross build run 12345 \
+    > "${TMP_DIR}/missing-fom.log" 2>&1; then
+  echo 'Missing FOM unexpectedly succeeded' >&2
+  exit 1
+fi
+popd >/dev/null
+test ! -e "${TMP_DIR}/project/send_results_workspace/results/.complete"
+test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
+echo 'Result conversion completion and failure propagation tests passed'
