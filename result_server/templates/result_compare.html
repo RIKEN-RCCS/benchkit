@@ -54,6 +54,30 @@
     <p class="compare-note">{{ fom_change.note }}</p>
     {% endif %}
 
+    {% set inputs = comparison_summary.get('input_provenance', {}) %}
+    {% if include_operator_evidence and inputs %}
+    <div class="input-provenance{% if inputs.changed %} input-provenance-changed{% endif %}">
+        <h3>Input Provenance</h3>
+        {% if inputs.changed %}<p><strong>Recorded input provenance differs across selected results.</strong></p>{% endif %}
+        {% if inputs.has_unobserved %}<p>Input observation is unavailable for one or more selected results.</p>{% endif %}
+        <p>The same experiment name is treated as the same science. Input differences describe provenance and do not determine scientific compatibility or restrict comparison. Matching recorded provenance does not prove identical inputs.</p>
+        <ul>
+        {% for row in inputs.rows %}
+            <li>
+                <strong>{{ row.timestamp }} — {{ row.system }} / {{ row.code }} / {{ row.exp }}</strong>:
+                {{ row.input_display }}
+                {% if row.input_unobserved %}<span class="comparison-status comparison-status-unobserved">unobserved</span>{% endif %}
+                {% if row.input_details %}
+                <details><summary>Full recorded input identifiers</summary>
+                    <ul>{% for item in row.input_details %}<li>{{ item }}</li>{% endfor %}</ul>
+                </details>
+                {% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     {% if comparison_summary.diff_rows %}
     <table class="comparison-diff-table">
         <thead>
