@@ -223,7 +223,7 @@ def test_input_comparison_distinguishes_unavailable_and_reference_mismatch():
         results = [{"data": {"input_info": {"inputs": [item]}}} for item in (base, change)]
         summary = build_result_compare_context(results)["comparison_summary"]
         row = next(row for row in summary["diff_rows"] if row["label"] == "Input")
-        assert row["status"] == "changed"
+        assert row["status"] == ("unobserved" if change.get("collection_status") == "unavailable" else "changed")
         assert message in summary["latest"]["input_display"]
 
 
@@ -328,3 +328,61 @@ def test_public_surface_compare_summary_omits_operator_evidence(tmp_path):
     assert summary["include_evidence"] is False
     assert summary["fom_change"]["ratio_display"] == "2.000"
     assert [row["label"] for row in summary["diff_rows"]] == ["System", "Code", "Exp"]
+
+
+def _input_results(digests):
+    return [{"timestamp": f"2026-10-01 00:00:0{index}", "data": {
+        "system": "DemoSystem", "code": "demoapp", "Exp": "CASE0", "FOM": index + 1,
+        **({"input_info": {"inputs": [{"dataset_id": "demo", "sha256": digest,
+                                       "collection_status": "recorded"}]}} if digest else {}),
+    }} for index, digest in enumerate(digests)]
+
+
+def test_input_provenance_covers_middle_result_without_changing_fom():
+    summary = build_result_compare_context(_input_results(["a" * 64, "b" * 64, "a" * 64]))["comparison_summary"]
+    assert summary["input_provenance"]["changed"] is True
+    assert summary["has_differences"] is True
+    assert len(summary["input_provenance"]["rows"]) == 3
+    assert summary["fom_change"]["ratio_display"] == "3.000"
+    assert next(row for row in summary["diff_rows"] if row["label"] == "Input")["status"] == "same"
+
+
+def test_missing_input_is_unobserved_even_when_both_results_are_missing():
+    for digests in ([None, None], ["a" * 64, None]):
+        summary = build_result_compare_context(_input_results(digests))["comparison_summary"]
+        assert summary["input_provenance"]["has_unobserved"] is True
+        assert summary["input_provenance"]["changed"] is False
+        assert next(row for row in summary["diff_rows"] if row["label"] == "Input")["status"] == "unobserved"
+        assert summary["fom_change"]["available"] is True
+
+
+def test_input_provenance_template_exposes_full_digest_and_escapes_identifiers():
+    from flask import render_template
+    from test_support import build_portal_shell_app
+    app = build_portal_shell_app(templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"))
+    digests = ["a" * 64, "a" * 63 + "b", None]
+    results = _input_results(digests)
+    results[1]["data"]["input_info"]["inputs"][0]["dataset_id"] = "<script>bad()</script>"
+    context = build_result_compare_context(results)
+    with app.test_request_context("/compare"):
+        html = render_template("result_compare.html", **context)
+    assert "input-provenance-changed" in html
+    assert "Recorded input provenance differs across selected results." in html
+    assert "comparison-status-unobserved" in html
+    assert digests[0] in html and digests[1] in html
+    assert "&lt;script&gt;bad()&lt;/script&gt;" in html
+    assert "<script>bad()</script>" not in html
+    assert "scientific compatibility" in html
+    with app.test_request_context("/compare"):
+        from utils.result_compare_view import _project_public_compare_result
+        public_rows = [_project_public_compare_result(row) for row in results]
+        public_html = render_template("result_compare.html", **build_result_compare_context(public_rows, include_evidence=False))
+    assert "<h3>Input Provenance</h3>" not in public_html
+    assert digests[0] not in public_html
+
+
+def test_matching_recorded_input_provenance_has_no_difference_highlight():
+    context = build_result_compare_context(_input_results(["a" * 64] * 3))
+    assert context["mixed"] is False
+    assert context["comparison_summary"]["input_provenance"]["changed"] is False
+    assert context["comparison_summary"]["input_provenance"]["has_unobserved"] is False

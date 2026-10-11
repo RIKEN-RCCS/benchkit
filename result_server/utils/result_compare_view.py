@@ -62,6 +62,7 @@ def build_comparison_summary(results, *, include_evidence=True):
     baseline = result_rows[0] if result_rows else {}
     latest = result_rows[-1] if result_rows else {}
     diff_rows = _build_diff_rows(baseline, latest) if len(result_rows) >= 2 else []
+    input_provenance = _build_input_provenance(result_rows) if include_evidence else {}
     return {
         "include_evidence": include_evidence,
         "baseline": baseline,
@@ -69,7 +70,21 @@ def build_comparison_summary(results, *, include_evidence=True):
         "fom_change": _build_fom_change(baseline, latest) if len(result_rows) >= 2 else {},
         "diff_rows": diff_rows,
         "result_rows": result_rows,
-        "has_differences": any(row["status"] == "changed" for row in diff_rows),
+        "input_provenance": input_provenance,
+        "has_differences": (
+            any(row["status"] == "changed" for row in diff_rows)
+            or input_provenance.get("changed", False)
+        ),
+    }
+
+
+def _build_input_provenance(rows):
+    observed = [row for row in rows if not row.get("input_unobserved", True)]
+    changed = len({row["input_key"] for row in observed}) > 1
+    return {
+        "changed": changed,
+        "has_unobserved": len(observed) != len(rows),
+        "rows": rows,
     }
 
 
@@ -149,6 +164,8 @@ def _summarize_compare_result(row, *, include_evidence=True):
         "source_key": source_summary["key"],
         "input_display": input_summary["display"],
         "input_key": input_summary["key"],
+        "input_details": input_summary["details"],
+        "input_unobserved": input_summary["unobserved"],
         "build_cache_display": build_cache_summary["display"],
         "build_cache_key": build_cache_summary["key"],
         "profile_display": profile_summary["display"],
@@ -219,7 +236,11 @@ def _build_diff_rows(baseline, latest):
                 "label": label,
                 "baseline": baseline_display or "-",
                 "latest": latest_display or "-",
-                "status": "same" if baseline_key == latest_key else "changed",
+                "status": (
+                    "unobserved" if key == "input" and (
+                        baseline.get("input_unobserved") or latest.get("input_unobserved")
+                    ) else "same" if baseline_key == latest_key else "changed"
+                ),
             }
         )
     return rows
@@ -255,7 +276,17 @@ def _input_summary(data, stats):
     display = label if not descriptors else f"{label}: {'; '.join(descriptors[:2])}"
     if len(descriptors) > 2:
         display = f"{display}; +{len(descriptors) - 2} more"
-    return {"display": display, "key": (status, tuple(_input_descriptors(data, shorten=False)))}
+    details = _input_descriptors(data, shorten=False)
+    unobserved = status == "none" or any(
+        item.get("collection_status") == "unavailable"
+        for item in input_info_items_for_result(data) if isinstance(item, dict)
+    )
+    return {
+        "display": "Input observation unavailable" if status == "none" else display,
+        "key": (status, tuple(details)),
+        "details": details,
+        "unobserved": unobserved,
+    }
 
 
 def _input_descriptors(data, *, shorten=True):
