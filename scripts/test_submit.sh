@@ -100,7 +100,8 @@ if [[ -n "$scheduler_extra_args" ]]; then
 fi
 
 # --- 投入用スクリプト作成 ---
-echo cd $PWD > script.sh
+printf '#!/bin/bash\n' > script.sh
+echo cd $PWD >> script.sh
 echo bash programs/$code/run.sh $system $nodes $numproc_node $nthreads >> script.sh
 
 # --- システム別ジョブ投入 ---
