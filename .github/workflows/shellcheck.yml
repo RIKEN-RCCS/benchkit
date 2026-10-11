@@ -9,6 +9,7 @@ on:
       - "benchpark-bridge/scripts/*.sh"
       - "benchpark-bridge/scripts/**/*.sh"
       - ".github/workflows/shellcheck.yml"
+      - "scripts/tests/shellcheck_app_matrix.py"
   push:
     branches:
       - develop
@@ -20,13 +21,18 @@ on:
       - "benchpark-bridge/scripts/*.sh"
       - "benchpark-bridge/scripts/**/*.sh"
       - ".github/workflows/shellcheck.yml"
+      - "scripts/tests/shellcheck_app_matrix.py"
   workflow_dispatch:
 
 jobs:
-  shellcheck:
-    name: shellcheck -S error
+  shellcheck-error:
+    name: shellcheck error / shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
 
     steps:
       - name: Check out repository
@@ -46,12 +52,28 @@ jobs:
 
       - name: Run bash syntax checks and shellcheck at error level
         shell: bash
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: "3"
         run: |
           set -euo pipefail
           file_list=$(mktemp)
           trap 'rm -f "$file_list"' EXIT
-          find scripts/ programs/ benchpark-bridge/scripts/ -name "*.sh" -print0 | sort -z > "$file_list"
+          find scripts/ programs/ benchpark-bridge/scripts/ -name "*.sh" -print0 | LC_ALL=C sort -z > "$file_list"
+          if ! [[ "$SHARD_INDEX" =~ ^[0-9]+$ && "$SHARD_COUNT" =~ ^[1-9][0-9]*$ ]] ||
+             (( SHARD_INDEX >= SHARD_COUNT )); then
+            echo "Invalid ShellCheck shard configuration" >&2
+            exit 1
+          fi
           mapfile -d '' -t files < "$file_list"
+          selected=()
+          for i in "${!files[@]}"; do
+            if (( i % SHARD_COUNT == SHARD_INDEX )); then
+              selected+=("${files[i]}")
+            fi
+          done
+          echo "Shard ${SHARD_INDEX}/${SHARD_COUNT}: ${#selected[@]} of ${#files[@]} shell files"
+          files=("${selected[@]}")
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No shell files found; nothing to check."
             exit 0
@@ -66,22 +88,95 @@ jobs:
           time printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -x -S error -f gcc
           echo "shellcheck error-level: 0"
 
-      - name: Run warning-level shellcheck on changed app scripts
-        if: github.event_name == 'pull_request'
+  shellcheck-warning-apps:
+    name: select ShellCheck warning apps
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      matrix: ${{ steps.apps.outputs.matrix }}
+      has_changes: ${{ steps.apps.outputs.has_changes }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select changed app scripts
+        id: apps
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+          git diff --name-only -z --diff-filter=ACMRT "origin/${GITHUB_BASE_REF}...HEAD" -- ':(glob)programs/**/*.sh' |
+            python3 scripts/tests/shellcheck_app_matrix.py
+
+  shellcheck-warning:
+    name: shellcheck warning / ${{ matrix.app }}
+    needs: shellcheck-warning-apps
+    if: needs.shellcheck-warning-apps.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.shellcheck-warning-apps.outputs.matrix) }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install shellcheck-py
+        run: |
+          python -m pip install --quiet shellcheck-py
+          shellcheck --version
+
+      - name: Run warning-level shellcheck on changed app scripts
+        shell: bash
+        env:
+          APP_FILES_JSON: ${{ toJSON(matrix.files) }}
+        run: |
+          set -euo pipefail
           file_list=$(mktemp)
           trap 'rm -f "$file_list"' EXIT
-          git diff --name-only -z --diff-filter=ACMRT "origin/${GITHUB_BASE_REF}...HEAD" -- ':(glob)programs/**/*.sh' |
-            sort -z > "$file_list"
+          python3 -c 'import json, os, sys; files = json.loads(os.environ["APP_FILES_JSON"]); assert files and all(isinstance(f, str) and "\0" not in f for f in files); sys.stdout.buffer.write(b"\0".join(os.fsencode(f) for f in files) + b"\0")' > "$file_list"
           mapfile -d '' -t files < "$file_list"
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No changed app shell files found; warning-level shellcheck skipped."
-            exit 0
-          fi
           echo "Checking ${#files[@]} changed app shell files at -S warning level"
           # Retain analysis of source dependencies when each input is checked separately.
           time printf '%s\0' "${files[@]}" | xargs -0 -r -n 1 -P 2 shellcheck -x -S warning -f gcc
           echo "changed app shellcheck warning-level: 0"
+
+  shellcheck:
+    name: shellcheck -S error
+    needs: [shellcheck-error, shellcheck-warning-apps, shellcheck-warning]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check ShellCheck job results
+        shell: bash
+        env:
+          ERROR_RESULT: ${{ needs.shellcheck-error.result }}
+          WARNING_RESULT: ${{ needs.shellcheck-warning.result }}
+          SELECTION_RESULT: ${{ needs.shellcheck-warning-apps.result }}
+          HAS_CHANGES: ${{ needs.shellcheck-warning-apps.outputs.has_changes }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$ERROR_RESULT" = success
+          if [ "$EVENT_NAME" = pull_request ]; then
+            test "$SELECTION_RESULT" = success
+            case "$HAS_CHANGES" in
+              true) test "$WARNING_RESULT" = success ;;
+              false) test "$WARNING_RESULT" = skipped ;;
+              *) exit 1 ;;
+            esac
+          else
+            test "$SELECTION_RESULT" = skipped
+            test "$WARNING_RESULT" = skipped
+          fi
