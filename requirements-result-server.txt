@@ -9,5 +9,6 @@ redis>=5.0,<6.0
 pyotp>=2.9,<3.0
 qrcode[pil]>=8.0,<9.0
 pytest>=9.0.3,<10.0
+pytest-xdist>=3.8,<4.0
 hypothesis>=6.0,<7.0
 fakeredis>=2.23,<3.0
