@@ -12,7 +12,7 @@ fi
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-source "${REPO_DIR}/scripts/bk_functions.sh"
+source "${REPO_DIR}/scripts/bk_build.sh"
 
 write_minimal_result() {
   mkdir -p results

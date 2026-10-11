@@ -2,7 +2,7 @@
 set -euo pipefail
 
 system="$1"
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 REPO_URL="https://github.com/r-ccs-cms/sbd.git"
 REPO_DIR="sbd"

@@ -12,7 +12,7 @@ dir_list=(Generic Intel Intel_mod1)
 echo "[${REPO_DIR}] Building on system: $system"
 mkdir -p artifacts
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 cd ${REPO_DIR} || {
@@ -25,6 +25,8 @@ case "$system" in
 	comp=frtpx
 	dir="normal_${comp}_omp_dir"
 	version="--version"
+	# Retain the existing configuration value although this entrypoint does not consume it.
+	# shellcheck disable=SC2034
 	MARCH=native
 	archopt=""
 	;;
@@ -50,6 +52,8 @@ esac
 for i in "${!name_list[@]}"; do
     name=${name_list[i]}
 	dir_path=${dir_list[i]}
+	# Retain the existing configuration value although this entrypoint does not consume it.
+	# shellcheck disable=SC2034
 	index=$((i + 1))
 	echo "Looping over name='$name', dir='$dir_path'"
 	cd "$dir_path" || { echo "cd failed to '$dir_path'"; exit 1; }

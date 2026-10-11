@@ -35,7 +35,9 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/scripts/estimation" "${TMP_DIR}/scripts/result_server"
+cp "${REPO_DIR}/scripts/estimation/declaration_helpers.sh" "${TMP_DIR}/scripts/estimation/declaration_helpers.sh"
 cp "${REPO_DIR}/scripts/estimation/common.sh" "${TMP_DIR}/scripts/estimation/common.sh"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/scripts/common"
 cp "${REPO_DIR}/scripts/estimation/section_artifacts.sh" "${TMP_DIR}/scripts/estimation/section_artifacts.sh"
 cp "${REPO_DIR}/scripts/estimation/declarations.sh" "${TMP_DIR}/scripts/estimation/declarations.sh"
 cp "${REPO_DIR}/scripts/estimation/result_query.sh" "${TMP_DIR}/scripts/estimation/result_query.sh"

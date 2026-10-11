@@ -14,6 +14,10 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/project/scripts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/src" "${TMP_DIR}/bin"
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
+cp "${REPO_DIR}/scripts/bk_build.sh" "${TMP_DIR}/project/scripts/bk_build.sh"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/project/scripts/common"
+mkdir -p "${TMP_DIR}/project/scripts/estimation"
+cp "${REPO_DIR}/scripts/estimation/declaration_helpers.sh" "${TMP_DIR}/project/scripts/estimation/"
 cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/project/scripts/"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
 cp "${REPO_DIR}/scripts/json_output.sh" "${TMP_DIR}/project/scripts/json_output.sh"

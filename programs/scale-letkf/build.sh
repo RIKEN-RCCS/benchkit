@@ -9,7 +9,7 @@ REPO_DIR="scale-letkf-FugakuNEXT"
 BRANCH="${SCALE_LETKF_BRANCH:-master}"
 SOURCE_COMMIT="${SCALE_LETKF_SOURCE_COMMIT:-}"
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 cd "${REPO_DIR}"
 

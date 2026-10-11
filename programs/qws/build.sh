@@ -9,7 +9,7 @@ BRANCH="${QWS_BRANCH:-master}"
 SOURCE_COMMIT="${QWS_SOURCE_COMMIT:-}"
 
 # bk_fetch_source でソースコード取得とメタデータ収集
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 cd "${REPO_DIR}"

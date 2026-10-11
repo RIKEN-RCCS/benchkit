@@ -8,7 +8,7 @@ REPO_URL="${GENESIS_REPO_URL:-https://github.com/genesis-release-r-ccs/${REPO_DI
 BRANCH="${GENESIS_BRANCH:-main}"
 SOURCE_COMMIT="${GENESIS_SOURCE_COMMIT:-}"
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 run_genesis_rikyu_in_container() {
     local image="${GENESIS_RIKYU_SIF:-/shared/software/hpc-dev-container/hpc_dev.sif}"
@@ -308,6 +308,8 @@ configure_genesis_nvidia_gpu() {
 
 case "$system" in
     Fugaku)
+	# Retain the existing configuration value although this entrypoint does not consume it.
+	# shellcheck disable=SC2034
 	comp=frtpx
 	FC=mpifrtpx
 	CC=mpifccpx

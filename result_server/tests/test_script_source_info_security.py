@@ -24,7 +24,7 @@ def test_result_script_does_not_source_timing_env():
 
 
 def test_bk_fetch_source_writes_encoded_source_info_values():
-    bk_functions = (REPO_ROOT / "scripts" / "bk_functions.sh").read_text(encoding="utf-8")
+    bk_functions = (REPO_ROOT / "scripts" / "common" / "source.sh").read_text(encoding="utf-8")
 
     assert "BK_SOURCE_INFO_FORMAT=base64-v1" in bk_functions
     assert "BK_REPO_URL_B64" in bk_functions

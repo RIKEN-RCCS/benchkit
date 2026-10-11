@@ -17,7 +17,7 @@ PETSC_TAG="v3.25.2"
 PETSC_DIR="${PWD}/petsc"
 ARTIFACT_DIR="${PWD}/artifacts"
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 mkdir -p "${ARTIFACT_DIR}"
 bk_fetch_source "${PETSC_REPO}" "petsc" "${PETSC_TAG}"

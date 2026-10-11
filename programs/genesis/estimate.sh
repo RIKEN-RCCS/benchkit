@@ -1,7 +1,6 @@
 #!/bin/bash
 # estimate.sh — GENESIS estimation entrypoint.
 
-source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 source programs/genesis/section.sh
 
