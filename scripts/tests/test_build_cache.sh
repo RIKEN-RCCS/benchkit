@@ -18,6 +18,10 @@ mkdir -p \
   "${TMP_DIR}/tools"
 
 cp "${REPO_DIR}/scripts/bk_functions.sh" "${TMP_DIR}/project/scripts/bk_functions.sh"
+cp "${REPO_DIR}/scripts/bk_build.sh" "${TMP_DIR}/project/scripts/bk_build.sh"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/project/scripts/common"
+mkdir -p "${TMP_DIR}/project/scripts/estimation"
+cp "${REPO_DIR}/scripts/estimation/declaration_helpers.sh" "${TMP_DIR}/project/scripts/estimation/"
 cp -R "${REPO_DIR}/scripts/profiling" "${TMP_DIR}/project/scripts/"
 cp "${REPO_DIR}/scripts/build_with_cache.sh" "${TMP_DIR}/project/scripts/build_with_cache.sh"
 cp "${REPO_DIR}/scripts/collect_environment_snapshot.sh" "${TMP_DIR}/project/scripts/collect_environment_snapshot.sh"
@@ -499,5 +503,18 @@ run_build_with_cache
 test "$(cat "${TMP_DIR}/build-count")" = "4"
 grep -q "$second_commit" "${TMP_DIR}/project/artifacts/app.bin"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+# Shared build helper changes invalidate cached binaries in both checkout modes.
+printf '\n# shared source helper change\n' >> "${TMP_DIR}/project/scripts/common/source.sh"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_build_with_cache
+test "$(cat "${TMP_DIR}/build-count")" = "5"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+printf '\n# shared profiler configuration change\n' >> "${TMP_DIR}/git-project/scripts/common/profile_config.sh"
+rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
+run_git_project_build_with_cache
+test "$(cat "${TMP_DIR}/git-build-count")" = "6"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
 
 echo "build cache test passed"

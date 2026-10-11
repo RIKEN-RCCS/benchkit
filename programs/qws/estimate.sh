@@ -62,7 +62,6 @@ if ! qws_estimation_enabled; then
   exit 0
 fi
 
-source scripts/bk_functions.sh
 source scripts/estimation/common.sh
 
 BK_ESTIMATION_SECTION_DEFAULT_FACTOR="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-0.5}"

@@ -499,7 +499,7 @@ set -e
 system="$1"
 mkdir -p artifacts
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 # ソースコード取得と source_info 生成
 REPO_DIR="your-app"
@@ -936,7 +936,7 @@ HPC 上の benchmark CI が必要な場合は、maintainer が `GitLab Manual CI
 - ビルド・実行ファイルの衝突は基本的に発生しない
 
 ### Git リポジトリの取り扱い
-- ソース取得は原則 `scripts/bk_functions.sh` の `bk_fetch_source <source> <dest_dir> [branch_or_tag] [expected_commit_or_sha256]` を使う
+- ソース取得は原則 `scripts/bk_build.sh` の `bk_fetch_source <source> <dest_dir> [branch_or_tag] [expected_commit_or_sha256]` を使う
 - `bk_fetch_source` は Git URL または tar archive を取得・展開し、`results/source_info.env` に source provenance を書く
 - Git source では expected commit を指定すると、その commit に checkout して一致しなければ失敗する
 - tar archive では expected SHA-256 を指定すると、一致しなければ失敗し、`source_info` に `sha256sum` も記録する

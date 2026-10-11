@@ -32,7 +32,7 @@ status_file="${repo_root}/results/build_cache.env"
 late_restore_exit_code=86
 late_restore_status_file="${repo_root}/results/build_cache_late_restore.env"
 
-source "${repo_root}/scripts/bk_functions.sh"
+source "${repo_root}/scripts/bk_build.sh"
 
 validate_path_component() {
   local value="$1"
@@ -252,6 +252,12 @@ build_inputs_hash() {
     git -C "$repo_root" ls-files \
       "programs/${code}" \
       "scripts/bk_functions.sh" \
+      "scripts/bk_build.sh" \
+      "scripts/common/bootstrap.sh" \
+      "scripts/common/source.sh" \
+      "scripts/common/profile_config.sh" \
+      "scripts/common/observation.sh" \
+      "scripts/estimation/declaration_helpers.sh" \
       "scripts/build_tool_wrappers" \
       "scripts/build_with_cache.sh" \
       "scripts/collect_environment_snapshot.sh" \
@@ -266,6 +272,12 @@ build_inputs_hash() {
     fi
     printf '%s\n' \
       "scripts/bk_functions.sh" \
+      "scripts/bk_build.sh" \
+      "scripts/common/bootstrap.sh" \
+      "scripts/common/source.sh" \
+      "scripts/common/profile_config.sh" \
+      "scripts/common/observation.sh" \
+      "scripts/estimation/declaration_helpers.sh" \
       "scripts/build_with_cache.sh" \
       "scripts/collect_environment_snapshot.sh" \
       "scripts/matrix_generate.sh" \

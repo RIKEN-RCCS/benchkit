@@ -20,7 +20,7 @@ BUILD_LOG_DIR="${RESULTS_DIR}/salmon_build_logs"
 AOCL_ROOT_DEFAULT="/lvs0/rccs-nghpcadu/nakamura/aocl/install"
 FJMPI_PATCH="${PWD}/programs/salmon/patches/fjmpi-topology-guard.patch"
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 mkdir -p "${ARTIFACT_DIR}"
 mkdir -p "${BUILD_LOG_DIR}"

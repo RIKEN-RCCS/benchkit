@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# shellcheck source=scripts/common/bootstrap.sh
+source "${BASH_SOURCE[0]%/*}/../common/bootstrap.sh"
+# shellcheck source=scripts/common/observation.sh
+source "${BK_BENCHKIT_ROOT}/scripts/common/observation.sh"
+# shellcheck source=scripts/estimation/declaration_helpers.sh
+source "${BK_BENCHKIT_ROOT}/scripts/estimation/declaration_helpers.sh"
 source "${BASH_SOURCE[0]%/*}/section_artifacts.sh"
 # common.sh — Common function library for performance estimation
 #

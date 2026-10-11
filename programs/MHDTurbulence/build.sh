@@ -14,7 +14,7 @@ echo "[${code}] Building on system: $system"
 
 mkdir -p ${artdir}
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 bk_fetch_source "$REPO" "$code" "$BRANCH" "$SOURCE_COMMIT"
 
 DIR=$code
@@ -24,24 +24,24 @@ BIN=Simulation.x
 case "$system" in
     MiyabiC)
 	cd src_f90_omp_host
-	echo "Compile cods in "`pwd`
+	echo "Compile cods in $(pwd)"
 	make
-	echo "Executable is "${BIN}" and copied to "${artdir}
+	echo "Executable is ${BIN} and copied to ${artdir}"
 	cp ../exe/$BIN ../../${artdir}
 	;;
     MiyabiG)
 	cd src_f90_acc_device
-	echo "Compile cods in "`pwd`
+	echo "Compile cods in $(pwd)"
 	make
-	echo "Executable is "${BIN}" and copied to "${artdir}
+	echo "Executable is ${BIN} and copied to ${artdir}"
 	cp ../exe/$BIN ../../${artdir}
 	;;
 # in the future, we may add this
 #    MiyabiG/OpenMP)
 #	cd src_f90_omp_device
-#	echo "Compile cods in "`pwd`
+#	echo "Compile cods in $(pwd)"
 #	make
-#	echo "Executable is "${BIN}" and copied to "${artdir}
+#	echo "Executable is ${BIN} and copied to ${artdir}"
 #	cp ../exe/$BIN ../../${artdir}
 #	;;
     *)

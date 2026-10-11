@@ -7,7 +7,7 @@ CPU_ARCHIVE="/vol0003/rccs-sdt/data/a01008/apps/ffb/ffb-frt_cpu.fugaku.tar.gz"
 GPU_ARCHIVE="/lvs0/rccs-sdt/kazuto.ando/apps/ffb/ffb-acc_gpu.gh.tar.gz"
 WORK_DIR="ffb_src"
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 mkdir -p artifacts
 rm -rf "${WORK_DIR}"

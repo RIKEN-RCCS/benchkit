@@ -176,7 +176,9 @@ Data or `*.ncu-rep`.
 
 - `build.sh` and `run.sh` are the primary application entry points.
 - `run.sh` receives `system`, `nodes`, `numproc_node`, and `nthreads`.
-- `scripts/bk_functions.sh` provides shared emit helpers such as result, section, and overlap output.
+- Build scripts source `scripts/bk_build.sh` for source provenance and profiler configuration.
+- Run scripts source `scripts/bk_functions.sh` for execution, recording, profiling, and result output.
+- Estimate scripts source `scripts/estimation/common.sh` for estimation declarations, section output, and estimation processing.
 - `record_timestamp.sh`, `collect_timing.sh`, and `result.sh` shape timing and result JSON data before upload.
 
 ## 3. Result Transfer and Storage

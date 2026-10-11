@@ -16,6 +16,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/scripts" "${TMP_DIR}/results"
 cp -R "${REPO_DIR}/scripts/estimation" "${TMP_DIR}/scripts/estimation"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/scripts/common"
 cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
 
 pushd "${TMP_DIR}" >/dev/null

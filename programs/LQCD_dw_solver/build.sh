@@ -6,7 +6,7 @@ echo "[LQCD_dw_solver] Building on system: $system"
 mkdir -p artifacts
 #git clone https://github.com/RIKEN-LQCD/qws.git
 
-source scripts/bk_functions.sh
+source scripts/bk_build.sh
 
 TARDIR=./
 case "$system" in
