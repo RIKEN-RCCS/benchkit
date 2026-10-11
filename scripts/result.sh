@@ -1,6 +1,12 @@
 #!/bin/bash
 #set -euo pipefail
 
+# A previous conversion must not advertise completion for this attempt.
+if [ -d results ] && ! rm -f results/.complete; then
+  echo "ERROR: Failed to clear the previous result completion marker" >&2
+  exit 1
+fi
+
 if [ ! -d results ] || [ ! -f results/result ]; then
   echo "Error: results/ or results/result not found"
   exit 1
@@ -1169,7 +1175,7 @@ write_result_json() {
   }"
   fi
 
-  cat <<EOF > results/result${idx}.json
+  if ! cat <<EOF > "results/result${idx}.json"
 {
   "code": "$code",
   "system": "$system",
@@ -1185,22 +1191,17 @@ write_result_json() {
   "source_info": $source_info_block${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
 }
 EOF
-
-  # Ensure file is completely written and synced
-  sync
-  sleep 2
-
-  # Verify file integrity locally
-  if [[ -s "results/result${idx}.json" ]] && jq . "results/result${idx}.json" >/dev/null 2>&1; then
-    echo "results/result${idx}.json created and verified locally."
-  else
-    echo "WARNING: results/result${idx}.json may be incomplete, retrying..."
-    sleep 5
-    sync
-    if [[ ! -s "results/result${idx}.json" ]]; then
-      echo "ERROR: Failed to create valid results/result${idx}.json"
-    fi
+  then
+    echo "ERROR: Failed to write results/result${idx}.json" >&2
+    return 1
   fi
+
+  # The writer has closed the file; validate before allowing the sender to run.
+  if [[ ! -s "results/result${idx}.json" ]] || ! jq . "results/result${idx}.json" >/dev/null 2>&1; then
+    echo "ERROR: Invalid result JSON: results/result${idx}.json" >&2
+    return 1
+  fi
+  echo "results/result${idx}.json created and verified locally."
 }
 
 i=0
@@ -1218,7 +1219,7 @@ while IFS= read -r line; do
   if [[ "$line" == *FOM:* ]]; then
     # If we were already in a FOM block, write the previous one
     if [ "$in_fom_block" = true ]; then
-      write_result_json "$i"
+      write_result_json "$i" || exit 1
       i=$(expr $i + 1)
     fi
 
@@ -1374,12 +1375,13 @@ done < results/result
 
 # Write the last FOM block
 if [ "$in_fom_block" = true ]; then
-  write_result_json "$i"
+  write_result_json "$i" || exit 1
   i=$(expr $i + 1)
 fi
 
 # Create completion marker after all JSON files are created
-echo "All result JSON files created at $(date)" > results/.complete
-sync
-sleep 5
+if ! echo "All result JSON files created at $(date)" > results/.complete; then
+  echo "ERROR: Failed to write the result completion marker" >&2
+  exit 1
+fi
 echo "Result processing completed. Created $i JSON files."

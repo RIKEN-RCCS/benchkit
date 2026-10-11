@@ -202,8 +202,6 @@ $(emit_execution_route_setup "$system")
     - echo \"Job completed\"
     - chmod -R a+rX results 2>/dev/null || true
     - ls -la .
-  # after_script:
-  #   - bash scripts/wait_for_nfs.sh results
   artifacts:
     when: always
     paths:
@@ -258,8 +256,6 @@ $(emit_execution_route_setup "$system")
     - echo \"Job completed\"
     - chmod -R a+rX artifacts results 2>/dev/null || true
     - ls -la .
-  # after_script:
-  #   - bash scripts/wait_for_nfs.sh results
   artifacts:
     when: always
     paths:
