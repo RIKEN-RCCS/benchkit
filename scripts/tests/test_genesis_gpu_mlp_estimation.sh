@@ -23,8 +23,9 @@ test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
 test "${BK_ESTIMATION_FUTURE_SYSTEM}" = "FugakuNEXT"
 
 source programs/genesis/parse_timing.sh
-source programs/genesis/sections.sh
+source programs/genesis/section.sh
 genesis_declare_estimation_layout
+genesis_declare_observation
 bk_estimation_apply_declared_defaults
 
 cat > results/no_breakdown_input.json <<'EOF'
@@ -210,39 +211,70 @@ END { exit(found ? 0 : 1) }' results/genesis_overlap_sections.tsv
 
 genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_no_archive.result
 test "$(grep -c '^SECTION:' results/sections_no_archive.result)" = "11"
-grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_ensemble_average' results/sections_no_archive.result
-grep -q '^SECTION:pme_real_wait .* estimation_package:identity' results/sections_no_archive.result
-grep -q '^SECTION:pme_real_inter .* estimation_package:gpu_kernel_ensemble_average' results/sections_no_archive.result
-grep -q '^SECTION:pme_real_intra .* estimation_package:gpu_kernel_ensemble_average' results/sections_no_archive.result
-grep -q '^SECTION:overlap:pme_real_wait,pme_real_inter,pme_real_intra,pme_recip .* estimation_package:identity' results/sections_no_archive.result
-grep -q '^SECTION:bond .* estimation_package:identity' results/sections_no_archive.result
-grep -q '^SECTION:integrator .* estimation_package:identity' results/sections_no_archive.result
-grep -q '^SECTION:other .* estimation_package:identity' results/sections_no_archive.result
+! grep -q estimation_package: results/sections_no_archive.result
+grep -q '^OBSERVATION_VERSION:1$' results/sections_no_archive.result
+grep -q '^SECTION:pairlist .*' results/sections_no_archive.result
+grep -q '^SECTION:pme_real_wait .*' results/sections_no_archive.result
+grep -q '^SECTION:pme_real_inter .*' results/sections_no_archive.result
+grep -q '^SECTION:pme_real_intra .*' results/sections_no_archive.result
+grep -q '^SECTION:overlap:pme_real_wait,pme_real_inter,pme_real_intra,pme_recip .*' results/sections_no_archive.result
+grep -q '^SECTION:bond .*' results/sections_no_archive.result
+grep -q '^SECTION:integrator .*' results/sections_no_archive.result
+grep -q '^SECTION:other .*' results/sections_no_archive.result
 ! grep -q 'artifact:results/padata0.tgz' results/sections_no_archive.result
 
 genesis_emit_estimation_data_from_log results/log_p8_overlap.txt 156.531 > results/sections_with_overlap.result
-grep -q '^SECTION:overlap:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator .* type:overlap members:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator estimation_package:identity' results/sections_with_overlap.result
+grep -q '^SECTION:overlap:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator .* type:overlap members:pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator' results/sections_with_overlap.result
 
 touch results/padata_pairlist.tgz
 export BK_GENESIS_SECTION_PAIRLIST_ARTIFACT="results/padata_pairlist.tgz"
 genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_with_archive.result
-grep -q '^SECTION:pairlist .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_pairlist.tgz' results/sections_with_archive.result
-grep -q '^SECTION:pme_real_inter .* estimation_package:gpu_kernel_ensemble_average$' results/sections_with_archive.result
-grep -q '^SECTION:pme_real_intra .* estimation_package:gpu_kernel_ensemble_average$' results/sections_with_archive.result
+grep -q '^SECTION:pairlist .* artifact:results/padata_pairlist.tgz' results/sections_with_archive.result
+grep -q '^SECTION:pme_real_inter .*$' results/sections_with_archive.result
+grep -q '^SECTION:pme_real_intra .*$' results/sections_with_archive.result
 
 touch results/padata_inter.tgz
 touch results/padata_intra.tgz
 export BK_GENESIS_SECTION_PME_REAL_INTER_ARTIFACT="results/padata_inter.tgz"
 export BK_GENESIS_SECTION_PME_REAL_INTRA_ARTIFACT="results/padata_intra.tgz"
 genesis_emit_estimation_data_from_log results/log_p8.txt 48.862 > results/sections_with_explicit_pme_real_archive.result
-grep -q '^SECTION:pme_real_inter .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_inter.tgz' results/sections_with_explicit_pme_real_archive.result
-grep -q '^SECTION:pme_real_intra .* estimation_package:gpu_kernel_ensemble_average artifact:results/padata_intra.tgz' results/sections_with_explicit_pme_real_archive.result
+grep -q '^SECTION:pme_real_inter .* artifact:results/padata_inter.tgz' results/sections_with_explicit_pme_real_archive.result
+grep -q '^SECTION:pme_real_intra .* artifact:results/padata_intra.tgz' results/sections_with_explicit_pme_real_archive.result
 
 mkdir -p genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1
 GENESIS_BENCHKIT_ROOT="$PWD" \
-  bash -c 'source scripts/bk_functions.sh; source scripts/estimation/common.sh; source programs/genesis/parse_timing.sh; source programs/genesis/sections.sh; genesis_declare_estimation_layout; bk_estimation_apply_declared_defaults; export BK_GENESIS_SECTION_PAIRLIST_ARTIFACT=results/padata_pairlist.tgz; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; genesis_emit_estimation_data_from_log "$GENESIS_BENCHKIT_ROOT/results/log_p8.txt" 48.862' \
+  bash -c 'source scripts/bk_functions.sh; source programs/genesis/section.sh; test "${BK_APP_ESTIMATION_METHOD_VERSION:-}" = ""; export BK_GENESIS_SECTION_PAIRLIST_ARTIFACT=results/padata_pairlist.tgz; cd genesis_benchmark_input/npt/genesis2.0beta_3.5fs/apoa1; genesis_emit_estimation_data_from_log "$GENESIS_BENCHKIT_ROOT/results/log_p8.txt" 48.862' \
   > results/from_subdir.result
 grep -q 'artifact:results/padata_pairlist.tgz' results/from_subdir.result
+# Estimation binds the current declaration to observations without changing the source.
+cat > results/observation_only.json <<'JSON'
+{"code":"genesis","Exp":"p8","system":"FixtureSystem","FOM":1,"node_count":1,
+ "observation_definition":{"version":"old-observation"},
+ "fom_breakdown":{"sections":[{"name":"pairlist","time":1,"estimation_package":"identity"}],"overlaps":[]}}
+JSON
+before=$(sha256sum results/observation_only.json)
+read_values results/observation_only.json
+bk_estimation_bind_declared_future_items
+jq -e '.sections[0].estimation_package == "gpu_kernel_ensemble_average" and .sections[0].required_profile == "gpu_counters"' <<< "$est_input_fom_breakdown" >/dev/null
+test "$before" = "$(sha256sum results/observation_only.json)"
+test "$est_source_observation_json" = '{"version":"old-observation"}'
+
+# Exercise the application entrypoint with a local mock of the baseline API.
+mkdir -p mock-bin
+cat > mock-bin/curl <<'SH'
+#!/bin/bash
+printf '%s\n' '{"FOM":1,"node_count":1,"numproc_node":1,"_meta":{"uuid":"11111111-2222-3333-4444-555555555555","timestamp":"20261001_000000"}}'
+SH
+chmod +x mock-bin/curl
+touch results/client.crt results/client.key
+PATH="$PWD/mock-bin:$PATH" \
+RESULT_SERVER=https://result.example.test \
+RESULT_SERVER_CLIENT_CERT="$PWD/results/client.crt" \
+RESULT_SERVER_CLIENT_KEY="$PWD/results/client.key" \
+  bash programs/genesis/estimate.sh results/observation_only.json > results/estimate-run.log
+jq -e '.estimate_metadata.app_estimation_method.version == "1" and .estimate_metadata.source_result.observation_definition.version == "old-observation"' results/estimate_genesis_0.json >/dev/null
+test "$before" = "$(sha256sum results/observation_only.json)"
+
 popd >/dev/null
 
 echo "genesis gpu mlp estimation metadata test passed"

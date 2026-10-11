@@ -8,13 +8,9 @@ nthreads="$4"
 numproc=$(( numproc_node * nodes ))
 
 source "${PWD}/scripts/bk_functions.sh"
-source "${PWD}/scripts/estimation/common.sh"
-source "${PWD}/programs/genesis/parse_timing.sh"
-source "${PWD}/programs/genesis/sections.sh"
-source "${PWD}/programs/genesis/profile.sh"
+source "${PWD}/programs/genesis/section.sh"
 
-genesis_declare_estimation_layout
-bk_estimation_apply_declared_defaults
+genesis_declare_observation
 
 SCRIPT_DIR="${PWD}"
 export GENESIS_BENCHKIT_ROOT="$SCRIPT_DIR"
@@ -253,7 +249,7 @@ fi
 
 {
     bk_emit_result --from-log "$output" --fom "$fom_val" --fom-unit s --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
-    genesis_emit_estimation_data_from_log "$output" "$fom_val"
+    genesis_emit_section_metadata_from_log "$output" "$fom_val"
 } >> ${resultsdir}/result
 # if information is requierd
 #printf "%-10s nodes=%2d numproc=%3d  FOM: %.3f\n" \

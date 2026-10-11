@@ -3,7 +3,37 @@
 
 source scripts/bk_functions.sh
 source scripts/estimation/common.sh
-source programs/genesis/sections.sh
+source programs/genesis/section.sh
+
+genesis_declare_estimation_layout() {
+  GENESIS_PME_OVERLAP_SECTION_MEMBERS="pme_real_wait,pme_real_inter,pme_real_intra,pme_recip"
+  GENESIS_DYNAMICS_SECTION_MEMBERS="pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator"
+  bk_clear_estimation_defaults
+  bk_define_estimation_method_version "1"
+  bk_clear_estimation_declarations
+  bk_define_current_estimation_package weakscaling
+  bk_define_future_estimation_package instrumented_app_sections_dummy
+  bk_define_baseline_system "${BK_ESTIMATION_BASELINE_SYSTEM:-Fugaku}"
+  bk_define_baseline_exp "${BK_ESTIMATION_BASELINE_EXP:-${BK_GENESIS_EXP:-p8}}"
+  bk_define_future_system "${BK_ESTIMATION_FUTURE_SYSTEM:-FugakuNEXT}"
+  bk_define_current_target_nodes "${BK_ESTIMATION_CURRENT_TARGET_NODES:-1}"
+  bk_define_future_target_nodes "${BK_ESTIMATION_FUTURE_TARGET_NODES:-1}"
+  bk_declare_estimation_items --side future "$(cat <<EOF
+section|pairlist|gpu_kernel_ensemble_average|gpu_counters
+section|bond|identity
+section|angle|identity
+section|dihedral|identity
+section|pme_real_wait|identity
+section|pme_real_inter|gpu_kernel_ensemble_average|gpu_counters
+section|pme_real_intra|gpu_kernel_ensemble_average|gpu_counters
+section|pme_recip|identity
+section|integrator|identity
+section|other|identity
+overlap|$GENESIS_PME_OVERLAP_SECTION_MEMBERS|identity
+overlap|$GENESIS_DYNAMICS_SECTION_MEMBERS|identity
+EOF
+)"
+}
 
 BK_ESTIMATION_SECTION_DEFAULT_FACTOR="${BK_ESTIMATION_SECTION_DEFAULT_FACTOR:-1.0}"
 BK_GENESIS_GPU_TARGET_GPU="${BK_GENESIS_GPU_TARGET_GPU:-GB200}"
@@ -58,6 +88,8 @@ genesis_run_single_estimate() {
     rm -f "$package_input_json"
   fi
 
+  # est_code is populated by the common estimation reader.
+  # shellcheck disable=SC2154
   bk_estimation_write_output "results/estimate_${est_code}_${output_index}.json"
 }
 

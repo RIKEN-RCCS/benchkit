@@ -32,6 +32,7 @@ cat > results/source_result.json <<'JSON'
   "numproc_node": 4,
   "_server_uuid": "11111111-2222-3333-4444-555555555555",
   "_server_timestamp": "20260907_100000",
+  "observation_definition": {"version": "old-observation"},
   "input_info": {
     "schema_version": 1,
     "inputs": [
@@ -69,10 +70,13 @@ est_future_bench_numproc_node="$est_numproc_node"
 est_future_bench_timestamp="$est_timestamp"
 est_future_bench_uuid="$est_uuid"
 
+BK_APP_ESTIMATION_METHOD_VERSION="new-method"
 print_json > results/estimate_common_contract.json
 
 jq -e '
   type == "object" and
+  .estimate_metadata.app_estimation_method.version == "new-method" and
+  .estimate_metadata.source_result.observation_definition.version == "old-observation" and
   .code == "contractapp" and
   .exp == "case0" and
   (.current_system | type) == "object" and
@@ -96,6 +100,12 @@ jq -e '
   (.estimate_metadata.future_source_result | type) == "object" and
   .estimate_metadata.future_source_result.system == "SourceSystem"
 ' results/estimate_common_contract.json >/dev/null
+
+# Legacy input remains unversioned; a previous Result must not leak its version.
+jq 'del(.observation_definition)' results/source_result.json > results/legacy_result.json
+read_values results/legacy_result.json
+print_json > results/legacy_estimate.json
+jq -e '.estimate_metadata.source_result | has("observation_definition") | not' results/legacy_estimate.json >/dev/null
 
 popd >/dev/null
 

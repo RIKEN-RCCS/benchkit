@@ -99,10 +99,10 @@ GENESIS は、現時点で一番実運用に近い推定の参照例です。特
 app 側に残す責務と Benchkit 共通層へ寄せる責務を追いやすくなります。
 
 - `programs/genesis/README.md`: profile / estimation 全体の意図と運用メモ
-- `programs/genesis/sections.sh`: section / overlap 宣言と Result JSON へ渡す timing metadata
+- `programs/genesis/section.sh`: 観測定義・観測版と Result JSON へ渡す実測区間時間
 - `programs/genesis/profile.sh`: NCU 採取、artifact 登録、section との対応付け
 - `programs/genesis/parse_timing.sh`: GENESIS log から section timing を抽出する app-local parser
-- `programs/genesis/estimate.sh`: 共通推定 flow を呼ぶ薄い entrypoint
+- `programs/genesis/estimate.sh`: 推定版・sectionへの手法割当と共通推定 flow のentrypoint
 
 ### 推定 package 開発者
 

@@ -1004,6 +1004,11 @@ fi
 write_result_json() {
   local idx="$1"
   local fom_breakdown_block=""
+  local observation_definition_block=""
+  if [[ -n "$observation_version" ]]; then
+    observation_definition_block=",
+  \"observation_definition\": $(jq -cn --arg version "$observation_version" '{version: $version}')"
+  fi
 
   # Build pipeline_timing block if pipeline_timing.json exists.
   # Treat the file as data; never source generated timing files as shell.
@@ -1182,7 +1187,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
+  "source_info": $source_info_block${observation_definition_block}${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
 }
 EOF
 
@@ -1213,6 +1218,7 @@ description="null"
 confidential="null"
 sections_json=""
 overlaps_json=""
+observation_version=""
 
 while IFS= read -r line; do
   if [[ "$line" == *FOM:* ]]; then
@@ -1225,6 +1231,7 @@ while IFS= read -r line; do
     in_fom_block=true
     sections_json=""
     overlaps_json=""
+    observation_version=""
 
     # Parse FOM line. Values may be decimal or scientific notation.
     fom=$(printf '%s\n' "$line" | grep -Eo 'FOM:[ ]*[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?' | head -n1 | awk -F':' '{print $2}' | sed 's/^ *//')
@@ -1282,6 +1289,8 @@ while IFS= read -r line; do
       confidential=null
     fi
 
+  elif [[ "$line" == OBSERVATION_VERSION:* && "$in_fom_block" == true ]]; then
+    observation_version="${line#OBSERVATION_VERSION:}"
   elif [[ "$line" == SECTION:* ]]; then
     # Parse SECTION line:
     # SECTION:name time:seconds [type:value] [members:a,b] [estimation_package:package_name] [artifact:path]

@@ -597,6 +597,48 @@ bk_emit_section() {
   return 0
 }
 
+# Version declarations are plain data; reading them never starts measurement.
+bk_clear_observation_definitions() {
+  BK_OBSERVATION_VERSION=""
+  BK_SECTION_TIME_COLLECTOR=""
+  BK_SECTION_TIME_UNIT=""
+  BK_OBSERVATION_PROFILE_DECLARATIONS=""
+}
+
+bk_define_observation_version() {
+  BK_OBSERVATION_VERSION="${1:-}"
+}
+
+bk_define_section_time_collector() {
+  BK_SECTION_TIME_COLLECTOR="${1:-}"
+}
+
+bk_define_section_time_unit() {
+  # The Result section contract records seconds.
+  [[ "${1:-}" == s ]] || { echo "Section times must be converted to seconds" >&2; return 1; }
+  BK_SECTION_TIME_UNIT=s
+}
+
+bk_define_profile() {
+  [[ "$#" == 2 ]] || return 1
+  BK_OBSERVATION_PROFILE_DECLARATIONS="${BK_OBSERVATION_PROFILE_DECLARATIONS:+${BK_OBSERVATION_PROFILE_DECLARATIONS}
+}$1|$2"
+}
+
+bk_define_estimation_method_version() {
+  BK_APP_ESTIMATION_METHOD_VERSION="${1:-}"
+}
+
+# Emit within a FOM block so each Result keeps its own observation version.
+bk_emit_observation_definition() {
+  if [[ -n "${BK_OBSERVATION_VERSION:-}" ]]; then
+    case "$BK_OBSERVATION_VERSION" in
+      *[!a-zA-Z0-9._+-]*) echo "Invalid observation version" >&2; return 1 ;;
+    esac
+    printf 'OBSERVATION_VERSION:%s\n' "$BK_OBSERVATION_VERSION"
+  fi
+}
+
 # Estimation declaration helpers
 #
 # Applications can declare section/overlap to estimation-package bindings in
@@ -612,6 +654,7 @@ bk_clear_estimation_declarations() {
 }
 
 bk_clear_estimation_defaults() {
+  BK_APP_ESTIMATION_METHOD_VERSION=""
   BK_ESTIMATION_DECLARED_CURRENT_PACKAGE=""
   BK_ESTIMATION_DECLARED_FUTURE_PACKAGE=""
   BK_ESTIMATION_DECLARED_BASELINE_SYSTEM=""
@@ -682,6 +725,7 @@ bk_declare_section() {
 
   _bk_decl_name="$1"
   _bk_decl_package="$2"
+  _bk_decl_profile_suffix="${3:+|$3}"
 
   case "$_bk_decl_side" in
     current)
@@ -699,9 +743,9 @@ bk_declare_section() {
   eval "_bk_decl_existing=\${$_bk_decl_var:-}"
   if [ -n "$_bk_decl_existing" ]; then
     _bk_decl_existing="${_bk_decl_existing}
-section|${_bk_decl_name}|${_bk_decl_package}"
+section|${_bk_decl_name}|${_bk_decl_package}${_bk_decl_profile_suffix}"
   else
-    _bk_decl_existing="section|${_bk_decl_name}|${_bk_decl_package}"
+    _bk_decl_existing="section|${_bk_decl_name}|${_bk_decl_package}${_bk_decl_profile_suffix}"
   fi
 
   eval "$_bk_decl_var=\$_bk_decl_existing"
@@ -729,6 +773,7 @@ bk_declare_overlap() {
 
   _bk_decl_members="$1"
   _bk_decl_package="$2"
+  _bk_decl_profile_suffix="${3:+|$3}"
 
   case "$_bk_decl_side" in
     current)
@@ -746,9 +791,9 @@ bk_declare_overlap() {
   eval "_bk_decl_existing=\${$_bk_decl_var:-}"
   if [ -n "$_bk_decl_existing" ]; then
     _bk_decl_existing="${_bk_decl_existing}
-overlap|${_bk_decl_members}|${_bk_decl_package}"
+overlap|${_bk_decl_members}|${_bk_decl_package}${_bk_decl_profile_suffix}"
   else
-    _bk_decl_existing="overlap|${_bk_decl_members}|${_bk_decl_package}"
+    _bk_decl_existing="overlap|${_bk_decl_members}|${_bk_decl_package}${_bk_decl_profile_suffix}"
   fi
 
   eval "$_bk_decl_var=\$_bk_decl_existing"
@@ -774,14 +819,14 @@ bk_declare_estimation_items() {
     return 1
   fi
 
-  while IFS='|' read -r _bk_decl_kind _bk_decl_name _bk_decl_package; do
+  while IFS='|' read -r _bk_decl_kind _bk_decl_name _bk_decl_package _bk_decl_profile; do
     [ -n "$_bk_decl_kind$_bk_decl_name$_bk_decl_package" ] || continue
     case "$_bk_decl_kind" in
       section)
-        bk_declare_section --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package"
+        bk_declare_section --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package" "$_bk_decl_profile"
         ;;
       overlap)
-        bk_declare_overlap --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package"
+        bk_declare_overlap --side "$_bk_decl_side" "$_bk_decl_name" "$_bk_decl_package" "$_bk_decl_profile"
         ;;
       \#*)
         ;;
