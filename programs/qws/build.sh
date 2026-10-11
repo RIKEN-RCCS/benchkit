@@ -126,22 +126,7 @@ case "$system" in
 	make -j8 compiler=intel arch=skylake mpi=1 omp=1 rdma=
 	;;
     Camphor3)
-	camphor3_modulepath="${MODULEPATH:-}"
-	if [[ -r /etc/profile.d/modules.sh ]]; then
-	    source /etc/profile.d/modules.sh
-	elif [[ -r /etc/profile.d/z00_lmod.sh ]]; then
-	    source /etc/profile.d/z00_lmod.sh
-	else
-	    echo "qws: no module init script found" >&2
-	fi
-	if [[ -n "${MODULEPATH:-}" ]]; then
-	    camphor3_modulepath="${MODULEPATH}"
-	fi
-	module purge
-	if [[ -n "${camphor3_modulepath:-}" ]]; then
-	    export MODULEPATH="${camphor3_modulepath}"
-	fi
-	module load slurm/2022 SysA/2022 intel/2023.2 intelmpi/2023.2 PrgEnvIntel/2023
+	module switch PrgEnvIntel PrgEnvIntel/2023
 	make -j 8 fugaku_benchmark= omp=1 compiler=intel arch=skylake rdma= mpi=1 powerapi=
 	;;
     *)

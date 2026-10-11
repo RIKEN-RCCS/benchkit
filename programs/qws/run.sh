@@ -242,27 +242,9 @@ case "$system" in
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Camphor3)
-        camphor3_modulepath="${MODULEPATH:-}"
-        if [[ -r /etc/profile.d/modules.sh ]]; then
-            source /etc/profile.d/modules.sh
-        elif [[ -r /etc/profile.d/z00_lmod.sh ]]; then
-            source /etc/profile.d/z00_lmod.sh
-        else
-            echo "qws: no module init script found" >&2
-        fi
-        if [[ -n "${MODULEPATH:-}" ]]; then
-            camphor3_modulepath="${MODULEPATH}"
-        fi
-        module purge
-        if [[ -n "${camphor3_modulepath:-}" ]]; then
-            export MODULEPATH="${camphor3_modulepath}"
-        fi
-        module load intel/2023.2 intelmpi/2023.2 PrgEnvIntel/2023
+        module switch PrgEnvIntel PrgEnvIntel/2023
         export OMP_NUM_THREADS="${nthreads}"
         export I_MPI_PIN=1
-        if [[ "${SLURM_CONF:-}" == /etc/slurm/sysA/* ]]; then
-            unset SLURM_CONF
-        fi
         bk_run --log CASE0 --parameter-input --launcher srun -n 1 -c "${nthreads}" -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
@@ -273,5 +255,3 @@ case "$system" in
 esac
 
 cd ..
-sync
-sleep 5
