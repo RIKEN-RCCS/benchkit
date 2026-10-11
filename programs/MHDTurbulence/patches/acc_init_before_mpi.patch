@@ -1,0 +1,19 @@
+diff --git a/src_f90_acc_device/main.f90 b/src_f90_acc_device/main.f90
+index c808716..3356a5e 100644
+--- a/src_f90_acc_device/main.f90
++++ b/src_f90_acc_device/main.f90
+@@ -1,5 +1,6 @@
+ program main
+   use omp_lib
++  use openacc
+   use basicmod
+   use mpimod
+   use boundarymod
+@@ -9,6 +10,7 @@ program main
+   logical::is_final
+   logical,parameter:: forceoutput=.true., usualoutput=.false.
+   data is_final /.false./
++  call acc_init(acc_device_nvidia)
+   call InitializeMPI
+   if(myid_w == 0) print *, "setup grids and fields"
+   if(myid_w == 0) print *, "grid size for x y z",ngrid1*ntiles(1),ngrid2*ntiles(2),ngrid3*ntiles(3)
