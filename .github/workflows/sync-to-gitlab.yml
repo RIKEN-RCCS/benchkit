@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync:
+  sync-swc:
+    name: Sync to SWC
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,8 +44,21 @@ jobs:
             refs/remotes/origin/main:refs/heads/main --force
           git push -o ci.skip gitlab --tags --force
 
+  sync-gitlab-com:
+    name: Sync to GitLab.com
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch protected branches
+        id: refs
+        run: |
+          set -euo pipefail
+          git fetch origin +refs/heads/develop:refs/remotes/origin/develop +refs/heads/main:refs/remotes/origin/main
+
       - name: Push protected branches and tags to GitLab.com
-        if: ${{ !cancelled() && steps.refs.outcome == 'success' }}
         env:
           GITLAB_COM_TOKEN: ${{ secrets.GITLAB_COM_TOKEN }}
           GITLAB_COM_REPO_HOST_PATH: gitlab.com/yoshifuminakamura/benchkit.git
