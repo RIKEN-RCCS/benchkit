@@ -217,7 +217,7 @@ def test_ncu_source_spec_values_and_missing_observations(tmp_path):
     import runpy
     bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
     raw = pd.DataFrame({
-        'GPU Maximum Warps Per Scheduler [warp]': [12, 12],
+        'device__attribute_max_warps_per_scheduler': [12, 12],
         'sm__maximum_warps_avg_per_active_cycle': [32, 16],
         'smsp__maximum_warps_avg_per_active_cycle': [8, 4],
         'launch__shared_mem_config_size': [65536, 32768],
@@ -285,6 +285,7 @@ def test_partial_display_names_use_raw_values_per_row(tmp_path):
     import runpy
     bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
     pairs = {
+        'GPU Maximum Warps Per Scheduler [warp]': 'device__attribute_max_warps_per_scheduler',
         'Theoretical Active Warps per SM [warp]': 'sm__maximum_warps_avg_per_active_cycle',
         'Theoretical Active Warps Per Scheduler [warp]': 'smsp__maximum_warps_avg_per_active_cycle',
         'Shared Memory Configuration Size [byte]': 'launch__shared_mem_config_size',
