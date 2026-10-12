@@ -102,7 +102,8 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
     candidate_json=$(echo "$item_json" | jq -c --arg package_name "$package_name" '
       .
       + {estimation_package: $package_name}
-      | del(.candidate_estimation_packages)
+      | del(.candidate_estimation_packages, .estimation_package_version,
+            .requested_estimation_package, .requested_estimation_package_version)
     ')
     if transformed_item=$(bk_top_level_dispatch_bound_item \
       "$candidate_json" \
@@ -113,12 +114,14 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
       ""); then
       candidate_items+=("$transformed_item")
     else
-      candidate_items+=("$(echo "$candidate_json" | jq -c --arg package_name "$package_name" '
+      transformed_item=$(echo "$candidate_json" | jq -c --arg package_name "$package_name" '
         .
         + {time: null}
         + {scaling_method: "unresolved-package"}
         + {package_applicability: {status: "not_applicable", missing_inputs: ["section_package_failed:" + $package_name]}}
-      ')")
+      ')
+      transformed_item=$(bk_top_level_record_section_package_versions "$transformed_item" "$package_name" "") || return 1
+      candidate_items+=("$transformed_item")
     fi
   done
 
@@ -189,6 +192,9 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
             | (candidate_time_ratio) as $ratio
             | {
                 estimation_package: ($candidate.estimation_package // ""),
+                estimation_package_version: ($candidate.estimation_package_version // null),
+                requested_estimation_package: ($candidate.requested_estimation_package // ""),
+                requested_estimation_package_version: ($candidate.requested_estimation_package_version // null),
                 scaling_method: ($candidate.scaling_method // ""),
                 applicability_status: ($candidate.package_applicability.status // ""),
                 source_section_time: $app_section_time,

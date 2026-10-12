@@ -4,6 +4,7 @@ bk_section_package_metadata_counter_papi_detailed() {
   cat <<'EOF'
 {
   "name": "counter_papi_detailed",
+  "version": "0.1",
   "fallback_target": "identity",
   "source_system_scope": {
     "kind": "benchmark_system",

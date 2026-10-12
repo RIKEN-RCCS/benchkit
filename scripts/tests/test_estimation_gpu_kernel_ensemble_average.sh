@@ -136,7 +136,28 @@ export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_single.csv"
 export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_single.csv"
 export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
+# Different package revisions must not inherit the parent ensemble revision.
+bk_top_level_load_section_package_impls
+lightgbm_metadata=$(bk_section_package_metadata_gpu_kernel_lightgbm_v10 | jq '.version = "lightgbm-2"')
+mlp_metadata=$(bk_section_package_metadata_gpu_kernel_mlp_v15 | jq '.version = "mlp-3"')
+bk_section_package_metadata_gpu_kernel_lightgbm_v10() {
+  printf '%s\n' "$lightgbm_metadata"
+}
+bk_section_package_metadata_gpu_kernel_mlp_v15() {
+  printf '%s\n' "$mlp_metadata"
+}
 transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+echo "$transformed_single" | jq -e '
+  .sections[0].requested_estimation_package_version == "0.1" and
+  .sections[0].estimation_package_version == "0.1" and
+  .sections[0].candidate_estimates[0].requested_estimation_package == "gpu_kernel_lightgbm_v10" and
+  .sections[0].candidate_estimates[0].estimation_package_version == "lightgbm-2" and
+  .sections[0].candidate_estimates[1].requested_estimation_package == "gpu_kernel_mlp_v15" and
+  .sections[0].candidate_estimates[1].estimation_package_version == "mlp-3" and
+  .sections[0].candidate_estimates[1].model.version == "v1.5" and
+  .sections[0].metrics.package_summaries[0].requested_estimation_package_version == "lightgbm-2" and
+  .sections[0].metrics.package_summaries[1].requested_estimation_package_version == "mlp-3"
+' >/dev/null
 
 # The capture format and the existing object format must yield identical estimates.
 jq '.schema_version=2 | .nsys_discovery_json=(.nsys_discovery|tojson) | del(.nsys_discovery)' \
@@ -160,9 +181,55 @@ export BK_GPU_MLP_PREDICTION_CSV="${TMP_DIR}/mlp_pred_mixed.csv"
 export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_mixed.csv"
 
 transformed_mixed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+echo "$transformed_mixed" | jq -e '
+  .sections[0].requested_estimation_package == "gpu_kernel_ensemble_average" and
+  .sections[0].requested_estimation_package_version == "0.1" and
+  .sections[0].estimation_package == "identity" and .sections[0].estimation_package_version == "0.1" and
+  .sections[0].candidate_estimates[1].requested_estimation_package == "gpu_kernel_mlp_v15" and
+  .sections[0].candidate_estimates[1].requested_estimation_package_version == "mlp-3" and
+  .sections[0].candidate_estimates[1].estimation_package == "identity" and
+  .sections[0].candidate_estimates[1].estimation_package_version == "0.1"
+' >/dev/null
 
 export BK_GPU_KERNEL_SECTION_GPU_KERNEL_REGION_REGEX="kern_a"
 transformed_selected=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+
+# A failed candidate still records the attempted revision, with no applied one.
+bk_section_package_metadata_failing_fixture() {
+  printf '%s\n' '{"name":"failing_fixture","version":"failed-4"}'
+}
+bk_section_package_check_applicability_failing_fixture() {
+  printf '%s\n' '{"status":"applicable"}'
+}
+bk_section_package_transform_failing_fixture() {
+  return 1
+}
+failed_input=$(jq '.sections[0].candidate_estimation_packages = ["gpu_kernel_lightgbm_v10","failing_fixture"]' "${TMP_DIR}/breakdown.json")
+transformed_failed=$(
+  unset -f bk_estimation_package_metadata
+  bk_top_level_transform_breakdown "$failed_input" 1 1 1 identity identity 2> results/candidate-failure.log
+)
+grep -q 'section package failing_fixture failed' results/candidate-failure.log
+echo "$transformed_failed" | jq -e '
+  .sections[0].candidate_estimates[1].requested_estimation_package == "failing_fixture" and
+  .sections[0].candidate_estimates[1].requested_estimation_package_version == "failed-4" and
+  .sections[0].candidate_estimates[1].estimation_package_version == null and
+  .sections[0].metrics.package_summaries[1].requested_estimation_package_version == "failed-4"
+' >/dev/null
+
+jq '{code:"fixture",Exp:"case",system:"SourceFixture",FOM:10,node_count:1,numproc_node:1}' \
+  "${TMP_DIR}/breakdown.json" > results/source_result.json
+read_values results/source_result.json
+est_current_fom=10
+est_current_bench_fom=10
+est_future_fom=20
+est_future_bench_fom=10
+est_future_fom_breakdown="$transformed_single"
+print_json > results/ensemble_versions.json
+jq -e '
+  .future_system.fom_breakdown.sections[0].estimation_package_version == "0.1" and
+  .future_system.fom_breakdown.sections[0].candidate_estimates[1].estimation_package_version == "mlp-3"
+' results/ensemble_versions.json >/dev/null
 popd >/dev/null
 
 if ! echo "$transformed_single" | jq -e '

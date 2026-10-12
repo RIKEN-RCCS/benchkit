@@ -5,6 +5,7 @@ bk_section_package_metadata_gpu_kernel_mlp_v21() {
   cat <<'EOF'
 {
   "name": "gpu_kernel_mlp_v21",
+  "version": "0.1",
   "fallback_target": "identity",
   "source_system_scope": {
     "kind": "benchmark_system",

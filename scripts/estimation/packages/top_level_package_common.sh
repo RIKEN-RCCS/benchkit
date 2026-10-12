@@ -3,6 +3,38 @@
 
 _bk_top_level_section_packages_loaded=0
 
+bk_top_level_section_package_version() {
+  local fn_name="bk_section_package_metadata_${1}"
+
+  if declare -F "$fn_name" >/dev/null 2>&1; then
+    "$fn_name" | jq -c '.version | if type == "string" and length > 0 then . else null end'
+  else
+    printf 'null\n'
+  fi
+}
+
+# Record versions for this estimation, not values inherited from its input.
+# An empty applied name means no transform succeeded.
+bk_top_level_record_section_package_versions() {
+  local item_json="$1"
+  local requested="$2"
+  local applied="$3"
+  local requested_version applied_version
+
+  requested_version=$(bk_top_level_section_package_version "$requested") || return 1
+  applied_version=$(bk_top_level_section_package_version "$applied") || return 1
+  printf '%s\n' "$item_json" | jq -c \
+    --arg requested "$requested" \
+    --argjson requested_version "$requested_version" \
+    --argjson applied_version "$applied_version" '
+    . + {
+      requested_estimation_package: $requested,
+      requested_estimation_package_version: $requested_version,
+      estimation_package_version: $applied_version
+    }
+  '
+}
+
 bk_top_level_load_section_package_impls() {
   local package_file
 
@@ -101,6 +133,7 @@ bk_top_level_dispatch_bound_item() {
   local check_result
   local missing_inputs_json
   local transformed_item
+  local requested_package applied_package
 
   package_name=$(echo "$item_json" | jq -r '.estimation_package // empty')
   if [[ -z "$package_name" ]]; then
@@ -114,6 +147,11 @@ bk_top_level_dispatch_bound_item() {
   fi
 
   bk_top_level_load_section_package_impls
+  requested_package="$package_name"
+  item_json=$(printf '%s\n' "$item_json" | jq -c --arg requested "$requested_package" '
+    del(.estimation_package_version, .requested_estimation_package_version)
+    | .requested_estimation_package = $requested
+  ')
 
   while true; do
     fn_name="bk_section_package_transform_${package_name}"
@@ -127,14 +165,16 @@ bk_top_level_dispatch_bound_item() {
         echo "ERROR: section package ${package_name} failed for ${item_kind}" >&2
         return 1
       fi
-      printf '%s\n' "$transformed_item"
-      return 0
+      # A transform may itself choose identity (for example, unusable GPU data).
+      applied_package=$(printf '%s\n' "$transformed_item" | jq -r --arg name "$package_name" '.estimation_package // $name')
+      bk_top_level_record_section_package_versions "$transformed_item" "$requested_package" "$applied_package"
+      return $?
     fi
 
     fallback_target=$(bk_top_level_section_package_fallback_target "$package_name")
     if [[ -z "$fallback_target" || "$fallback_target" == "$package_name" ]]; then
       missing_inputs_json=$(echo "$check_result" | jq -c '.missing_inputs // []')
-      echo "$item_json" | jq -c \
+      transformed_item=$(echo "$item_json" | jq -c \
         --arg requested "$package_name" \
         --argjson missing_inputs "$missing_inputs_json" '
         .
@@ -142,8 +182,9 @@ bk_top_level_dispatch_bound_item() {
         + {time: null}
         + {scaling_method: "unresolved-package"}
         + {package_applicability: {status: "not_applicable", missing_inputs: $missing_inputs}}
-      '
-      return 0
+      ')
+      bk_top_level_record_section_package_versions "$transformed_item" "$requested_package" ""
+      return $?
     fi
 
     missing_inputs_json=$(echo "$check_result" | jq -c '.missing_inputs // []')
