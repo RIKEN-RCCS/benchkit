@@ -83,6 +83,15 @@ def test_jobs_are_independent_and_fetch_the_same_refs():
     assert 'prepare-gitlab-repo' not in job('sync-gitlab-com')
 
 
+def test_github_credentials_are_read_only_and_not_persisted():
+    workflow = WORKFLOW.read_text()
+    assert '\npermissions:\n  contents: read\n' in workflow
+    for name in ('sync-swc', 'sync-gitlab-com'):
+        text = job(name)
+        assert 'permissions:' not in text
+        assert 'persist-credentials: false' in text
+
+
 @pytest.mark.parametrize('target', ['swc', 'com'])
 def test_push_targets_ci_skip_tags_and_force_policy(mirrors, target):
     assert run(mirrors, target).returncode == 0
