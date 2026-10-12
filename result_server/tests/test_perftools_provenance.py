@@ -128,9 +128,9 @@ def test_spec_supplements_record_only_missing_values(monkeypatch):
     module_spec = importlib.util.spec_from_file_location('mlp_prepare', source)
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    column = 'SRC GPU Maximum Warps Per Scheduler [warp]'
+    column = 'TGT GPU Maximum Warps Per Scheduler [warp]'
     frame = MagicMock()
-    frame.columns = ['src_gpu', column]
+    frame.columns = ['tgt_gpu', column]
     frame.__getitem__.return_value.astype.return_value.items.return_value = [(0, 'H100'), (1, 'A100')]
     frame.at = {(0, column): float('nan'), (1, column): 7}
     applied = module.fill_spec_defaults(frame)
@@ -170,21 +170,20 @@ def test_ncu_preparation_supplements_and_shared_lightgbm_bridge(tmp_path):
     pytest.importorskip('pandas', reason='NCU preparation uses the optional inference dependency')
     import sys
     raw = tmp_path / 'raw.csv'
-    raw.write_text('"ID","Process ID","Kernel Name","gpu__time_duration.sum"\n0,1,"fixture",1000\n')
+    raw.write_text('"ID","Process ID","Kernel Name","gpu__time_duration.sum","launch__block_size","dram__bytes.sum.per_second","GPU Maximum Warps Per Scheduler [warp]"\n0,1,"fixture",1000,128,1000000,12\n')
     tool = tmp_path / 'tool/MLP_NN/examples'
     tool.mkdir(parents=True)
     (tool / 'prepare_data.py').write_text(
         'import sys,csv\np=sys.argv[sys.argv.index("--out")+1]\n'
         'with open(p,"w") as f:\n w=csv.writer(f);'
         'w.writerow(["src_gpu","tgt_gpu","SRC GPU Maximum Warps Per Scheduler [warp]",'
-        '"TGT Shared Memory Configuration Size [byte]"]);w.writerow(["H100","A100","",7])\n')
+        '"TGT Shared Memory Configuration Size [byte]"]);w.writerow(["H100","A100",12,7])\n')
     output = tmp_path / 'input.csv'
     subprocess.run([sys.executable, str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'),
                     '--raw-csv', str(raw), '--perftools-root', str(tmp_path / 'tool'),
                     '--out-csv', str(output), '--target-gpu', 'A100'], check=True)
     details = json.loads(Path(str(output) + '.preprocessing.json').read_text())
-    assert details['spec_supplements'] == [
-        {'row': 0, 'gpu': 'H100', 'column': 'SRC GPU Maximum Warps Per Scheduler [warp]', 'value': 16}]
+    assert details['spec_supplements'] == []
     assert details['parameters']['target_gpu'] == 'A100'
     subprocess.run([sys.executable, str(ROOT / 'scripts/estimation/prepare_gpu_lightgbm_ncu_input.py'),
                     '--raw-csv', str(raw), '--out-csv', str(tmp_path / 'light.csv')], check=True)
@@ -211,3 +210,71 @@ def test_manifests_remain_addressable_across_results(tmp_path):
     assert first['manifest'] != second['manifest']
     assert provenance.digest(Path(first['manifest'])) == first['sha256']
     assert provenance.digest(Path(second['manifest'])) == second['sha256']
+
+
+def test_ncu_source_spec_values_and_missing_observations(tmp_path):
+    pd = pytest.importorskip('pandas')
+    import runpy
+    bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
+    raw = pd.DataFrame({
+        'GPU Maximum Warps Per Scheduler [warp]': [12, 12],
+        'sm__maximum_warps_avg_per_active_cycle': [32, 16],
+        'smsp__maximum_warps_avg_per_active_cycle': [8, 4],
+        'launch__shared_mem_config_size': [65536, 32768],
+        'launch__occupancy_limit_warps': [8, 4],
+    })
+    path = tmp_path / 'wide.csv'
+    bridge['build_wide_ncu_csv'](raw, path, 'GB200')
+    wide = pd.read_csv(path)
+    expected = {
+        'GPU Maximum Warps Per Scheduler [warp]': [12, 12],
+        'Theoretical Active Warps per SM [warp]': [32, 16],
+        'Theoretical Active Warps Per Scheduler [warp]': [8, 4],
+        'Shared Memory Configuration Size [byte]': [65536, 32768],
+        'Block Limit Warps [block]': [8, 4],
+    }
+    for column, values in expected.items():
+        assert wide[column].tolist() == values
+    # The shared bridge also accepts exported display names unchanged.
+    bridge['build_wide_ncu_csv'](pd.DataFrame(expected), path, 'GB200')
+    wide = pd.read_csv(path)
+    for column, values in expected.items():
+        assert wide[column].tolist() == values
+    bridge['build_wide_ncu_csv'](pd.DataFrame({'Kernel Name': ['missing']}), path, 'GB200')
+    missing = pd.read_csv(path)
+    assert missing[list(expected)].isna().all().all()
+    prepared = pd.DataFrame({'src_gpu': ['GB200'], 'tgt_gpu': ['H100'],
+                             'SRC Theoretical Active Warps per SM [warp]': [float('nan')],
+                             'TGT Theoretical Active Warps per SM [warp]': [float('nan')]})
+    applied = bridge['fill_spec_defaults'](prepared)
+    assert pd.isna(prepared.iloc[0]['SRC Theoretical Active Warps per SM [warp]'])
+    assert all(item['column'].startswith('TGT ') for item in applied)
+
+
+def test_final_src_features_keep_kernel_values_and_missing_fails(tmp_path):
+    pd = pytest.importorskip('pandas')
+    import runpy
+    bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
+    columns = list(bridge['SPEC_DEFAULTS']['H100'])
+    source = pd.DataFrame({
+        'Kernel Name': ['a', 'b'], 'Duration [ns]': [100, 200],
+        'Block Size': [128, 256], 'Memory Throughput [byte/s]': [1000, 2000],
+        **{column: [i + 1, i + 11] for i, column in enumerate(columns)},
+    })
+    prepared = pd.DataFrame({'Kernel Name': ['a', 'b'], 'src_gpu': ['GB200', 'GB200'],
+                             'tgt_gpu': ['A100', 'H100'],
+                             **{'SRC ' + c: [99, 99] for c in columns}})
+    path = tmp_path / 'prepared.csv'
+    prepared.to_csv(path, index=False)
+    output = tmp_path / 'final.csv'
+    bridge['finalize_prepared_input'](path, pd.DataFrame(), output, set(), 'H100', source)
+    result = pd.read_csv(output)
+    for i, column in enumerate(columns):
+        assert result.iloc[0]['SRC ' + column] == i + 11
+    assert json.loads(Path(str(output) + '.preprocessing.json').read_text())['spec_supplements'] == []
+    source.loc[1, columns[0]] = float('nan')
+    with pytest.raises(SystemExit, match='unexpected NaN'):
+        bridge['finalize_prepared_input'](path, pd.DataFrame(), output, set(), 'H100', source)
+    source.loc[1, 'Kernel Name'] = 'wrong'
+    with pytest.raises(SystemExit, match='kernel order'):
+        bridge['finalize_prepared_input'](path, pd.DataFrame(), output, set(), 'H100', source)

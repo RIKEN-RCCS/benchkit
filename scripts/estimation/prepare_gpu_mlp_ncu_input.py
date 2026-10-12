@@ -3,9 +3,8 @@
 
 This is a small compatibility bridge for Benchkit.  It converts the wide
 Nsight Compute raw CSV exported from ``profile.ncu-rep`` into the CSV layout
-expected by PerfTools' ``MLP_NN/examples/prepare_data.py``, then fills the
-current v1.5 spec-sheet gaps that otherwise leave required SRC/TGT columns as
-NaN.
+expected by PerfTools' ``MLP_NN/examples/prepare_data.py``, then fills missing target-GPU specification columns. Source-GPU values
+come from the collected report and are never replaced with fixed defaults.
 """
 
 from __future__ import annotations
@@ -56,6 +55,9 @@ SPEC_DEFAULTS = {
         "Block Limit Warps [block]": 64,
     },
 }
+
+SOURCE_SPEC_COLUMNS = tuple(SPEC_DEFAULTS["H100"])
+
 
 ALLOWED_NAN_COLUMNS = {"Warp Cycles Per Executed Instruction [cycle/inst]"}
 
@@ -199,13 +201,28 @@ def build_wide_ncu_csv(raw_df: pd.DataFrame, out_csv: Path, source_gpu: str) -> 
         ),
         "Waves Per SM": first_numeric(raw_df, "launch__waves_per_multiprocessor"),
         "Elapsed Cycles [cycle]": first_numeric(raw_df, "sm__cycles_elapsed.avg"),
-        "Theoretical Active Warps per SM [warp]": pd.Series(
-            [64] * len(raw_df), index=raw_df.index
+        "GPU Maximum Warps Per Scheduler [warp]": first_numeric(
+            raw_df, "GPU Maximum Warps Per Scheduler [warp]",
+        ),
+        "Theoretical Active Warps per SM [warp]": first_numeric(
+            raw_df, "Theoretical Active Warps per SM [warp]",
+            "sm__maximum_warps_avg_per_active_cycle",
+        ),
+        "Theoretical Active Warps Per Scheduler [warp]": first_numeric(
+            raw_df, "Theoretical Active Warps Per Scheduler [warp]",
+            "Theoretical Warps Per Scheduler [warp]",
+            "smsp__maximum_warps_avg_per_active_cycle",
+        ),
+        "Shared Memory Configuration Size [byte]": first_numeric(
+            raw_df, "Shared Memory Configuration Size [byte]",
+            "launch__shared_mem_config_size",
         ),
         "Block Limit Registers [block]": first_numeric(
             raw_df, "launch__occupancy_limit_registers"
         ),
-        "Block Limit Warps [block]": first_numeric(raw_df, "launch__occupancy_limit_warps"),
+        "Block Limit Warps [block]": first_numeric(
+            raw_df, "Block Limit Warps [block]", "launch__occupancy_limit_warps"
+        ),
         "Block Limit SM [block]": first_numeric(raw_df, "launch__occupancy_limit_blocks"),
         "Block Limit Shared Mem [block]": first_numeric(
             raw_df, "launch__occupancy_limit_shared_mem"
@@ -290,7 +307,9 @@ def run_prepare_data(
 
 def fill_spec_defaults(df: pd.DataFrame) -> list[dict]:
     applied = []
-    for role, gpu_col in (("SRC", "src_gpu"), ("TGT", "tgt_gpu")):
+    # Missing source observations must remain visible; only target defaults
+    # are retained until the target-feature policy is resolved separately.
+    for role, gpu_col in (("TGT", "tgt_gpu"),):
         if gpu_col not in df.columns:
             continue
         for row_idx, gpu_name in df[gpu_col].astype(str).items():
@@ -322,6 +341,7 @@ def finalize_prepared_input(
     out_csv: Path,
     allowed_nan: set[str],
     target_gpu: str,
+    source_wide: pd.DataFrame | None = None,
 ) -> None:
     df = pd.read_csv(prepared_csv)
 
@@ -363,6 +383,23 @@ def finalize_prepared_input(
         df["Executed Ipc Active [inst/cycle]"] = df[
             "Executed Ipc Active [inst/cycle]"
         ].fillna(mean_ipc)
+
+    if source_wide is not None:
+        # prepare_data selects complete source rows in their original order.
+        # Restore per-kernel SRC observations instead of its GPU-wide medians.
+        required = ["Execution Time", "Block Size", "Memory Throughput [byte/s]"]
+        source_rows = source_wide.rename(columns={"Duration [ns]": "Execution Time"}).dropna(subset=required).reset_index(drop=True)
+        if any(index >= len(source_rows) for index in df.index):
+            raise SystemExit("prepared input cannot be matched to collected source rows")
+        observed_columns = SOURCE_SPEC_COLUMNS
+        for index in df.index:
+            if "Kernel Name" in df.columns and "Kernel Name" in source_rows.columns:
+                if str(df.at[index, "Kernel Name"]) != str(source_rows.at[index, "Kernel Name"]):
+                    raise SystemExit("prepared input kernel order differs from collected source rows")
+            for column in observed_columns:
+                output_column = "SRC " + column
+                if output_column in df.columns:
+                    df.at[index, output_column] = source_rows.at[index, column]
 
     applied = fill_spec_defaults(df)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -415,6 +452,7 @@ def main() -> None:
             out_csv,
             allowed_nan=ALLOWED_NAN_COLUMNS | set(args.allow_nan),
             target_gpu=args.target_gpu,
+            source_wide=pd.read_csv(wide_csv),
         )
         sidecar = Path(str(out_csv) + ".preprocessing.json")
         details = json.loads(sidecar.read_text())
