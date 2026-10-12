@@ -61,6 +61,16 @@ are trusted only under the single-nginx deployment model.
 
 ## Gunicorn
 
+Use Gunicorn 26.x as specified in `requirements-result-server.txt`. The
+[26.0.0 release](https://github.com/benoitc/gunicorn/releases/tag/26.0.0)
+hardens HTTP parsing in WSGI as well as ASGI paths. Older requirements limited
+installations to 23.x; update the dependency environment and restart the
+application service to apply the change. This does not establish exploitability
+in any particular proxy configuration. Operators should check their installed
+version and proxy forwarding behavior, and retain strict HTTP parsing defaults.
+Custom deployments using the removed `eventlet` worker must select a supported
+worker before upgrading; the examples below use the default WSGI worker.
+
 Run Gunicorn under systemd with explicit worker, bind, timeout, and recycling
 settings that match the deployment. The current `result_server` modules use
 repo-local top-level imports (`routes.*`, `utils.*`), so set `PYTHONPATH` to the
