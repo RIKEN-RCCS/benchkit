@@ -144,6 +144,14 @@ def first_numeric(df: pd.DataFrame, *columns: str) -> pd.Series:
     return pd.Series([pd.NA] * len(df), index=df.index)
 
 
+def observed_numeric(df: pd.DataFrame, *columns: str) -> pd.Series:
+    """Keep observed values, filling only missing rows from alternate names."""
+    result = pd.Series(float("nan"), index=df.index)
+    for column in columns:
+        result = result.combine_first(numeric(df, column))
+    return result
+
+
 def build_wide_ncu_csv(raw_df: pd.DataFrame, out_csv: Path, source_gpu: str) -> None:
     out = raw_df.copy()
 
@@ -201,26 +209,26 @@ def build_wide_ncu_csv(raw_df: pd.DataFrame, out_csv: Path, source_gpu: str) -> 
         ),
         "Waves Per SM": first_numeric(raw_df, "launch__waves_per_multiprocessor"),
         "Elapsed Cycles [cycle]": first_numeric(raw_df, "sm__cycles_elapsed.avg"),
-        "GPU Maximum Warps Per Scheduler [warp]": first_numeric(
+        "GPU Maximum Warps Per Scheduler [warp]": observed_numeric(
             raw_df, "GPU Maximum Warps Per Scheduler [warp]",
         ),
-        "Theoretical Active Warps per SM [warp]": first_numeric(
+        "Theoretical Active Warps per SM [warp]": observed_numeric(
             raw_df, "Theoretical Active Warps per SM [warp]",
             "sm__maximum_warps_avg_per_active_cycle",
         ),
-        "Theoretical Active Warps Per Scheduler [warp]": first_numeric(
+        "Theoretical Active Warps Per Scheduler [warp]": observed_numeric(
             raw_df, "Theoretical Active Warps Per Scheduler [warp]",
             "Theoretical Warps Per Scheduler [warp]",
             "smsp__maximum_warps_avg_per_active_cycle",
         ),
-        "Shared Memory Configuration Size [byte]": first_numeric(
+        "Shared Memory Configuration Size [byte]": observed_numeric(
             raw_df, "Shared Memory Configuration Size [byte]",
             "launch__shared_mem_config_size",
         ),
-        "Block Limit Registers [block]": first_numeric(
+        "Block Limit Registers [block]": observed_numeric(
             raw_df, "launch__occupancy_limit_registers"
         ),
-        "Block Limit Warps [block]": first_numeric(
+        "Block Limit Warps [block]": observed_numeric(
             raw_df, "Block Limit Warps [block]", "launch__occupancy_limit_warps"
         ),
         "Block Limit SM [block]": first_numeric(raw_df, "launch__occupancy_limit_blocks"),
@@ -372,34 +380,47 @@ def finalize_prepared_input(
                 file=sys.stderr,
             )
 
-    ipc = first_numeric(
+    source_positions = None
+    if source_wide is not None:
+        # Match the upstream complete-row selection while retaining raw positions
+        # for every per-kernel field, including IPC.
+        required = ["Execution Time", "Block Size", "Memory Throughput [byte/s]"]
+        source_rows = source_wide.rename(columns={"Duration [ns]": "Execution Time"}).reset_index(drop=True)
+        complete = pd.concat(
+            [pd.to_numeric(source_rows[column], errors="coerce").notna()
+             for column in required], axis=1
+        ).all(axis=1)
+        source_positions = source_rows.index[complete].tolist()
+        source_rows = source_rows.loc[complete].reset_index(drop=True)
+        if any(index >= len(source_rows) for index in df.index):
+            raise SystemExit("prepared input cannot be matched to collected source rows")
+        for index in df.index:
+            if "Kernel Name" in df.columns and "Kernel Name" in source_rows.columns:
+                if str(df.at[index, "Kernel Name"]) != str(source_rows.at[index, "Kernel Name"]):
+                    raise SystemExit("prepared input kernel order differs from collected source rows")
+            for column in SOURCE_SPEC_COLUMNS:
+                output_column = "SRC " + column
+                if output_column in df.columns:
+                    df.at[index, output_column] = source_rows.at[index, column]
+
+    ipc = observed_numeric(
         raw_df,
         "sm__inst_executed.avg.per_cycle_active",
         "TPC.TriageCompute.sm__inst_executed_realtime.avg.per_cycle_active",
     ).reset_index(drop=True)
     if "Executed Ipc Active [inst/cycle]" in df.columns:
-        df["Executed Ipc Active [inst/cycle]"] = ipc.reindex(df.index).to_numpy()
+        if source_positions is not None:
+            positions = [source_positions[index] for index in df.index]
+            if any(position >= len(ipc) for position in positions):
+                raise SystemExit("collected IPC rows cannot be matched to prepared input")
+            values = ipc.iloc[positions].to_numpy()
+        else:
+            values = ipc.reindex(df.index).to_numpy()
+        df["Executed Ipc Active [inst/cycle]"] = values
         mean_ipc = df["Executed Ipc Active [inst/cycle]"].mean()
         df["Executed Ipc Active [inst/cycle]"] = df[
             "Executed Ipc Active [inst/cycle]"
         ].fillna(mean_ipc)
-
-    if source_wide is not None:
-        # prepare_data selects complete source rows in their original order.
-        # Restore per-kernel SRC observations instead of its GPU-wide medians.
-        required = ["Execution Time", "Block Size", "Memory Throughput [byte/s]"]
-        source_rows = source_wide.rename(columns={"Duration [ns]": "Execution Time"}).dropna(subset=required).reset_index(drop=True)
-        if any(index >= len(source_rows) for index in df.index):
-            raise SystemExit("prepared input cannot be matched to collected source rows")
-        observed_columns = SOURCE_SPEC_COLUMNS
-        for index in df.index:
-            if "Kernel Name" in df.columns and "Kernel Name" in source_rows.columns:
-                if str(df.at[index, "Kernel Name"]) != str(source_rows.at[index, "Kernel Name"]):
-                    raise SystemExit("prepared input kernel order differs from collected source rows")
-            for column in observed_columns:
-                output_column = "SRC " + column
-                if output_column in df.columns:
-                    df.at[index, output_column] = source_rows.at[index, column]
 
     applied = fill_spec_defaults(df)
     out_csv.parent.mkdir(parents=True, exist_ok=True)

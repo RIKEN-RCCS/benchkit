@@ -278,3 +278,52 @@ def test_final_src_features_keep_kernel_values_and_missing_fails(tmp_path):
     source.loc[1, 'Kernel Name'] = 'wrong'
     with pytest.raises(SystemExit, match='kernel order'):
         bridge['finalize_prepared_input'](path, pd.DataFrame(), output, set(), 'H100', source)
+
+
+def test_partial_display_names_use_raw_values_per_row(tmp_path):
+    pd = pytest.importorskip('pandas')
+    import runpy
+    bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
+    pairs = {
+        'Theoretical Active Warps per SM [warp]': 'sm__maximum_warps_avg_per_active_cycle',
+        'Theoretical Active Warps Per Scheduler [warp]': 'smsp__maximum_warps_avg_per_active_cycle',
+        'Shared Memory Configuration Size [byte]': 'launch__shared_mem_config_size',
+        'Block Limit Warps [block]': 'launch__occupancy_limit_warps',
+    }
+    raw = pd.DataFrame({**{label: [32, None, 7, None] for label in pairs},
+                        **{metric: [99, 16, 99, None] for metric in pairs.values()}})
+    path = tmp_path / 'wide.csv'
+    bridge['build_wide_ncu_csv'](raw, path, 'GB200')
+    output = pd.read_csv(path)
+    for column in pairs:
+        assert output[column].iloc[:3].tolist() == [32, 16, 7]
+        assert pd.isna(output[column].iloc[3])
+
+
+@pytest.mark.parametrize('target', ['', 'H100'])
+def test_incomplete_rows_and_target_filter_align_src_and_ipc(tmp_path, target):
+    pd = pytest.importorskip('pandas')
+    import runpy
+    bridge = runpy.run_path(str(ROOT / 'scripts/estimation/prepare_gpu_mlp_ncu_input.py'))
+    columns = bridge['SOURCE_SPEC_COLUMNS']
+    source = pd.DataFrame({
+        'Kernel Name': ['same'] * 4, 'Duration [ns]': [100] * 4,
+        'Block Size': [128] * 4,
+        'Memory Throughput [byte/s]': [None, 1000, 'invalid', 2000],
+        **{column: [1, 2, 3, 4] for column in columns},
+    })
+    prepared = pd.DataFrame({'Kernel Name': ['same'] * 2, 'src_gpu': ['GB200'] * 2,
+                             'tgt_gpu': ['A100', 'H100'],
+                             'Executed Ipc Active [inst/cycle]': [99, 99],
+                             **{'SRC ' + c: [99, 99] for c in columns}})
+    path = tmp_path / 'prepared.csv'
+    prepared.to_csv(path, index=False)
+    raw = pd.DataFrame({'sm__inst_executed.avg.per_cycle_active': [10, None, 30, 40],
+                        'TPC.TriageCompute.sm__inst_executed_realtime.avg.per_cycle_active': [99, 20, 99, 99]})
+    output = tmp_path / 'final.csv'
+    bridge['finalize_prepared_input'](path, raw, output, set(), target, source)
+    result = pd.read_csv(output)
+    expected = [4] if target else [2, 4]
+    for column in columns:
+        assert result['SRC ' + column].tolist() == expected
+    assert result['Executed Ipc Active [inst/cycle]'].tolist() == [v * 10 for v in expected]
