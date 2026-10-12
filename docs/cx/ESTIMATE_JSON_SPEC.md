@@ -724,3 +724,8 @@ This document does not yet fix:
 - the internal schema of per-section `artifacts`
 
 These should be fixed later based on actual implementation and observed data.
+
+
+### External model provenance manifests
+
+GPU section and ensemble candidate `model.provenance` may contain `manifest`, `sha256`, `input_mode`, and `external_commit`. The referenced artifact describes the actual inference dependency bundle, requested ref/commit, resolved checkout and modification state, input digests, and preprocessing performed. `external_commit` is null for supplied precomputed predictions or non-Git checkouts; it must not be inferred from the model version label. Missing historical provenance is not backfilled. The manifest contains repository-relative dependency paths rather than machine-local checkout paths.

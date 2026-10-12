@@ -33,6 +33,7 @@ cat > "${TMP_DIR}/results/estimation_artifacts/gpu_kernel_mlp_v15/pred.csv" <<'E
 kernel_name,Execution Time [ns]
 dummy,2
 EOF
+printf '%s\n' '{"schema_version":1,"external_inference":null}' > "${TMP_DIR}/results/estimation_artifacts/gpu_kernel_mlp_v15/provenance.json"
 echo "predictor log" > "${TMP_DIR}/results/estimation_artifacts/gpu_kernel_mlp_v15/gpu_kernel_region.log"
 echo "raw report" > "${TMP_DIR}/results/estimation_artifacts/gpu_kernel_mlp_v15/genesis_prepare/padata/raw/rep1/profile.ncu-rep"
 echo "raw csv" > "${TMP_DIR}/results/estimation_artifacts/gpu_kernel_mlp_v15/genesis_prepare/padata/raw/rep1/profile_raw.csv"
@@ -101,6 +102,7 @@ grep -q '/api/ingest/estimation-artifacts' "$CURL_LOG"
 grep -q 'id=11111111-2222-3333-4444-555555555555' "$CURL_LOG"
 grep -q './gpu_kernel_mlp_v15/input.csv' "$ESTIMATION_ARTIFACTS_TAR_LIST"
 grep -q './gpu_kernel_mlp_v15/pred.csv' "$ESTIMATION_ARTIFACTS_TAR_LIST"
+grep -q './gpu_kernel_mlp_v15/provenance.json' "$ESTIMATION_ARTIFACTS_TAR_LIST"
 grep -q './gpu_kernel_mlp_v15/gpu_kernel_region.log' "$ESTIMATION_ARTIFACTS_TAR_LIST"
 ! grep -q 'profile.ncu-rep' "$ESTIMATION_ARTIFACTS_TAR_LIST"
 ! grep -q 'profile_raw.csv' "$ESTIMATION_ARTIFACTS_TAR_LIST"

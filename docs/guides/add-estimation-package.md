@@ -266,3 +266,12 @@ section 名そのものより、
 - reestimation や compare と package metadata をどう結び付けるか
 
 そのため、最初の package では「小さく動かして、metadata と責務分担を崩さない」ことを優先するのがよいです。
+
+
+### External PerfTools inference provenance
+
+GPU section estimators write a provenance manifest under `results/estimation_artifacts/` and reference its path and SHA-256 from `model.provenance`. Manifest filenames include the content digest so later inputs do not overwrite earlier references. It records the actual checkout commit and state, inference dependency files and digests, CSV input mode, and NCU preprocessing where performed. The dependency bundle can include weights for unused GPUs; it is not a trace of every file read. Missing files and unknown source revisions remain explicit. Precomputed predictions do not acquire the identity of a local model that was never run.
+
+Set `BK_PERFTOOLS_COMMIT` to a full commit SHA to pin inference. Package-specific overrides are `BK_GPU_MLP_PERFTOOLS_COMMIT` and `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`. A supplied checkout must match that commit and be clean. With automatic fetching, the selected ref is resolved to a commit and a detached checkout is cached by commit; fetch or checkout failures are reported rather than using different code. `BK_PERFTOOLS_CACHE_DIR` sets the checkout cache location. A supplied checkout without a pin remains supported and its actual state is recorded.
+
+MLP NCU preprocessing records the GPU specification fields actually supplemented and its parameters. Prepared-input CSVs bypass that preprocessing. These records identify code and model inputs; Python and library versions still matter for full reproducibility.

@@ -5,6 +5,11 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 
 TMP_DIR=$(mktemp -d)
+mkdir -p "${TMP_DIR}/scripts"
+cp -R "${REPO_DIR}/scripts/estimation" "${TMP_DIR}/scripts/estimation"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/scripts/common"
+cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
+
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -67,7 +72,7 @@ cat > "${TMP_DIR}/breakdown.json" <<EOF
 }
 EOF
 
-pushd "${REPO_DIR}" >/dev/null
+pushd "${TMP_DIR}" >/dev/null
 source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
@@ -114,7 +119,7 @@ echo "$transformed" | jq -e '
 ' >/dev/null
 
 FAKE_PERFTOOLS="${TMP_DIR}/PerfTools"
-mkdir -p "${FAKE_PERFTOOLS}/LightGBM_model/1.0/AI_model"
+mkdir -p "${FAKE_PERFTOOLS}/LightGBM_model/1.0/AI_model" "${FAKE_PERFTOOLS}/data"
 cat > "${FAKE_PERFTOOLS}/LightGBM_model/1.0/AI_model/run_inference.py" <<'PY'
 raise SystemExit(7)
 PY
@@ -140,7 +145,7 @@ cat > "${TMP_DIR}/breakdown_input.json" <<EOF
 }
 EOF
 
-pushd "${REPO_DIR}" >/dev/null
+pushd "${TMP_DIR}" >/dev/null
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="input"
 export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
 export BK_GPU_LIGHTGBM_OUTPUT_DIR="${TMP_DIR}/lightgbm_outputs"
@@ -171,7 +176,7 @@ cat > "${TMP_DIR}/weak_breakdown.json" <<'EOF'
 }
 EOF
 
-pushd "${REPO_DIR}" >/dev/null
+pushd "${TMP_DIR}" >/dev/null
 source scripts/estimation/packages/weakscaling.sh
 normalized=$(bk_estimation_package_normalize_recorded_current_breakdown "$(cat "${TMP_DIR}/weak_breakdown.json")")
 current_breakdown=$(bk_top_level_transform_breakdown "$normalized" "1" "1" "1" "identity" "identity")

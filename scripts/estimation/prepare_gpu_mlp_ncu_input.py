@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import json
 import os
 import shutil
 import subprocess
@@ -287,7 +288,8 @@ def run_prepare_data(
     subprocess.run(cmd, cwd=perftools_root, check=True)
 
 
-def fill_spec_defaults(df: pd.DataFrame) -> None:
+def fill_spec_defaults(df: pd.DataFrame) -> list[dict]:
+    applied = []
     for role, gpu_col in (("SRC", "src_gpu"), ("TGT", "tgt_gpu")):
         if gpu_col not in df.columns:
             continue
@@ -299,6 +301,8 @@ def fill_spec_defaults(df: pd.DataFrame) -> None:
                 column = f"{role} {suffix}"
                 if column in df.columns and is_missing(df.at[row_idx, column]):
                     df.at[row_idx, column] = value
+                    applied.append({"row": int(row_idx), "gpu": gpu_name.upper(), "column": column, "value": value})
+    return applied
 
 
 def is_missing(value: object) -> bool:
@@ -360,8 +364,9 @@ def finalize_prepared_input(
             "Executed Ipc Active [inst/cycle]"
         ].fillna(mean_ipc)
 
-    fill_spec_defaults(df)
+    applied = fill_spec_defaults(df)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
+    Path(str(out_csv) + ".preprocessing.json").write_text(json.dumps({"spec_supplements": applied}, sort_keys=True) + "\n")
     df.to_csv(out_csv, index=False, quoting=csv.QUOTE_MINIMAL)
 
     nan_counts = df.isna().sum()
@@ -411,6 +416,11 @@ def main() -> None:
             allowed_nan=ALLOWED_NAN_COLUMNS | set(args.allow_nan),
             target_gpu=args.target_gpu,
         )
+        sidecar = Path(str(out_csv) + ".preprocessing.json")
+        details = json.loads(sidecar.read_text())
+        details["parameters"] = {"source_gpu": args.source_gpu, "target_gpu": args.target_gpu,
+                                 "kernel_count": kernel_count, "allowed_nan": sorted(ALLOWED_NAN_COLUMNS | set(args.allow_nan))}
+        sidecar.write_text(json.dumps(details, sort_keys=True) + "\n")
         final_count = len(pd.read_csv(out_csv))
         print(f"wrote {out_csv}: {final_count} kernels")
     finally:

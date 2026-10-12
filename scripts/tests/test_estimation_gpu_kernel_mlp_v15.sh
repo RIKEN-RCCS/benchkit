@@ -5,6 +5,11 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 
 TMP_DIR=$(mktemp -d)
+mkdir -p "${TMP_DIR}/scripts"
+cp -R "${REPO_DIR}/scripts/estimation" "${TMP_DIR}/scripts/estimation"
+cp -R "${REPO_DIR}/scripts/common" "${TMP_DIR}/scripts/common"
+cp -R "${REPO_DIR}/scripts/result_server" "${TMP_DIR}/scripts/result_server"
+
 trap 'rm -rf "${TMP_DIR}"' EXIT
 PREDICTION_FIXTURE="${REPO_DIR}/scripts/tests/fixtures/gpu_kernel_mlp_v15_pred.csv"
 
@@ -67,7 +72,7 @@ cat > "${TMP_DIR}/breakdown.json" <<EOF
 }
 EOF
 
-pushd "${REPO_DIR}" >/dev/null
+pushd "${TMP_DIR}" >/dev/null
 source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
@@ -76,6 +81,11 @@ export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/mlp_input.csv"
 export BK_GPU_MLP_PYTHON="$PYTHON_BIN"
 
 transformed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
+echo "$transformed" | jq -e '.sections[0].model.provenance.input_mode == "precomputed_prediction"' >/dev/null
+manifest_path=$(echo "$transformed" | jq -r '.sections[0].model.provenance.manifest')
+jq -e '.external_inference == null and .preprocessing == null' "$manifest_path" >/dev/null
+manifest_sha=$(sha256sum "$manifest_path" | cut -d ' ' -f 1)
+echo "$transformed" | jq -e --arg digest "$manifest_sha" '.sections[0].model.provenance.sha256 == $digest' >/dev/null
 popd >/dev/null
 unset BK_GPU_MLP_INPUT_CSV
 
@@ -163,12 +173,16 @@ cat > "${TMP_DIR}/breakdown_input.json" <<EOF
 }
 EOF
 
-pushd "${REPO_DIR}" >/dev/null
+pushd "${TMP_DIR}" >/dev/null
 export BK_GPU_MLP_ARTIFACT_MODE="input"
 export BK_GPU_MLP_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
 export BK_GPU_MLP_OUTPUT_DIR="${TMP_DIR}/mlp_outputs"
 
 transformed_from_input=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_input.json")" "1" "1" "1" "identity" "identity")
+echo "$transformed_from_input" | jq -e '.sections[0].model.provenance.input_mode == "prepared_csv"' >/dev/null
+manifest_path=$(echo "$transformed_from_input" | jq -r '.sections[0].model.provenance.manifest')
+jq -e '.external_inference.resolved_commit == null and .preprocessing == null and (.external_inference.files | length > 0)' "$manifest_path" >/dev/null
+
 popd >/dev/null
 
 echo "$transformed_from_input" | jq -e '
@@ -221,7 +235,7 @@ for package_version in \
 }
 EOF
 
-  pushd "${REPO_DIR}" >/dev/null
+  pushd "${TMP_DIR}" >/dev/null
   export BK_GPU_MLP_ARTIFACT_MODE="input"
   export BK_GPU_MLP_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
   export BK_GPU_MLP_OUTPUT_DIR="${TMP_DIR}/${package_name}_outputs"

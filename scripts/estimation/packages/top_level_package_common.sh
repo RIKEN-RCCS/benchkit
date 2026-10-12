@@ -160,6 +160,10 @@ bk_top_level_dispatch_bound_item() {
     else
       check_result=$(bk_top_level_unsupported_bound_package_result "$package_name" "$item_kind")
     fi
+    if [[ "$(printf '%s\n' "$check_result" | jq -r '.status // empty')" == error ]]; then
+      echo "ERROR: section package ${package_name} could not resolve its inference dependencies" >&2
+      return 1
+    fi
     if declare -F "$fn_name" >/dev/null 2>&1 && [[ "$(echo "$check_result" | jq -r '.status // "not_applicable"')" == "applicable" ]]; then
       if ! transformed_item=$("$fn_name" "$item_json" "$target_nodes" "$bench_nodes" "$default_factor" "$item_kind"); then
         echo "ERROR: section package ${package_name} failed for ${item_kind}" >&2

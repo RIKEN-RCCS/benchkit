@@ -2,6 +2,9 @@
 # gpu_kernel_mlp_v15.sh - Section package and shared implementation for
 # PerfTools MLP_NN GPU estimators.
 
+# shellcheck source=scripts/estimation/section_packages/perftools_common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/perftools_common.sh"
+
 bk_section_package_metadata_gpu_kernel_mlp_v15() {
   cat <<'EOF'
 {
@@ -121,44 +124,11 @@ _bk_gpu_mlp_fetch_enabled() {
 }
 
 _bk_gpu_mlp_ensure_perftools_root() {
-  local root
-  local repo="${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}"
-  local ref="${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}"
-
+  local root repo="${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}" ref="${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}" pin="${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}"
+  local fetch_enabled=false
   root=$(_bk_gpu_mlp_perftools_root)
-  if [[ -n "$root" && -f "$(_bk_gpu_mlp_predictor "$root")" ]]; then
-    printf '%s\n' "$root"
-    return 0
-  fi
-
-  if ! _bk_gpu_mlp_fetch_enabled; then
-    printf '%s\n' "$root"
-    return 0
-  fi
-
-  root="${root:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-.benchkit_estimation_tools/PerfTools}}}"
-  if [[ ! -f "$(_bk_gpu_mlp_predictor "$root")" ]]; then
-    if ! command -v git >/dev/null 2>&1; then
-      printf '%s\n' "$root"
-      return 0
-    fi
-
-    mkdir -p "$(dirname "$root")"
-    if [[ ! -d "$root/.git" ]]; then
-      echo "Fetching PerfTools for ${BK_GPU_MLP_PACKAGE_NAME:-gpu_kernel_mlp_v15}: ${repo} (${ref})" >&2
-      git clone --depth 1 "$repo" "$root" >&2 || {
-        printf '%s\n' "$root"
-        return 0
-      }
-    fi
-    if [[ "$ref" != "main" && "$ref" != "master" ]]; then
-      git -C "$root" fetch --depth 1 origin "$ref" >&2 || true
-      git -C "$root" checkout "$ref" >&2 || true
-    fi
-  fi
-
-  export BK_GPU_MLP_PERFTOOLS_ROOT="$root"
-  printf '%s\n' "$root"
+  if _bk_gpu_mlp_fetch_enabled; then fetch_enabled=true; fi
+  bk_perftools_ensure_root "$root" "$repo" "$ref" "$pin" "$fetch_enabled"
 }
 
 _bk_gpu_mlp_predictor() {
@@ -413,7 +383,10 @@ EOF
       missing+=("\"prediction_csv:${prediction_csv}\"")
     fi
   else
-    root=$(_bk_gpu_mlp_ensure_perftools_root)
+    root=$(_bk_gpu_mlp_ensure_perftools_root) || {
+      printf '%s\n' '{"status":"error","missing_inputs":["perftools_checkout_failed"]}'
+      return 1
+    }
     predictor=$(_bk_gpu_mlp_predictor "$root")
 
     if [[ -z "$input_csv" && -z "$ncu_archive" ]]; then
@@ -756,16 +729,18 @@ _bk_gpu_mlp_run_predictor() {
   local prediction_csv_abs
   local prediction_log_abs
   local python_bin="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
+  local provenance_json mode=prepared_csv
   local slug
 
-  root=$(_bk_gpu_mlp_ensure_perftools_root)
+  root=$(_bk_gpu_mlp_ensure_perftools_root) || return 1
   input_csv=$(_bk_gpu_mlp_resolve_section_input_csv "$item_json" "$section_name")
   ncu_archive=$(_bk_gpu_mlp_resolve_section_ncu_archive "$item_json" "$section_name")
   slug=$(_bk_gpu_mlp_section_slug "$section_name")
 
   mkdir -p "$output_dir"
   if [[ -z "$input_csv" && -n "$ncu_archive" ]]; then
-    input_csv=$(_bk_gpu_mlp_prepare_input_from_ncu "$ncu_archive" "$section_name" "$root" "$output_dir" "$slug")
+    mode=ncu_archive
+    input_csv=$(_bk_gpu_mlp_prepare_input_from_ncu "$ncu_archive" "$section_name" "$root" "$output_dir" "$slug") || return 1
   fi
 
   prediction_csv="${output_dir}/${slug}_pred.csv"
@@ -791,7 +766,14 @@ _bk_gpu_mlp_run_predictor() {
     return 1
   fi
 
-  printf '%s\t%s\t%s\n' "$prediction_csv" "$input_csv" "$prediction_log"
+  provenance_json=$("$python_bin" scripts/estimation/perftools_provenance.py \
+    --root "$root" --version "${BK_GPU_MLP_VERSION_DIR:-v1.5}" --predictor "${BK_GPU_MLP_PREDICT_SCRIPT:-predict_v15.py}" \
+    --source-gpu "${BK_GPU_MLP_SOURCE_GPU:-${BK_GPU_MLP_SRC_GPU:-H100}}" --target-gpu "${BK_GPU_MLP_TARGET_GPU:-${BK_GPU_MLP_TGT_GPU:-A100}}" \
+    --row "${BK_GPU_MLP_ROW:-all}" \
+    --mode "$mode" --input-csv "$input_csv" --prediction-csv "$prediction_csv" \
+    --requested-ref "${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}" --pin "${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}" \
+    --output "results/estimation_artifacts/${package_name}/${slug}_provenance.json") || return 1
+  printf '%s\t%s\t%s\t%s\n' "$prediction_csv" "$input_csv" "$prediction_log" "$provenance_json"
 }
 
 bk_section_package_transform_gpu_kernel_mlp_v15() {
@@ -804,6 +786,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   local prediction_csv
   local input_csv=""
   local prediction_log=""
+  local provenance_json="" provenance_path provenance_python
   local run_outputs
   local parsed_json
   local package_name="${BK_GPU_MLP_PACKAGE_NAME:-gpu_kernel_mlp_v15}"
@@ -828,13 +811,21 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
   fi
 
   if [[ -z "$prediction_csv" ]]; then
-    run_outputs=$(_bk_gpu_mlp_run_predictor "$item_json" "$section_name")
-    IFS=$'\t' read -r prediction_csv input_csv prediction_log <<< "$run_outputs"
+    run_outputs=$(_bk_gpu_mlp_run_predictor "$item_json" "$section_name") || return 1
+    IFS=$'\t' read -r prediction_csv input_csv prediction_log provenance_json <<< "$run_outputs"
   fi
 
+  if [[ -z "$provenance_json" ]]; then
+    provenance_python="${BK_GPU_MLP_PYTHON:-$(_bk_gpu_mlp_default_python)}"
+    provenance_path="results/estimation_artifacts/${package_name}/$(_bk_gpu_mlp_section_slug "$section_name")_provenance.json"
+    provenance_json=$("$provenance_python" scripts/estimation/perftools_provenance.py \
+      --mode precomputed_prediction --input-csv "$input_csv" --prediction-csv "$prediction_csv" \
+      --output "$provenance_path") || return 1
+  fi
   parsed_json=$(_bk_gpu_mlp_parse_prediction_csv "$prediction_csv" "$input_csv" "$package_name" "$model_version")
 
   echo "$item_json" | jq -c \
+    --argjson model_provenance "$provenance_json" \
     --arg prediction_csv "$prediction_csv" \
     --arg input_csv "$input_csv" \
     --arg prediction_log "$prediction_log" \
@@ -896,7 +887,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
             {status: "not_applicable", missing_inputs: ($missing_inputs | unique)}
           end
         ),
-        model: $parsed.model,
+        model: ($parsed.model + {provenance: $model_provenance}),
         metrics: (
           $parsed.metrics
           + {
@@ -921,6 +912,7 @@ bk_section_package_transform_gpu_kernel_mlp_v15() {
     | if .fallback_used == null then del(.fallback_used) else . end
     | .artifacts = (
         (.artifacts // [])
+        + [{kind: "external_model_provenance", path: $model_provenance.manifest}]
         + [{kind: "gpu_mlp_prediction_csv", path: $prediction_csv}]
         + (if $input_csv != "" then [{kind: "gpu_mlp_input_csv", path: $input_csv}] else [] end)
         + (if $prediction_log != "" then [{kind: "gpu_mlp_log", path: $prediction_log}] else [] end)
