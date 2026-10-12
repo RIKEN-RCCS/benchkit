@@ -211,6 +211,7 @@ def build_wide_ncu_csv(raw_df: pd.DataFrame, out_csv: Path, source_gpu: str) -> 
         "Elapsed Cycles [cycle]": first_numeric(raw_df, "sm__cycles_elapsed.avg"),
         "GPU Maximum Warps Per Scheduler [warp]": observed_numeric(
             raw_df, "GPU Maximum Warps Per Scheduler [warp]",
+            "device__attribute_max_warps_per_scheduler",
         ),
         "Theoretical Active Warps per SM [warp]": observed_numeric(
             raw_df, "Theoretical Active Warps per SM [warp]",
