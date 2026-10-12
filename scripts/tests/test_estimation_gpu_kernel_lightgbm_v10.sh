@@ -181,7 +181,9 @@ echo "$current_breakdown" | jq -e '
   .sections[0].name == "gpu_kernel_region" and
   .sections[0].estimation_package == "identity" and
   .sections[0].time == 10 and
-  (.sections[0].requested_estimation_package // "") == "" and
+  .sections[0].requested_estimation_package == "identity" and
+  .sections[0].requested_estimation_package_version == "0.1" and
+  .sections[0].estimation_package_version == "0.1" and
   (.sections[0].fallback_used // "") == "" and
   .sections[1].name == "comm" and
   .sections[1].estimation_package == "logp"

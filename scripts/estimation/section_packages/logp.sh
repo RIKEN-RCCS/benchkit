@@ -7,7 +7,8 @@ bk_section_package_metadata_logp() {
     "logp" \
     "identity" \
     '["section"]' \
-    '["item kind is not section", "both time and bench_time are missing"]'
+    '["item kind is not section", "both time and bench_time are missing"]' \
+    "0.1"
 }
 
 bk_section_package_check_applicability_logp() {

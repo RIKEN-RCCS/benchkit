@@ -314,7 +314,21 @@ class TestIngestResult:
 class TestIngestEstimate:
     def test_post_valid_json(self, client, tmp_dirs):
         """Test case."""
-        data = {"code": "est-test", "performance_ratio": 1.5}
+        data = {
+            "code": "est-test", "performance_ratio": 1.5,
+            "current_system": {"fom_breakdown": {"sections": [{"name": "legacy", "time": 1}]}},
+            "future_system": {"fom_breakdown": {"sections": [{
+                "name": "gpu", "time": 1,
+                "estimation_package": "identity", "estimation_package_version": "identity-2",
+                "requested_estimation_package": "gpu_kernel_ensemble_average",
+                "requested_estimation_package_version": "ensemble-3",
+                "candidate_estimates": [{
+                    "estimation_package": "unversioned", "estimation_package_version": None,
+                    "requested_estimation_package": "unversioned",
+                    "requested_estimation_package_version": None,
+                }],
+            }]}},
+        }
         resp = client.post("/api/ingest/estimate",
                            data=json.dumps(data),
                            headers={"X-API-Key": API_KEY,
@@ -331,6 +345,8 @@ class TestIngestEstimate:
         with open(os.path.join(estimated, files[0]), "r", encoding="utf-8") as f:
             saved = json.load(f)
         assert saved["code"] == "est-test"
+        assert saved["current_system"] == data["current_system"]
+        assert saved["future_system"] == data["future_system"]
         assert saved["estimate_metadata"]["estimation_result_uuid"] == body["id"]
         assert "estimation_result_timestamp" in saved["estimate_metadata"]
         assert "payload" not in body

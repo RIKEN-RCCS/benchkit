@@ -76,6 +76,10 @@ section package はもっと小さくてかまいません。
 - applicability
 - 1 区間の変換結果
 
+metadataの`version`には、このパッケージの変換・集約規則の版を文字列で宣言します。
+モデルの版は`model.version`で別に管理します。パッケージ内部の計算規則や適用条件を変えたら、パッケージの版を更新します。
+要求・実適用の名前と版は共通処理が区間の推定結果へ記録するため、app側で版を重複指定する必要はありません。
+
 ここでは「1 区間の変換規則」に集中し、Estimate JSON 全体の組み立てや current / future の side 管理は Benchkit 共通層や top-level package 側へ寄せる方が自然です。
 
 GPU kernel 単位の外部推定ツールは、通常は section package として扱います。

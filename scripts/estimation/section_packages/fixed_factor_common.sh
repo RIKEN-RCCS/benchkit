@@ -6,13 +6,18 @@ bk_fixed_factor_section_package_metadata() {
   local item_kind_scope="${3:-[\"section\", \"overlap\"]}"
   local not_applicable_when="${4:-[\"both time and bench_time are missing\"]}"
 
+  # Keep the existing arguments valid for unversioned external packages.
+  local package_version="${5:-}"
+
   jq -cn \
     --arg name "$package_name" \
+    --arg version "$package_version" \
     --arg fallback_target "$fallback_target" \
     --argjson item_kind_scope "$item_kind_scope" \
     --argjson not_applicable_when "$not_applicable_when" \
     '{
       name: $name,
+      version: (if $version == "" then null else $version end),
       fallback_target: (if $fallback_target == "" or $fallback_target == "null" then null else $fallback_target end),
       source_system_scope: {
         kind: "benchmark_system",

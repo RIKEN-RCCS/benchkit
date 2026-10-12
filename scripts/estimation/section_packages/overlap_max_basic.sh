@@ -4,6 +4,7 @@ bk_section_package_metadata_overlap_max_basic() {
   cat <<'EOF'
 {
   "name": "overlap_max_basic",
+  "version": "0.1",
   "fallback_target": "identity",
   "source_system_scope": {
     "kind": "benchmark_system",

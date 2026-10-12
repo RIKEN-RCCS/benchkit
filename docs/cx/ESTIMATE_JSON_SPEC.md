@@ -575,6 +575,14 @@ This means:
 各 section は、必要に応じてその区間に適用する推定パッケージ名を `estimation_package` として保持してよい。
 また、ハードウェアカウンターの生データ、トレース、区間別ログ、tgz アーカイブなどの補助データ参照を `artifacts` として保持してよい。
 
+新しく推定するsection/overlapでは、`requested_estimation_package`と`requested_estimation_package_version`に最初に要求したパッケージの名前・版、`estimation_package_version`に実適用したパッケージの版を記録する。
+版は実行時のパッケージmetadataから取得し、モデルの`model.version`とは区別する。版が宣言されていない場合は`null`とし、推定不成立で実適用できたパッケージがない場合も実適用の版は`null`とする。
+ensembleは自身の要求・実適用に加え、`candidate_estimates`内の各候補と`metrics.package_summaries`にも要求・実適用の名前と版を保持する。
+保存済みデータの欠落した版を現在値で補完しない。新しい推定では入力に残った古い版を引き継がず、今回の使用情報を記録する。観測のみの区間に推定パッケージや版を必須にしない。
+
+Newly estimated sections and overlaps record the requested package name/version and the applied package version using package metadata at execution time. These versions are distinct from `model.version`. Undeclared versions, and applied versions when no package could be applied, are `null`.
+Ensembles retain the same information for each candidate in `candidate_estimates` and `metrics.package_summaries`. Missing versions in saved data are not backfilled; a new estimation records its own package revisions rather than inheriting stale input revisions. Observation-only items need no estimation package or version.
+
 `artifacts` は少なくとも以下のような項目を持ってよい。
 
 - `type`
