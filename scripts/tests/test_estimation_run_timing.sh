@@ -14,6 +14,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/programs/timingapp" "${TMP_DIR}/scripts/estimation" "${TMP_DIR}/results"
 cp "${REPO_DIR}/scripts/estimation/run.sh" "${TMP_DIR}/scripts/estimation/run.sh"
+cp "${REPO_DIR}/scripts/estimation/prepare_inputs.py" "${TMP_DIR}/scripts/estimation/prepare_inputs.py"
 
 cat > "${TMP_DIR}/programs/timingapp/estimate.sh" <<'EOF'
 #!/bin/bash

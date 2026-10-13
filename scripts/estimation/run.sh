@@ -41,6 +41,11 @@ record_estimate_timing() {
   done
 }
 
+# Both CI entry paths prepare inputs here before invoking any app estimator.
+shopt -s nullglob
+result_files=(results/result[0-9]*.json)
+python3 "$(dirname "$0")/prepare_inputs.py" "${result_files[@]}"
+
 # Run estimation for each result JSON
 found=0
 for json_file in results/result[0-9]*.json; do

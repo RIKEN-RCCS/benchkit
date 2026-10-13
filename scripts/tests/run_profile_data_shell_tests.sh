@@ -80,6 +80,7 @@ EOF
       cat <<'EOF'
 scripts/tests/test_estimation_common_json_contract.sh
 scripts/tests/test_estimation_run_timing.sh
+scripts/tests/test_estimation_input_restoration.sh
 scripts/tests/test_estimation_gpu_kernel_ensemble_average.sh
 scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh
 scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh

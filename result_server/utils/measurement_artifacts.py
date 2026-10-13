@@ -34,7 +34,7 @@ def normalize_measurement_artifact_basename(value):
         or "\\" in artifact_path
         or artifact_path.startswith("../")
         or "/../" in artifact_path
-        or artifact_path.endswith("/..")
+        or any(part in ("", ".", "..") for part in artifact_path.split("/"))
     ):
         raise ValueError("invalid measurement artifact path")
     if not artifact_path.startswith("results/"):
@@ -100,3 +100,20 @@ def is_measurement_artifact_filename(filename):
     return filename.endswith(".tgz") or bool(
         MEASUREMENT_ARTIFACT_FILENAME_RE.fullmatch(filename)
     )
+
+
+def result_measurement_artifact_paths(result):
+    """Collect declared measurement file references without app-specific rules."""
+    references = []
+    breakdown = result.get("fom_breakdown") or {}
+    for group in ("sections", "overlaps"):
+        for section in breakdown.get(group) or []:
+            references.extend(section.get("artifacts") or [])
+    for observation in (result.get("timing_observations") or {}).get("observations") or []:
+        references.append(observation.get("artifact"))
+    references.append((result.get("node_status_snapshot") or {}).get("artifact"))
+    return {
+        ref["path"] for ref in references
+        if isinstance(ref, dict) and ref.get("type") == "file_reference"
+        and isinstance(ref.get("path"), str)
+    }
