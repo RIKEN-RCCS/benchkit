@@ -177,4 +177,33 @@ jq -e '
   (.environment_snapshot.hash | startswith("sha256:"))
 ' "${TMP_DIR}/project/results/result0.json" >/dev/null
 
+# Exercise the default command set in both collectors: an explicit override
+# would conceal a missing compiler in the default discovery list.
+for compiler in mpiicx mpiicpx mpiifx; do
+  cat > "${TMP_DIR}/bin/${compiler}" <<'EOF'
+#!/bin/bash
+if [ "${1:-}" != "--version" ]; then exit 2; fi
+printf '%s version 2026.1\n' "${0##*/}"
+EOF
+  chmod +x "${TMP_DIR}/bin/${compiler}"
+done
+unset BK_SNAPSHOT_TOOL_COMMANDS
+for collector in normal fallback; do
+  rm -f "$SNAPSHOT"
+  pushd "${TMP_DIR}/project/src" >/dev/null
+  BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK=$([ "$collector" = fallback ] && echo true || echo false) make intel-mpi
+  popd >/dev/null
+  for compiler in mpiicx mpiicpx mpiifx; do
+    jq -e --arg compiler "$compiler" --arg path "${TMP_DIR}/bin/${compiler}" '
+      .toolchain.commands[$compiler] |
+      .path == $path and .real_path == $path and
+      .version == ($compiler + " version 2026.1") and
+      (.sha256 | test("^[0-9a-f]{64}$"))
+    ' "$SNAPSHOT" >/dev/null
+    expected_hash=$(sha256sum "${TMP_DIR}/bin/${compiler}" | awk '{print $1}')
+    jq -e --arg compiler "$compiler" --arg hash "$expected_hash" \
+      '.toolchain.commands[$compiler].sha256 == $hash' "$SNAPSHOT" >/dev/null
+  done
+done
+
 echo "build environment snapshot test passed"
