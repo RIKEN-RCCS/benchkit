@@ -164,8 +164,8 @@ case "$system" in
     ;;
   Camphor3)
     proc=$((nodes * numproc_node))
-    echo sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G script.sh
-    sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G script.sh
+    echo sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads} script.sh
+    sbatch -p $queue_group -t $elapse --rsc p=${proc}:t=${nthreads}:c=${nthreads} script.sh
     ;;
   Grand_C)
     cpu_per_node=$(get_system_cpu_per_node "$system")
