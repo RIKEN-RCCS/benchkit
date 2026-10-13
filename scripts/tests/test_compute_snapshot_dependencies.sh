@@ -6,6 +6,10 @@ REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+# A login shell may export module functions whose state conflicts with the
+# synthetic LOADEDMODULES below. This fixture uses the environment fallback.
+unset -f module _module_raw 2>/dev/null || true
+
 # Assertions run on the test host; collectors see only ordinary shell utilities.
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/work"
 for tool in bash dirname basename mkdir date awk sed tr readlink sha256sum hostname uname mktemp rm getconf cat sort; do

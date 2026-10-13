@@ -13,6 +13,8 @@ wrapper_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root="${BK_BENCHKIT_ROOT:-$(cd "${wrapper_dir}/../.." && pwd -P)}"
 # shellcheck source=scripts/json_output.sh
 source "${repo_root}/scripts/json_output.sh"
+# shellcheck source=scripts/common/toolchain.sh
+source "${repo_root}/scripts/common/toolchain.sh"
 original_path="${PATH:-}"
 path_without_wrapper=""
 
@@ -89,7 +91,7 @@ fallback_command_version() {
     printf '%s' ""
     return 0
   fi
-  case "$cmd" in
+  case "${cmd##*/}" in
     nvcc|nvc|nvc++|nvfortran)
       version_args=("-V")
       ;;
@@ -100,7 +102,7 @@ fallback_command_version() {
 extract_command_version_line() {
   local cmd="$1"
 
-  case "$cmd" in
+  case "${cmd##*/}" in
     nvcc)
       awk '
         /Cuda compilation tools/ {print; found=1; exit}
@@ -123,18 +125,15 @@ extract_command_version_line() {
 }
 
 fallback_commands_json() {
-  local default_commands
-  default_commands="bash sh cc c++ gcc g++ clang clang++ fcc fccpx frt frtpx "
-  default_commands+="mpicc mpicxx mpifcc mpifccpx mpifrt mpifrtpx mpif90 mpifort "
-  default_commands+="mpiicc mpiicpc mpiifort mpiicx mpiicpx mpiifx gfortran nvcc nvc nvc++ nvfortran "
-  default_commands+="cmake make ninja ld ar pkg-config python3 apptainer singularity ncu nsys"
 
-  local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
   local first=true
   local cmd path real_path version sha256
+  local -A seen=()
 
   printf '{'
-  for cmd in $commands; do
+  while IFS= read -r cmd; do
+    [ -z "${seen[$cmd]:-}" ] || continue
+    seen[$cmd]=1
     path=$(PATH="$path_without_wrapper" command -v "$cmd" 2>/dev/null || true)
     if [ -z "$path" ]; then
       continue
@@ -153,7 +152,7 @@ fallback_commands_json() {
       "$(json_string "$real_path")" \
       "$(json_string "$version")" \
       "$(json_string "$sha256")"
-  done
+  done < <(bk_snapshot_command_names)
   printf '}'
 }
 
