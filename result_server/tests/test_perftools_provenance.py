@@ -328,3 +328,41 @@ def test_incomplete_rows_and_target_filter_align_src_and_ipc(tmp_path, target):
     for column in columns:
         assert result['SRC ' + column].tolist() == expected
     assert result['Executed Ipc Active [inst/cycle]'].tolist() == [v * 10 for v in expected]
+
+
+def test_lightgbm_names_preserve_observations_and_convert_instruction_counts(tmp_path):
+    pd = pytest.importorskip('pandas')
+    import csv
+    import sys
+    raw = pd.DataFrame({
+        'ID': range(4), 'Process ID': [1] * 4, 'Kernel Name': ['a', 'b', 'c', 'd'],
+        'Achieved Occupancy': [7, None, None, None],
+        'sm__warps_active.avg.pct_of_peak_sustained_active': [99, 12, None, None],
+        'Executed Ipc Active [inst/cycle]': [3, None, None, None],
+        'sm__inst_executed.avg.per_cycle_active': [99, 4, None, None],
+        'Max Cluster Size [block]': [2, None, None, None],
+        'launch__cluster_max_potential_size': [99, 8, None, None],
+        'Block Limit Barriers [block]': [16, None, None, None],
+        'launch__occupancy_limit_barriers': [99, 32, None, None],
+        'Warp Cycles Per Executed Instruction [cycle/inst]': [5, None, None, None],
+        'smsp__average_warp_latency_per_inst_issued.ratio': [99, 10, 10, 10],
+        'smsp__inst_issued.sum': [100, 120, 100, None],
+        'smsp__inst_executed.sum': [100, 100, 0, 100],
+    })
+    path = tmp_path / 'raw.csv'
+    raw.to_csv(path, index=False, quoting=csv.QUOTE_ALL)
+    out = tmp_path / 'wide.csv'
+    subprocess.run([sys.executable, str(ROOT / 'scripts/estimation/prepare_gpu_lightgbm_ncu_input.py'),
+                    '--raw-csv', str(path), '--out-csv', str(out)], check=True)
+    wide = pd.read_csv(out)
+    for column, expected in {
+        'Achieved Occupancy': [7, 12],
+        'Executed Ipc Active [inst/cycle]': [3, 4],
+        'Max Cluster Size [block]': [2, 8],
+        'Block Limit Barriers [block]': [16, 32],
+        'Warp Cycles Per Executed Instruction [cycle/inst]': [5, 12],
+    }.items():
+        assert wide[column].iloc[:2].tolist() == expected
+        assert wide[column].iloc[2:].isna().all()
+    assert wide['Kernel Name'].tolist() == ['a', 'b', 'c', 'd']
+    assert wide['smsp__average_warp_latency_per_inst_issued.ratio'].tolist() == [99, 10, 10, 10]
