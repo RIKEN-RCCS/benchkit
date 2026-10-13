@@ -187,12 +187,41 @@ printf '%s version 2026.1\n' "${0##*/}"
 EOF
   chmod +x "${TMP_DIR}/bin/${compiler}"
 done
+for compiler in CC ftn flang amdclang amdclang++ amdflang mpic++ mpiclang mpiclang++ site-cxx site-fc 'compiler space'; do
+  cat > "${TMP_DIR}/bin/${compiler}" <<'EOF'
+#!/bin/bash
+if [ "${1:-}" != "--version" ]; then exit 2; fi
+printf '%s version test\n' "${0##*/}"
+EOF
+  chmod +x "${TMP_DIR}/bin/${compiler}"
+done
+export CC="\"${TMP_DIR}/bin/compiler space\" -O3"
+export CXX='ccache site-cxx -g'
+export FC='site-fc -O2'
+export F77='$(touch should-not-exist)'
+export F90='site-fc; touch should-not-exist'
 unset BK_SNAPSHOT_TOOL_COMMANDS
 for collector in normal fallback; do
   rm -f "$SNAPSHOT"
   pushd "${TMP_DIR}/project/src" >/dev/null
   BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK=$([ "$collector" = fallback ] && echo true || echo false) make intel-mpi
   popd >/dev/null
+  jq -e --arg path "${TMP_DIR}/bin/compiler space" '
+    .toolchain.commands[$path].path == $path and
+    .toolchain.commands[$path].version == "compiler space version test" and
+    (.toolchain.commands[$path].sha256 | test("^[0-9a-f]{64}$")) and
+    .toolchain.commands["site-cxx"].version == "site-cxx version test" and
+    .toolchain.commands["site-fc"].version == "site-fc version test"
+  ' "$SNAPSHOT" >/dev/null
+  for compiler in CC ftn flang amdclang amdclang++ amdflang mpic++ mpiclang mpiclang++; do
+    jq -e --arg compiler "$compiler" --arg path "${TMP_DIR}/bin/${compiler}" '
+      .toolchain.commands[$compiler] |
+      .path == $path and .real_path == $path and
+      .version == ($compiler + " version test") and
+      (.sha256 | test("^[0-9a-f]{64}$"))
+    ' "$SNAPSHOT" >/dev/null
+  done
+  test ! -e "${TMP_DIR}/project/src/should-not-exist"
   for compiler in mpiicx mpiicpx mpiifx; do
     jq -e --arg compiler "$compiler" --arg path "${TMP_DIR}/bin/${compiler}" '
       .toolchain.commands[$compiler] |

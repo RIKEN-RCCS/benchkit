@@ -3,6 +3,8 @@ set -euo pipefail
 
 # shellcheck source=scripts/json_output.sh
 source "$(dirname "${BASH_SOURCE[0]}")/json_output.sh"
+# shellcheck source=scripts/common/toolchain.sh
+source "$(dirname "${BASH_SOURCE[0]}")/common/toolchain.sh"
 
 out_file="${1:-results/environment_snapshot.json}"
 snapshot_stage="${BK_SNAPSHOT_STAGE:-unknown}"
@@ -58,7 +60,7 @@ command_version() {
 extract_command_version_line() {
   local cmd="$1"
 
-  case "$cmd" in
+  case "${cmd##*/}" in
     nvcc)
       awk '
         /Cuda compilation tools/ {print; found=1; exit}
@@ -82,7 +84,7 @@ extract_command_version_line() {
 
 snapshot_command_version() {
   local cmd="$1"
-  case "$cmd" in
+  case "${cmd##*/}" in
     nvcc|nvc|nvc++|nvfortran)
       command_version "$cmd" -V
       ;;
@@ -96,18 +98,12 @@ snapshot_command_version() {
 }
 
 snapshot_tool_commands_json() {
-  local default_commands
-  default_commands="bash sh cc c++ gcc g++ clang clang++ fcc fccpx frt frtpx "
-  default_commands+="mpicc mpicxx mpifcc mpifccpx mpifrt mpifrtpx mpif90 mpifort "
-  default_commands+="mpiicc mpiicpc mpiifort mpiicx mpiicpx mpiifx gfortran nvcc nvc nvc++ nvfortran "
-  default_commands+="cmake make ninja ld ar pkg-config python3 apptainer singularity ncu nsys"
 
-  local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
   local cmd path real_path version sha256
   local fields=()
   local -A seen=()
 
-  for cmd in $commands; do
+  while IFS= read -r cmd; do
     [ -z "${seen[$cmd]:-}" ] || continue
     seen[$cmd]=1
     path=$(command_path "$cmd")
@@ -120,7 +116,7 @@ snapshot_tool_commands_json() {
     fields+=(json "$cmd" "$(bk_json_object \
       string path "$path" string real_path "$real_path" \
       string version "$version" string sha256 "$sha256")")
-  done
+  done < <(bk_snapshot_command_names)
   bk_json_object "${fields[@]}"
 }
 
@@ -160,7 +156,7 @@ snapshot_environment_json() {
       value="${!name}"
     fi
     fields+=(string "$name" "$value")
-  done
+  done < <(bk_snapshot_command_names)
   bk_json_object "${fields[@]}"
 }
 
