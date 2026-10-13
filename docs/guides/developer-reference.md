@@ -113,13 +113,26 @@ The canonical estimation artifact endpoints are:
 - `POST /api/ingest/estimation-artifacts`
   Upload a lightweight estimation artifact bundle associated with a source result UUID.
 - `GET /api/query/estimation-artifacts?uuid=<source_result_uuid>`
-  Download the stored estimation artifact bundle for re-estimation.
+  Download the stored estimation artifact bundle.
+- `GET /api/query/measurement-artifact?uuid=<source_result_uuid>&artifact_path=<results/path>`
+  Download a measurement file explicitly referenced by that Result. This uses
+  the same runner authentication as the other query APIs; it is not a public
+  file lookup endpoint.
 
 The older `estimation-inputs` endpoint names remain as compatibility aliases
 only. New client code and documentation should use `estimation-artifacts`.
 Estimation artifact bundles may contain prepared estimator inputs, prediction
 outputs, and logs, but should not duplicate large profiler archives such as PA
 Data or `*.ncu-rep`.
+
+Initial estimation and re-estimation both prepare inputs through
+`scripts/estimation/run.sh`. Existing local files are preserved; missing
+measurement references are restored to their declared paths, and stored
+estimation bundles to `results/estimation_artifacts/`. Only HTTP 404 means an
+optional stored input is absent. Authentication and transport failures stop
+preparation rather than silently changing the estimation method. Packages
+remain responsible for preprocessing and deciding whether the available
+inputs support their model.
 
 ### Main Templates
 

@@ -19,6 +19,8 @@ from utils.environment_snapshots import index_environment_snapshot
 from utils.measurement_artifacts import (
     is_profile_archive_basename,
     normalize_measurement_artifact_basename,
+    profile_archive_filename_candidates,
+    result_measurement_artifact_paths,
     stored_measurement_artifact_filename,
 )
 from utils.rate_limit import rate_limited
@@ -653,6 +655,61 @@ def query_result():
         return jsonify(data), 200
 
     abort(404, description=f"No result found for system={system}, code={code}, exp={exp}")
+
+
+@api_bp.route("/api/query/measurement-artifact", methods=["GET"])
+@rate_limited(max_per_minute=60, key_fn=_api_rate_key, scope="api_query")
+def query_measurement_artifact():
+    """Return a stored file declared by the selected Result, not an arbitrary path."""
+    runner_id = require_api_key()
+    uuid_value = request.args.get("uuid")
+    if not uuid_value or not is_valid_uuid(uuid_value):
+        abort(400, description="Invalid UUID")
+    artifact_path = request.args.get("artifact_path")
+    try:
+        basename = normalize_measurement_artifact_basename(artifact_path)
+    except ValueError:
+        abort(400, description="Invalid measurement artifact path")
+    if not basename:
+        abort(400, description="Missing measurement artifact path")
+
+    filename, _, result = _find_result_file_by_uuid(
+        current_app.config["RECEIVED_DIR"], uuid_value
+    )
+    if not filename:
+        abort(404, description="Result not found")
+    references = result_measurement_artifact_paths(result)
+    if artifact_path not in references:
+        abort(404, description="Measurement artifact is not referenced by this Result")
+    if sum(os.path.basename(ref) == basename for ref in references) > 1:
+        abort(409, description="Measurement artifact storage identity is ambiguous")
+    match = re.fullmatch(r"result_(\d{8}_\d{6})_[0-9a-f-]+\.json", filename, re.I)
+    if not match:
+        abort(404, description="Result storage identity is unavailable")
+    timestamp = match.group(1)
+    candidates = profile_archive_filename_candidates(timestamp, uuid_value, artifact_path)
+    if not candidates:
+        candidates = [stored_measurement_artifact_filename(timestamp, uuid_value, basename)]
+    # Old resultN/padataN pairs had no artifact_path at ingest. Only use that
+    # single archive when the Result declares one unambiguous legacy reference.
+    archives = [path for path in references if path.endswith((".tgz", ".tar.gz"))]
+    if len(archives) == 1 and re.fullmatch(r"results/padata\d+\.tgz", artifact_path):
+        candidates.append(stored_measurement_artifact_filename(timestamp, uuid_value))
+    storage = current_app.config.get(
+        "RECEIVED_MEASUREMENT_ARTIFACTS_DIR",
+        current_app.config.get("RECEIVED_PADATA_DIR", current_app.config["RECEIVED_DIR"]),
+    )
+    for candidate in candidates:
+        path = os.path.join(storage, candidate)
+        if os.path.isfile(path) and not os.path.islink(path):
+            audit_event(
+                "api_query_accepted", actor=runner_id, result="success",
+                details={"query_type": "measurement_artifact"},
+            )
+            response = send_file(path, as_attachment=True, download_name=basename)
+            response.headers["Cache-Control"] = "no-store"
+            return response
+    abort(404, description="Measurement artifact not found")
 
 
 @api_bp.route("/api/query/estimation-artifacts", methods=["GET"])

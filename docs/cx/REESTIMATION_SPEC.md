@@ -315,15 +315,17 @@ Re-estimation in Benchkit should preferably satisfy at least:
 
 1. `estimate_result_uuid` から開始し、estimate JSON から `source_result_uuid` を解決する
 2. source result JSON を取得する
-3. `received_estimation_artifacts/<result-stem>/` が存在する場合は、その内容を `results/estimation_artifacts/` に復元する
-4. server 側に estimation artifact が無い場合は、artifact 不要な推定のみを許可し、必要な推定は `not_applicable` とする
+3. 通常推定と同じ `scripts/estimation/run.sh` の入力準備を使い、手元にない Measurement Artifact を Result が参照する path へ復元する
+4. 保存済み estimation artifact bundle があれば `results/estimation_artifacts/` に復元する。手元の入力は上書きしない
+5. 取得 API は runner 認証を必須とし、404 は保存なし、通信・認証エラーは準備失敗として区別する。入力が本当に不足する場合の適用可否は推定 package が判定する
 
 Current restoration should follow this flow:
 
 1. if starting from `estimate_result_uuid`, resolve `source_result_uuid` from the estimate JSON
 2. fetch the source result JSON
-3. if `received_estimation_artifacts/<result-stem>/` exists, restore its contents into `results/estimation_artifacts/`
-4. if no stored estimation artifacts exist, allow only methods that do not require them; otherwise terminate as `not_applicable`
+3. use the same input preparation in `scripts/estimation/run.sh` as initial estimation; restore missing measurement files to the paths referenced by the Result
+4. restore any stored estimation artifact bundle into `results/estimation_artifacts/`, preserving existing local inputs
+5. require runner authentication; distinguish HTTP 404 (not stored) from authentication or transport failures (preparation failed). The estimation package decides applicability when inputs are genuinely missing
 
 ## 9. 次の実装候補 / Next Implementation Candidates
 

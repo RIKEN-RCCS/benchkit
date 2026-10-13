@@ -117,27 +117,4 @@ jq -cn \
   ' > results/reestimation_context.json
 echo "Wrote re-estimation context to results/reestimation_context.json"
 
-set +e
-bk_result_server_download_to_file \
-  "/api/query/estimation-artifacts?uuid=${resolved_result_uuid}" \
-  "results/estimation_artifacts.tgz"
-download_exit=$?
-if [[ $download_exit -ne 0 ]]; then
-  rm -f "results/estimation_artifacts.tgz"
-  echo "New estimation artifact query endpoint failed; trying legacy estimation-inputs endpoint."
-  bk_result_server_download_to_file \
-    "/api/query/estimation-inputs?uuid=${resolved_result_uuid}" \
-    "results/estimation_artifacts.tgz"
-  download_exit=$?
-fi
-set -e
-
-if [[ $download_exit -eq 0 && -f "results/estimation_artifacts.tgz" ]]; then
-  mkdir -p "results/estimation_artifacts"
-  tar -xzf "results/estimation_artifacts.tgz" -C "results/estimation_artifacts"
-  rm -f "results/estimation_artifacts.tgz"
-  echo "Restored estimation artifacts to results/estimation_artifacts/"
-else
-  rm -f "results/estimation_artifacts.tgz"
-  echo "No stored estimation artifacts found for UUID: $resolved_result_uuid"
-fi
+# Artifact preparation is shared with initial estimation in estimation/run.sh.
