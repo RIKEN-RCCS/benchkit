@@ -132,6 +132,26 @@ if grep -q -- "-g" "$BK_TEST_PJSUB_ARGS_FILE"; then
     echo "Fugaku must not pass -g when BK_ALLOCATION_PROJECT_ID is unset" >&2
     exit 1
 fi
+# Camphor uses the site memory default in both generated CI and local submit.
+cat >> config/system.csv <<'EOF'
+Camphor3,cross,build-tag,run-tag,SLURM_CAMPHOR3,jha
+EOF
+cat >> config/system_info.csv <<'EOF'
+Camphor3,Camphor3,CPU,2,56,-,-,128 GiB,3
+EOF
+cat >> programs/schedulerapp/list.csv <<'EOF'
+Camphor3,yes,1,2,5,0:05:00
+EOF
+cp "${REPO_DIR}/config/queue.csv" config/queue.csv
+bash scripts/test_submit.sh schedulerapp 3 >/dev/null
+expected='-p jha -t 0:05:00 --rsc p=2:t=5:c=5'
+test "$(cat "$BK_TEST_SBATCH_ARGS_FILE")" = "$expected script.sh"
+bash scripts/matrix_generate.sh code=schedulerapp system=Camphor3 >/dev/null
+grep -Fq "SCHEDULER_PARAMETERS: \"$expected\"" .gitlab-ci.generated.yml
+if grep -q ':m=' .gitlab-ci.generated.yml; then
+    echo "Camphor must let Slurm derive memory from the allocated cores" >&2
+    exit 1
+fi
 popd >/dev/null
 
 popd >/dev/null

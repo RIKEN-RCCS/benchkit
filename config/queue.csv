@@ -14,7 +14,7 @@ PBS_TSUKUBA,qsub,"-q ${queue_group} -l select=${nodes}:mpiprocs=${numproc_node}:
 PBS_PEGASUS,qsub,"-q ${queue_group} -A CNTBENCH -l elapstim_req=${elapse} -v OMP_NUM_THREADS=${nthreads}"
 PBS_SIRIUS,qsub,"-q ${queue_group} -A CNTBENCH -W group_list=CNTBENCH -l select=${nodes}:ncpus=24:mem=124gb:ngpus=1 -l walltime=${elapse}"
 AGE_TSUBAME4,qsub,"-g jh260034 -l ${queue_group}=${nodes} -l h_rt=${elapse}"
-SLURM_CAMPHOR3,sbatch,"-p ${queue_group} -t ${elapse} --rsc p=${proc}:t=${nthreads}:c=${nthreads}:m=1G"
+SLURM_CAMPHOR3,sbatch,"-p ${queue_group} -t ${elapse} --rsc p=${proc}:t=${nthreads}:c=${nthreads}"
 NQSV_OSAKA_CPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads}"
 NQSV_OSAKA_GPU,qsub,"-q ${queue_group} -b ${nodes} -l elapstim_req=${elapse},cpunum_job=${nthreads},gpunum_job=${gpu_per_node}"
 NQSV_OSAKA_VE,qsub,"-q ${queue_group} --venode ${proc} -l elapstim_req=${elapse}"

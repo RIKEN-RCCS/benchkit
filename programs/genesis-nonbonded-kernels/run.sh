@@ -29,7 +29,8 @@ case "$system" in
         export OMP_PLACES=cores OMP_PROC_BIND=close
         launcher=(srun --ntasks=1 --cpus-per-task="$nthreads")
         ;;
-    Fugaku|FugakuCN) ;;
+    Fugaku|FugakuCN)
+        ;;
     *)
         echo "Unknown Running system: $system" >&2
         exit 1
