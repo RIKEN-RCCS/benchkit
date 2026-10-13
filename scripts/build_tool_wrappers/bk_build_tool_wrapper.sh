@@ -126,7 +126,7 @@ fallback_commands_json() {
   local default_commands
   default_commands="bash sh cc c++ gcc g++ clang clang++ fcc fccpx frt frtpx "
   default_commands+="mpicc mpicxx mpifcc mpifccpx mpifrt mpifrtpx mpif90 mpifort "
-  default_commands+="mpiicc mpiicpc mpiifort gfortran nvcc nvc nvc++ nvfortran "
+  default_commands+="mpiicc mpiicpc mpiifort mpiicx mpiicpx mpiifx gfortran nvcc nvc nvc++ nvfortran "
   default_commands+="cmake make ninja ld ar pkg-config python3 apptainer singularity ncu nsys"
 
   local commands="${BK_SNAPSHOT_TOOL_COMMANDS:-$default_commands}"
