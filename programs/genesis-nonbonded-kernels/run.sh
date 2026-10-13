@@ -4,89 +4,85 @@ system="$1"
 nodes="$2"
 numproc_node="$3"
 nthreads="$4"
-numproc=$(( numproc_node * nodes ))
 
 source "${PWD}/scripts/bk_functions.sh"
 
-SCRIPT_DIR="${PWD}"
 REPO_DIR="genesis-nonbonded-kernels"
 REPO_URL="https://github.com/genesis-release-r-ccs/${REPO_DIR}.git"
-BRANCH="main"
+BRANCH="${GENESIS_NONBONDED_KERNELS_BRANCH:-main}"
+SOURCE_COMMIT="${GENESIS_NONBONDED_KERNELS_SOURCE_COMMIT:-}"
 name_list=(Generic Oct Oct_mod1)
 dir_list=(Generic Intel Intel_mod1)
-resultsdir=${SCRIPT_DIR}/results
-artifactsdir=${SCRIPT_DIR}/artifacts
-
-echo "[${REPO_DIR}] Running on system: $system"
-
-if [[ -d "${REPO_DIR}" ]]; then
-    if [[ ! -d ${REPO_DIR}/.git ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
-    fi
-    if [[ ! -f "${REPO_DIR}/.git/config" ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
-    fi
-fi
-
-if [[ ! -d ${REPO_DIR} ]]; then
-    git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-else
-    echo "Reposiotry already exists and looks valid. Skipping clone."
-fi
-
-for i in "${!name_list[@]}"; do
-    name=${name_list[i]}
-    dir_path=${dir_list[i]}
-    [[ -f ${artifactsdir}/kernel_${name} ]] && cp ${artifactsdir}/kernel_${name}  "${REPO_DIR}/${dir_path}/kernel"
-done
-
-cd ${REPO_DIR} || {
-    echo "Failed to enter ${REPO_DIR}"
-	exit 1
-}
-
-# unpress data file for kernels
-cd data
-if [[ ! -f data_kernel_Oct && -f data_kernel_Oct.bz2 ]]; then
-    bunzip2 data_kernel_Oct.bz2
-fi
-if [[ ! -f data_kernel_generic && -f data_kernel_generic.bz2 ]]; then
-    bunzip2 data_kernel_generic.bz2
-fi
-cd - > /dev/null
+input_list=(data_kernel_generic data_kernel_Oct data_kernel_Oct)
+resultsdir="${PWD}/results"
+artifactsdir="${PWD}/artifacts"
+launcher=()
 
 case "$system" in
-  # FugakuLN retired; previous LN run shared this branch.
-  Fugaku|FugakuCN)
-    mkdir -p  ${resultsdir}
-	#total_fom=0.0
-    export PARALLEL=${nthreads}
-    export OMP_NUM_THREADS=${nthreads}
-	for i in "${!name_list[@]}"; do
-	    name=${name_list[i]}
-		output="log_${name}.txt"
-		dir_path=${dir_list[i]}
-		index=$((i + 1))
-
-		echo "Looping over name='$name', dir='$dir_path'"
-		cd "$dir_path" || { echo "cd failed to '$dir_path'"; exit 1; }
-
-        ./kernel > ${output}
-
-     	fom_val=$(awk '/time=/{print $2; exit}' ${output})
-        cd - > /dev/null
-
-	    #printf "result%d: %.3f\n" "$index" "$fom_val"  >> ${resultsdir}/result
-     	#total_fom=$(awk -v a="$total_fom" -v b="$fom_val" 'BEGIN{printf("%.6f", a + b)}')
-
-    bk_emit_result --fom "$fom_val" --fom-unit s --exp "$name" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads" >> ${resultsdir}/result
-	done
-
-    ;;
-  *)
-    echo "Unknown Running system: $system"
-    exit 1
-    ;;
+    Camphor3)
+        if [ "$nodes" != 1 ] || [ "$numproc_node" != 1 ]; then
+            echo "genesis-nonbonded-kernels requires one node and one process" >&2
+            exit 1
+        fi
+        module switch PrgEnvIntel PrgEnvGCC/2023
+        module load gcc/12.2.0
+        export OMP_PLACES=cores OMP_PROC_BIND=close
+        launcher=(srun --ntasks=1 --cpus-per-task="$nthreads")
+        ;;
+    Fugaku|FugakuCN) ;;
+    *)
+        echo "Unknown Running system: $system" >&2
+        exit 1
+        ;;
 esac
+
+# Restore the source commit recorded by the build, including cached builds.
+bk_fetch_recorded_source "$REPO_URL" "$REPO_DIR" "$BRANCH" "$SOURCE_COMMIT"
+input_commit=$(git -C "$REPO_DIR" rev-parse HEAD)
+
+for i in "${!name_list[@]}"; do
+    cp "${artifactsdir}/kernel_${name_list[i]}" "${REPO_DIR}/${dir_list[i]}/kernel"
+done
+
+cd "$REPO_DIR"
+for input in data_kernel_generic data_kernel_Oct; do
+    if [ ! -f "data/$input" ]; then
+        # Keep the compressed source input; a failed extraction must not leave
+        # a partial file that the next attempt would treat as ready.
+        bzip2 -dc "data/$input.bz2" > "data/$input.tmp"
+        mv "data/$input.tmp" "data/$input"
+    fi
+done
+
+export PARALLEL="$nthreads" OMP_NUM_THREADS="$nthreads"
+mkdir -p "$resultsdir"
+for i in "${!name_list[@]}"; do
+    name="${name_list[i]}"
+    cd "${dir_list[i]}"
+    output="${resultsdir}/log_${name}.txt"
+    input="../data/${input_list[i]}"
+    bk_record_input --dataset-id "genesis-nonbonded-${input_list[i]}" \
+        --file "$input" --repo-url "$REPO_URL" --ref "$BRANCH" \
+        --commit "$input_commit" --path "data/${input_list[i]}" --result-exp "$name"
+    bk_run --log "$output" -- "${launcher[@]}" ./kernel
+
+    if ! awk '
+        /the computed result seems to be OK\./ { ok++ }
+        /the computed result is not close enough|Error/ { failed=1 }
+        END { exit (ok == 3 && !failed) ? 0 : 1 }
+    ' "$output"; then
+        echo "Correctness check failed for $name" >&2
+        exit 1
+    fi
+    fom_val=$(awk '/time=/ {print $2; exit}' "$output")
+    if ! awk -v value="$fom_val" 'BEGIN {
+        exit (value ~ /^[+]?[0-9]+([.][0-9]*)?([eE][+-]?[0-9]+)?$/ && value + 0 > 0) ? 0 : 1
+    }'; then
+        echo "Invalid kernel time for $name: $fom_val" >&2
+        exit 1
+    fi
+    bk_emit_result --from-log "$output" --fom "$fom_val" --fom-unit s \
+        --exp "$name" --nodes "$nodes" --numproc-node "$numproc_node" \
+        --nthreads "$nthreads" >> "$resultsdir/result"
+    cd ..
+done

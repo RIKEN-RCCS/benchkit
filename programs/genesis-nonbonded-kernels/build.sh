@@ -21,6 +21,14 @@ cd ${REPO_DIR} || {
 }
 
 case "$system" in
+    Camphor3)
+        module switch PrgEnvIntel PrgEnvGCC/2023
+        module load gcc/12.2.0
+        comp=gfortran
+        dir="normal_${comp}_omp_dir"
+        version="--version"
+        archopt="MARCH=sapphirerapids"
+        ;;
     Fugaku)
 	comp=frtpx
 	dir="normal_${comp}_omp_dir"
@@ -37,6 +45,11 @@ case "$system" in
 	version="--version"
 	archopt=""
 	;;
+
+    *)
+        echo "Unknown system: $system" >&2
+        exit 1
+        ;;
 
     # FugakuLN retired; previous LN build kept for reference.
     # FugakuLN)
