@@ -15,12 +15,43 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import pandas as pd
+
 from prepare_gpu_mlp_ncu_input import (
     build_wide_ncu_csv,
     extract_padata,
     read_clean_raw_csv,
     strip_ncu_log_preamble,
+    observed_numeric,
 )
+
+
+def normalize_lightgbm_columns(wide: pd.DataFrame) -> pd.DataFrame:
+    """Expose observed NCU values under the names expected by LightGBM."""
+    wide = wide.copy()
+    aliases = {
+        "Achieved Occupancy": (
+            "Achieved Occupancy [%]", "sm__warps_active.avg.pct_of_peak_sustained_active",
+        ),
+        "Executed Ipc Active [inst/cycle]": (
+            "sm__inst_executed.avg.per_cycle_active",
+        ),
+        "Max Cluster Size [block]": ("launch__cluster_max_potential_size",),
+        "Block Limit Barriers [block]": ("launch__occupancy_limit_barriers",),
+    }
+    for label, names in aliases.items():
+        wide[label] = observed_numeric(wide, label, *names)
+
+    # Issued and executed instructions can differ. Convert the per-issued
+    # latency using counts from the same SMSP domain, rather than renaming it.
+    issued = observed_numeric(wide, "smsp__inst_issued.sum")
+    executed = observed_numeric(wide, "smsp__inst_executed.sum")
+    latency = observed_numeric(wide, "smsp__average_warp_latency_per_inst_issued.ratio")
+    derived = latency * issued / executed.where(executed > 0)
+    label = "Warp Cycles Per Executed Instruction [cycle/inst]"
+    observed = observed_numeric(wide, label, "Warp Cycles Per Executed Instruction [cycle]")
+    wide[label] = observed.combine_first(derived)
+    return wide
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,6 +90,7 @@ def main() -> None:
             raise SystemExit(f"no kernel rows found in {raw_csv}")
 
         build_wide_ncu_csv(raw_df, out_csv, args.source_gpu)
+        normalize_lightgbm_columns(pd.read_csv(out_csv, low_memory=False)).to_csv(out_csv, index=False)
         print(f"wrote {out_csv}: {len(raw_df)} kernels")
     finally:
         if work_dir_owned and not args.keep_work:
