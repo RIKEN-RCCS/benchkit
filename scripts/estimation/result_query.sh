@@ -42,7 +42,7 @@ fetch_current_fom() {
 
   if [[ -n "${BK_ESTIMATION_BASELINE_UUID:-}" ]] && ! echo "$response" | jq -e \
     --arg uuid "$BK_ESTIMATION_BASELINE_UUID" --arg system "$system" --arg code "$code" --arg exp "$exp" '
-      ._meta.uuid == $uuid and .system == $system and .code == $code
+      (._meta.uuid // ._server_uuid) == $uuid and .system == $system and .code == $code
       and ($exp == "" or .Exp == $exp)
     ' >/dev/null; then
     echo "ERROR: Recorded baseline does not match requested conditions" >&2
@@ -60,8 +60,10 @@ fetch_current_fom() {
   est_current_bench_fom="$est_current_fom"
   est_current_bench_nodes=$(echo "$response" | jq -r '.node_count // empty')
   est_current_bench_numproc_node=$(echo "$response" | jq -r '.numproc_node // empty')
-  est_current_bench_timestamp=$(echo "$response" | jq -r '._meta.timestamp // empty')
-  est_current_bench_uuid=$(echo "$response" | jq -r '._meta.uuid // empty')
+  est_current_bench_timestamp=$(echo "$response" | jq -r '
+    ._meta.timestamp // (._server_timestamp | select(type == "string")
+      | try (strptime("%Y%m%d_%H%M%S") | strftime("%Y-%m-%d %H:%M:%S")) catch empty) // empty')
+  est_current_bench_uuid=$(echo "$response" | jq -r '._meta.uuid // ._server_uuid // empty')
   est_current_fom_breakdown=$(echo "$response" | jq -c '.fom_breakdown // empty')
 
   echo "Fetched baseline FOM for ${system}/${code}: ${est_current_fom}"
