@@ -16,7 +16,8 @@ SCRIPT_DIR="${PWD}"
 export GENESIS_BENCHKIT_ROOT="$SCRIPT_DIR"
 REPO_DIR="genesis_benchmark_input"
 REPO_URL="https://github.com/genesis-release-r-ccs/${REPO_DIR}.git"
-BRANCH="main"
+BRANCH="${GENESIS_INPUT_BRANCH:-main}"
+INPUT_COMMIT="${GENESIS_INPUT_COMMIT:-}"
 dir_path="npt/genesis2.0beta_3.5fs/apoa1"
 header=p8
 exp="${BK_GENESIS_EXP:-$header}"
@@ -32,25 +33,18 @@ inputdir="../../../inputs/apoa1/"
 
 echo "[${REPO_DIR}] Running on system: $system"
 
-if [[ -d "${REPO_DIR}" ]]; then
-    if [[ ! -d ${REPO_DIR}/.git ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
+echo "System=$system Nodes=$nodes numproc=$numproc nthreads=$nthreads"
+# Input checkout must not overwrite the build source_info.env.
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+    if [[ -e "$REPO_DIR" ]]; then
+        echo "Input directory is not a Git checkout: $REPO_DIR" >&2
+        exit 1
     fi
-    if [[ ! -f "${REPO_DIR}/.git/config" ]]; then
-        echo "Warning: '${REPO_DIR}' exists but is not a valid git repository. Removing..."
-        rm -rf "${REPO_DIR}"
-    fi
+    git clone --branch "$BRANCH" "$REPO_URL" "$REPO_DIR"
 fi
-echo "System=$system"
-echo "Nodes=$nodes"
-echo "numproc=$numproc"
-echo "nthreads=$nthreads"
-
-if [[ ! -d ${REPO_DIR} ]]; then
-    git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-else
-    echo "Reposiotry already exists and looks valid. Skipping clone."
+if [[ -n "$INPUT_COMMIT" ]]; then
+    [[ "$INPUT_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid GENESIS input commit" >&2; exit 1; }
+    git -C "$REPO_DIR" checkout --detach "$INPUT_COMMIT"
 fi
 
 input_source_commit=$(git -C "${REPO_DIR}" rev-parse HEAD)
@@ -190,6 +184,17 @@ genesis_rikyu_apptainer_run_prefix() {
 }
 
 case "$system" in
+  Camphor3)
+    if [ "$numproc" != 8 ]; then
+        echo "GENESIS p8 input requires eight MPI ranks" >&2
+        exit 1
+    fi
+    module switch PrgEnvIntel PrgEnvIntel/2023
+    export OMP_NUM_THREADS="$nthreads" OMP_PLACES=cores OMP_PROC_BIND=close
+    export MKL_NUM_THREADS=1
+    bk_run --log "$output" -- srun -n "$numproc" --ntasks-per-node="$numproc_node" --cpus-per-task="$nthreads" ./"$binary" "$input.sub"
+    bash "$SCRIPT_DIR/programs/genesis/validate_cpu_run.sh" "$output" "$input.sub"
+    ;;
   Fugaku)
     mpi_cmd="mpiexec -n ${numproc} -stderr-proc stderr -stdout-proc stdout "
     export PARALLEL=${nthreads}

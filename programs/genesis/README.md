@@ -252,3 +252,21 @@ GENESIS_PROFILER_LEVEL
 `GENESIS_*_PROFILER_TOOL=ncu` requests additional NCU acquisition. `none`
 disables it explicitly. Prefer `BK_PROFILER` / `BK_PROFILER_LEVEL` for new
 generic CI/profile control unless a site needs a GENESIS-specific override.
+
+## Camphor3 CPU Run
+
+Camphor3 uses `PrgEnvIntel/2023`, Intel MPI, MKL, and a mixed-precision CPU
+build with AVX-512. The existing p8 input has a 2×2×2 domain decomposition,
+so it requires eight MPI ranks. The initial one-node configuration uses
+14 OpenMP threads per rank.
+
+`GENESIS_INPUT_BRANCH` and `GENESIS_INPUT_COMMIT` select the benchmark input
+checkout independently of `GENESIS_BRANCH` and `GENESIS_SOURCE_COMMIT` for
+the application source. Input selection preserves the build source record.
+The benchmark retains its original 6000 steps and scientific parameters.
+
+The CPU run checks that all energy output rows are finite, the final step
+matches the input, and the dynamics time is positive. These are completion
+checks. Numerical accuracy is checked separately using upstream regression
+tests and their reference outputs and tolerances. Run both through the
+scheduler on compute nodes.

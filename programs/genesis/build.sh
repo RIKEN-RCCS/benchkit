@@ -306,7 +306,18 @@ configure_genesis_nvidia_gpu() {
     echo "Configured ${system_name} as NVIDIA GPU build (${compiler_family}, ${gpu_arch})"
 }
 
+make_args=(-j)
 case "$system" in
+    Camphor3)
+        module switch PrgEnvIntel PrgEnvIntel/2023
+        FC=mpiifort
+        CC=mpiicc
+        F77=mpiifort
+        CXX=mpiicpc
+        CONFIG_ARGS=(--enable-mixed --enable-mpi --enable-openmp --with-simd=CORE-AVX512)
+        make_args=(-j8)
+        version="--version"
+        ;;
     Fugaku)
 	# Retain the existing configuration value although this entrypoint does not consume it.
 	# shellcheck disable=SC2034
@@ -367,7 +378,7 @@ if [ -n "${F77:-}" ]; then
 fi
 ./configure "${configure_env[@]}" "${CONFIG_ARGS[@]}"
 apply_genesis_nvtx_include_patch
-if ! make -j > make.log 2>&1; then
+if ! make "${make_args[@]}" > make.log 2>&1; then
     echo "make failed. Error-like lines from make.log:" >&2
     grep -n -i -E 'error|fatal|undefined reference|no such file|cannot|failed|unknown switch|unsupported|stop\.' make.log | tail -n 200 >&2 || true
     echo "make failed. Last 1000 lines of make.log:" >&2
