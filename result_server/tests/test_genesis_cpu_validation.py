@@ -46,10 +46,10 @@ def test_cpu_run_preserves_build_source_and_emits_observations(tmp_path, system,
     inputs = repo / 'inputs/apoa1'
     work.mkdir(parents=True)
     inputs.mkdir(parents=True)
-    (work / 'p8.inp').write_text('[DYNAMICS]\nnsteps = 20\n')
+    (work / 'p8.inp').write_text('[INPUT]\npdbfile = ../../../inputs/apoa1/apoa1.pdb\n[DYNAMICS]\nnsteps = 20\n')
     for name in ['top_all27_prot_lipid.rtf', 'par_all27_prot_lipid.prm',
                  'apoa1.psf', 'apoa1.pdb', 'apoa1.rst']:
-        (inputs / name).write_text('fixture\n')
+        (inputs / name).write_text(name + ' fixture\n')
     def git(*args):
         return subprocess.check_output(['git', '-C', str(repo), *args], text=True).strip()
     git('init', '-q', '-b', 'main')
@@ -86,3 +86,21 @@ printf 'INFO: STEP TIME TOTAL_ENE TEMPERATURE\nINFO: 20 0.02 -12 300\n dynamics 
     assert 'OBSERVATION' in result and 'SECTION:' in result
     expected = '-n 8 --ntasks-per-node=8 --cpus-per-task=14' if system == 'Camphor3' else '-n 8'
     assert expected in (tmp_path / 'launch.log').read_text()
+
+    import hashlib
+    import json
+    records = json.loads((results / 'input_info.json').read_text())['inputs']
+    files = {r['dataset_id'].removeprefix('apoa1-p8-'): r for r in records
+             if 'observation_capture' in r}
+    assert set(files) == {'p8.inp.sub', 'top_all27_prot_lipid.rtf',
+                          'par_all27_prot_lipid.prm', 'apoa1.psf', 'apoa1.pdb', 'apoa1.rst'}
+    for name, record in files.items():
+        data = (work / name).read_bytes()
+        capture = record['observation_capture']
+        observed = capture['manifest']['files'][0]
+        assert capture['collection_status'] == 'recorded'
+        assert observed['sha256'] == hashlib.sha256(data).hexdigest()
+        assert observed['size_bytes'] == len(data)
+        assert record['result_exp'] == 'p8' and record['resolved_commit'] == sha
+    assert (work / 'p8.inp.sub').read_bytes() != (work / 'p8.inp').read_bytes()
+    assert files['p8.inp.sub']['observation_capture']['manifest']['files'][0]['sha256'] != hashlib.sha256((work / 'p8.inp').read_bytes()).hexdigest()
