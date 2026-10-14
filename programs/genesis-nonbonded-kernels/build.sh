@@ -21,6 +21,13 @@ cd ${REPO_DIR} || {
 }
 
 case "$system" in
+    Flow2_Type2)
+    module purge
+    comp=gfortran
+    dir="normal_${comp}_omp_dir"
+    version="--version"
+    archopt="MARCH=armv8.2-a+sve"
+    ;;
     Flow2_Type1)
     module purge
     module load gcc/11
