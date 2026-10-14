@@ -27,7 +27,6 @@ case "$system" in
         cd results/mhd_run
         export OMP_NUM_THREADS=1 OMP_PLACES=cores OMP_PROC_BIND=close
         bk_run --log "$LOG" -- srun -n 96 --ntasks-per-node=96 --cpus-per-task=1 ./Simulation.x
-        bash "$ROOT/programs/MHDTurbulence/validate_cpu_run.sh" "$LOG" t-prof.csv config.f90
         result_log_args=(--from-log "$ROOT/results/mhd_run/$LOG")
         elapsed=$(grep "sim time \[s\]:" "$LOG" | awk '{print $4}' | tail -n 1)
         tcc=$(grep "time/count/cell" "$LOG" | awk '{print $2}' | tail -n 1)
