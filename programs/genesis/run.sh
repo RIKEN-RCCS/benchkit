@@ -50,6 +50,7 @@ fi
 input_source_commit=$(git -C "${REPO_DIR}" rev-parse HEAD)
 bk_record_input \
     --dataset-id apoa1-p8 \
+    --result-exp "$exp" \
     --repo-url "$REPO_URL" \
     --ref "$BRANCH" \
     --commit "$input_source_commit" \
@@ -109,6 +110,15 @@ if [[ ! -f ${inputdir}/apoa1.rst ]]; then
 	exit 1
 fi
 cp ${inputdir}/apoa1.rst  .
+
+# Observe the staged files consumed by spdyn, including the rewritten namelist.
+for staged_input in "${input}.sub" top_all27_prot_lipid.rtf par_all27_prot_lipid.prm apoa1.psf apoa1.pdb apoa1.rst; do
+    bk_record_input --file "$staged_input" \
+        --dataset-id "apoa1-p8-${staged_input}" --result-exp "$exp" \
+        --repo-url "$REPO_URL" --ref "$BRANCH" --commit "$input_source_commit" \
+        --path "${dir_path}/${staged_input}" \
+        --recipe "Staged p8 input; namelist paths rewritten from ${input}, referenced files copied from inputs/apoa1."
+done
 
 # Shared NVIDIA GPU run path. The env_prefix pattern mirrors build.sh so each
 # site can override modules, MPI launcher, GPU visibility, and profiler policy
