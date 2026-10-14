@@ -101,6 +101,12 @@ cp "${INPUT_DIR}/fcidump.txt" "${INPUT_DIR}/${determinant_file}" "${RUN_DIR}/"
 cd "${RUN_DIR}"
 export OMP_NUM_THREADS="${nthreads}"
 
+# These are the actual files read by diag, including an input-dir override.
+bk_record_input --file fcidump.txt --dataset-id sbd-h2o-fcidump \
+  --type file --result-exp "${experiment}"
+bk_record_input --file "${determinant_file}" --dataset-id "sbd-${experiment}-determinants" \
+  --type file --result-exp "${experiment}"
+
 diag_args=(
   --fcidump fcidump.txt
   --adetfile "${determinant_file}"

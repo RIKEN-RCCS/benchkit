@@ -257,6 +257,7 @@ build_inputs_hash() {
       "scripts/common/source.sh" \
       "scripts/common/profile_config.sh" \
       "scripts/common/observation.sh" \
+      "scripts/common/build_tools.sh" \
       "scripts/estimation/declaration_helpers.sh" \
       "scripts/build_tool_wrappers" \
       "scripts/build_with_cache.sh" \
@@ -277,6 +278,7 @@ build_inputs_hash() {
       "scripts/common/source.sh" \
       "scripts/common/profile_config.sh" \
       "scripts/common/observation.sh" \
+      "scripts/common/build_tools.sh" \
       "scripts/estimation/declaration_helpers.sh" \
       "scripts/build_with_cache.sh" \
       "scripts/collect_environment_snapshot.sh" \
@@ -792,6 +794,8 @@ mkdir -p "${repo_root}/results"
 export BK_SYSTEM="${BK_SYSTEM:-$system}"
 export BK_BENCHKIT_ROOT="$repo_root"
 export PATH="${repo_root}/scripts/build_tool_wrappers:${PATH:-}"
+# shellcheck source=scripts/common/build_tools.sh
+source "${repo_root}/scripts/common/build_tools.sh"
 
 if restore_cache; then
   exit 0

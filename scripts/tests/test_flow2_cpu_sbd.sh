@@ -31,6 +31,13 @@ printf 'fixture\n' > "$tmp/work/artifacts/h2o-1em4-alpha.txt"
  PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh Flow2_Type1 1 4 12
  grep -q 'FOM:0.5' results/result
  grep -q 'H2O-1em4' results/result
+ jq -e '.inputs | length == 2' results/input_info.json >/dev/null
+ for input in fcidump.txt h2o-1em4-alpha.txt; do
+   digest=$(sha256sum "sbd_run/$input" | awk '{print $1}')
+   jq -e --arg digest "$digest" --arg exp H2O-1em4 \
+     '[.inputs[] | select(.result_exp == $exp) | .observation_capture.manifest.files[].sha256] | index($digest) != null' \
+     results/input_info.json >/dev/null
+ done
  if PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh Flow2_Type1 1 1 48; then
    echo 'Unsupported rank count accepted' >&2; exit 1
  fi
