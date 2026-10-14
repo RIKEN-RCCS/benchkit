@@ -107,7 +107,7 @@ def test_generated_jobs_collect_stage_snapshots_and_use_build_wrapper(project, m
     )
     write_script(app / "build.sh", '''
 mkdir -p artifacts results
-printf '%s\\n' "$1" "${BK_SYSTEM:-}" "${BK_BENCHKIT_ROOT:-}" "$(command -v make)" > results/build_handoff
+printf '%s\\n' "$1" "${BK_SYSTEM:-}" "${BK_BENCHKIT_ROOT:-}" > results/build_handoff
 make fixture-build
 printf 'built\\n' > artifacts/demo
 ''')
@@ -135,8 +135,11 @@ printf '%s\\n' "$@" > results/run_handoff
         assert snapshot["system"]["name"] == system
         if stage in ("build", "build_run"):
             assert (root / "results/build_handoff").read_text().splitlines() == [
-                system, system, str(root), str(root / "scripts/build_tool_wrappers/make"),
+                system, system, str(root),
             ]
+            # Verify interception through the real-tool invocation and snapshot,
+            # independent of whether interception is a function or PATH wrapper.
+            assert (root / "make.log").read_text().splitlines()[-1] == "fixture-build"
             actual = json.loads((root / "results/environment_snapshot_build_actual.json").read_text())
             assert actual["stage"] == "build_actual"
             assert actual["system"]["name"] == system
