@@ -19,6 +19,11 @@ artifactsdir="${PWD}/artifacts"
 launcher=()
 
 case "$system" in
+    Flow2_Type2)
+        [[ "$nodes" = 1 && "$numproc_node" = 1 ]] || { echo "Flow2 kernels require one node and one process" >&2; exit 1; }
+        module purge
+        export OMP_PLACES=cores OMP_PROC_BIND=close
+        ;;
     Flow2_Type1)
         [[ "$nodes" = 1 && "$numproc_node" = 1 ]] || { echo "Flow2 kernels require one node and one process" >&2; exit 1; }
         module purge
