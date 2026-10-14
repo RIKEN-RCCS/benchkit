@@ -2,3 +2,4 @@ system,enable,nodes,numproc_node,nthreads,elapse
 Fugaku,yes,1,1,6,0:10:00
 FugakuCN,no,1,1,6,0:10:00
 Camphor3,yes,1,1,112,0:10:00
+Flow2_Type1,yes,1,1,48,00:10:00

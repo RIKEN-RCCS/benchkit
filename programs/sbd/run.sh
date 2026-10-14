@@ -19,6 +19,18 @@ mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
 
 case "${system}" in
+  Flow2_Type1)
+    [[ "$nodes" = 1 && "$n_ranks" = 4 ]] || { echo "Flow2 H2O validation requires four ranks on one node" >&2; exit 1; }
+    module purge
+    module load oneapi/2026.1.0 impi/2021.18
+    determinant_file=h2o-1em4-alpha.txt
+    experiment=H2O-1em4
+    reference_energy=-76.2429584823075
+    energy_abs_tolerance=1.0e-12
+    task_comm_size=1
+    adet_comm_size=2
+    bdet_comm_size=2
+    ;;
   RIKYU)
     module purge
     module load nvhpc/26.3
@@ -105,7 +117,10 @@ diag_args=(
   --bdet_comm_size "${bdet_comm_size}"
 )
 
-if [[ "${system}" == "RC_FX700" ]]; then
+if [[ "${system}" == "Flow2_Type1" ]]; then
+  export MKL_NUM_THREADS=1
+  bk_run --log diag.log -- mpirun -np "${n_ranks}" ./diag "${diag_args[@]}"
+elif [[ "${system}" == "RC_FX700" ]]; then
   bk_run --log diag.log -- \
     mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}"
 else
