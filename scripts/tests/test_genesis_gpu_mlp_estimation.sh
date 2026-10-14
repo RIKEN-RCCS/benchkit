@@ -20,6 +20,14 @@ pushd "${TMP_DIR}" >/dev/null
 export BK_GPU_MLP_FETCH_PERFTOOLS=false
 export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=false
 source programs/genesis/estimate.sh
+test "${BK_APP_ESTIMATION_METHOD_VERSION}" = "$(jq -r '.version' programs/genesis/estimate.metadata.json)"
+cp programs/genesis/estimate.metadata.json "${TMP_DIR}/original-estimate-metadata.json"
+jq '.version = "fixture-method-version"' programs/genesis/estimate.metadata.json > "${TMP_DIR}/changed-estimate-metadata.json"
+cp "${TMP_DIR}/changed-estimate-metadata.json" programs/genesis/estimate.metadata.json
+genesis_declare_estimation_layout
+test "${BK_APP_ESTIMATION_METHOD_VERSION}" = "fixture-method-version"
+cp "${TMP_DIR}/original-estimate-metadata.json" programs/genesis/estimate.metadata.json
+genesis_declare_estimation_layout
 test "${BK_ESTIMATION_BASELINE_EXP}" = "p8"
 test "${BK_ESTIMATION_BASELINE_SYSTEM}" = "Fugaku"
 test "${BK_ESTIMATION_FUTURE_SYSTEM}" = "FugakuNEXT"

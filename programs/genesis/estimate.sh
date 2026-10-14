@@ -8,7 +8,9 @@ genesis_declare_estimation_layout() {
   GENESIS_PME_OVERLAP_SECTION_MEMBERS="pme_real_wait,pme_real_inter,pme_real_intra,pme_recip"
   GENESIS_DYNAMICS_SECTION_MEMBERS="pairlist,bond,angle,dihedral,pme_real_wait,pme_real_inter,pme_real_intra,pme_recip,integrator"
   bk_clear_estimation_defaults
-  bk_define_estimation_method_version "1"
+  local method_version
+  method_version=$(jq -er '.version | select(type == "string" and length > 0)' programs/genesis/estimate.metadata.json) || return
+  bk_define_estimation_method_version "$method_version"
   bk_clear_estimation_declarations
   bk_define_current_estimation_package weakscaling
   bk_define_future_estimation_package instrumented_app_sections_dummy

@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/fixed_factor_common.sh"
 
 bk_section_package_metadata_identity() {
-  bk_fixed_factor_section_package_metadata "identity" "" "" "" "0.1"
+  cat "${BASH_SOURCE[0]%/*}/identity.metadata.json"
 }
 
 bk_section_package_check_applicability_identity() {

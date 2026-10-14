@@ -2,35 +2,7 @@
 # gpu_kernel_mlp_v21.sh - Thin package wrapper for PerfTools MLP_NN/v2.1.
 
 bk_section_package_metadata_gpu_kernel_mlp_v21() {
-  cat <<'EOF'
-{
-  "name": "gpu_kernel_mlp_v21",
-  "version": "0.1",
-  "fallback_target": "identity",
-  "source_system_scope": {
-    "kind": "benchmark_system",
-    "accepted_values": ["any"]
-  },
-  "target_system_scope": {
-    "accepted_values": ["any"]
-  },
-  "item_kind_scope": ["section"],
-  "required_result_fields": ["name", "app-side GPU section time as time or bench_time"],
-  "required_artifact_kinds": [
-    "PerfTools MLP_NN/v2.1 prepared input CSV",
-    "precomputed prediction CSV",
-    "or Benchkit padata archive with Nsight Compute raw CSV"
-  ],
-  "acquisition_mode": "external",
-  "output_fields": [
-    "time",
-    "bench_time",
-    "scaling_method",
-    "metrics",
-    "package_applicability"
-  ]
-}
-EOF
+  cat "${BASH_SOURCE[0]%/*}/gpu_kernel_mlp_v21.metadata.json"
 }
 
 bk_section_package_check_applicability_gpu_kernel_mlp_v21() (

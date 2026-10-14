@@ -1,0 +1,37 @@
+{
+  "name": "gpu_kernel_mlp_v15",
+  "version": "0.1",
+  "fallback_target": "identity",
+  "source_system_scope": {
+    "kind": "benchmark_system",
+    "accepted_values": ["any"]
+  },
+  "target_system_scope": {
+    "accepted_values": ["any"]
+  },
+  "item_kind_scope": ["section"],
+  "required_result_fields": ["name", "app-side GPU section time as time or bench_time"],
+  "required_artifact_kinds": [
+    "PerfTools MLP_NN/v1.5 prepared input CSV",
+    "precomputed prediction CSV",
+    "or Benchkit padata archive with Nsight Compute raw CSV"
+  ],
+  "acquisition_mode": "external",
+  "output_fields": [
+    "time",
+    "bench_time",
+    "scaling_method",
+    "metrics",
+    "package_applicability"
+  ],
+  "not_applicable_when": [
+    "item kind is not section",
+    "neither section artifact nor BK_GPU_MLP_INPUT_CSV/BK_GPU_MLP_PREDICTION_CSV is available",
+    "padata artifact mode is requested but the archive has no Nsight Compute raw CSV",
+    "PerfTools checkout is not available when running the external predictor",
+    "Python 3.11+ runtime for CSV parsing or external inference is not available",
+    "prediction CSV does not contain a recognized execution-time column",
+    "prediction/input pair does not provide a source-kernel time ratio",
+    "app-side GPU section time is not available"
+  ]
+}
