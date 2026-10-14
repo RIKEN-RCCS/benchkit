@@ -1,8 +1,8 @@
 # Benchkit Release Notes
 
-## Unreleased - Public result browsing updates
+## v2026.10.15 - Public result browsing updates
 
-Updates prepared for the next public CX Portal release.
+Prepared for the planned public CX Portal release on October 15, 2026.
 
 - Show recorded public activity labels alongside benchmark results.
 - Update benchmark charts while retaining tabular performance values.
