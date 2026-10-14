@@ -253,6 +253,28 @@ callers must select package names, and external model versions/weights are not
 inferred from package versions. Portal integration and ref polling are not
 enabled by this reader.
 
+### Optional Version Check in Estimate Details
+
+Set both `RESULT_SERVER_ESTIMATION_VERSION_REPO` (a trusted existing local Git
+repository) and `RESULT_SERVER_ESTIMATION_VERSION_REF` (a full ref or commit
+SHA) to enable a collapsed Version Check on authenticated Estimate detail
+pages. Leaving either unset keeps the existing display unchanged. The public
+portal does not show this comparison. Repository/ref selection is server-side;
+request parameters cannot override it, and the repository path is not rendered.
+
+The panel compares the recorded app method and requested/applied packages
+against declarations at the displayed commit. Only differences and unknowns
+are listed; matching records are omitted. Package selection follows records
+already present in the Estimate, including fallback requests and ensemble
+candidates. It does not discover newly assigned packages from app code.
+External model identities remain unknown until a corresponding explicit
+declaration is available; package versions do not substitute for model versions.
+
+The repository must be updated separately by its operator. Rendering does not
+fetch, poll refs, persist comparison results, notify users, or launch jobs.
+The displayed ref/commit identifies the inspected data, not a guarantee that
+it is the latest release or that the estimate has been scientifically validated.
+
 ## 5. Benchpark Integration
 
 - Legacy Benchpark-specific conversion and bridge logic remains under

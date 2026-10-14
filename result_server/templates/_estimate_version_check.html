@@ -1,0 +1,38 @@
+{% if version_check %}
+<details class="estimate-version-check">
+    <summary>
+        <strong>Version Check</strong>
+        {% if version_check.changed_count %}
+        <span>{{ version_check.changed_count }} difference{{ 's' if version_check.changed_count != 1 else '' }}</span>
+        {% elif not version_check.unknown_count %}
+        <span>Recorded versions match</span>
+        {% endif %}
+        {% if version_check.unknown_count %}
+        <span>{{ version_check.unknown_count }} unknown</span>
+        {% endif %}
+    </summary>
+    {% if version_check.commit %}
+    <p class="estimate-version-reference">{{ version_check.ref }} &middot;
+        <code title="{{ version_check.commit }}">{{ version_check.commit[:12] }}</code>
+    </p>
+    {% else %}
+    <p>Reference unavailable</p>
+    {% endif %}
+    {% if version_check.rows %}
+    <div class="detail-table-wrap">
+        <table class="estimate-version-table">
+            <thead><tr><th>Component</th><th>Recorded</th><th>Reference</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for row in version_check.rows %}
+            <tr>
+                <td>{{ row.name }}<small>{{ row.scope }} / {{ row.component }}</small></td>
+                <td data-label="Recorded">{{ row.recorded }}</td><td data-label="Reference">{{ row.reference }}</td>
+                <td data-label="Status">{{ 'Different' if row.status == 'different' else 'Unknown' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</details>
+{% endif %}

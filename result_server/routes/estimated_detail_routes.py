@@ -5,6 +5,7 @@ from utils.result_file import (
     serve_authenticated_result_file,
 )
 from utils.estimated_detail_view import build_estimated_detail_context
+from utils.estimate_version_view import build_estimate_version_check
 
 
 def register_estimated_detail_routes(estimated_bp):
@@ -25,4 +26,5 @@ def register_estimated_detail_routes(estimated_bp):
             not_found_message="Estimated result file not found",
         )
         detail_context = build_estimated_detail_context(result)
+        detail_context["version_check"] = build_estimate_version_check(result, current_app.config)
         return render_template("estimated_detail.html", result=result, **detail_context)

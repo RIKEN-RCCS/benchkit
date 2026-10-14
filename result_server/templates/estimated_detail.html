@@ -182,6 +182,27 @@
             font-weight: 600;
         }
         .empty-note { color: #6b7280; font-size: 13px; }
+        .estimate-version-check { margin: 16px 0; border-top: 1px solid #d8e3e8; padding: 12px 0; }
+        .estimate-version-check summary { cursor: pointer; overflow-wrap: anywhere; }
+        .estimate-version-check summary span { margin-left: 12px; display: inline-block; }
+        .estimate-version-reference { font-size: 13px; overflow-wrap: anywhere; }
+        .estimate-version-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .estimate-version-table th, .estimate-version-table td {
+            text-align: left; padding: 8px; border: 1px solid #d8e3e8;
+            white-space: normal; overflow-wrap: anywhere; min-width: 0; max-width: none; vertical-align: top;
+        }
+        .estimate-version-table small { display: block; margin-top: 4px; color: #5f6f7b; }
+        @media (max-width: 600px) {
+            .estimate-version-table, .estimate-version-table tbody { display: block; }
+            .estimate-version-table thead {
+                position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+            }
+            .estimate-version-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+            .estimate-version-table td:first-child, .estimate-version-table td:last-child { grid-column: 1 / -1; }
+            .estimate-version-table td[data-label]::before {
+                content: attr(data-label); display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;
+            }
+        }
     </style>
 
     <div class="detail-card">
@@ -227,6 +248,8 @@
         </ul>
         {% endif %}
     </div>
+
+    {% include "_estimate_version_check.html" %}
 
     <div class="detail-grid detail-bottom-grid">
         <div class="detail-card">
