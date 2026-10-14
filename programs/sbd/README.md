@@ -113,3 +113,8 @@ to `-76.2437767768609 Ha` with a `290.281226 s` internal Davidson FOM, and
 `scripts/result.sh` produced valid result JSON with source provenance and the
 `mult` timing section. Only this eight-GPU row has been independently re-run
 through `test_submit.sh`; the four- and sixteen-GPU rows above have not.
+
+
+## Flow2 Type I
+
+Flow2_Type1 uses a CPU build with oneAPI 2026.1.0, Intel MPI 2021.18 and MKL. The initial H2O-1em4 case requires one node, four MPI ranks and twelve OpenMP threads per rank. GPU profiling is disabled.

@@ -19,6 +19,12 @@ artifactsdir="${PWD}/artifacts"
 launcher=()
 
 case "$system" in
+    Flow2_Type1)
+        [[ "$nodes" = 1 && "$numproc_node" = 1 ]] || { echo "Flow2 kernels require one node and one process" >&2; exit 1; }
+        module purge
+        module load gcc/11
+        export OMP_PLACES=cores OMP_PROC_BIND=close
+        ;;
     Camphor3)
         if [ "$nodes" != 1 ] || [ "$numproc_node" != 1 ]; then
             echo "genesis-nonbonded-kernels requires one node and one process" >&2

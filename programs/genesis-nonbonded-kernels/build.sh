@@ -21,6 +21,14 @@ cd ${REPO_DIR} || {
 }
 
 case "$system" in
+    Flow2_Type1)
+    module purge
+    module load gcc/11
+    comp=gfortran
+    dir="normal_${comp}_omp_dir"
+    version="--version"
+    archopt="MARCH=x86-64-v4"
+    ;;
     Camphor3)
         module switch PrgEnvIntel PrgEnvGCC/2023
         module load gcc/12.2.0
