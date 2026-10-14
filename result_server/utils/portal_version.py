@@ -9,6 +9,17 @@ from pathlib import Path
 
 RELEASE_NOTES = [
     {
+        "version": "Unreleased",
+        "date": "",
+        "title": "Public result browsing updates",
+        "summary": "Updates prepared for the next public CX Portal release.",
+        "changes": [
+            "Show recorded public activity labels alongside benchmark results.",
+            "Update benchmark charts while retaining tabular performance values.",
+            "Add system summaries for Flow2 Type I and Type II.",
+        ],
+    },
+    {
         "version": "v2026.08.31",
         "date": "2026-08-31",
         "title": "Initial public CX Portal baseline",
