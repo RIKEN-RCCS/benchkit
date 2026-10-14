@@ -27,12 +27,25 @@ fetch_current_fom() {
   local response
   local curl_exit
   set +e
-  response=$(bk_result_server_get_json "/api/query/result?system=${system}&code=${code}${exp:+&exp=${exp}}")
+  if [[ -n "${BK_ESTIMATION_BASELINE_UUID:-}" ]]; then
+    response=$(bk_result_server_get_json "/api/query/result?uuid=${BK_ESTIMATION_BASELINE_UUID}")
+  else
+    response=$(bk_result_server_get_json "/api/query/result?system=${system}&code=${code}${exp:+&exp=${exp}}")
+  fi
   curl_exit=$?
   set -e
   if [[ $curl_exit -ne 0 || -z "$response" ]]; then
     echo "ERROR: Failed to fetch baseline result for system=${system}, code=${code}, exp=${exp} (curl exit=$curl_exit)" >&2
     echo "ERROR: URL was: ${url}" >&2
+    exit 1
+  fi
+
+  if [[ -n "${BK_ESTIMATION_BASELINE_UUID:-}" ]] && ! echo "$response" | jq -e \
+    --arg uuid "$BK_ESTIMATION_BASELINE_UUID" --arg system "$system" --arg code "$code" --arg exp "$exp" '
+      ._meta.uuid == $uuid and .system == $system and .code == $code
+      and ($exp == "" or .Exp == $exp)
+    ' >/dev/null; then
+    echo "ERROR: Recorded baseline does not match requested conditions" >&2
     exit 1
   fi
 
