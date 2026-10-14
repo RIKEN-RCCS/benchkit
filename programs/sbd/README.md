@@ -126,4 +126,4 @@ H2O-1em4 case uses one node, four MPI ranks and twelve OpenMP threads
 per rank, with MKL limited to one thread. Source and input selection,
 calculation parameters, energy comparison, and FOM extraction follow
 the existing CPU route. The initial ten-minute configuration uses
-site-default memory and remains disabled pending compute-node validation.
+site-default memory and is enabled after direct Slurm and Jacamar validation.
