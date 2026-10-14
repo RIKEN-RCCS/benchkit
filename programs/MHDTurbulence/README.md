@@ -12,10 +12,12 @@ ten-minute limit with site-default memory. It remains disabled pending
 compute-node validation.
 
 The run consumes artifacts independently of the source checkout and saves
-its log, diagnostics, and snapshots under `results/mhd_run`. Completion
-checks require the finish marker, reaching the configured physical end time
-within the step limit, finite positive timing, and finite initial/final
-diagnostics. These checks do not establish numerical accuracy; the upstream
-KH growth curve is an empirical comparison metric, not an exact reference
-with a published acceptance tolerance. FOM retains cell updates per second,
-and the total section retains the simulation loop time.
+its log, diagnostics, and snapshots under `results/mhd_run`. Like the
+existing MiyabiC entrypoint, it requires successful command execution and
+available simulation-time and time-per-cell values before emitting results.
+FOM retains cell updates per second, and the total section retains the
+simulation loop time.
+
+The upstream `RealTimeAnalysis` diagnostic output and documented KH growth
+comparison are available for application-level review. An automated
+numerical pass/fail check is not invoked by this entrypoint.
