@@ -19,10 +19,14 @@ mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
 
 case "${system}" in
-  Flow2_Type1)
-    [[ "$nodes" = 1 && "$n_ranks" = 4 ]] || { echo "Flow2 H2O validation requires four ranks on one node" >&2; exit 1; }
-    module purge
-    module load oneapi/2026.1.0 impi/2021.18
+  Camphor3|Flow2_Type1)
+    [[ "$nodes" = 1 && "$n_ranks" = 4 ]] || { echo "$system H2O validation requires four ranks on one node" >&2; exit 1; }
+    if [[ "$system" == "Camphor3" ]]; then
+      module switch PrgEnvIntel PrgEnvIntel/2023
+    else
+      module purge
+      module load oneapi/2026.1.0 impi/2021.18
+    fi
     determinant_file=h2o-1em4-alpha.txt
     experiment=H2O-1em4
     reference_energy=-76.2429584823075
@@ -123,7 +127,10 @@ diag_args=(
   --bdet_comm_size "${bdet_comm_size}"
 )
 
-if [[ "${system}" == "Flow2_Type1" ]]; then
+if [[ "${system}" == "Camphor3" ]]; then
+  export MKL_NUM_THREADS=1 OMP_PLACES=cores OMP_PROC_BIND=close
+  bk_run --log diag.log -- srun -n "$n_ranks" --ntasks-per-node="$numproc_node" --cpus-per-task="$nthreads" ./diag "${diag_args[@]}"
+elif [[ "${system}" == "Flow2_Type1" ]]; then
   export MKL_NUM_THREADS=1
   bk_run --log diag.log -- mpirun -np "${n_ranks}" ./diag "${diag_args[@]}"
 elif [[ "${system}" == "RC_FX700" ]]; then

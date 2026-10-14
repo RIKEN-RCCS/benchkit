@@ -15,6 +15,15 @@ set -e
 shift 2
 "$@"
 MOCK
+cat > "$tmp/bin/srun" <<'MOCK'
+#!/bin/bash
+set -e
+[[ $1 = -n && $2 = 4 && $3 = --ntasks-per-node=4 && $4 = --cpus-per-task=12 ]]
+[[ ${MKL_NUM_THREADS:-} = 1 && ${OMP_NUM_THREADS:-} = 12 ]]
+[[ ${OMP_PLACES:-} = cores && ${OMP_PROC_BIND:-} = close ]]
+shift 4
+"$@"
+MOCK
 cat > "$tmp/work/artifacts/diag" <<'MOCK'
 #!/bin/bash
 set -e
@@ -23,12 +32,13 @@ echo 'Elapsed time for davidson 0.5 seconds'
 echo 'Elapsed time for mult 0.1 seconds'
 echo ' Energy = -76.2429584823075'
 MOCK
-chmod +x "$tmp/bin/mpirun" "$tmp/work/artifacts/diag"
+chmod +x "$tmp/bin/srun" "$tmp/bin/mpirun" "$tmp/work/artifacts/diag"
 printf 'fixture\n' > "$tmp/work/artifacts/fcidump.txt"
 printf 'fixture\n' > "$tmp/work/artifacts/h2o-1em4-alpha.txt"
 (
  cd "$tmp/work"
- PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh Flow2_Type1 1 4 12
+ for system in Flow2_Type1 Camphor3; do
+ PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh "$system" 1 4 12
  grep -q 'FOM:0.5' results/result
  grep -q 'H2O-1em4' results/result
  jq -e '.inputs | length == 2' results/input_info.json >/dev/null
@@ -38,8 +48,9 @@ printf 'fixture\n' > "$tmp/work/artifacts/h2o-1em4-alpha.txt"
      '[.inputs[] | select(.result_exp == $exp) | .observation_capture.manifest.files[].sha256] | index($digest) != null' \
      results/input_info.json >/dev/null
  done
- if PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh Flow2_Type1 1 1 48; then
+ if PATH="$tmp/bin:$PATH" bash programs/sbd/run.sh "$system" 1 1 48; then
    echo 'Unsupported rank count accepted' >&2; exit 1
  fi
+ done
 )
-echo 'Flow2 SBD CPU route test passed'
+echo 'Flow2 and Camphor3 SBD CPU routes passed'
