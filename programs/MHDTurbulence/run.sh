@@ -14,6 +14,33 @@ BIN=Simulation.x
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 mkdir -p results
 
+# The upstream CPU case is compiled for 4x12x2 MPI tiles. Preserve it.
+if [[ "$system" = Flow2_Type1 ]]; then
+    [[ "$nodes" = 1 && "$numproc_node" = 96 && "$nthreads" = 1 ]] || { echo "Flow2 KH requires 96 MPI ranks and one thread per rank" >&2; exit 1; }
+    module purge
+    module load oneapi/2026.1.0 impi/2021.18
+    source "${ROOT}/scripts/bk_functions.sh"
+    run_dir="${ROOT}/results/mhd_run"
+    mkdir -p "$run_dir"
+    cp "${ROOT}/artifacts/${BIN}" "$run_dir/"
+    cp "${ROOT}/artifacts/mhd_cpu_input/"{config.f90,main.f90} "$run_dir/"
+    cd "$run_dir"
+    for input in config.f90 main.f90; do
+      bk_record_input --file "$input" --dataset-id "mhd-kh-$input" --type file --result-exp KH
+    done
+    export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+    bk_run --log stdout.log --launcher mpirun -np 96 -- ./Simulation.x
+    elapsed=$(awk '/sim time \[s\]:/ { value=$4 } END { print value }' stdout.log)
+    tcc=$(awk '/time\/count\/cell/ { value=$2 } END { print value }' stdout.log)
+    [[ -n "$elapsed" && -n "$tcc" ]] || { echo "Missing MHDTurbulence timing output" >&2; exit 1; }
+    fomtcc=$(awk -v tcc="$tcc" 'BEGIN { if (!(tcc > 0)) exit 1; printf "%.6e", 1/tcc }')
+    {
+      bk_emit_result --from-log stdout.log --fom "$fomtcc" --fom-unit cell/s --fom-version cell_updates_per_sec --exp KH --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+      bk_emit_section total "$elapsed"
+    } > "${ROOT}/results/result"
+    exit 0
+fi
+
 LOG=stdout.log
 result_log_args=()
 case "$system" in

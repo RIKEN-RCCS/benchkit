@@ -31,6 +31,15 @@ case "$system" in
         cp ../exe/$BIN ../../${artdir}/
         cp config.f90 main.f90 ../../artifacts/mhd_cpu_input/
         ;;
+    Flow2_Type1)
+        module purge
+        module load oneapi/2026.1.0 impi/2021.18
+        cd src_f90_omp_host
+        make -j4 fc=mpiifx
+        cp ../exe/"$BIN" ../../"${artdir}"
+        mkdir -p ../../"${artdir}"/mhd_cpu_input
+        cp config.f90 main.f90 ../../"${artdir}"/mhd_cpu_input/
+        ;;
     MiyabiC)
 	cd src_f90_omp_host
 	echo "Compile cods in $(pwd)"

@@ -184,6 +184,15 @@ genesis_rikyu_apptainer_run_prefix() {
 }
 
 case "$system" in
+  Flow2_Type1)
+    [[ "$nodes" = 1 && "$numproc" = 8 ]] || { echo "Flow2 p8 requires eight MPI ranks on one node" >&2; exit 1; }
+    module purge
+    module load oneapi/2026.1.0 impi/2021.18
+    export OMP_NUM_THREADS="$nthreads" OMP_PLACES=cores OMP_PROC_BIND=close
+    export MKL_NUM_THREADS=1 I_MPI_PIN_DOMAIN=omp
+    bk_run --log "$output" -- mpirun -n "$numproc" ./"$binary" "$input.sub"
+    bash "$SCRIPT_DIR/programs/genesis/validate_cpu_run.sh" "$output" "$input.sub"
+    ;;
   Camphor3)
     if [ "$numproc" != 8 ]; then
         echo "GENESIS p8 input requires eight MPI ranks" >&2

@@ -308,6 +308,17 @@ configure_genesis_nvidia_gpu() {
 
 make_args=(-j)
 case "$system" in
+    Flow2_Type1)
+        module purge
+        module load oneapi/2026.1.0 impi/2021.18
+        FC=mpiifx
+        CC=mpiicx
+        F77=mpiifx
+        CXX=mpiicpx
+        CONFIG_ARGS=(--enable-mixed --enable-mpi --enable-openmp --with-simd=auto)
+        make_args=(-j4)
+        version="--version"
+        ;;
     Camphor3)
         module switch PrgEnvIntel PrgEnvIntel/2023
         FC=mpiifort
