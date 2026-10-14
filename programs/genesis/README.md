@@ -271,3 +271,8 @@ matches the input, and the dynamics time is positive. These are completion
 checks. Numerical accuracy is checked separately using upstream regression
 tests and their reference outputs and tolerances. Run both through the
 scheduler on compute nodes.
+
+
+## Flow2 Type I CPU preparation
+
+Flow2_Type1 uses Intel MPI 2021.18 and oneAPI 2026.1.0 (mpiifx/mpiicx), with the upstream automatic SIMD selection. The original p8 input requires eight MPI ranks; the initial share plan is eight ranks with six threads each. Run the upstream numerical regression cases before the unchanged p8 benchmark.

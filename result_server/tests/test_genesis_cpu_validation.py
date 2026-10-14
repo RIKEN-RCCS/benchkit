@@ -36,7 +36,8 @@ def test_genesis_completion_checks(tmp_path, mutation):
     assert (process.returncode == 0) == (mutation == 'none')
 
 
-def test_camphor_run_preserves_build_source_and_emits_observations(tmp_path):
+@pytest.mark.parametrize("system,threads", [("Camphor3", "14"), ("Flow2_Type1", "6")])
+def test_cpu_run_preserves_build_source_and_emits_observations(tmp_path, system, threads):
     import os
     (tmp_path / 'scripts').symlink_to(ROOT / 'scripts', target_is_directory=True)
     (tmp_path / 'programs').symlink_to(ROOT / 'programs', target_is_directory=True)
@@ -68,19 +69,20 @@ printf 'INFO: STEP TIME TOTAL_ENE TEMPERATURE\nINFO: 20 0.02 -12 300\n dynamics 
     (results / 'source_info.env').write_text('build source marker\n')
     bindir = tmp_path / 'bin'
     bindir.mkdir()
-    launch = bindir / 'srun'
-    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" > "$LAUNCH_LOG"\nshift 4\nexec "$@"\n')
+    launch = bindir / ('srun' if system == 'Camphor3' else 'mpirun')
+    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" > "$LAUNCH_LOG"\nshift '+('4' if system == 'Camphor3' else '2')+'\nexec "$@"\n')
     launch.chmod(0o755)
     envfile = tmp_path / 'bash-env'
     envfile.write_text('module() { :; }\n')
     env = dict(os.environ, BASH_ENV=str(envfile), PATH=str(bindir)+':'+os.environ['PATH'],
                GENESIS_INPUT_COMMIT=sha, LAUNCH_LOG=str(tmp_path / 'launch.log'))
-    process = subprocess.run(['bash', str(ROOT / 'programs/genesis/run.sh'), 'Camphor3',
-                              '1', '8', '14'], cwd=tmp_path, env=env,
+    process = subprocess.run(['bash', str(ROOT / 'programs/genesis/run.sh'), system,
+                              '1', '8', threads], cwd=tmp_path, env=env,
                              capture_output=True, text=True)
     assert process.returncode == 0, process.stdout + process.stderr
     assert (results / 'source_info.env').read_text() == 'build source marker\n'
     result = (results / 'result').read_text()
     assert 'FOM:1.25' in result and 'Exp:p8' in result
     assert 'OBSERVATION' in result and 'SECTION:' in result
-    assert '-n 8 --ntasks-per-node=8 --cpus-per-task=14' in (tmp_path / 'launch.log').read_text()
+    expected = '-n 8 --ntasks-per-node=8 --cpus-per-task=14' if system == 'Camphor3' else '-n 8'
+    assert expected in (tmp_path / 'launch.log').read_text()
