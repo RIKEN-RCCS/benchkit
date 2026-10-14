@@ -7,6 +7,7 @@ from test_support import build_portal_shell_app, install_portal_test_stubs
 install_portal_test_stubs(include_otp=False)
 
 from routes.home import register_home_routes
+from utils.portal_version import portal_release_notes
 
 
 def test_home_page_renders_landing_content(monkeypatch):
@@ -83,3 +84,8 @@ def test_changes_page_renders_release_notes(monkeypatch):
     assert "v2026.08.31" in html
     assert "Initial public CX Portal baseline" in html
     assert "Compare selected public results" in html
+    for release in portal_release_notes():
+        assert release["version"] in html
+        assert release["title"] in html
+        for change in release["changes"]:
+            assert change in html

@@ -1,5 +1,13 @@
 # Benchkit Release Notes
 
+## Unreleased - Public result browsing updates
+
+Updates prepared for the next public CX Portal release.
+
+- Show recorded public activity labels alongside benchmark results.
+- Update benchmark charts while retaining tabular performance values.
+- Add system summaries for Flow2 Type I and Type II.
+
 ## v2026.08.31 - Initial public CX Portal baseline
 
 Initial public portal surface with result browsing, comparison, system

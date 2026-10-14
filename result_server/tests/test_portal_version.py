@@ -1,9 +1,19 @@
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils import portal_version
+
+
+def test_release_note_content_matches_documentation():
+    documentation = (Path(__file__).parents[2] / "docs" / "release-notes.md").read_text()
+    for release in portal_version.portal_release_notes():
+        assert f"## {release['version']} - {release['title']}" in documentation
+        assert release["summary"] in documentation.replace("\n", " ")
+        for change in release["changes"]:
+            assert f"- {change}" in documentation
 
 
 def test_portal_version_prefers_environment(monkeypatch, tmp_path):
