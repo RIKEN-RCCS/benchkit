@@ -22,6 +22,15 @@ DIR=$code
 cd $DIR
 BIN=Simulation.x
 case "$system" in
+    Camphor3)
+        module switch PrgEnvIntel PrgEnvIntel/2023
+        mkdir -p exe
+        cd src_f90_omp_host
+        make -j8 fc=mpiifx
+        mkdir -p ../../artifacts/mhd_cpu_input
+        cp ../exe/$BIN ../../${artdir}/
+        cp config.f90 main.f90 ../../artifacts/mhd_cpu_input/
+        ;;
     MiyabiC)
 	cd src_f90_omp_host
 	echo "Compile cods in $(pwd)"
