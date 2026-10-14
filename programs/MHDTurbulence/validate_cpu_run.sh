@@ -12,7 +12,8 @@ function finite(v, s) {
     gsub(/[dD]/,"e",v); s=tolower(sprintf("%g",v+0)); return s !~ /inf|nan/
 }
 /total step, final dt, final time:/ {
-    sub(/^.*time:/, ""); if (NF != 3 || !finite($1) || !finite($2) || !finite($3) || $1 < 1 || $1 > limit || $2 <= 0 || $3 <= target) bad=1; final=1
+    sub(/^.*time:/, ""); if (NF == 2) { record=$0; if (getline <= 0) bad=1; $0=record " " $0 }
+    if (NF != 3 || !finite($1) || !finite($2) || !finite($3) || $1 < 1 || $1 > limit || $2 <= 0 || $3 <= target) bad=1; final=1
 }
 /sim time \[s\]:/ {if (!finite($4) || $4 <= 0) bad=1; timing=1}
 /time\/count\/cell/ {if (!finite($2) || $2 <= 0) bad=1; fom=1}
