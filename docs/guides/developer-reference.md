@@ -209,6 +209,50 @@ inputs support their model.
 - Shared helpers live under `scripts/estimation/`.
 - Re-estimation uses result UUIDs as the main input contract.
 
+### Explicit Estimate Version Comparison
+
+`result_server/utils/estimate_versions.py` provides the side-effect-free
+`compare_estimate_versions(previous, candidate)` helper for two Estimate
+payloads of the same app. It compares recorded app estimation-method versions,
+requested/applied package versions (including current/future, sections,
+overlaps and ensemble candidates), and model names/versions.
+
+The result reports `same`, `different`, or `unknown`, with explicit `changes`
+and `unknowns`. `different` means an identifier differs, not that the candidate
+is newer. Known differences can coexist with unknown records; `complete` is
+false in that case. Completeness covers these recorded fields only, not all
+external dependencies or unrecorded model changes. Missing versions are never
+filled from the other payload. Named sections and candidates are matched
+independently of list order; duplicate names remain ambiguous.
+
+Observation versions, FOMs, runtime conditions and repository commits do not
+decide this comparison. The helper does not select equivalent datasets,
+discover versions from repository code, update stored records, display update
+notices or schedule re-estimation. Those integrations are separate work.
+
+### Reading Declarations at a Git Ref
+
+GENESIS keeps its estimation-method version in
+`programs/genesis/estimate.metadata.json`. Migrated estimation packages keep
+their existing metadata in an adjacent `<package>.metadata.json` file; the
+runtime metadata functions read that file rather than repeating its contents.
+The runtime declaration data is also the source for version inspection.
+
+`read_estimation_version_snapshot` in
+`result_server/utils/estimate_version_snapshot.py` reads those declarations
+from a trusted, existing local repository. Pass a full ref or commit SHA, app
+name, and explicit top-level/section package names. It resolves the ref once
+and returns the resolved commit with the declarations and unknown reasons.
+It neither executes repository code nor fetches, checks out, or modifies refs.
+Partial clones are unsupported to avoid implicit network retrieval.
+
+Missing or invalid declarations, duplicate JSON keys, symlinks, oversized
+documents and unavailable refs remain unknown. Unmigrated shell metadata is
+not parsed as a fallback. This is not a complete app dependency catalog:
+callers must select package names, and external model versions/weights are not
+inferred from package versions. Portal integration and ref polling are not
+enabled by this reader.
+
 ## 5. Benchpark Integration
 
 - Legacy Benchpark-specific conversion and bridge logic remains under

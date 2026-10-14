@@ -1,0 +1,18 @@
+{
+  "name": "gpu_kernel_ensemble_average",
+  "version": "0.1",
+  "method_class": "detailed",
+  "detail_level": "intermediate",
+  "required_inputs": {
+    "mandatory": ["candidate_estimation_packages"],
+    "optional": ["section_artifacts"],
+    "external": []
+  },
+  "models": {
+    "section": {
+      "type": "section_package_ensemble",
+      "name": "gpu-kernel-ensemble-average"
+    }
+  },
+  "fallback_target": "identity"
+}
