@@ -8,7 +8,7 @@ and initial conditions are preserved and recorded under
 The current configuration uses a 300 × 300 × 10 grid, a 4 × 12 × 2 MPI
 decomposition (96 ranks), and physical end time 3.0. The initial Camphor3
 configuration is one node, 96 MPI ranks, one OpenMP thread per rank, and a
-thirty-minute limit with site-default memory. It remains disabled pending
+thirty-minute limit with site-default memory. This configuration is enabled in `list.csv` after direct Slurm and
 Jacamar validation.
 
 The run consumes artifacts independently of the source checkout and saves
