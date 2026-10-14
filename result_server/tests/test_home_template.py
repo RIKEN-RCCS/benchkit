@@ -87,5 +87,7 @@ def test_changes_page_renders_release_notes(monkeypatch):
     for release in portal_release_notes():
         assert release["version"] in html
         assert release["title"] in html
+        if release["date"]:
+            assert release["date"] in html
         for change in release["changes"]:
             assert change in html
