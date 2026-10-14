@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Resolve/probe module-provided binaries, not exported interception functions.
+if [ "${BK_BUILD_TOOL_FUNCTION_WRAPPERS:-false}" = true ]; then
+  unset -f make cmake ninja
+fi
+
 if [ $# -lt 1 ]; then
   echo "bk_build_tool_wrapper: missing tool name" >&2
   exit 127

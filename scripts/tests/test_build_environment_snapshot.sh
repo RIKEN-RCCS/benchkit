@@ -235,4 +235,35 @@ for collector in normal fallback; do
   done
 done
 
+# A module can prepend a real CMake ahead of the PATH wrappers.
+mkdir -p "${TMP_DIR}/module-bin"
+cat > "${TMP_DIR}/module-bin/cmake" <<'EOF'
+#!/bin/bash
+if [ "${1:-}" = --version ]; then
+  echo 'cmake version module-fixture'
+else
+  printf '%s\n' "$*" > "${BK_TEST_FAKE_MAKE_ARGS}"
+fi
+EOF
+chmod +x "${TMP_DIR}/module-bin/cmake"
+source "${TMP_DIR}/project/scripts/common/build_tools.sh"
+export PATH="${TMP_DIR}/module-bin:${PATH}"
+export BK_SNAPSHOT_TOOL_COMMANDS='cmake'
+for collector in normal fallback; do
+  rm -f "$SNAPSHOT"
+  export BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK=$([ "$collector" = fallback ] && echo true || echo false)
+  cmake -S source -B build
+  jq -e --arg path "${TMP_DIR}/module-bin/cmake" '
+    .stage == "build_actual" and
+    .toolchain.commands.cmake.path == $path and
+    .toolchain.commands.cmake.real_path == $path and
+    .toolchain.commands.cmake.version == "cmake version module-fixture" and
+    (.toolchain.commands.cmake.sha256 | test("^[0-9a-f]{64}$"))
+  ' "$SNAPSHOT" >/dev/null
+  test "$(cat "${BK_TEST_FAKE_MAKE_ARGS}")" = '-S source -B build'
+done
+unset BK_BUILD_TOOL_WRAPPER_FORCE_FALLBACK
+unset -f make cmake ninja
+unset BK_BUILD_TOOL_FUNCTION_WRAPPERS
+
 echo "build environment snapshot test passed"
