@@ -17,8 +17,8 @@ def compare_estimate_versions(previous, candidate):
     if code != candidate["code"]:
         return _unknown_result("different_app")
 
-    before, before_issues = _version_records(previous)
-    after, after_issues = _version_records(candidate)
+    before, before_issues = collect_estimate_version_records(previous)
+    after, after_issues = collect_estimate_version_records(candidate)
     changes, unknowns = [], []
     for key in sorted(before.keys() | after.keys()):
         old, new = before.get(key), after.get(key)
@@ -52,7 +52,8 @@ def _complete(record):
             and _identifier(record.get("version")))
 
 
-def _version_records(estimate):
+def collect_estimate_version_records(estimate):
+    """Collect explicit component records and ambiguities from an Estimate."""
     records, issues = {}, []
 
     def add(scope, component, name, version):

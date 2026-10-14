@@ -170,11 +170,13 @@ def create_dev_app(base_dir):
     from utils.auth import parse_ingest_keys
     from utils.csrf import init_csrf
     from utils.portal_version import portal_version_info
+    from utils.estimate_version_view import configure_estimate_version_check
     from utils.system_info import get_all_systems_info, summarize_systems_info
 
     app = Flask(__name__, template_folder="templates")
 
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
+    configure_estimate_version_check(app)
     session_dir = os.path.join(base_dir, "main", "flask_session")
     app.config.update(
         SESSION_TYPE="cachelib",
