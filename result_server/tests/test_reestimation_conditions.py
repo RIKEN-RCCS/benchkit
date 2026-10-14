@@ -152,9 +152,15 @@ def test_missing_conditions_do_not_execute_app(source, tmp_path):
 
 
 @pytest.mark.parametrize("matches", [True, False])
-def test_pinned_baseline_query_and_identity_check(matches):
+@pytest.mark.parametrize("response_mode", ["filter", "uuid"])
+def test_pinned_baseline_query_and_identity_check(matches, response_mode):
     uuid = "11111111-1111-1111-1111-111111111111"
     response = {"_meta": {"uuid": uuid if matches else "different"}, "system": "CPU-A", "code": "demo", "Exp": "case-a", "FOM": 2}
+    if response_mode == "uuid":
+        response.pop("_meta")
+        response.update(_server_uuid=uuid if matches else "different", _server_timestamp="20261014_120000")
+    else:
+        response["_meta"]["timestamp"] = "2026-10-14 12:00:00"
     script = '''
 set -e
 source scripts/estimation/result_query.sh
@@ -163,6 +169,8 @@ bk_result_server_get_json() {
   printf '%s' "$RESPONSE"
 }
 fetch_current_fom CPU-A demo case-a
+[[ "$est_current_bench_uuid" == "$BK_ESTIMATION_BASELINE_UUID" ]]
+[[ "$est_current_bench_timestamp" == "2026-10-14 12:00:00" ]]
 '''
     result = subprocess.run(["bash", "-c", script], cwd=Path(__file__).parents[2],
                             env={**os.environ, "RESULT_SERVER": "https://example.test", "BK_ESTIMATION_BASELINE_UUID": uuid, "RESPONSE": json.dumps(response)},
