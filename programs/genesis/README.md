@@ -258,7 +258,8 @@ generic CI/profile control unless a site needs a GENESIS-specific override.
 Camphor3 uses `PrgEnvIntel/2023`, Intel MPI, MKL, and a mixed-precision CPU
 build with AVX-512. The existing p8 input has a 2×2×2 domain decomposition,
 so it requires eight MPI ranks. The initial one-node configuration uses
-14 OpenMP threads per rank.
+14 OpenMP threads per rank, with a ten-minute scheduler limit and the
+site default memory allocation. This configuration is enabled in `list.csv`.
 
 `GENESIS_INPUT_BRANCH` and `GENESIS_INPUT_COMMIT` select the benchmark input
 checkout independently of `GENESIS_BRANCH` and `GENESIS_SOURCE_COMMIT` for
