@@ -118,3 +118,12 @@ through `test_submit.sh`; the four- and sixteen-GPU rows above have not.
 ## Flow2 Type I
 
 Flow2_Type1 uses a CPU build with oneAPI 2026.1.0, Intel MPI 2021.18 and MKL. The initial H2O-1em4 case requires one node, four MPI ranks and twelve OpenMP threads per rank. GPU profiling is disabled.
+
+## Camphor3
+
+Camphor3 uses a CPU build with Intel 2023, Intel MPI, and MKL. The
+H2O-1em4 case uses one node, four MPI ranks and twelve OpenMP threads
+per rank, with MKL limited to one thread. Source and input selection,
+calculation parameters, energy comparison, and FOM extraction follow
+the existing CPU route. The initial ten-minute configuration uses
+site-default memory and remains disabled pending compute-node validation.

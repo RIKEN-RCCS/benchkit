@@ -14,6 +14,19 @@ bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${SBD_BRANCH:-main}" "${SBD_SOURCE_
 cd "${REPO_DIR}"
 
 case "${system}" in
+  Camphor3)
+    module switch PrgEnvIntel PrgEnvIntel/2023
+    BUILD_DIR="build-camphor3-cpu"
+    cmake -S . -B "$BUILD_DIR" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CXX_COMPILER=mpiicpx \
+      -DBLA_VENDOR=Intel10_64lp \
+      -DSBD_GPU_BACKEND=none \
+      -DSBD_USE_RANK_DISTRIBUTION=ON \
+      -DSBD_USE_BLOCK_RANK_DISTRIBUTION=ON \
+      -DSBD_REORDER_INDEX_ARRAY=ON
+    cmake --build "$BUILD_DIR" --target tpb_diag --parallel 4
+    ;;
   Flow2_Type1)
     module purge
     module load oneapi/2026.1.0 impi/2021.18 cmake/4.4.3
