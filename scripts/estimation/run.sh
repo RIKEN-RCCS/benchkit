@@ -12,6 +12,26 @@ set -euo pipefail
 code="$1"
 estimate_script="programs/${code}/estimate.sh"
 
+expected_commit="${BK_ESTIMATION_EXPECTED_COMMIT:-}"
+execution_commit=""
+if [[ -n "$expected_commit" ]]; then
+  if [[ ! "$expected_commit" =~ ^[[:xdigit:]]{40}$ ]]; then
+    echo "ERROR: BK_ESTIMATION_EXPECTED_COMMIT must be a full commit SHA" >&2
+    exit 1
+  fi
+  repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+  execution_commit=$(git -C "$repo_dir" rev-parse --verify HEAD) || exit 1
+  expected_commit="${expected_commit,,}"
+  if [[ "$execution_commit" != "$expected_commit" ]]; then
+    echo "ERROR: Estimation checkout does not match the requested commit" >&2
+    exit 1
+  fi
+  if ! git -C "$repo_dir" diff --quiet HEAD --; then
+    echo "ERROR: Estimation checkout has tracked changes" >&2
+    exit 1
+  fi
+fi
+
 # Check if the application has an estimate script
 if [[ ! -f "$estimate_script" ]]; then
   echo "WARNING: $estimate_script not found, skipping estimation"
@@ -26,13 +46,20 @@ record_estimate_timing() {
   for json_file in "$@"; do
     [[ -f "$json_file" ]] || continue
     local tmp_file="${json_file}.timing.$$"
-    if ! jq --argjson elapsed_time "$elapsed_time" '
+    if ! jq --argjson elapsed_time "$elapsed_time" \
+      --arg execution_commit "$execution_commit" '
       .estimation_timing = ((.estimation_timing // {}) + {
         schema_version: 1,
         elapsed_time: $elapsed_time,
         unit: "s",
         recorded_by: "scripts/estimation/run.sh"
       })
+      | if $execution_commit != "" then
+          .estimation_execution = ((.estimation_execution // {}) + {
+            benchkit_commit: $execution_commit,
+            requested_commit: $execution_commit
+          })
+        else . end
     ' "$json_file" > "$tmp_file"; then
       rm -f "$tmp_file"
       return 1
@@ -60,7 +87,7 @@ for json_file in results/result[0-9]*.json; do
   echo "Running estimation: $estimate_script $json_file"
   marker_file=$(mktemp "${TMPDIR:-/tmp}/benchkit-estimate-marker.XXXXXX")
   estimate_start=$SECONDS
-  bash "$estimate_script" "$json_file"
+  python3 "$(dirname "$0")/reestimation_conditions.py" "$estimate_script" "$json_file"
   estimate_elapsed=$((SECONDS - estimate_start))
   mapfile -t estimate_outputs < <(find results -maxdepth 1 -type f -name 'estimate*.json' -newer "$marker_file" | sort)
   rm -f "$marker_file"

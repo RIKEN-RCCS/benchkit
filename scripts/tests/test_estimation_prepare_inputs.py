@@ -193,9 +193,16 @@ bk_result_server_download_optional_to_file /api/query/measurement-artifact downl
         stored.mkdir()
         result = self.result(code="demo_gpu")
         (stored / "result.json").write_bytes(result.read_bytes())
-        (stored / "estimate.json").write_text(json.dumps({"estimate_metadata": {
-            "source_result_uuid": UUID,
-        }}))
+        (stored / "estimate.json").write_text(json.dumps({
+            "exp": "demo-case",
+            "current_system": {"system": "DemoCPU", "target_nodes": "1", "benchmark": {"uuid": UUID}},
+            "future_system": {"system": "DemoFuture", "target_nodes": "2"},
+            "estimate_metadata": {
+                "source_result_uuid": UUID,
+                "current_package": {"requested_estimation_package": "weakscaling"},
+                "future_package": {"requested_estimation_package": "instrumented_app_sections_dummy"},
+            },
+        }))
         raw_csv = b"counter,value\nsample,10\n"
         (stored / "measurement.tgz").write_bytes(archive_bytes([
             ("bk_profiler_artifact/raw/rep1/profile_raw.csv", raw_csv, tarfile.REGTYPE),
