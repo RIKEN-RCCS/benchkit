@@ -70,18 +70,21 @@ ln -s "${REPO_DIR}/scripts" "$project_dir/scripts"
 cat > "$project_dir/config/system.csv" <<'EOF'
 system,mode,tag_build,tag_run,queue,queue_group
 RC_GH200,native,,,SLURM_RC,gh200
+RC_FX700,native,,,SLURM_RC,fx700
 Fugaku,cross,,,FJ,small
 EOF
 
 cat > "$project_dir/config/system_info.csv" <<'EOF'
 system,name,cpu_name,cpu_per_node,cpu_cores,gpu_name,gpu_per_node,memory,display_order
 RC_GH200,RC_GH200,CPU,1,72,GPU,1,120 GB,1
-Fugaku,Fugaku,CPU,1,48,-,-,32 GB,2
+RC_FX700,RC_FX700,CPU,1,48,-,-,32 GB,2
+Fugaku,Fugaku,CPU,1,48,-,-,32 GB,3
 EOF
 
 cat > "$project_dir/programs/schedulerapp/list.csv" <<'EOF'
 system,enable,nodes,numproc_node,nthreads,elapse
 RC_GH200,yes,1,1,1,0:05:00
+RC_FX700,yes,1,1,1,0:05:00
 Fugaku,yes,1,2,3,0:05:00
 EOF
 printf '#!/bin/bash\n' > "$project_dir/programs/schedulerapp/build.sh"
@@ -112,6 +115,10 @@ export BK_SCHEDULER_EXTRA_ARGS_RC_GH200="--account=explicit-rc"
 bash scripts/test_submit_build.sh schedulerapp 1 >/dev/null
 grep -q -- "--account=explicit-rc" "$BK_TEST_SBATCH_ARGS_FILE"
 
+unset BK_SCHEDULER_EXTRA_ARGS_RC_GH200
+bash scripts/test_submit_build.sh schedulerapp 2 >/dev/null
+grep -q -- "-p fx700" "$BK_TEST_SBATCH_ARGS_FILE"
+
 cat >"$tmpdir/pjsub" <<'SCRIPT'
 #!/bin/bash
 printf '%s\n' "$*" >"${BK_TEST_PJSUB_ARGS_FILE:?}"
@@ -123,11 +130,11 @@ export BK_ALLOCATION_PROJECT_ID="ra000009"
 unset BK_SCHEDULER_EXTRA_ARGS
 unset BK_SCHEDULER_EXTRA_ARGS_Fugaku
 
-bash scripts/test_submit.sh schedulerapp 2 >/dev/null
+bash scripts/test_submit.sh schedulerapp 3 >/dev/null
 grep -q -- "-g ra000009" "$BK_TEST_PJSUB_ARGS_FILE"
 
 unset BK_ALLOCATION_PROJECT_ID
-bash scripts/test_submit.sh schedulerapp 2 >/dev/null
+bash scripts/test_submit.sh schedulerapp 3 >/dev/null
 if grep -q -- "-g" "$BK_TEST_PJSUB_ARGS_FILE"; then
     echo "Fugaku must not pass -g when BK_ALLOCATION_PROJECT_ID is unset" >&2
     exit 1

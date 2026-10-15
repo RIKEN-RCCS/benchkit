@@ -4,11 +4,6 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "jq not found; skipping QWS timing artifact test"
-  exit 0
-fi
-
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -30,21 +25,23 @@ EOF
 test "$(qws_extract_fom_from_log "${TMP_DIR}/qws_case0.log")" = "0.356"
 qws_write_timing_artifact "${TMP_DIR}/qws_case0.log" CASE0 "${TMP_DIR}/results/qws_timing_CASE0.json" 0.356
 
-jq -e '
-  .schema_version == 1 and
-  .producer == "qws" and
-  .kind == "qws_timing_observation" and
-  .exp == "CASE0" and
-  .source_log == "qws_case0.log" and
-  .fom_seconds == 0.356 and
-  .summary.timer_count == 3 and
-  .summary.schema_record_count == 0 and
-  .summary.has_timing_table == true and
-  .summary.has_overlap_probe_schema == false and
-  .timers[1].id == "bicgstab_dd_mix_" and
-  .timers[1].calls == 10 and
-  .timers[1].total_seconds == 0.356
-' "${TMP_DIR}/results/qws_timing_CASE0.json" >/dev/null
+python3 - "${TMP_DIR}/results/qws_timing_CASE0.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+assert data["schema_version"] == 1
+assert data["producer"] == "qws" and data["kind"] == "qws_timing_observation"
+assert data["exp"] == "CASE0" and data["source_log"] == "qws_case0.log"
+assert data["fom_seconds"] == 0.356
+assert data["summary"] == {
+    "timer_count": 3, "schema_record_count": 0,
+    "has_timing_table": True, "has_overlap_probe_schema": False,
+}
+assert data["timers"][1]["id"] == "bicgstab_dd_mix_"
+assert data["timers"][1]["calls"] == 10 and data["timers"][1]["total_seconds"] == 0.356
+PY
 
 cat > "${TMP_DIR}/qws_overlap.log" <<'EOF'
 QWS_TIMER_SCHEMA version:qws-overlap-v1 target:overlap_probe conventional_timers:on probe_mode:coarse_phase unit:sec direction_order:xf,xb,yf,yb,zf,zb,tf,tb
@@ -60,19 +57,24 @@ EOF
 
 qws_emit_timing_artifact_json "${TMP_DIR}/qws_overlap.log" CASE1 0.424 > "${TMP_DIR}/results/qws_timing_CASE1.json"
 
-jq -e '
-  .summary.timer_count == 2 and
-  .summary.schema_record_count == 5 and
-  .summary.has_overlap_probe_schema == true and
-  .schema[0].record_type == "QWS_TIMER_SCHEMA" and
-  .schema[0].fields.version == "qws-overlap-v1" and
-  .schema[0].fields.target == "overlap_probe" and
-  .schema[0].fields.probe_mode == "coarse_phase" and
-  .schema[1].record_type == "QWS_TIMER_SCHEMA_SECTION" and
-  .schema[1].fields.id == "bicgstab_dd_mix_" and
-  .schema[3].record_type == "QWS_TIMER_SCHEMA_OVERLAP_WINDOW" and
-  .schema[3].fields.compute == "ddd_in,accum_addsub" and
-  .schema[4].record_type == "QWS_TIMER_SCHEMA_MEASUREMENT"
-' "${TMP_DIR}/results/qws_timing_CASE1.json" >/dev/null
+python3 - "${TMP_DIR}/results/qws_timing_CASE1.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+assert data["summary"]["timer_count"] == 2
+assert data["summary"]["schema_record_count"] == 5
+assert data["summary"]["has_overlap_probe_schema"] is True
+assert data["schema"][0]["record_type"] == "QWS_TIMER_SCHEMA"
+assert data["schema"][0]["fields"]["version"] == "qws-overlap-v1"
+assert data["schema"][0]["fields"]["target"] == "overlap_probe"
+assert data["schema"][0]["fields"]["probe_mode"] == "coarse_phase"
+assert data["schema"][1]["record_type"] == "QWS_TIMER_SCHEMA_SECTION"
+assert data["schema"][1]["fields"]["id"] == "bicgstab_dd_mix_"
+assert data["schema"][3]["record_type"] == "QWS_TIMER_SCHEMA_OVERLAP_WINDOW"
+assert data["schema"][3]["fields"]["compute"] == "ddd_in,accum_addsub"
+assert data["schema"][4]["record_type"] == "QWS_TIMER_SCHEMA_MEASUREMENT"
+PY
 
 echo "QWS timing artifact test passed"

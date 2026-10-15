@@ -15,6 +15,7 @@ qws_case1_args=(32 6 4 3 1 1 1 2 -1 -1 6 50)
 qws_case7_args=(32 6 4 3 1 2 2 2 -1 -1 6 50)
 
 source "${PWD}/scripts/bk_functions.sh"
+source "${PWD}/programs/qws/environment.sh"
 source "${PWD}/programs/qws/parse_timing.sh"
 qws_profiler_tool=$(bk_resolve_profiler_tool fapp QWS_PROFILER_TOOL)
 qws_profiler_level=$(bk_resolve_profiler_level detailed QWS_PROFILER_LEVEL)
@@ -98,23 +99,22 @@ case "$system" in
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_GH200)
-        module load system/qc-gh200 nvhpc-hpcx/25.9
+        qws_load_rc_environment "$system"
         bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=72 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_GENOA)
-        module load system/genoa mpi/openmpi-x86_64
+        qws_load_rc_environment "$system"
         bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=96 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_DGXSP)
-        source /etc/profile.d/modules.sh
-        module load system/ng-dgx nvhpc-hpcx/26.3
+        qws_load_rc_environment "$system"
         bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=20 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;
     RC_FX700)
-        module load system/fx700 FJSVstclanga
+        qws_load_rc_environment "$system"
         bk_run --log CASE0 --parameter-input --launcher mpirun -n 1 --bind-to core --map-by ppr:1:node:PE=12 -- ./main "${qws_case0_args[@]}"
         print_results CASE0 CASE0 1 >> ../results/result
         ;;

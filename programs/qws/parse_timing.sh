@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+qws_timing_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${qws_timing_dir}/../../scripts/json_output.sh"
+
 qws_extract_fom_from_log() {
   local log_file="$1"
 
@@ -40,46 +43,52 @@ qws_extract_timing_table() {
 
 qws_timing_schema_json() {
   local log_file="$1"
+  local line record_type rest token key value
+  local record_separator="" field_separator=""
+  local tokens=()
 
-  awk '/^QWS_TIMER_SCHEMA/ { print }' "$log_file" | jq -Rsc '
-    def kv_token:
-      split(":") as $parts
-      | select(($parts | length) >= 2)
-      | {key: $parts[0], value: ($parts[1:] | join(":"))};
-    [
-      split("\n")[]
-      | select(length > 0)
-      | capture("^(?<record_type>QWS_TIMER_SCHEMA(?:_[A-Z_]+)?)\\s*(?<rest>.*)$")?
-      | {
-          record_type: .record_type,
-          fields: (
-            .rest
-            | split(" ")
-            | map(select(length > 0) | kv_token)
-            | from_entries
-          )
-        }
-    ]
-  '
+  printf '['
+  while IFS= read -r line; do
+    read -r record_type rest <<< "$line"
+    [[ "$record_type" =~ ^QWS_TIMER_SCHEMA(_[A-Z_]+)?$ ]] || continue
+    printf '%s{' "$record_separator"
+    printf '"record_type":'
+    bk_json_quote "$record_type"
+    printf ',"fields":{'
+    field_separator=""
+    read -r -a tokens <<< "$rest"
+    for token in "${tokens[@]}"; do
+      [[ "$token" == *:* ]] || continue
+      key=${token%%:*}
+      value=${token#*:}
+      [[ -n "$key" ]] || continue
+      printf '%s' "$field_separator"
+      bk_json_quote "$key"
+      printf ':'
+      bk_json_quote "$value"
+      field_separator=,
+    done
+    printf '}}'
+    record_separator=,
+  done < <(awk '/^QWS_TIMER_SCHEMA/ { print }' "$log_file")
+  printf ']'
 }
 
 qws_timing_table_json() {
   local log_file="$1"
+  local rank id calls total_seconds average_seconds
+  local separator=""
 
-  qws_extract_timing_table "$log_file" | jq -Rnc '
-    [
-      inputs
-      | split("\t")
-      | select(length == 5)
-      | {
-          rank: (.[0] | tonumber),
-          id: .[1],
-          calls: (.[2] | tonumber),
-          total_seconds: (.[3] | tonumber),
-          average_seconds: (.[4] | tonumber)
-        }
-    ]
-  '
+  printf '['
+  while IFS=$'\t' read -r rank id calls total_seconds average_seconds; do
+    [[ -n "$average_seconds" ]] || continue
+    printf '%s{"rank":%s,"id":' "$separator" "$rank"
+    bk_json_quote "$id"
+    printf ',"calls":%s,"total_seconds":%s,"average_seconds":%s}' \
+      "$calls" "$total_seconds" "$average_seconds"
+    separator=,
+  done < <(qws_extract_timing_table "$log_file")
+  printf ']'
 }
 
 qws_emit_timing_artifact_json() {
@@ -89,6 +98,10 @@ qws_emit_timing_artifact_json() {
   local schema_json
   local timers_json
   local source_log_name
+  local timer_count
+  local schema_record_count
+  local has_timing_table=false
+  local has_overlap_probe_schema=false
 
   if [[ ! -f "$log_file" ]]; then
     echo "QWS timing log was not found: ${log_file}" >&2
@@ -98,34 +111,26 @@ qws_emit_timing_artifact_json() {
   source_log_name=$(basename "$log_file")
   schema_json=$(qws_timing_schema_json "$log_file")
   timers_json=$(qws_timing_table_json "$log_file")
+  timer_count=$(qws_extract_timing_table "$log_file" | awk 'END { print NR + 0 }')
+  schema_record_count=$(awk '/^QWS_TIMER_SCHEMA/ { count += 1 } END { print count + 0 }' "$log_file")
+  if (( timer_count > 0 )); then
+    has_timing_table=true
+  fi
+  if awk '/^QWS_TIMER_SCHEMA([[:space:]]|$)/ && /(^|[[:space:]])target:overlap_probe([[:space:]]|$)/ { found=1 } END { exit !found }' "$log_file"; then
+    has_overlap_probe_schema=true
+  fi
 
-  jq -n \
-    --arg exp "$exp" \
-    --arg source_log "$source_log_name" \
-    --arg fom "$fom" \
-    --argjson schema "$schema_json" \
-    --argjson timers "$timers_json" '
-      def number_text:
-        test("^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$");
-      {
-        schema_version: 1,
-        producer: "qws",
-        kind: "qws_timing_observation",
-        exp: $exp,
-        source_log: $source_log,
-        schema: $schema,
-        timers: $timers,
-        summary: {
-          timer_count: ($timers | length),
-          schema_record_count: ($schema | length),
-          has_timing_table: (($timers | length) > 0),
-          has_overlap_probe_schema: (
-            any($schema[]?; .record_type == "QWS_TIMER_SCHEMA" and .fields.target == "overlap_probe")
-          )
-        }
-      }
-      + (if ($fom | number_text) then {fom_seconds: ($fom | tonumber)} else {} end)
-    '
+  printf '{"schema_version":1,"producer":"qws","kind":"qws_timing_observation","exp":'
+  bk_json_quote "$exp"
+  printf ',"source_log":'
+  bk_json_quote "$source_log_name"
+  printf ',"schema":%s,"timers":%s' "$schema_json" "$timers_json"
+  printf ',"summary":{"timer_count":%s,"schema_record_count":%s,"has_timing_table":%s,"has_overlap_probe_schema":%s}' \
+    "$timer_count" "$schema_record_count" "$has_timing_table" "$has_overlap_probe_schema"
+  if [[ "$fom" =~ ^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$ ]]; then
+    printf ',"fom_seconds":%s' "$fom"
+  fi
+  printf '}\n'
 }
 
 qws_observe_timing() {
@@ -143,10 +148,6 @@ qws_write_timing_artifact() {
 
   if [[ ! -f "$log_file" ]]; then
     echo "QWS timing artifact skipped; log was not found: ${log_file}" >&2
-    return 0
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "QWS timing artifact skipped; jq is not available" >&2
     return 0
   fi
   if ! grep -Eq '^[[:space:]]*rank[[:space:]]+func_id[[:space:]]+calls[[:space:]]+total[(]s[)][[:space:]]+average[(]s[)]|^QWS_TIMER_SCHEMA' "$log_file"; then

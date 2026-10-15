@@ -10,6 +10,7 @@ SOURCE_COMMIT="${QWS_SOURCE_COMMIT:-}"
 
 # bk_fetch_source でソースコード取得とメタデータ収集
 source scripts/bk_build.sh
+source programs/qws/environment.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 cd "${REPO_DIR}"
@@ -46,20 +47,19 @@ case "$system" in
 	make -j 8 fugaku_benchmark= omp=1 compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi= CXX="mpic++ -mp"
 	;;
     RC_GH200)
-	module load system/qc-gh200 nvhpc-hpcx/25.9
+	qws_load_rc_environment "$system"
 	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
 	;;
     RC_GENOA)
-	module load system/genoa  mpi/openmpi-x86_64
+	qws_load_rc_environment "$system"
 	make -j 8 fugaku_benchmark= omp=1  compiler=openmpi-gnu arch=skylake rdma= mpi=1 powerapi=
     ;;
 	RC_DGXSP)
-	source /etc/profile.d/modules.sh
-	module load system/ng-dgx nvhpc-hpcx/26.3
+	qws_load_rc_environment "$system"
 	make -j 8 fugaku_benchmark= omp=1  compiler=nvhpc-hpcx arch=grace rdma= mpi=1 powerapi=
 	;;
 	RC_FX700)
-	module load system/fx700 FJSVstclanga
+	qws_load_rc_environment "$system"
 	make -j 8 fugaku_benchmark= omp=1  compiler=fujitsu_native rdma= mpi=1 powerapi= SYSLIBS=
 	;;
     MiyabiG)
