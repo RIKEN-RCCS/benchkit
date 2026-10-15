@@ -384,6 +384,16 @@ the returned plan using `bk_ncu_plan_profiles`; supply it to `bk_acquire_ncu`
 with `--plan` to include selection provenance automatically. Application-specific
 kernel-to-section mapping and any shortened scientific input remain app-owned.
 
+Automatic NCU plan generation and plan-based acquisition require Python 3.7 or
+newer with its standard library; no pip packages are needed. The interpreter is
+`${PYTHON_BIN:-python3}` in the host wrapper environment, including when the
+profiled application runs in a container. Discovery checks the interpreter,
+required imports, and helper syntax before starting NSYS collection or export.
+The same requirement applies when generating a plan from an existing CSV.
+Ordinary benchmark runs and manual NCU acquisition without `--plan` do not
+require Python for these plan operations. Plan generation, JSON reading, and
+selection semantics remain in Python.
+
 For rank-selective or container execution, pass Bash command-builder functions:
 
 - `--command-builder`: receives names of three arrays: profiler prefix,
