@@ -1,6 +1,28 @@
 #!/bin/bash
 # Common ownership of profiler outputs; command builders only select launchers.
 
+# Automatic NCU plans use Python 3.7+ and its standard library only.
+# Check the selected host interpreter before acquiring NSYS data.
+bk_require_ncu_plan_python() {
+  local python_bin="${PYTHON_BIN:-python3}"
+  if ! command -v "$python_bin" >/dev/null 2>&1; then
+    echo "NCU plans require Python 3.7+ (standard library only); set PYTHON_BIN to an available interpreter: $python_bin" >&2
+    return 1
+  fi
+  if ! "$python_bin" -c '
+import sys
+if sys.version_info < (3, 7):
+    sys.exit("Python 3.7 or newer is required")
+import argparse, csv, dataclasses, json, pathlib, re, shlex, typing
+for name in ("generate_ncu_plan.py", "iter_ncu_plan_profiles.py", "render_ncu_plan_commands.py"):
+    path = pathlib.Path(sys.argv[1]) / name
+    compile(path.read_text(encoding="utf-8"), str(path), "exec")
+' "${BK_BENCHKIT_ROOT}/scripts/profiling"; then
+    echo "NCU plan Python check failed: $python_bin; use Python 3.7+ with the standard library via PYTHON_BIN" >&2
+    return 1
+  fi
+}
+
 _bk_profile_record() {
   bash "${BK_BENCHKIT_ROOT}/scripts/profiling/workflow_timing.sh" \
     --results-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}" "$@"
@@ -71,6 +93,7 @@ bk_acquire_ncu() {
   [ "$#" -gt 0 ] && [ -n "$name" ] && [ -n "$kernel" ] || return 2
   [[ "$skip" =~ ^[0-9]+$ && "$count" =~ ^[1-9][0-9]*$ && "$timeout_seconds" =~ ^[0-9]+$ ]] || return 2
   if [ -n "$plan" ]; then
+    bk_require_ncu_plan_python || return 1
     discovery=$("${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/iter_ncu_plan_profiles.py" \
       --plan "$plan" --metadata "$name" --section "$section") || return 1
   fi
@@ -135,6 +158,7 @@ bk_discover_ncu_plan() {
   done
   local application=("$@") prefix=() command=() export_command=() candidates=()
   local work report discovery plan
+  bk_require_ncu_plan_python || return 1
   work=$(_bk_profile_workspace) || return 1
   report="$work/discovery.nsys-rep"; discovery="$work/discovery.json"; plan="$work/plan.json"
   if [ -z "$csv" ]; then
@@ -163,6 +187,7 @@ bk_discover_ncu_plan() {
 }
 
 bk_ncu_plan_profiles() {
+  bk_require_ncu_plan_python || return 1
   "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/iter_ncu_plan_profiles.py" \
     --plan "$1"
 }

@@ -293,6 +293,7 @@ bk_profile_execute() {
 }
 
 bk_generate_ncu_plan() {
+  bk_require_ncu_plan_python || return 1
   bk_profile_execute --tool ncu --phase plan -- \
     "${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/generate_ncu_plan.py" "$@"
 }
