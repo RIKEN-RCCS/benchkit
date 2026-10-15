@@ -1114,6 +1114,7 @@ printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
 [ "$2" = data/CASE0 ] && grep -q "etime for solver" "$1"
 ''')
         check.chmod(0o700)
+        self.env.pop("BASH_FUNC_module%%", None)
         self.env["PATH"] = str(self.root / "bin") + os.pathsep + self.env["PATH"]
         self.env["QWS_PROFILER_TOOL"] = "none"
         for system in ("Flow2_Type1", "Flow2_Type2"):
@@ -1160,6 +1161,59 @@ printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
                     self.assertIn("one node and one MPI rank", result.stderr)
                     self.assertFalse((self.root / "mpi.args").exists())
                     self.assertNotIn("FOM:", result_file.read_text())
+
+    def test_qws_rc_build_and_run_routes(self):
+        (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
+        (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
+        work = self.root / "qws"
+        work.mkdir()
+        (self.root / "bin").mkdir()
+        commands = {
+            "git": "printf '%040d\\n' 1",
+            "module": 'printf "%s\\n" "$*" >> ../modules.log',
+            "make": 'printf "%s\\n" "$@" > ../make.args; printf executable > main',
+            "mpirun": '''printf '%s\\n' "$@" > ../mpi.args
+printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
+''',
+        }
+        for name in ("gcc", "g++", "nvc++", "mpicc", "mpic++", "mpifcc"):
+            commands[name] = ":"
+        for name, code in commands.items():
+            path = self.root / "bin" / name
+            path.write_text("#!/bin/sh\n" + code + "\n")
+            path.chmod(0o700)
+        check = work / "check.sh"
+        check.write_text('''#!/bin/sh
+[ "$2" = data/CASE0 ] && grep -q "etime for solver" "$1"
+''')
+        check.chmod(0o700)
+        self.env.pop("BASH_FUNC_module%%", None)
+        self.env["PATH"] = str(self.root / "bin") + os.pathsep + self.env["PATH"]
+        self.env["QWS_PROFILER_TOOL"] = "none"
+        expected = {
+            "RC_GH200": ("load nvhpc-hpcx/26.9", "compiler=nvhpc-hpcx", "ppr:1:node:PE=72"),
+            "RC_DGXSP": ("load nvhpc-hpcx/26.3", "compiler=nvhpc-hpcx", "ppr:1:node:PE=20"),
+            "RC_GENOA": (None, "compiler=openmpi-gnu", "ppr:1:node:PE=96"),
+            "RC_FX700": ("load FJSVstclanga", "compiler=fujitsu_native", "ppr:1:node:PE=12"),
+        }
+        for system, (module_line, compiler_arg, mapping) in expected.items():
+            with self.subTest(system=system):
+                modules = self.root / "modules.log"
+                modules.unlink(missing_ok=True)
+                self.assert_ok(self.run_shell(f"bash programs/qws/build.sh {system}"))
+                if module_line:
+                    self.assertEqual(modules.read_text().splitlines(), [module_line])
+                else:
+                    self.assertFalse(modules.exists())
+                self.assertIn(compiler_arg, (self.root / "make.args").read_text().splitlines())
+                modules.unlink(missing_ok=True)
+                self.assert_ok(self.run_shell(f"bash programs/qws/run.sh {system} 1 1 3"))
+                if module_line:
+                    self.assertEqual(modules.read_text().splitlines(), [module_line])
+                else:
+                    self.assertFalse(modules.exists())
+                self.assertIn(mapping, (self.root / "mpi.args").read_text().splitlines())
+                self.assertIn("FOM:", (self.root / "results/result").read_text())
 
     def test_qws_does_not_depend_on_scheduler_output_sequence_numbers(self):
         (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)

@@ -109,14 +109,14 @@ if [[ -n "$scheduler_extra_args" ]]; then
 fi
 
 case "$system" in
-  RC_GH200|RC_DGXSP|RC_GENOA)
+  RC_GH200|RC_DGXSP|RC_GENOA|RC_FX700)
     echo sbatch "${scheduler_extra_args_array[@]}" -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
       --wrap="bash programs/$code/build.sh $system"
     sbatch "${scheduler_extra_args_array[@]}" -p "$queue_group" -N "$build_nodes" -t "$elapse" --ntasks-per-node=1 --cpus-per-task="$build_cpus_per_task" \
       --wrap="bash programs/${code}/build.sh $system"
     ;;
   *)
-    echo "Error: test_submit_build.sh currently supports RC systems only: RC_GH200, RC_DGXSP, RC_GENOA"
+    echo "Error: test_submit_build.sh currently supports RC systems only: RC_GH200, RC_DGXSP, RC_GENOA, RC_FX700"
     echo "Selected system: $system"
     exit 1
     ;;
