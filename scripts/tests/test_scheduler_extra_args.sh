@@ -150,7 +150,7 @@ cat >> programs/schedulerapp/list.csv <<'EOF'
 Camphor3,yes,1,2,5,0:05:00
 EOF
 cp "${REPO_DIR}/config/queue.csv" config/queue.csv
-bash scripts/test_submit.sh schedulerapp 3 >/dev/null
+bash scripts/test_submit.sh schedulerapp 4 >/dev/null
 expected='-p jha -t 0:05:00 --rsc p=2:t=5:c=5'
 test "$(cat "$BK_TEST_SBATCH_ARGS_FILE")" = "$expected script.sh"
 bash scripts/matrix_generate.sh code=schedulerapp system=Camphor3 >/dev/null
