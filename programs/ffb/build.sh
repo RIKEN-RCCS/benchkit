@@ -31,6 +31,7 @@ case "$system" in
     if [[ ! -d "${NVCOMPILER_COMM_LIBS_HOME}" ]]; then
       echo "NVHPC communication libraries not found: ${NVCOMPILER_COMM_LIBS_HOME}" >&2
       exit 1
+    fi
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
