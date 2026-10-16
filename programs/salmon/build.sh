@@ -90,8 +90,11 @@ case "${system}" in
     )
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
+    module load nvhpc-hpcx/26.9
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -108,9 +111,11 @@ case "${system}" in
     )
     ;;
   RC_DGXSP)
-    source /etc/profile.d/modules.sh
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.3
     cmake_args=(
       "${common_cmake_args[@]}"
       -DCMAKE_Fortran_COMPILER=mpif90
@@ -127,8 +132,6 @@ case "${system}" in
     )
     ;;
   RC_GENOA)
-    module purge
-    module load system/genoa mpi/openmpi-x86_64
     aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
     aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"
     aocl_flame_lib="${aocl_root}/amd-libflame/lib/LP64"

@@ -62,8 +62,11 @@ case "$system" in
     fi
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200 nvhpc/24.3
+    module load nvhpc-hpcx/26.9
     bk_run --log les3x.stdout.log -- mpiexec -np "${n_ranks}" ./les3x.mpi
     ;;
 esac

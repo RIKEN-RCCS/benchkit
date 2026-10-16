@@ -57,7 +57,7 @@ their remaining rank factor becomes SBD's implicit Hamiltonian communicator.
 
 The R-CCS Cloud GH200 route uses the H2O `1em6` input (about 191 million
 product determinants), the Thrust backend with `cc90`, NVHPC/HPC-X CUDA 13
-`26.3`, and one MPI rank on its unified Grace Hopper superchip. No Slurm GPU
+`26.9`, and one MPI rank on its unified Grace Hopper superchip. No Slurm GPU
 request is made because `qc-gh200` exposes its single GPU as part of the node.
 NCCL is disabled for the single-rank case.
 

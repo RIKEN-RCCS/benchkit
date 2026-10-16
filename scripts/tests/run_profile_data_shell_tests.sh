@@ -58,6 +58,7 @@ scripts/tests/test_run_benchmark.sh
 scripts/tests/test_bk_fetch_source.sh
 scripts/tests/test_bk_input_info.sh
 scripts/tests/test_qws_timing_artifact.sh
+scripts/tests/test_rc_app_environments.sh
 scripts/tests/test_build_environment_snapshot.sh
 scripts/tests/test_flow2_cpu_sbd.sh
 scripts/tests/test_compute_snapshot_dependencies.sh
