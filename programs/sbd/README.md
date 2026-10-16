@@ -128,3 +128,21 @@ per rank, with MKL limited to one thread. Source and input selection,
 calculation parameters, energy comparison, and FOM extraction follow
 the existing CPU route. The initial ten-minute configuration uses
 site-default memory and is enabled after direct Slurm and Jacamar validation.
+
+
+## Flow2 Type II preparation
+
+The proposed native ARM CPU route uses GNU C++17 through the existing
+HPC-X MPI wrapper (`OMPI_CXX=g++`), GNU OpenMP, and NVPL from NVHPC 26.5.
+CMake 4.4.3 selects NVPL LP64 (32-bit BLAS/LAPACK integers) and sequential
+BLAS/LAPACK, keeping threading in SBD's OpenMP regions. The GPU backend,
+NCCL, cuBLAS, and NVTX are disabled. MPI/PMIx libraries remain from the same
+HPC-X installation; the site's existing UCX is retained.
+
+The initial H2O-1em4 validation plan uses t2-debug, one node, four MPI ranks
+and 18 OpenMP threads per rank, with a 30-minute limit including compilation.
+A native MPI/OpenMP and BLAS/LAPACK numerical probe must pass before SBD.
+Retain the established 1x2x2 communicator layout, calculation parameters,
+energy reference/tolerance, Davidson FOM, multiply section, toolchain and
+both actual input file records. The normal matrix row remains disabled
+until native compilation and numerical validation succeed.
