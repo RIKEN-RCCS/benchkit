@@ -34,6 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        shard: [0, 1]
         python-version:
           - "3.12"
           - "3.13"
@@ -58,7 +59,7 @@ jobs:
         run: python result_server/tests/check_site_config.py
 
       - name: Run result_server pytest suite
-        run: python result_server/tests/run_result_server_tests.py -q -n 2 --dist loadfile --durations=10
+        run: python result_server/tests/run_result_server_tests.py --shard ${{ matrix.shard }} -q -n 2 --dist loadfile --durations=10
 
   encrypted-budget-db:
     needs: test-scope
@@ -96,7 +97,8 @@ jobs:
       matrix:
         shell-group:
           - common-observation
-          - common-execution
+          - common-execution-run
+          - common-execution-other
           - result-sender
           - estimation
 

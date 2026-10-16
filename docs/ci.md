@@ -50,6 +50,33 @@ resolve release tags to commits, update all workflow references, and verify
 pull-request checks. Push-only synchronization must also be verified after
 merge; do not start benchmark workflows merely to test an Action upgrade.
 
+## Result Server Test Parallelism / Result Serverテストの並列化
+
+The full pytest suite runs in two file shards for each Python version. Files are
+assigned deterministically by size to balance work, and each job retains two
+workers with `--dist loadfile`. New test files enter the partition automatically;
+no timing catalog or per-test allowlist is maintained. The local entrypoint
+without `--shard` still runs the entire suite:
+
+```bash
+python result_server/tests/run_result_server_tests.py -q
+python result_server/tests/run_result_server_tests.py --shard 0 -q -n 2 --dist loadfile
+python result_server/tests/run_result_server_tests.py --shard 1 -q -n 2 --dist loadfile
+```
+
+The shell matrix runs observation, execution-run, execution-other, result-sender,
+and estimation groups independently. `common-execution-run` runs the execution
+wrapper tests; `common-execution-other` runs the remaining execution tests.
+`common-execution`, `common`, and `all` remain local aliases with no duplicate
+execution. Failures stop the selected shell group, and the aggregate rejects
+failed, cancelled, or unexpectedly skipped groups. SQLCipher tests and the
+Python version matrix remain unchanged.
+
+pytestはPython各版でファイルを2群へ分け、各job内では従来どおり2 workerで実行します。
+分割指定なしの入口は全件実行を維持します。shellの実行群もwrapper単独と残りへ分け、
+`common-execution`・`common`・`all`は漏れ・重複なく従来範囲を実行します。
+検査範囲の省略やSQLCipher検査の削減は行いません。
+
 ## Display Checks
 
 Normal Python tests check template rendering, chart data serialization, escaping,
