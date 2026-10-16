@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically evaluate Benchkit triggers (%i)
+
+[Timer]
+OnCalendar=minutely
+Persistent=true
+Unit=benchkit-cx-trigger@%i.service
+
+[Install]
+WantedBy=timers.target
