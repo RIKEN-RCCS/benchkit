@@ -69,13 +69,32 @@ and estimation groups independently. `common-execution-run` runs the execution
 wrapper tests; `common-execution-other` runs the remaining execution tests.
 `common-execution`, `common`, and `all` remain local aliases with no duplicate
 execution. Failures stop the selected shell group, and the aggregate rejects
-failed, cancelled, or unexpectedly skipped groups. SQLCipher tests and the
-Python version matrix remain unchanged.
+failed, cancelled, or unexpectedly skipped groups. SQLCipher test coverage and the
+Python versions remain unchanged.
 
 pytestはPython各版でファイルを2群へ分け、各job内では従来どおり2 workerで実行します。
 分割指定なしの入口は全件実行を維持します。shellの実行群もwrapper単独と残りへ分け、
 `common-execution`・`common`・`all`は漏れ・重複なく従来範囲を実行します。
 検査範囲の省略やSQLCipher検査の削減は行いません。
+
+The dedicated SQLCipher selection also runs in two shards per Python version:
+budget route suites in shard 0, and storage, migration, observation, and remaining
+integration suites in shard 1. The file selection lives once in
+`result_server/tests/run_encrypted_db_tests.py`; without `--shard` it runs both
+groups. The runner requires SQLCipher rather than accepting a skipped suite.
+Each job retains two workers, wheel hash verification, the installation report,
+and runtime version recording. Its pip download cache uses both requirements
+files; installations and verification still run on every job.
+
+```bash
+python result_server/tests/run_encrypted_db_tests.py -q -n 2 --dist loadfile
+python result_server/tests/run_encrypted_db_tests.py --shard 0 -q -n 2 --dist loadfile
+python result_server/tests/run_encrypted_db_tests.py --shard 1 -q -n 2 --dist loadfile
+```
+
+暗号DBの専用検査もPython各版で2分割します。SQLCipher実体とwheel hash・導入report・
+runtime確認は各jobで維持します。pip cacheは取得済み配布物の再利用に限り、
+DB・鍵・venvを保存しません。cacheによる時間短縮は実CIで確認します。
 
 ## Display Checks
 
