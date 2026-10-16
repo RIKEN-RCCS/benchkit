@@ -69,6 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
+        shard: [0, 1]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -76,6 +77,10 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements-result-server.txt
+            requirements-budget-db.txt
       - name: Install encrypted database test dependencies
         run: |
           python -m pip install -r requirements-result-server.txt
@@ -85,7 +90,7 @@ jobs:
       - name: Require SQLCipher and run encrypted database tests
         run: |
           python -c 'from sqlcipher3 import dbapi2'
-          python -m pytest -q -n 2 --dist loadfile --durations=10 result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_runner_observation_ingest_storage.py result_server/tests/test_runner_observation_handoff.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py result_server/tests/test_sqlcipher_runtime_report.py
+          python result_server/tests/run_encrypted_db_tests.py --shard ${{ matrix.shard }} -q -n 2 --dist loadfile --durations=10
 
   profile-data-shell-group:
     needs: test-scope
