@@ -1,0 +1,19 @@
+[Unit]
+Description=Benchkit public Web (%i)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/lib/benchkit/cx/%i/current/code/result_server
+EnvironmentFile=%h/.config/benchkit/cx/%i/connections.env
+EnvironmentFile=%h/.config/benchkit/cx/%i/instance.env
+EnvironmentFile=%h/.config/benchkit/cx/%i/web.env
+EnvironmentFile=%h/.config/benchkit/cx/%i/public.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=%h/.local/lib/benchkit/cx/%i/current/venv/bin/gunicorn --workers ${BENCHKIT_WEB_WORKERS} --bind ${BENCHKIT_WEB_BIND} "app:create_instance_app('public')"
+UMask=0077
+NoNewPrivileges=yes
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Benchkit scheduled trigger evaluation (%i)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/.local/lib/benchkit/cx/%i/current/code/result_server
+EnvironmentFile=%h/.config/benchkit/cx/%i/connections.env
+EnvironmentFile=%h/.config/benchkit/cx/%i/instance.env
+EnvironmentFile=%h/.config/benchkit/cx/%i/trigger.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=BENCHKIT_TRIGGER_MODE=--dry-run
+ExecStart=%h/.local/lib/benchkit/cx/%i/current/venv/bin/python -B -m trigger_runner ${BENCHKIT_TRIGGER_MODE} --record-observations --lock-ttl-seconds 300 --schedule-lookback-minutes 5
+UMask=0077
+NoNewPrivileges=yes

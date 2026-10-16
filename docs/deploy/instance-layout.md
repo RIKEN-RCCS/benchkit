@@ -82,16 +82,91 @@ explicit factory does not require `BASE_PATH` when a data directory is supplied.
 ## Deployment Boundaries
 
 This interface does not rewrite existing units, move data, or migrate schemas.
-Trial it with fixtures, then integration verification, then development
-previews, before approving a production switch. Check session/authentication
+Trial it with fixtures, then development previews, then integration verification,
+before approving a production switch. Check session/authentication
 continuity and submission permissions before changing an existing service.
 
 Prepare code and a compatible venv as one deployment unit. Do not update a venv
 in place while other instances still use it. A shared Runner collector should
 use an explicitly selected stable deployment rather than a mutable preview.
-Service templates and release-reference switching can follow once the startup
-interface has been validated; they are not provisioned by this factory.
+The opt-in examples below do not provision or switch deployment references.
 
 Treat shared Budget/Runner schema changes separately from instance deployment.
 Resolve backup and backward compatibility before reverting code; do not restore
 an old DB over newer writes as part of an ordinary rollback.
+
+## Opt-In Service Layout
+
+`deploy/instances/` contains user-service examples, not an installer. Existing
+units, environment files, checkouts, timers, and data are unchanged until an
+operator explicitly deploys a reviewed configuration. Do not enable a second
+trigger timer alongside the existing one.
+
+Each instance has one selected deployment pair:
+
+```text
+~/.local/lib/benchkit/cx/<instance>/
+  deployments/<selected>/
+    code -> <selected checkout or release>
+    venv -> <compatible completed venv>
+  current -> deployments/<selected>
+```
+
+All three services use `current/code/result_server` as their working directory
+and executables under `current/venv/bin`. The preview checkout can stay in its
+existing location. The reference is a deployment selection, not a second code
+source or an instruction to update the checkout. Preserve its Version Check
+repository/ref settings. Do not change the pair while a trigger invocation is
+running; stop its timer, wait for completion, and stop both Web surfaces before
+changing the pair. Start the selected surfaces after the approved switch.
+Updating a venv in place is not part of this layout.
+
+The required files under `~/.config/benchkit/cx/<instance>/` are read by systemd,
+in the following order. No application-side env parser is added.
+
+| File | Public | Console | Trigger | Contents |
+| --- | --- | --- | --- | --- |
+| `connections.env` | yes | yes | yes | Deliberately shared DB/key-file references and common connection settings |
+| `instance.env` | yes | yes | yes | Instance identity, data directory, public URL, namespace and cookie identity |
+| `web.env` | yes | yes | no | Existing Web credentials/authentication settings |
+| `public.env` | yes | no | no | Public bind address and worker count |
+| `console.env` | no | yes | no | Console bind/workers and already authorized Console-only settings |
+| `trigger.env` | no | no | yes | Explicit evaluation mode and separately authorized scheduled-submission settings |
+
+The common files are shared between roles of one instance, not automatically
+between all instances. Keep identity, keys, grants, and benchmark storage
+separate. References in `connections.env` are not a reason to grant new DB
+access to a role; review that access before consolidation. If access differs,
+keep the relevant reference in the authorized role file instead. Web-only
+secrets must not be copied to the trigger, and Console grants must not be copied
+to public or scheduled submission. Missing required files fail startup rather
+than falling back to another instance. Keep configuration directories private
+and files mode 600.
+These user services still share one OS account; separate env files are not
+OS-level privilege isolation.
+
+Public and Console explicitly call `create_instance_app('public')` and
+`create_instance_app('console')`; stale public-mode flags do not select the
+surface. Set `BENCHKIT_WEB_BIND` and `BENCHKIT_WEB_WORKERS` in the matching role
+file. Bind to loopback behind the intended proxy. The example ports are only
+examples; retain deployed ports and proxy restrictions during a configuration
+migration. Preserve the effective TOTP issuer, cookie name, signing secret,
+storage paths, grants, and URL prefixes, not merely the spelling of old env
+variables. The factory adds the development suffix to `TOTP_ISSUER`.
+
+The trigger omits `--db` and `--result-server-url`, resolving the same instance
+DB and `RESULT_SERVER_PUBLIC_URL` instead. Its example defaults to `--dry-run`;
+set `BENCHKIT_TRIGGER_MODE=--submit` only for an explicitly approved submission
+service. Preserve existing lock, observation-recording, lookback, and schedule
+behavior. Dry-run still evaluates and may write DB records or locks; it is not
+a read-only check and must not be run against live storage just for validation.
+
+Before enabling these examples, stop the previous timer and wait for its
+invocation to finish, take the required private configuration/data checkpoint,
+and verify the selected deployment with fixture storage. Keep old unit/env
+definitions for rollback, but never run old and new schedulers concurrently.
+After acceptance, enable exactly one scheduler. Reverting a compatible
+configuration means restoring references and the intended unit state, not
+restoring an old DB over newer writes. DB/schema migrations require their own
+backup and compatibility procedure. The independent observation Collector and
+receiver are outside this instance switch and must not be redeployed with it.
