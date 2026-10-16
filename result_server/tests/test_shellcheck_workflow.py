@@ -70,7 +70,7 @@ def checks(tmp_path):
     changed.write_bytes(b"")
     env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
                CHECK_STATE=str(state), CHECK_DELAY="0", CHANGED_FILES=str(changed), GITHUB_BASE_REF="develop",
-               SHARD_INDEX="0", SHARD_COUNT="3", GITHUB_OUTPUT=str(tmp_path / "outputs"))
+               SHARD_INDEX="0", SHARD_COUNT="6", GITHUB_OUTPUT=str(tmp_path / "outputs"))
     return tmp_path, state, changed, env
 
 
@@ -96,7 +96,7 @@ def execute(checks, warning=False):
         return subprocess.CompletedProcess([], 0, "".join(r.stdout for r in results),
                                            "".join(r.stderr for r in results))
     results = []
-    for shard in ([0] if warning else range(3)):
+    for shard in ([0] if warning else range(6)):
         result = subprocess.run(["bash", "-c", workflow_script(name)], cwd=root,
                                 env=dict(env, SHARD_INDEX=str(shard)),
                                 capture_output=True, text=True, timeout=15)
@@ -113,7 +113,8 @@ def test_each_file_is_checked_once_with_at_most_two_processes(checks, warning):
     env["CHECK_DELAY"] = "0.05"
     names = ["programs/first/plain.sh", "programs/first/space name.sh", "programs/second/line\nbreak.sh"]
     if not warning:
-        names += ["scripts/helper.sh", "benchpark-bridge/scripts/bridge.sh"]
+        names += [f"scripts/helper-{index}.sh" for index in range(8)]
+        names += ["benchpark-bridge/scripts/bridge.sh"]
     for name in names:
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text("#!/bin/bash\ntrue\n")
@@ -124,7 +125,7 @@ def test_each_file_is_checked_once_with_at_most_two_processes(checks, warning):
     data = json.loads(state.read_text())
     assert sorted(call[-1] for call in data["calls"]) == sorted(names)
     assert all(call[1] == ("warning" if warning else "error") for call in data["calls"])
-    assert 1 <= data["maximum"] <= 2
+    assert data["maximum"] == 2
     assert data["active"] == 0
 
 
@@ -167,7 +168,7 @@ def test_selection_failure_is_not_reported_as_empty_success(checks, warning):
     assert json.loads(state.read_text())["calls"] == []
 
 
-@pytest.mark.parametrize("count", [1, 2, 3, 4, 10, 123])
+@pytest.mark.parametrize("count", [1, 2, 5, 6, 7, 123, 136])
 def test_shards_cover_every_file_without_overlap(checks, count):
     root, state, _, env = checks
     names = [f"scripts/input-{i:03d}.sh" for i in range(count)]
@@ -175,14 +176,14 @@ def test_shards_cover_every_file_without_overlap(checks, count):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text("true\n")
     seen = []
-    for shard in range(3):
+    for shard in range(6):
         state.write_text(json.dumps({"active": 0, "maximum": 0, "calls": []}))
         result = subprocess.run(
             ["bash", "-c", workflow_script("Run bash syntax checks and shellcheck at error level")],
             cwd=root, env=dict(env, SHARD_INDEX=str(shard)), capture_output=True, timeout=15)
         assert result.returncode == 0, result.stderr
         actual = sorted(call[-1] for call in json.loads(state.read_text())["calls"])
-        assert actual == names[shard::3]
+        assert actual == names[shard::6]
         seen += actual
     assert sorted(seen) == names
 
@@ -200,7 +201,7 @@ def test_required_check_accepts_only_complete_success(error, warning, event):
     assert (result.returncode == 0) == expected
 
 
-@pytest.mark.parametrize("index,count", [("-1", "3"), ("3", "3"), ("0", "0"), ("bad", "3")])
+@pytest.mark.parametrize("index,count", [("-1", "6"), ("6", "6"), ("0", "0"), ("bad", "6")])
 def test_invalid_shard_configuration_fails(checks, index, count):
     root, state, _, env = checks
     result = subprocess.run(
@@ -216,8 +217,8 @@ def test_workflow_runs_independent_shards_and_preserves_required_check():
     selection = workflow.split("  shellcheck-warning-apps:\n", 1)[1].split("  shellcheck-warning:\n", 1)[0]
     warning = workflow.split("  shellcheck-warning:\n", 1)[1].split("  shellcheck:\n", 1)[0]
     gate = workflow.split("  shellcheck:\n", 1)[1]
-    assert "shard: [0, 1, 2]" in error
-    assert 'SHARD_COUNT: "3"' in error
+    assert "shard: [0, 1, 2, 3, 4, 5]" in error
+    assert 'SHARD_COUNT: "6"' in error
     assert "SHARD_INDEX: ${{ matrix.shard }}" in error
     assert "fail-fast: false" in error
     assert "needs:" not in error and "needs:" not in selection
@@ -256,3 +257,33 @@ def test_changed_apps_get_separate_matrices_without_missing_files(checks):
     assert len(matrix["include"]) == 2
     assert sorted(f for app in matrix["include"] for f in app["files"]) == sorted(paths)
     assert all(all(Path(f).parts[1] == app["app"] for f in app["files"]) for app in matrix["include"])
+
+
+@pytest.mark.parametrize("shard", range(6))
+def test_failure_in_each_error_shard_is_reported(checks, shard):
+    root, _, _, env = checks
+    names = [f"scripts/input-{index}.sh" for index in range(6)]
+    for name in names:
+        (root / name).write_text("true\n")
+    result = subprocess.run(
+        ["bash", "-c", workflow_script("Run bash syntax checks and shellcheck at error level")],
+        cwd=root, env=dict(env, SHARD_INDEX=str(shard), FAIL_FILE=names[shard], FAIL_CODE="1"),
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode != 0
+    assert "shellcheck error-level: 0" not in result.stdout
+
+
+def test_error_and_warning_install_pinned_checker_with_download_cache():
+    workflow = (REPO_ROOT / ".github/workflows/shellcheck.yml").read_text()
+    for job, following in [("shellcheck-error", "shellcheck-warning-apps"),
+                           ("shellcheck-warning", "shellcheck")]:
+        section = workflow.split(f"  {job}:\n", 1)[1].split(f"  {following}:\n", 1)[0]
+        assert "cache: pip" in section
+        assert "cache-dependency-path: requirements-shellcheck.txt" in section
+        assert "python -m pip install --quiet -r requirements-shellcheck.txt" in section
+        assert "shellcheck --version" in section
+    triggers = workflow.split("jobs:", 1)[0]
+    assert triggers.count('      - "requirements-shellcheck.txt"') == 2
+    requirements = (REPO_ROOT / "requirements-shellcheck.txt").read_text().splitlines()
+    packages = [line for line in requirements if line and not line.startswith("#")]
+    assert len(packages) == 1 and packages[0].startswith("shellcheck-py==")
