@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
+source "${SCRIPT_DIR}/shell_test_parts.sh"
+shell_test_parts_init "${BASH_SOURCE[0]}" "$@"
 
 source "${REPO_DIR}/scripts/bk_functions.sh"
 
@@ -15,7 +17,11 @@ bk_run_context --results-dir "$TMP_RESULTS" --exp profiler
 cd "$TMP_DIR"
 
 timing_stages() {
-  jq -s '[.[].stages[]]' "$TMP_RESULTS"/workflow_timing_*.json
+  if compgen -G "$TMP_RESULTS/workflow_timing_*.json" >/dev/null; then
+    jq -s '[.[].stages[]]' "$TMP_RESULTS"/workflow_timing_*.json
+  else
+    printf '[]\n'
+  fi
 }
 
 test "$(bk_resolve_profiler_tool fapp)" = "fapp"
@@ -198,11 +204,17 @@ run_and_check_level() {
   ' >/dev/null
 }
 
+if [ "$TEST_PART" = fapp-basic ]; then
 run_and_check_level single 1 pa1 text no
 run_and_check_level simple 5 pa5 both yes
 run_and_check_level standard 11 pa11 both yes
-run_and_check_level detailed 17 pa17 both yes
 
+fi
+if [ "$TEST_PART" = fapp-detailed ]; then
+  run_and_check_level detailed 17 pa17 both yes
+fi
+
+if [ "$TEST_PART" = ncu-failures ]; then
 ncu_archive="${TMP_DIR}/ncu.tgz"
 ncu_extract="${TMP_DIR}/ncu_extract"
 ncu_raw="${TMP_DIR}/ncu_pa"
@@ -388,6 +400,8 @@ for tool in fapp ncu; do
   ' >/dev/null
   test -f "${TMP_DIR}/${tool}_export_fail.tgz"
 done
+
+fi
 
 timing_stages | jq -e '
   ([.[].id] | unique | length) == length and

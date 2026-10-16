@@ -1330,5 +1330,23 @@ printf ' 1 USRT:TIME-LOOP 1.25\\n' > output.sample/0/17/stdout.17.0
                 self.assertIn("FOM:", (self.root / "results/result").read_text())
 
 
+def split_run_tests(suite):
+    def flatten(items):
+        for item in items:
+            if isinstance(item, unittest.TestSuite):
+                yield from flatten(item)
+            else:
+                yield item
+    tests = sorted(flatten(suite), key=lambda test: test.id())
+    return [tests[index::8] for index in range(8)]
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--part" and sys.argv[2] in {str(index) for index in range(8)}:
+        groups = split_run_tests(unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]))
+        selected = groups[int(sys.argv[2])]
+        if not selected:
+            raise SystemExit("Empty execution test part")
+        result = unittest.TextTestRunner().run(unittest.TestSuite(selected))
+        raise SystemExit(not result.wasSuccessful())
     unittest.main()

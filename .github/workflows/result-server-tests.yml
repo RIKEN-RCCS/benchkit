@@ -28,13 +28,11 @@ jobs:
         run: python3 scripts/tests/ci_test_scope.py
 
   pytest:
-    needs: test-scope
-    if: needs.test-scope.outputs.full == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1]
+        shard: [0, 1, 2, 3]
         python-version:
           - "3.12"
           - "3.13"
@@ -42,8 +40,19 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select test scope
+        id: scope
+        run: python3 scripts/tests/ci_test_scope.py
+      - name: Validate test scope
+        env:
+          FULL_TESTS: ${{ steps.scope.outputs.full }}
+        run: |
+          case "$FULL_TESTS" in true|false) ;; *) exit 1 ;; esac
 
       - name: Set up Python ${{ matrix.python-version }}
+        if: steps.scope.outputs.full == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
@@ -51,18 +60,19 @@ jobs:
           cache-dependency-path: requirements-result-server.txt
 
       - name: Install result_server test dependencies
+        if: steps.scope.outputs.full == 'true'
         run: |
           python -m pip install -r requirements-result-server.txt
 
       - name: Run site configuration preflight
+        if: steps.scope.outputs.full == 'true'
         run: python result_server/tests/check_site_config.py
 
       - name: Run result_server pytest suite
-        run: python result_server/tests/run_result_server_tests.py --shard ${{ matrix.shard }} -q -n 2 --dist loadfile --durations=10
+        if: steps.scope.outputs.full == 'true'
+        run: python result_server/tests/run_result_server_tests.py --shard ${{ matrix.shard }} --shard-count 4 -q -n 2 --dist loadfile --durations=10
 
   encrypted-budget-db:
-    needs: test-scope
-    if: needs.test-scope.outputs.full == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -72,7 +82,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select test scope
+        id: scope
+        run: python3 scripts/tests/ci_test_scope.py
+      - name: Validate test scope
+        env:
+          FULL_TESTS: ${{ steps.scope.outputs.full }}
+        run: |
+          case "$FULL_TESTS" in true|false) ;; *) exit 1 ;; esac
       - name: Set up Python
+        if: steps.scope.outputs.full == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
@@ -81,19 +102,20 @@ jobs:
             requirements-result-server.txt
             requirements-budget-db.txt
       - name: Install encrypted database test dependencies
+        if: steps.scope.outputs.full == 'true'
         run: |
           python -m pip install -r requirements-result-server.txt
           python -m pip install --report "$RUNNER_TEMP/sqlcipher-install.json" -r requirements-budget-db.txt
       - name: Record SQLCipher wheel and runtime versions
+        if: steps.scope.outputs.full == 'true'
         run: python result_server/tests/report_sqlcipher_runtime.py "$RUNNER_TEMP/sqlcipher-install.json"
       - name: Require SQLCipher and run encrypted database tests
+        if: steps.scope.outputs.full == 'true'
         run: |
           python -c 'from sqlcipher3 import dbapi2'
           python result_server/tests/run_encrypted_db_tests.py --shard ${{ matrix.shard }} -q -n 2 --dist loadfile --durations=10
 
   profile-data-shell-group:
-    needs: test-scope
-    if: needs.test-scope.outputs.full == 'true'
     name: profile-data-shell / ${{ matrix.shell-group }}
     runs-on: ubuntu-latest
     strategy:
@@ -110,13 +132,24 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select test scope
+        id: scope
+        run: python3 scripts/tests/ci_test_scope.py
+      - name: Validate test scope
+        env:
+          FULL_TESTS: ${{ steps.scope.outputs.full }}
+        run: |
+          case "$FULL_TESTS" in true|false) ;; *) exit 1 ;; esac
 
       - name: Run ${{ matrix.shell-group }} shell tests
-        run: bash scripts/tests/run_profile_data_shell_tests.sh "${{ matrix.shell-group }}"
+        if: steps.scope.outputs.full == 'true'
+        run: bash scripts/tests/run_profile_data_shell_tests.sh "${{ matrix.shell-group }}" --jobs 2
 
   profile-data-shell:
     runs-on: ubuntu-latest
-    needs: [test-scope, profile-data-shell-group]
+    needs: [test-scope, pytest, encrypted-budget-db, profile-data-shell-group]
     if: ${{ always() }}
 
     steps:
@@ -125,18 +158,23 @@ jobs:
           SCOPE_STATUS: ${{ needs.test-scope.result }}
           FULL_TESTS: ${{ needs.test-scope.outputs.full }}
           SHELL_STATUS: ${{ needs.profile-data-shell-group.result }}
+          PYTEST_STATUS: ${{ needs.pytest.result }}
+          DB_STATUS: ${{ needs.encrypted-budget-db.result }}
         run: |
           set -euo pipefail
           if [ "$SCOPE_STATUS" != "success" ]; then
             echo "Test scope selection failed"
             exit 1
           fi
-          if [ "$FULL_TESTS" = "false" ] && [ "$SHELL_STATUS" = "skipped" ]; then
-            echo "Shell tests not applicable to this non-executable change"
-            exit 0
+          case "$FULL_TESTS" in true|false) ;; *) exit 1 ;; esac
+          for status in "$SHELL_STATUS" "$PYTEST_STATUS" "$DB_STATUS"; do
+            if [ "$status" != success ]; then
+              echo "One or more test jobs did not succeed"
+              exit 1
+            fi
+          done
+          if [ "$FULL_TESTS" = false ]; then
+            echo "Tests not applicable to this non-executable change"
+          else
+            echo "All test groups passed"
           fi
-          if [ "$FULL_TESTS" != "true" ] || [ "$SHELL_STATUS" != "success" ]; then
-            echo "One or more shell test groups failed"
-            exit 1
-          fi
-          echo "All shell test groups passed"

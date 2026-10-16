@@ -3,11 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/shell_test_parts.sh"
 ALL_GROUPS=(common-observation-profiler common-observation-other common-execution-run common-execution-other result-sender estimation)
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-observation-profiler|common-observation-other|common-execution|common-execution-run|common-execution-other|result-sender|estimation|list|list-tests [GROUP]]
+Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-observation-profiler|common-observation-other|common-execution|common-execution-run|common-execution-other|result-sender|estimation|list|list-tests [GROUP]|list-cases [GROUP]] [--jobs 1|2]
 
 Runs the shell tests covered by the Result Server Tests workflow.
 Use "all" locally for the full suite, "common" for both common groups,
@@ -129,27 +130,39 @@ run_one_test() {
   fi
 }
 
-run_group() {
-  local group="$1"
-  local count=0
-  local test_rel
-
-  check_dependencies
+cases_for_group() {
+  local test_rel part parts selection
+  selection=$(tests_for_group "$1") || return $?
   while IFS= read -r test_rel; do
-    [ -n "$test_rel" ] || continue
-    if [ ! -f "${REPO_DIR}/${test_rel}" ]; then
-      echo "Missing shell test: ${test_rel}" >&2
-      return 1
+    if parts=$(shell_test_parts "$test_rel"); then
+      while IFS= read -r part; do printf '%s::%s\n' "$test_rel" "$part"; done <<< "$parts"
+    else
+      printf '%s\n' "$test_rel"
     fi
-    run_one_test "$test_rel"
-    count=$((count + 1))
-  done < <(tests_for_group "$group")
+  done <<< "$selection"
+}
 
-  if [ "$count" -eq 0 ]; then
-    echo "No shell tests selected for group: ${group}" >&2
-    return 1
+run_group() {
+  local group="$1" jobs="${2:-1}" selection test_rel case_id part
+  selection=$(tests_for_group "$group") || return $?
+  check_dependencies
+  if [ "$jobs" = 1 ]; then
+    local count=0
+    while IFS= read -r test_rel; do
+      [ -f "${REPO_DIR}/${test_rel}" ] || { echo "Missing shell test: $test_rel" >&2; return 1; }
+      run_one_test "$test_rel"
+      count=$((count + 1))
+    done <<< "$selection"
+    [ "$count" -gt 0 ] || return 1
+    echo "Ran ${count} shell test(s) for group: ${group}"
+    return 0
   fi
-  echo "Ran ${count} shell test(s) for group: ${group}"
+  [ "$jobs" = 2 ] || { echo 'Expected --jobs 1 or 2' >&2; return 2; }
+  local selection_cases cases=()
+  selection_cases=$(cases_for_group "$group") || return $?
+  mapfile -t cases <<< "$selection_cases"
+  python3 "${SCRIPT_DIR}/run_shell_test_cases.py" "$REPO_DIR" "${cases[@]}"
+
 }
 
 main() {
@@ -164,8 +177,14 @@ main() {
     list-tests|--list-tests)
       tests_for_group "${2:-all}"
       ;;
+    list-cases)
+      cases_for_group "${2:-all}"
+      ;;
     *)
-      run_group "$group"
+      if [ "$#" -gt 1 ] && { [ "$#" -ne 3 ] || [ "$2" != --jobs ]; }; then
+        usage >&2; return 2
+      fi
+      run_group "$group" "${3:-1}"
       ;;
   esac
 }

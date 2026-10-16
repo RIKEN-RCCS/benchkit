@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
+source "${SCRIPT_DIR}/shell_test_parts.sh"
+shell_test_parts_init "${BASH_SOURCE[0]}" "$@"
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -239,6 +241,7 @@ run_autotool_build_with_cache() {
   run_autotool_build_with_cache_for_root "${TMP_DIR}/project"
 }
 
+if [ "$TEST_PART" = cache ]; then
 pushd "${TMP_DIR}/project" >/dev/null
 BK_BENCHKIT_ROOT="${TMP_DIR}/project" \
   BK_TEST_SOURCE_REPO="${TMP_DIR}/source/.git" \
@@ -364,6 +367,36 @@ test "$(cat "${TMP_DIR}/build-count")" = "2"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/app.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
 
+pushd "${TMP_DIR}/source" >/dev/null
+printf 'two\n' > source.txt
+git add source.txt
+git commit -m "second" >/dev/null
+second_commit=$(git rev-parse HEAD)
+popd >/dev/null
+
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_build_with_cache
+test "$(cat "${TMP_DIR}/build-count")" = "3"
+grep -q "$second_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+printf '\n# build input change\n' >> "${TMP_DIR}/project/programs/app/build.sh"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_build_with_cache
+test "$(cat "${TMP_DIR}/build-count")" = "4"
+grep -q "$second_commit" "${TMP_DIR}/project/artifacts/app.bin"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+# Shared build helper changes invalidate cached binaries in both checkout modes.
+printf '\n# shared source helper change\n' >> "${TMP_DIR}/project/scripts/common/source.sh"
+rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
+run_build_with_cache
+test "$(cat "${TMP_DIR}/build-count")" = "5"
+grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
+
+fi
+
+if [ "$TEST_PART" = git-tools ]; then
 rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
 rm -rf "${TMP_DIR}/git-project" "${TMP_DIR}/git-cache"
 cp -a "${TMP_DIR}/project" "${TMP_DIR}/git-project"
@@ -484,37 +517,12 @@ test "$(cat "${TMP_DIR}/autotool-build-count")" = "3"
 grep -q "$first_commit" "${TMP_DIR}/project/artifacts/autotoolapp.bin"
 grep -q '^BK_BUILD_CACHE_STATUS=hit$' "${TMP_DIR}/project/results/build_cache.env"
 
-pushd "${TMP_DIR}/source" >/dev/null
-printf 'two\n' > source.txt
-git add source.txt
-git commit -m "second" >/dev/null
-second_commit=$(git rev-parse HEAD)
-popd >/dev/null
-
-rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
-run_build_with_cache
-test "$(cat "${TMP_DIR}/build-count")" = "3"
-grep -q "$second_commit" "${TMP_DIR}/project/artifacts/app.bin"
-grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
-
-printf '\n# build input change\n' >> "${TMP_DIR}/project/programs/app/build.sh"
-rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
-run_build_with_cache
-test "$(cat "${TMP_DIR}/build-count")" = "4"
-grep -q "$second_commit" "${TMP_DIR}/project/artifacts/app.bin"
-grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
-
-# Shared build helper changes invalidate cached binaries in both checkout modes.
-printf '\n# shared source helper change\n' >> "${TMP_DIR}/project/scripts/common/source.sh"
-rm -rf "${TMP_DIR}/project/artifacts" "${TMP_DIR}/project/results" "${TMP_DIR}/project/appsrc"
-run_build_with_cache
-test "$(cat "${TMP_DIR}/build-count")" = "5"
-grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/project/results/build_cache.env"
-
 printf '\n# shared profiler configuration change\n' >> "${TMP_DIR}/git-project/scripts/common/profile_config.sh"
 rm -rf "${TMP_DIR}/git-project/artifacts" "${TMP_DIR}/git-project/results" "${TMP_DIR}/git-project/appsrc"
 run_git_project_build_with_cache
 test "$(cat "${TMP_DIR}/git-build-count")" = "6"
 grep -q '^BK_BUILD_CACHE_STORED=true$' "${TMP_DIR}/git-project/results/build_cache.env"
+
+fi
 
 echo "build cache test passed"
