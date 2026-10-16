@@ -410,5 +410,23 @@ exit "${TEST_MPI_STATUS:-0}"
                 self.env.pop("TEST_MPI_STATUS")
 
 
+def split_run_tests(suite):
+    def flatten(items):
+        for item in items:
+            if isinstance(item, unittest.TestSuite):
+                yield from flatten(item)
+            else:
+                yield item
+    tests = sorted(flatten(suite), key=lambda test: test.id())
+    return [tests[index::4] for index in range(4)]
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--part" and sys.argv[2] in {"0", "1", "2", "3"}:
+        groups = split_run_tests(unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]))
+        selected = groups[int(sys.argv[2])]
+        if not selected:
+            raise SystemExit("Empty execution test part")
+        result = unittest.TextTestRunner().run(unittest.TestSuite(selected))
+        raise SystemExit(not result.wasSuccessful())
     unittest.main()

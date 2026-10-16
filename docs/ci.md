@@ -513,3 +513,21 @@ source analysis. Error and warning jobs install the version pinned in
 `requirements-shellcheck.txt` and use a pip download cache keyed by that file.
 A cache miss still installs and runs the same checker. The aggregate rejects
 failed, cancelled, or unexpectedly skipped checks.
+
+Ordinary pytest runs in four file shards per Python version, with two workers
+per job. The local runner keeps the unsharded entrypoint and the default two-way
+`--shard` selection; use `--shard-count 4 --shard N` for the CI partition.
+
+Shell CI keeps its six job groups and uses `--jobs 2` within each job. Profiler,
+execution-wrapper, input, and build-cache tests expose independent fixture parts;
+`list-tests` still lists each shell entrypoint once, while `list-cases` lists the
+parts selected for parallel execution. Running an entrypoint or group without
+parallel options executes all of its parts sequentially. Every parallel child is
+waited on, output remains grouped by case, and any nonzero exit fails the job.
+
+Each test job selects scope immediately after its own full-history checkout,
+without waiting for the scope self-test job. Uncertain scope still runs all tests;
+missing or invalid decisions fail validation. The final check requires the scope
+self-test, pytest, SQLCipher, and shell jobs to succeed. Non-executable changes
+skip test steps, rather than skipping these jobs. Dependency caching, site
+preflight, SQLCipher hash validation, and runtime evidence remain in place.

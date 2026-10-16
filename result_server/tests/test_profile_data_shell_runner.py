@@ -110,3 +110,57 @@ def test_observation_alias_covers_both_parts_without_overlap():
     assert profiler and other
     assert not set(profiler) & set(other)
     assert profiler + other == observation
+
+
+@pytest.mark.parametrize("group", ["common-observation", "common", "all"])
+def test_parallel_cases_cover_all_parts_without_duplicates(group):
+    cases = _runner_lines("list-cases", group)
+    assert len(cases) == len(set(cases))
+    files = _runner_lines("list-tests", group)
+    assert set(case.split("::")[0] for case in cases) == set(files)
+    for file in files:
+        selected = [case for case in cases if case.split("::")[0] == file]
+        if "::" in selected[0]:
+            parts = subprocess.check_output(["bash", str(REPO_DIR / file), "--list-parts"], text=True).splitlines()
+            assert selected == [file + "::" + part for part in parts]
+        else:
+            assert selected == [file]
+
+
+@pytest.mark.parametrize("group", ["common-observation", "common", "all"])
+@pytest.mark.parametrize("position", ["first", "last"])
+def test_parallel_dispatch_and_failure_propagation(tmp_path, group, position):
+    import json
+    import sys
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    records = tmp_path / "records"
+    records.mkdir()
+    checker = tools / "bash"
+    checker.write_text("#!" + sys.executable + "\n" +
+        "import json, os, sys\n" +
+        "from pathlib import Path\n" +
+        "Path(os.environ['CASE_RECORDS'],str(os.getpid())).write_text(json.dumps(sys.argv[1:]))\n" +
+        "case=sys.argv[1]+('::'+sys.argv[2] if len(sys.argv)>2 else '')\n" +
+        "raise SystemExit(7 if case==os.environ['FAIL_CASE'] else 0)\n")
+    checker.chmod(0o700)
+    cases = _runner_lines("list-cases", group)
+    selected = cases[0 if position == "first" else -1]
+    def absolute(case):
+        file, sep, part = case.partition("::")
+        return str(REPO_DIR / file) + (sep + part if sep else "")
+    result = subprocess.run([shutil.which("bash"), str(RUNNER), group, "--jobs", "2"],
+        cwd=REPO_DIR, env=dict(os.environ, PATH=str(tools)+os.pathsep+os.environ['PATH'],
+            CASE_RECORDS=str(records), FAIL_CASE=absolute(selected)), capture_output=True)
+    assert result.returncode == 7
+    seen = []
+    for path in records.iterdir():
+        args = json.loads(path.read_text())
+        seen.append(str(Path(args[0]).relative_to(REPO_DIR)) + ("::"+args[1] if len(args)>1 else ""))
+    assert sorted(seen) == sorted(cases)
+
+
+@pytest.mark.parametrize("script", ["test_bk_profiler.sh", "test_bk_input_info.sh", "test_build_cache.sh", "test_bk_run.sh"])
+def test_unknown_part_is_rejected_before_tests(script):
+    result = subprocess.run(["bash", str(REPO_DIR / "scripts/tests" / script), "unknown"], capture_output=True)
+    assert result.returncode == 2

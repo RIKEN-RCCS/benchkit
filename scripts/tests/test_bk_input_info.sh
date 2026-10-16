@@ -3,6 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/../.." && pwd)
+source "${SCRIPT_DIR}/shell_test_parts.sh"
+shell_test_parts_init "${BASH_SOURCE[0]}" "$@"
+if [[ "$TEST_PART" == manifest-* ]]; then
+  "${PYTHON_BIN:-python3}" "${SCRIPT_DIR}/test_input_manifest.py" --part "${TEST_PART#manifest-}"
+  exit 0
+fi
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -10,6 +16,22 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 pushd "${TMP_DIR}" >/dev/null
 source "${REPO_DIR}/scripts/bk_functions.sh"
 
+
+reject_verification() {
+  if bk_record_input --dataset-id demo-invalid "$@" > verification.out 2> verification.err; then
+    echo "bk_record_input accepted invalid file verification" >&2
+    exit 1
+  fi
+  cmp results/input_info.json expected-info.json
+  cmp results/.input_info_items.jsonl expected-items.jsonl
+  test ! -s verification.out
+  if grep -F -e "$TMP_DIR" -e 'private input.bin' verification.err; then
+    echo "bk_record_input exposed an input location" >&2
+    exit 1
+  fi
+}
+
+if [ "$TEST_PART" = declarations ]; then
 bk_record_input_info <<'EOF'
 {
   "schema_version": 1,
@@ -148,6 +170,8 @@ bk_reset_input_info
 test ! -e results/input_info.json
 test ! -e results/.input_info_items.jsonl
 
+fi
+if [ "$TEST_PART" = verification ]; then
 # Synthetic inputs exercise the contract without pinning application datasets.
 input_sha256=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 printf abc > 'private input.bin'
@@ -166,19 +190,6 @@ fi
 cp results/input_info.json expected-info.json
 cp results/.input_info_items.jsonl expected-items.jsonl
 
-reject_verification() {
-  if bk_record_input --dataset-id demo-invalid "$@" > verification.out 2> verification.err; then
-    echo "bk_record_input accepted invalid file verification" >&2
-    exit 1
-  fi
-  cmp results/input_info.json expected-info.json
-  cmp results/.input_info_items.jsonl expected-items.jsonl
-  test ! -s verification.out
-  if grep -F -e "$TMP_DIR" -e 'private input.bin' verification.err; then
-    echo "bk_record_input exposed an input location" >&2
-    exit 1
-  fi
-}
 
 reject_verification --type file --verify-file "$input_path"
 reject_verification --type file --expected-sha256 "$input_sha256" --expected-size-bytes 3
@@ -270,6 +281,8 @@ if command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+fi
+if [ "$TEST_PART" = directory ]; then
 popd >/dev/null
 
 (
@@ -315,6 +328,6 @@ popd >/dev/null
   fi
 )
 
-"${PYTHON_BIN:-python3}" "${SCRIPT_DIR}/test_input_manifest.py"
 
 echo "bk_record_input_info test passed"
+fi

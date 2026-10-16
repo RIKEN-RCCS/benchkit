@@ -15,18 +15,19 @@ runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
 
-def test_file_shards_cover_nested_new_tests_once_with_stable_order(tmp_path):
+@pytest.mark.parametrize("count", [2, 4])
+def test_file_shards_cover_nested_new_tests_once_with_stable_order(tmp_path, count):
     names = ["test_big.py", "test_small.py", "nested/test_new.py", "nested/new_test.py"]
     for index, name in enumerate(names):
         path = tmp_path / name
         path.parent.mkdir(exist_ok=True)
         path.write_text("#" * (40 - index * 9))
     (tmp_path / "helper.py").write_text("not a test")
-    groups = runner.split_test_files(tmp_path)
+    groups = runner.split_test_files(tmp_path, count)
     assert all(groups)
-    assert not set(groups[0]) & set(groups[1])
-    assert set(groups[0] + groups[1]) == {tmp_path / name for name in names}
-    assert groups == runner.split_test_files(tmp_path)
+    assert sum(map(len, groups)) == len(set(sum((list(g) for g in groups), [])))
+    assert set(sum((list(g) for g in groups), [])) == {tmp_path / name for name in names}
+    assert groups == runner.split_test_files(tmp_path, count)
     assert all(group == sorted(group) for group in groups)
 
 
@@ -118,8 +119,62 @@ def _shell_gate():
 def test_shell_aggregate_rejects_incomplete_groups(scope, full, shell):
     import os
     result = subprocess.run(["bash", "-c", _shell_gate()],
-                            env=dict(os.environ, SCOPE_STATUS=scope, FULL_TESTS=full, SHELL_STATUS=shell),
+                            env=dict(os.environ, SCOPE_STATUS=scope, FULL_TESTS=full, SHELL_STATUS=shell,
+                                     PYTEST_STATUS="success", DB_STATUS="success"),
                             capture_output=True)
-    expected = scope == "success" and ((full == "true" and shell == "success")
-                                       or (full == "false" and shell == "skipped"))
+    expected = scope == "success" and shell == "success"
     assert (result.returncode == 0) == expected
+
+
+@pytest.mark.parametrize("shard", range(4))
+@pytest.mark.parametrize("status", range(6))
+def test_four_shards_preserve_pytest_status(tmp_path, monkeypatch, shard, status):
+    script = tmp_path / "result_server/tests/run_result_server_tests.py"
+    script.parent.mkdir(parents=True)
+    for index in range(4):
+        script.with_name(f"test_{index}.py").write_text("def test_example(): pass\n")
+    monkeypatch.setattr(runner, "__file__", str(script))
+    calls = []
+    monkeypatch.setattr(runner.pytest, "main", lambda args: calls.append(args) or status)
+    assert runner.main(["runner", "--shard-count", "4", "--shard", str(shard), "-q"]) == status
+    assert calls == [[*(str(p) for p in runner.split_test_files(script.parent, 4)[shard]), "-q"]]
+
+
+@pytest.mark.parametrize("job", ["PYTEST_STATUS", "DB_STATUS"])
+@pytest.mark.parametrize("status", ["failure", "cancelled", "skipped"])
+@pytest.mark.parametrize("full", ["true", "false"])
+def test_aggregate_rejects_incomplete_python_jobs(job, status, full):
+    import os
+    env = dict(os.environ, SCOPE_STATUS="success", FULL_TESTS=full,
+               SHELL_STATUS="success", PYTEST_STATUS="success", DB_STATUS="success")
+    env[job] = status
+    assert subprocess.run(["bash", "-c", _shell_gate()], env=env, capture_output=True).returncode != 0
+
+
+def test_scope_validation_rejects_missing_or_unknown_decisions():
+    import os
+    workflow = (SCRIPT.parents[2] / ".github/workflows/result-server-tests.yml").read_text()
+    command = workflow.split("      - name: Validate test scope\n", 1)[1].split("        run: |\n", 1)[1].split("\n\n", 1)[0]
+    command = textwrap.dedent(command)
+    for decision in ["true", "false", "", "unknown"]:
+        status = subprocess.run(["bash", "-c", command], env=dict(os.environ, FULL_TESTS=decision)).returncode
+        assert (status == 0) == (decision in {"true", "false"})
+
+
+def test_workflow_runs_preparation_without_waiting_for_scope_job():
+    workflow = (SCRIPT.parents[2] / ".github/workflows/result-server-tests.yml").read_text()
+    jobs = ["pytest", "encrypted-budget-db", "profile-data-shell-group", "profile-data-shell"]
+    for index, job in enumerate(jobs[:-1]):
+        section = workflow.split(f"  {job}:\n", 1)[1].split(f"  {jobs[index+1]}:\n", 1)[0]
+        assert "needs:" not in section
+        assert "fetch-depth: 0" in section
+        assert "id: scope" in section
+        assert "run: python3 scripts/tests/ci_test_scope.py" in section
+        assert "- name: Validate test scope" in section
+        # Only selection and validation may run without the explicit full flag.
+        steps = section.split("      - name: ")[1:]
+        for step in steps[3:]:
+            assert "if: steps.scope.outputs.full == 'true'" in step
+    assert "--shard-count 4" in workflow
+    assert "--jobs 2" in workflow
+    assert "needs: [test-scope, pytest, encrypted-budget-db, profile-data-shell-group]" in workflow
