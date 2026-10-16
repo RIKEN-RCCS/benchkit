@@ -1,3 +1,4 @@
+import importlib
 import sys
 import types
 
@@ -7,7 +8,8 @@ from flask import Blueprint, Flask
 def install_portal_test_stubs(*, include_redis=True, include_otp=True):
     """Install lightweight stubs for optional portal test dependencies."""
     if include_redis and "redis" not in sys.modules:
-        sys.modules["redis"] = types.ModuleType("redis")
+        # Importing the required client opens no connection and preserves its API.
+        importlib.import_module("redis")
 
     if not include_otp:
         return

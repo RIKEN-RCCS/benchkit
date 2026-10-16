@@ -173,10 +173,14 @@ def test_gunicorn_configuration_and_factory_share_settings(env, monkeypatch):
     assert set(app.blueprints) == {"runner_observation_ingest"}
 
 
-def test_no_portal_modules_imported_in_a_fresh_process(env, tmp_path):
+@pytest.mark.parametrize("portal_stubs_first", [False, True])
+def test_no_portal_modules_imported_in_a_fresh_process(env, tmp_path, portal_stubs_first):
     code = '''
 import builtins, json, sys
 sys.path.insert(0, sys.argv[1])
+if sys.argv[3] == "True":
+    from test_support import install_portal_test_stubs
+    install_portal_test_stubs(include_otp=False)
 original = builtins.__import__
 def guarded(name, globals=None, locals=None, fromlist=(), level=0):
     if level == 0 and (name in {"app", "app_dev", "routes.api", "utils.execution_profiles", "utils.user_store", "sqlcipher3"} or name.startswith(("flask_session", "cachelib"))):
@@ -187,7 +191,7 @@ import observation_app
 app = observation_app.create_app(json.loads(sys.argv[2]))
 assert set(app.blueprints) == {"runner_observation_ingest"}
 '''
-    result = subprocess.run([sys.executable, "-I", "-B", "-c", code, str(ROOT / "result_server"), json.dumps(env)],
+    result = subprocess.run([sys.executable, "-I", "-B", "-c", code, str(ROOT / "result_server"), json.dumps(env), str(portal_stubs_first)],
                             cwd=tmp_path, env={"HOME": str(tmp_path)}, capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, result.stderr
     assert list(tmp_path.iterdir()) == []
