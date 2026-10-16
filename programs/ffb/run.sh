@@ -66,7 +66,7 @@ case "$system" in
       source /etc/profile.d/modules.sh
     fi
     module purge
-    module load nvhpc-hpcx/26.9
+    module load nvhpc-hpcx/25.7
     bk_run --log les3x.stdout.log -- mpiexec -np "${n_ranks}" ./les3x.mpi
     ;;
 esac
