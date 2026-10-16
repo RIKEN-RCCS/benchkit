@@ -219,13 +219,29 @@ def test_generated_setup_records_resolved_budget_in_snapshot(project):
     assert generate(project, "Fugaku", BK_ALLOCATION_PROJECT_ID="").returncode == 0
     text = (project[0] / ".gitlab-ci.generated.yml").read_text()
     setup = next(line.strip()[2:] for line in text.splitlines() if "- export BK_ALLOCATION_PROJECT_ID=" in line)
+    tools = project[0] / "tools"
+    tools.mkdir()
+    tool = tools / "snapshot-fixture"
+    tool.write_text('#!/bin/sh\n[ "$1" = --version ] || exit 2\nprintf "snapshot-fixture 1.0\\n"\n')
+    tool.chmod(0o700)
+    capture_env = {
+        **project[1], "BK_ALLOCATION_PROJECT_ID": "", "BK_ROUTE_ALLOCATION_PROJECT_ID": "budget-example",
+        "BK_SNAPSHOT_TOOL_COMMANDS": "snapshot-fixture",
+        "PATH": str(tools) + os.pathsep + project[1]["PATH"],
+    }
+    # Compiler discovery has its own tests; this case exercises route handoff.
+    for name in "CC CXX FC F77 F90 OMPI_CC OMPI_CXX OMPI_FC MPICH_CC MPICH_CXX MPICH_FC".split():
+        capture_env.pop(name, None)
     result = subprocess.run(
         ["bash", "-c", setup + '\nBK_SYSTEM=Fugaku bash scripts/collect_environment_snapshot.sh snapshot.json'],
-        cwd=project[0], env={**project[1], "BK_ALLOCATION_PROJECT_ID": "", "BK_ROUTE_ALLOCATION_PROJECT_ID": "budget-example"},
-        capture_output=True, text=True,
+        cwd=project[0], env=capture_env, capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert json.loads((project[0] / "snapshot.json").read_text())["system"]["allocation_project_id"] == "budget-example"
+    snapshot = json.loads((project[0] / "snapshot.json").read_text())
+    assert snapshot["system"]["allocation_project_id"] == "budget-example"
+    assert set(snapshot["toolchain"]["commands"]) == {"snapshot-fixture"}
+    assert snapshot["toolchain"]["commands"]["snapshot-fixture"]["version"] == "snapshot-fixture 1.0"
+
 
 
 @pytest.mark.parametrize("overrides", [
