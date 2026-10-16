@@ -43,6 +43,8 @@ done
 
 if rg -n 'system/genoa|mpi/openmpi-x86_64' programs/salmon/build.sh programs/salmon/run.sh; then
   echo "SALMON RC_GENOA must use the image-provided GNU/OpenMPI toolchain" >&2
+
+grep -Fq 'LAPACK_VENDOR_FLAGS=-Wl,--no-as-needed' programs/salmon/build.sh
   exit 1
 fi
 

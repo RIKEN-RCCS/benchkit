@@ -150,7 +150,7 @@ case "${system}" in
     )
     if [[ -f "${aocl_blis_lib}/libblis-mt.so" && -f "${aocl_flame_lib}/libflame.so" && -n "${aocl_utils_so}" && -n "${aocl_cpuid_so}" ]]; then
       export LD_LIBRARY_PATH="${aocl_utils_lib}:${aocl_flame_lib}:${aocl_blis_lib}:${LD_LIBRARY_PATH:-}"
-      cmake_args+=("-DLAPACK_VENDOR_FLAGS=${aocl_flame_lib}/libflame.so ${aocl_blis_lib}/libblis-mt.so ${aocl_utils_so} ${aocl_cpuid_so}")
+      cmake_args+=("-DLAPACK_VENDOR_FLAGS=-Wl,--no-as-needed ${aocl_flame_lib}/libflame.so ${aocl_blis_lib}/libblis-mt.so ${aocl_utils_so} ${aocl_cpuid_so}")
     elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openblas; then
       cmake_args+=("-DLAPACK_VENDOR_FLAGS=$(pkg-config --libs openblas)")
     elif ldconfig -p 2>/dev/null | grep -q 'libopenblas\.so'; then
