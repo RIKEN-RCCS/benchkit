@@ -57,11 +57,11 @@ desktop and mobile sizes. It is an optional developer test, not part of the
 default CI jobs or Portal runtime. Browser code is not bundled in this repository.
 
 Use a separate Python 3.12+ environment with the result server dependencies and
-`requirements-browser-tests.txt`. The validated browser dependency is
-[Playwright Python 1.63.0](https://pypi.org/project/playwright/1.63.0/), from PyPI.
+`requirements-browser-tests.txt`. The selected browser dependency is
+[Playwright Python 1.64.0](https://pypi.org/project/playwright/1.64.0/), from PyPI.
 Its packaged `playwright/driver/package/browsers.json` selects Chromium and
-Chromium Headless Shell **153.0.8010.12**, Playwright revision **1243**;
-the installer also selects FFmpeg revision **1011**. These are Playwright build
+Chromium Headless Shell **156.0.8078.4**, Playwright revision **1248**;
+the installer also selects FFmpeg revision **1013**. These are Playwright build
 revisions, not Chromium source commits. The test uses the default headless shell,
 not an arbitrary system Chrome executable.
 
