@@ -26,6 +26,11 @@ case "$system" in
     module purge
     module load nvhpc-hpcx/25.7
     export NVHPC_CUDA_HOME="$(dirname "$(dirname "$(command -v nvcc)")")"
+    nvhpc_sdk_root="$(dirname "$(dirname "${NVHPC_CUDA_HOME}")")"
+    export NVCOMPILER_COMM_LIBS_HOME="${nvhpc_sdk_root}/comm_libs/$(basename "${NVHPC_CUDA_HOME}")"
+    if [[ ! -d "${NVCOMPILER_COMM_LIBS_HOME}" ]]; then
+      echo "NVHPC communication libraries not found: ${NVCOMPILER_COMM_LIBS_HOME}" >&2
+      exit 1
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
