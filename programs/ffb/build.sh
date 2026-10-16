@@ -25,9 +25,14 @@ case "$system" in
     fi
     module purge
     module load nvhpc-hpcx/25.7
-    export NVHPC_CUDA_HOME="$(dirname "$(dirname "$(command -v nvcc)")")"
-    nvhpc_sdk_root="$(dirname "$(dirname "${NVHPC_CUDA_HOME}")")"
-    export NVCOMPILER_COMM_LIBS_HOME="${nvhpc_sdk_root}/comm_libs/$(basename "${NVHPC_CUDA_HOME}")"
+    nvhpc_sdk_root="$(dirname "$(dirname "$(dirname "$(command -v nvcc)")")")"
+    nvhpc_cuda_version="${FFB_NVHPC_CUDA_VERSION:-12.9}"
+    export NVHPC_CUDA_HOME="${nvhpc_sdk_root}/cuda/${nvhpc_cuda_version}"
+    export NVCOMPILER_COMM_LIBS_HOME="${nvhpc_sdk_root}/comm_libs/${nvhpc_cuda_version}"
+    if [[ ! -d "${NVHPC_CUDA_HOME}" ]]; then
+      echo "NVHPC CUDA toolkit not found: ${NVHPC_CUDA_HOME}" >&2
+      exit 1
+    fi
     if [[ ! -d "${NVCOMPILER_COMM_LIBS_HOME}" ]]; then
       echo "NVHPC communication libraries not found: ${NVCOMPILER_COMM_LIBS_HOME}" >&2
       exit 1
