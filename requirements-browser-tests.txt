@@ -1,3 +1,0 @@
-# Optional developer-only browser regression tests; not a Portal dependency.
-# The matching browser revisions and installation steps are recorded in docs/ci.md.
-playwright==1.64.0
