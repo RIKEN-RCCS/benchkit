@@ -382,7 +382,7 @@ def test_lightgbm_v11_records_actual_bundle_adapter_and_evidence(repo, tmp_path,
     prediction = tmp_path / 'prediction.csv'
     prediction.write_text('prediction')
     for suffix in ['.input.csv', '.features.csv', '.validation.json']:
-        Path(str(prediction) + suffix).write_text(suffix)
+        Path(str(prediction) + suffix).write_text('{}' if suffix == '.validation.json' else suffix)
     data = provenance.make_manifest(str(repo), 'lightgbm', 'run_inference.py',
                                     'prepared_csv', '', str(prediction), 'main', '',
                                     'GB200', 'H100', model_version='1.1')

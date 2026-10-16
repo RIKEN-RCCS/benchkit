@@ -286,12 +286,29 @@ The adapter uses the existing `BK_GPU_LIGHTGBM_*` settings and Python environmen
 with pandas, NumPy, LightGBM and PyYAML. Use `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`
 to select a reviewed full upstream commit.
 
-Wide NCU input (including conversion from a Benchkit padata archive) is passed
-with `--group_by_config`. The adapter keeps grouped source times, grid/block
-configuration, inference features and a feature-validation report with its
-prediction. Precomputed predictions must contain the aligned source-time
-columns produced by this adapter; raw upstream predictions are insufficient.
+Use a profile from a representative MPI rank for each application-defined
+section. Profiling every rank is not required. Rank selection and section/kernel
+mapping belong to the application's acquisition setup; grid/block differences
+do not define new application sections.
+
+For existing wide CSVs or padata archives containing multiple process IDs, select
+one explicitly with `BK_GPU_LIGHTGBM_PROFILE_PROCESS_ID` or its section-specific
+form, for example `BK_GPU_LIGHTGBM_PROFILE_PROCESS_ID_PAIRLIST`. These are NCU
+process IDs, not MPI rank numbers. A single-process input is used as supplied;
+an input without process metadata is recorded as preselected, with rank unknown.
+The adapter does not infer rank 0 from a PID or average across all ranks.
+
+Within the selected sample, `--group_by_config` keeps configurations separate.
+The section ratio is the sum of predicted sample times divided by the sum of
+source sample times, using each configuration's observed sample count. These
+counts describe only the profile window, not all application launches. The ratio
+is applied to the application's existing section time.
+
+The adapter preserves normalized input, grouped features, configurations, source
+times, sample counts, selection metadata and a feature-validation report with its
+prediction. Precomputed predictions must contain aligned source times and sample
+counts produced by this adapter; raw upstream predictions are insufficient.
 
 Upstream defaults and NaN inputs are recorded, not replaced by Benchkit GPU
-constants. Their intended use, and the averaging of repeated launches, remain
-under evaluation. Successful inference does not establish prediction accuracy.
+constants. Their intended use and the representativeness of the selected profile
+remain under evaluation. Successful inference does not establish prediction accuracy.
