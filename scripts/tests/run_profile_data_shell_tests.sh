@@ -3,15 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ALL_GROUPS=(common-observation common-execution result-sender estimation)
+ALL_GROUPS=(common-observation common-execution-run common-execution-other result-sender estimation)
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-execution|result-sender|estimation|list|list-tests [GROUP]]
+Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-execution|common-execution-run|common-execution-other|result-sender|estimation|list|list-tests [GROUP]]
 
 Runs the shell tests covered by the Result Server Tests workflow.
 Use "all" locally for the full suite, "common" for both common groups,
-or a group name in CI matrix jobs.
+"common-execution" for both execution parts, or a group name in CI matrix jobs.
 EOF
 }
 
@@ -52,8 +52,14 @@ scripts/tests/test_sbd_ncu_profile.sh
 EOF
       ;;
     common-execution)
+      tests_for_group common-execution-run
+      tests_for_group common-execution-other
+      ;;
+    common-execution-run)
+      echo scripts/tests/test_bk_run.sh
+      ;;
+    common-execution-other)
       cat <<'EOF'
-scripts/tests/test_bk_run.sh
 scripts/tests/test_run_benchmark.sh
 scripts/tests/test_bk_fetch_source.sh
 scripts/tests/test_bk_input_info.sh
