@@ -1,0 +1,11 @@
+[Unit]
+Description=Benchkit observation Collector
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/.local/lib/benchkit/collector/current/result_server
+Environment=PYTHONDONTWRITEBYTECODE=1 SSL_CERT_FILE=/example/credentials/receiver-ca.crt
+ExecStart=/example/python/bin/python3.12 -B collector_cli.py collect --config /example/config/collector.json
+UMask=0077
+NoNewPrivileges=yes
+TimeoutStartSec=360

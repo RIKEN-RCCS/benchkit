@@ -1,0 +1,10 @@
+[Unit]
+Description=Collect Benchkit observations periodically
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=300
+Unit=benchkit-runner-collector.service
+
+[Install]
+WantedBy=timers.target
