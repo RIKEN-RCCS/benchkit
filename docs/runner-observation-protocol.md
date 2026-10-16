@@ -2,8 +2,8 @@
 
 The protocol has a pure core and an experimental, opt-in CX receiver. The
 receiver is disabled by default; existing collection and credentials remain
-unchanged. Collector delivery components are available separately; wiring the
-existing collection command to them remains future work. See
+unchanged. A separate Collector CLI connects fresh GitLab observations to delivery
+without replacing the existing collection command. See
 [current monitoring](guides/runner-monitoring.md) for the existing
 operational interface.
 
@@ -143,11 +143,12 @@ this endpoint, and these tests do not constitute deployment acceptance.
 
 ## Collector Delivery Components
 
-`result_server/collector/` is a separate, standard-library-only delivery package.
+`result_server/collector/` is a separate, standard-library-only Collector package.
 Its sole CX-side code dependency is the pure observation protocol contract. It
-does not import Flask, Redis, SQLCipher, the application factory or the GitLab
-client, and never loads runtime environment settings. It is a component API,
-not a replacement for the existing collection command or a new scheduled job.
+does not import Flask, Redis, SQLCipher or the application factory, and never
+loads CX environment settings. Its delivery API does not itself fetch GitLab.
+The separate CLI connects a producer without replacing the existing collection
+command or creating a scheduled job.
 
 - Construct a `SourcePolicy` and an `HTTPSDelivery(endpoint, key_file)` explicitly.
   The endpoint must be the exact HTTPS observation API URL, including any console
@@ -160,8 +161,8 @@ not a replacement for the existing collection command or a new scheduled job.
 - Call `run_once(directory, policy, transport, collect)` explicitly. The injected
   `collect(sequence)` producer returns complete JSON bytes conforming to the
   shared protocol. `batch_identity(policy, sequence)` supplies common envelope
-  fields without maintaining a second identity definition. Collection wiring
-  and GitLab credential configuration are not implemented by this API.
+  fields without maintaining a second identity definition. The separate CLI
+  supplies the GitLab adapter and explicit credential configuration.
 - State binds the endpoint, collector/source/generation and full target scope.
   Endpoint or scope changes require an explicit handoff, not silent reuse. A
   separate state directory is required for each source/destination combination.
@@ -203,9 +204,80 @@ other status codes and invalid acknowledgements stop without changing pending
 content, generation or sequence. Scheduling and service-level timeouts remain
 explicit deployment concerns.
 
-These components do not enable the CX receiver, fetch GitLab, schedule a timer,
-modify existing collection, or perform a handoff/rollback. Validate the producer
-adapter and generation/cursor handoff separately before a deployment trial.
+The delivery API does not enable the CX receiver, fetch GitLab, schedule a timer,
+modify existing collection, or perform a handoff/rollback. Validate the CLI and
+generation/cursor handoff separately before a deployment trial.
+
+## Separate Collector CLI
+
+`python result_server/collector_cli.py --help` starts without optional web/DB
+packages. `init` creates only the delivery state; `collect` reads GitLab and
+delivers observations to the configured CX endpoint. Both require `--config`
+with an absolute private JSON file path. There is no environment fallback,
+implicit endpoint or automatic initialization. Existing
+`result_server/runner_monitor.py` commands retain their interface.
+
+The configuration file and its parent require owner-only modes 600 and 700.
+Only credential file references are accepted, not inline token values.
+Example (all paths and hosts are placeholders):
+
+```json
+{
+  "schema_version": 1,
+  "collector_id": "example-collector",
+  "source_id": "example-source",
+  "generation": "11111111-1111-4111-8111-111111111111",
+  "endpoint": "https://cx.example.org/console/api/v1/runner-observations",
+  "state_directory": "/example/collector-state",
+  "key_file": "/example/credentials/cx.key",
+  "targets": [{
+    "target_id": "example",
+    "server_id": "example-server",
+    "server_url": "https://gitlab.example.org",
+    "project": "group/project",
+    "token_file": "/example/credentials/gitlab.read",
+    "runner_types": ["project_type"]
+  }]
+}
+```
+
+IDs, generation and target identities must match CX's independently configured
+source scope. The Collector does not load that configuration from CX internals.
+Unknown/duplicate fields, unsupported schema, duplicate targets, unsafe endpoints,
+relative credential paths and use of the delivery key path as a GitLab token
+path are rejected. Optional `runner_types` defaults to all supported types.
+Keep delivery and GitLab credentials distinct and use read-only GitLab tokens;
+see [runner monitoring](guides/runner-monitoring.md).
+
+After provisioning a private trial directory/configuration and obtaining
+permission for the endpoints, the explicit commands are:
+
+```bash
+python result_server/collector_cli.py init --config /example/config/collector.json
+python result_server/collector_cli.py collect --config /example/config/collector.json
+```
+
+`init` reads no credential files and connects to neither endpoint. `collect`
+requires existing state and replays pending delivery before reading a GitLab
+token or starting a new inventory. No command loads the CX DB or encryption key.
+Reinitializing existing state fails rather than resetting its sequence.
+
+The GitLab client is shared with the legacy monitor through compatibility imports,
+not copied into a second implementation. The Collector client uses only GET,
+explicit HTTPS server/project identities, no redirects or ambient proxy
+discovery, verified TLS, bounded pages/responses and the existing 240-second
+collection budget. Resource completion times are recorded independently. Runner
+details/managers are deduplicated per server/runner; another associated project's
+credential may retry only within the same server. Failed inventories submit no
+old local membership; CX retains earlier successes according to the protocol.
+Complete empty inventories are valid. Duplicate managers and invalid text are
+observation failures, not complete successes. Credential echoes through JSON
+escaping are redacted after decoding, before field projection.
+
+This is an opt-in alternative CLI, not a migration: no service, timer, existing
+CLI or CX receiver configuration changes automatically. Do not run old and new
+writers against one observation store. Generation/cursor handoff, rollback and
+isolated deployment acceptance remain separate work.
 
 ## Synthetic Tests
 
@@ -235,3 +307,9 @@ corrupt state, permission/symlink/hardlink rejection, scope binding, bounded
 retries and protocol-compatible duplicate acknowledgements. Isolated import
 checks run without site packages and reject web/database dependencies. TLS and
 redirect handling are checked with fake openers, not live HTTPS connections.
+
+`test_runner_collector_cli.py` checks the GitLab adapter, private configuration,
+legacy compatibility and the complete explicit CLI with fake GitLab/CX HTTP.
+Partial failures, server-scoped fallback, lost acknowledgements and replay
+without additional GitLab reads are covered. Help/import checks run without
+optional packages. These are not live collection or deployment tests.
