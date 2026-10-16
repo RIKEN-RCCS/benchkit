@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import socket
 import sys
+from urllib.error import HTTPError
 import uuid
 
 import pytest
@@ -26,6 +27,8 @@ from utils.runner_observations import RunnerObservations, collect, presentation 
 from test_runner_monitor import FakeClient, target as monitor_target, reset_fake  # noqa: E402, F401
 from test_runner_observation_protocol import NOW, batch, error, only_runner, policy, raw, target  # noqa: E402
 from test_runner_observation_ingest import FakeRedis, KEY, PATH, settings  # noqa: E402
+from test_runner_collector_cli import configuration, credential  # noqa: E402, F401
+from test_runner_observation_delivery import HTTPResponse  # noqa: E402
 
 
 ENDPOINT = "https://cx.example.org/console/api/v1/runner-observations"
@@ -38,6 +41,7 @@ def no_network(monkeypatch):
         raise AssertionError("unexpected external connection")
     monkeypatch.setattr(socket, "create_connection", reject)
     monkeypatch.setattr(socket.socket, "connect", reject)
+    monkeypatch.setattr(socket.socket, "connect_ex", reject)
 
 
 @pytest.fixture
@@ -329,3 +333,127 @@ def test_different_target_identity_does_not_carry_old_membership(copies):
     assert post(web(trial, changed), value).status_code == 200
     assert "data" not in trial.read()["targets"]["first"]["inventory"]
     assert trial.read()["runners"] == {}
+
+
+@pytest.mark.parametrize("case, expected", [
+    ("success", 200), ("lost_ack", 200), ("wrong_key", 401),
+    ("wrong_source", 403), ("wrong_generation", 409),
+    ("disabled", 404), ("public", 404), ("no_storage", 503),
+])
+def test_isolated_cli_through_receiver_and_encrypted_store(
+        copies, configuration, credential, monkeypatch, capsys, caplog, case, expected):
+    from flask import Flask
+    from collector import cli, delivery, gitlab, transport
+    from routes import runner_observation_ingest as receiver
+    from utils.csrf import init_csrf
+    from utils.portal_access import register_public_portal_guard
+    from test_runner_observation_protocol import runner, summary
+
+    source, copy_store = copies
+    trial = copy_store("isolated-receiver")
+    before = trial.read()
+    path, value, directory = configuration
+    key = Path(value["key_file"])
+    key.write_text(KEY if case != "wrong_key" else "synthetic-unrelated-key-not-secret-1234")
+    key.chmod(0o600)
+    if case == "wrong_source":
+        value["source_id"] = "unrelated-source"
+    if case == "wrong_generation":
+        value["generation"] = NEW_GENERATION
+    path.write_text(json.dumps(value))
+
+    # Deliberately conflicting CX environment must not configure this Collector.
+    monkeypatch.setenv("RESULT_SERVER_RUNNER_MONITOR_DB_PATH", str(source.storage.path))
+    monkeypatch.setenv("RESULT_SERVER_RUNNER_MONITOR_KEY_FILE", str(source.storage.key_file))
+    monkeypatch.setenv("RESULT_SERVER_GITLAB_TARGETS", "unused-environment-target")
+    app = Flask(__name__)
+    app.secret_key = "synthetic-session-key"
+    app.config.update(TESTING=True, PUBLIC_PORTAL_MODE=case == "public",
+                      AUTH_REQUIRES_REDIS=True, REDIS_CONN=FakeRedis(),
+                      RUNNER_MONITOR_DB_PATH=str(trial.storage.path),
+                      RUNNER_MONITOR_KEY_FILE=str(trial.storage.key_file))
+    env = settings()
+    if case == "disabled":
+        env["RESULT_SERVER_RUNNER_OBSERVATION_INGEST_ENABLED"] = "false"
+    receiver.register_runner_observation_ingest(app, "/console", env=env)
+    register_public_portal_guard(app)
+    init_csrf(app, exempt_blueprints=(receiver.runner_observation_ingest_bp,))
+    if case == "no_storage":
+        app.config["RUNNER_MONITOR_DB_PATH"] = ""
+    opens, gets, posts = [], [], []
+
+    def isolated_store(database, key_file):
+        assert database == str(trial.storage.path)
+        assert key_file == str(trial.storage.key_file)
+        opens.append(database)
+        return RunnerObservations(database, key_file)
+
+    monkeypatch.setattr(receiver, "RunnerObservations", isolated_store)
+
+    class GitLab:
+        unavailable = False
+
+        def open(self, request, timeout):
+            assert request.method == "GET" and request.full_url.startswith("https://gitlab.example.org/api/v4/")
+            assert request.get_header("X-collector-key") is None
+            assert request.get_header("Private-token") == credential.read_text()
+            gets.append(request.full_url)
+            if self.unavailable:
+                raise HTTPError(request.full_url, 503, "unavailable", {}, None)
+            if "/projects/" in request.full_url:
+                payload = [summary()]
+            elif "/managers" in request.full_url:
+                payload = runner()["managers"]["data"]
+            else:
+                payload = runner()["detail"]["data"]
+            return HTTPResponse(raw(payload))
+
+    gitlab_http = GitLab()
+    accepted_snapshot = None
+
+    class CX:
+        def open(self, request, timeout):
+            nonlocal accepted_snapshot
+            assert request.method == "POST" and request.full_url == ENDPOINT
+            assert request.get_header("Private-token") is None
+            response = app.test_client().post("/console" + PATH, data=request.data,
+                                              headers=dict(request.header_items()))
+            posts.append((request.data, response.status_code))
+            assert response.status_code == expected
+            if case == "lost_ack" and len(posts) == 1:
+                accepted_snapshot = trial.read()
+                raise OSError("synthetic lost acknowledgement")
+            if case == "lost_ack":
+                assert response.json["status"] == "duplicate" and trial.read() == accepted_snapshot
+            return HTTPResponse(response.data, code=response.status_code)
+
+    monkeypatch.setattr(gitlab, "build_opener", lambda *_handlers: gitlab_http)
+    monkeypatch.setattr(transport, "build_opener", lambda *_handlers: CX())
+    monkeypatch.setattr(cli, "run_once", lambda *args: delivery.run_once(*args, sleep=lambda _s: None))
+    assert cli.main(["init", "--config", str(path)]) == 0
+    assert gets == [] and posts == [] and trial.read() == before
+    assert cli.main(["collect", "--config", str(path)]) == (0 if expected == 200 else 1)
+    delivered = state(directory)
+    assert len(gets) == 3
+    if expected != 200:
+        assert len(posts) == (3 if case == "no_storage" else 1)
+        assert all(data == posts[0][0] for data, _status in posts)
+        assert delivered["pending"] is not None and delivered["next_sequence"] == 1
+        assert opens == [] and trial.read() == before
+    else:
+        assert delivered["pending"] is None and delivered["next_sequence"] == 2
+        assert trial.read()["_ingest"]["source"]["sequence"] == 1
+        assert len(posts) == (2 if case == "lost_ack" else 1)
+        assert posts[0][0] == posts[-1][0]
+        if case == "success":
+            last_success = trial.read()["targets"]["first"]["inventory"]["last_success_at"]
+            gitlab_http.unavailable = True
+            assert cli.main(["collect", "--config", str(path)]) == 0
+            snapshot = trial.read()
+            observation = snapshot["targets"]["first"]["inventory"]
+            assert observation["error"] == "http_503" and observation["last_success_at"] == last_success
+            assert snapshot["_ingest"]["source"]["sequence"] == 2
+            assert presentation(snapshot)["runners"][0]["state"] == "unavailable"
+    trial.storage.check()
+    output = capsys.readouterr().out + caplog.text + json.dumps(trial.read())
+    assert KEY not in output and credential.read_text() not in output
