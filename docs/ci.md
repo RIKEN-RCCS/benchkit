@@ -504,3 +504,12 @@ Do not include `Claude-Session:` trailers or `claude.ai/code/session...` URLs in
 このcheckは新規に入るcommitを対象とし、既存履歴を遡及的に書き換えるためのpolicyではありません。
 
 This check applies to newly introduced commits and is not a retroactive history-rewrite policy.
+
+
+ShellCheck error checks run across six independent shards, each with at most two
+checker processes. Every discovered shell file still receives `bash -n` and
+`ShellCheck -x -S error`; changed application scripts also retain warning-level
+source analysis. Error and warning jobs install the version pinned in
+`requirements-shellcheck.txt` and use a pip download cache keyed by that file.
+A cache miss still installs and runs the same checker. The aggregate rejects
+failed, cancelled, or unexpectedly skipped checks.
