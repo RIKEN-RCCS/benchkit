@@ -45,6 +45,7 @@ tar -xzf "$archive" -C "${WORK_DIR}" --strip-components=1
 cd "${WORK_DIR}"
 
 if [[ "${system}" == "RC_GH200" ]]; then
+  # CUDA 12.9 no longer ships the legacy optional libnvToolsExt library.
   sed -i -e '/^FOPT+=-DUSE_NVTX$/d' -e '/-lnvToolsExt/d' ver.67.01/FILES
 fi
 
