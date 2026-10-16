@@ -19,19 +19,13 @@ from utils.portal_access import is_public_portal_mode, register_public_portal_gu
 from utils.portal_version import portal_version_info
 from utils.estimate_version_view import configure_estimate_version_check
 from utils.preflight import validate_production_config
+from utils.instance_config import resolve_instance_settings
 
 
 DEFAULT_MAX_UPLOAD_MB = 512
 DEFAULT_MAX_ARCHIVE_MEMBER_MB = 1024
 DEFAULT_MAX_ARCHIVE_TOTAL_MB = 1024
 DEFAULT_MAX_ARCHIVE_MEMBER_COUNT = 4096
-INGEST_KEYS = parse_ingest_keys()
-PREFLIGHT_ERRORS = validate_production_config(os.environ, INGEST_KEYS)
-
-if PREFLIGHT_ERRORS:
-    for error in PREFLIGHT_ERRORS:
-        print(f"ERROR: {error}", file=sys.stderr)
-    sys.exit(1)
 
 
 def _configure_session(app, base_dir):
@@ -55,19 +49,21 @@ def _configure_proxy_fix(app):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 
-def _configure_redis(app, prefix):
+def _configure_redis(app, prefix, instance_settings=None):
     """Attach Redis connection settings and the key prefix to app config."""
     import redis
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     app.config["REDIS_CONN"] = redis.from_url(redis_url, decode_responses=True)
+    default_prefix = "dev:" if prefix == "/dev" else "main:"
+    default_cookie = "session_dev" if prefix == "/dev" else "session_main"
     app.config["REDIS_PREFIX"] = os.environ.get(
         "RESULT_SERVER_REDIS_PREFIX",
-        "dev:" if prefix == "/dev" else "main:",
+        instance_settings.redis_prefix if instance_settings else default_prefix,
     )
     app.config["SESSION_COOKIE_NAME"] = os.environ.get(
         "RESULT_SERVER_SESSION_COOKIE_NAME",
-        "session_dev" if prefix == "/dev" else "session_main",
+        instance_settings.session_cookie_name if instance_settings else default_cookie,
     )
     app.config["AUTH_REQUIRES_REDIS"] = True
 
@@ -79,10 +75,13 @@ def _configure_user_store(app):
     app.config["USER_STORE"] = UserStore(app.config["REDIS_CONN"], app.config["REDIS_PREFIX"])
 
 
-def _configure_totp_issuer(app, prefix):
+def _configure_totp_issuer(app, prefix, instance_settings=None):
     """Set the issuer label shown by authenticator apps."""
     base_issuer = os.environ.get("TOTP_ISSUER", "Benchkit")
-    app.config["TOTP_ISSUER"] = f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
+    app.config["TOTP_ISSUER"] = (
+        instance_settings.totp_issuer if instance_settings
+        else f"{base_issuer}-Dev" if prefix == "/dev" else base_issuer
+    )
 
 
 def _configure_result_directories(app, base_dir):
@@ -176,10 +175,17 @@ def _register_portal_blueprints(app, prefix):
     register_runner_monitor(app, prefix)
 
 
-def create_app(prefix="", base_dir=None):
+def create_app(prefix="", base_dir=None, *, instance_settings=None, public_portal_mode=None):
     """Create a configured Flask application for the main or dev portal."""
     if base_dir is None:
         raise ValueError("base_dir must be specified")
+
+    ingest_keys = parse_ingest_keys()
+    preflight_errors = validate_production_config(os.environ, ingest_keys)
+    if preflight_errors:
+        for error in preflight_errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(1)
 
     app = Flask(__name__, template_folder="templates", static_url_path=f"{prefix}/static")
     _configure_proxy_fix(app)
@@ -188,19 +194,23 @@ def create_app(prefix="", base_dir=None):
     if not secret_key:
         raise RuntimeError("FLASK_SECRET_KEY must be set in production")
     app.secret_key = secret_key
-    app.config["INGEST_KEYS"] = INGEST_KEYS.copy()
+    app.config["INGEST_KEYS"] = ingest_keys
     configure_audit_logging(app)
 
     _configure_session(app, base_dir)
-    _configure_redis(app, prefix)
+    _configure_redis(app, prefix, instance_settings)
     _configure_user_store(app)
-    _configure_totp_issuer(app, prefix)
+    _configure_totp_issuer(app, prefix, instance_settings)
     _configure_result_directories(app, base_dir)
     _configure_upload_limits(app)
     _configure_admin_policy(app)
     _configure_api_auth(app)
     _configure_public_portal_mode(app)
     _configure_execution_profiles(app, base_dir)
+    if instance_settings:
+        app.config["EXECUTION_PROFILE_DB_PATH"] = instance_settings.profile_db_path
+    if public_portal_mode is not None:
+        app.config["PUBLIC_PORTAL_MODE"] = public_portal_mode
     configure_estimate_version_check(app)
     app.config["PORTAL_VERSION"] = portal_version_info()
     register_public_portal_guard(app)
@@ -224,17 +234,37 @@ def create_app(prefix="", base_dir=None):
     return app
 
 
-BASE_PATH = os.getenv("BASE_PATH")
-if not BASE_PATH:
-    sys.stderr.write("ERROR: BASE_PATH environment variable is not set.\n")
-    sys.exit(1)
+def create_instance_app(surface="public"):
+    """Use the same instance definition for public and authenticated Console surfaces."""
+    if surface not in {"public", "console"}:
+        raise ValueError("surface must be public or console")
+    settings = resolve_instance_settings()
+    prefix = settings.url_prefix + ("/console" if surface == "console" else "")
+    return create_app(
+        prefix=prefix,
+        base_dir=settings.data_dir,
+        instance_settings=settings,
+        public_portal_mode=surface == "public",
+    )
 
 
-app = create_app(prefix="", base_dir=os.path.join(BASE_PATH, "main"))
-app_dev = create_app(prefix="/dev", base_dir=os.path.join(BASE_PATH, "dev1"))
+def __getattr__(name):
+    """Keep legacy WSGI names without initializing unrelated instances on import."""
+    if name not in {"app", "app_dev"}:
+        raise AttributeError(name)
+    root = os.environ.get("BASE_PATH")
+    if not root:
+        raise RuntimeError("BASE_PATH must be specified for legacy WSGI applications")
+    instance = "main" if name == "app" else "dev1"
+    application = create_app(
+        prefix="" if name == "app" else "/dev",
+        base_dir=os.path.join(root, instance),
+    )
+    globals()[name] = application
+    return application
 
 
 if __name__ == "__main__":
     host = os.environ.get("RESULT_SERVER_HOST", "127.0.0.1")
     port = int(os.environ.get("RESULT_SERVER_PORT", "8800"))
-    app.run(host=host, port=port)
+    __getattr__("app").run(host=host, port=port)

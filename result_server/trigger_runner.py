@@ -18,6 +18,7 @@ try:
     from utils.budget_registry import RegistryError
     from utils.encrypted_sqlite import EncryptedDatabaseError
     from utils.execution_profiles import ExecutionProfileStore
+    from utils.instance_config import resolve_instance_settings
     from utils.gitlab_pipeline import (
         GitLabPipelinePlan,
         build_profile_pipeline_plan,
@@ -30,6 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - supports python -m result_serv
     from result_server.utils.budget_registry import RegistryError
     from result_server.utils.encrypted_sqlite import EncryptedDatabaseError
     from result_server.utils.execution_profiles import ExecutionProfileStore
+    from result_server.utils.instance_config import resolve_instance_settings
     from result_server.utils.gitlab_pipeline import (
         GitLabPipelinePlan,
         build_profile_pipeline_plan,
@@ -649,7 +651,7 @@ def _evaluation_to_dict(evaluation: TriggerEvaluation) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run CX Portal trigger definitions.")
-    parser.add_argument("--db", required=True, help="Path to cx_portal.sqlite3")
+    parser.add_argument("--db", help="Profile DB override; otherwise use the instance environment")
     parser.add_argument("--dry-run", action="store_true", help="Evaluate without submitting GitLab pipelines")
     parser.add_argument("--submit", action="store_true", help="Submit due/changed triggers")
     parser.add_argument(
@@ -685,8 +687,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.submit and args.dry_run:
         parser.error("--submit and --dry-run are mutually exclusive")
 
+    db_path = args.db
+    if not db_path:
+        try:
+            db_path = resolve_instance_settings().profile_db_path
+        except ValueError as error:
+            parser.error(str(error))
+
     evaluations = run_triggers(
-        db_path=args.db,
+        db_path=db_path,
         dry_run=not args.submit,
         result_server_url=args.result_server_url,
         record_observations=args.record_observations,
