@@ -208,7 +208,7 @@ def test_deployment_examples_are_scoped_and_not_installers():
     collector.read(directory / "collector.service.example")
     assert "EnvironmentFile" not in collector["Service"]
     assert "collector_cli.py collect --config" in collector["Service"]["ExecStart"]
-    assert "SSL_CERT_FILE" in collector["Service"]["Environment"]
+    assert "SSL_CERT_FILE" not in collector["Service"]["Environment"]
     env = {}
     for line in (directory / "receiver.env.example").read_text().splitlines():
         if line and not line.startswith("#"):

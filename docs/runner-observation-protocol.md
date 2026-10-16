@@ -154,6 +154,9 @@ command or creating a scheduled job.
   The endpoint must be the exact HTTPS observation API URL, including any console
   prefix. It is never inferred from a Result Server default. Credentials, query
   strings, fragments and path traversal are not allowed in the endpoint.
+  Optional `ca_file=...` adds a CA file to this delivery context only, without
+  changing environment variables or GitLab TLS contexts. Omission preserves
+  the default trust behavior; missing or invalid CA content fails before HTTP.
 - Create a dedicated private state directory (owner-only mode 700), then call
   `DeliveryState(directory, policy, endpoint).initialize()` once. Initialization
   never overwrites existing state. Missing or corrupt state on a later run stops
@@ -230,6 +233,7 @@ Example (all paths and hosts are placeholders):
   "endpoint": "https://cx.example.org/console/api/v1/runner-observations",
   "state_directory": "/example/collector-state",
   "key_file": "/example/credentials/cx.key",
+  "delivery_ca_file": "/example/credentials/receiver-ca.crt",
   "targets": [{
     "target_id": "example",
     "server_id": "example-server",
@@ -248,6 +252,15 @@ relative credential paths and use of the delivery key path as a GitLab token
 path are rejected. Optional `runner_types` defaults to all supported types.
 Keep delivery and GitLab credentials distinct and use read-only GitLab tokens;
 see [runner monitoring](guides/runner-monitoring.md).
+
+Optional `delivery_ca_file` must be an absolute CA-file path; omit it to keep
+default TLS trust. `init` validates its path without opening it. Delivery loads
+the file into a fresh verified TLS context in addition to default trust, never
+into GitLab's context or the process environment. A missing or invalid CA stops
+delivery with `delivery_tls_failed`; it does not fall back to sending without
+the configured CA. Do not configure a receiver-only `SSL_CERT_FILE` globally,
+as it also changes certificate trust for GitLab requests. This option is a
+transport setting, not part of the source/generation or pending batch identity.
 
 After provisioning a private trial directory/configuration and obtaining
 permission for the endpoints, the explicit commands are:

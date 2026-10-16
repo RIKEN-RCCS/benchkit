@@ -85,8 +85,11 @@ requests without initializing storage or treating delivery as acknowledged.
 Use the existing [Collector CLI](../runner-observation-protocol.md) with an
 absolute private configuration path. Set the endpoint to the receiver's exact
 HTTPS prefix plus `/api/v1/runner-observations`. If using a deployment-specific
-CA, expose `SSL_CERT_FILE` only to the Collector process; do not disable TLS
-verification or change the machine-wide trust store.
+CA, set the optional `delivery_ca_file` absolute path in the Collector JSON
+configuration. It adds trust only to the delivery connection, keeping GitLab GETs
+on their existing TLS trust settings. Do not set a receiver-only `SSL_CERT_FILE`
+for the whole Collector: that can replace public CA trust needed by GitLab.
+Do not disable TLS verification or change the machine-wide trust store.
 
 State initialization remains a separate approved operation. The service template
 only calls `collect`; it cannot initialize/reset state or change generation.

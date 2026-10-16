@@ -4,8 +4,10 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from io import BytesIO
 import json
+import os
 from pathlib import Path
 import socket
+import ssl
 import subprocess
 import sys
 
@@ -17,6 +19,7 @@ from collector import cli, collection, config, delivery, gitlab, transport  # no
 from collector.errors import DeliveryError  # noqa: E402
 from utils.runner_observation_protocol import apply_batch  # noqa: E402
 from test_runner_observation_protocol import NOW, GENERATION, policy, target, batch, raw, runner, summary  # noqa: E402
+from test_runner_observation_delivery import tls_certificate, memory_handshake  # noqa: E402, F401
 
 ENDPOINT = "https://cx.example.org/console/api/v1/runner-observations"
 
@@ -149,6 +152,7 @@ def test_config_explicit_and_init_does_not_read_keys(configuration, monkeypatch)
     monkeypatch.setenv("RESULT_SERVER_GITLAB_TARGETS", "unrelated")
     settings = config.load_configuration(path)
     assert settings.policy == policy() and not settings.key_file.exists()
+    assert settings.delivery_ca_file is None
     assert cli.main(["init", "--config", str(path)]) == 0
     assert (spool / "delivery.json").exists() and not settings.key_file.exists()
 
@@ -184,6 +188,40 @@ def test_unsafe_config_file_rejected(configuration, change):
         config.load_configuration(path)
 
 
+def test_delivery_ca_config_init_and_cli_forwarding(configuration, monkeypatch):
+    path, value, spool = configuration
+    ca = path.parent / "receiver-ca.crt"
+    value["delivery_ca_file"] = str(ca)
+    path.write_text(json.dumps(value))
+    settings = config.load_configuration(path)
+    assert settings.delivery_ca_file == ca and not ca.exists()
+    assert cli.main(["init", "--config", str(path)]) == 0
+    before = (spool / "delivery.json").read_bytes()
+    calls = []
+    def sender(endpoint, key, *, ca_file):
+        assert endpoint == ENDPOINT and key == settings.key_file and ca_file == ca
+        calls.append(ca_file)
+        return object()
+    monkeypatch.setattr(cli, "HTTPSDelivery", sender)
+    monkeypatch.setattr(cli, "run_once", lambda *_args: "acknowledged")
+    assert cli.main(["collect", "--config", str(path)]) == 0
+    assert calls == [ca] and (spool / "delivery.json").read_bytes() == before
+    del value["delivery_ca_file"]
+    path.write_text(json.dumps(value))
+    assert config.load_configuration(path).delivery_ca_file is None
+    assert (spool / "delivery.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("value", [None, "", "relative.crt", "/unused/../ca.crt", "/unused/ca\n.crt", False, []])
+def test_delivery_ca_invalid_config_before_init(configuration, value, capsys):
+    path, contents, spool = configuration
+    contents["delivery_ca_file"] = value
+    path.write_text(json.dumps(contents))
+    assert cli.main(["init", "--config", str(path)]) == 1
+    assert capsys.readouterr().out == "Collector operation failed: invalid_collector_configuration\n"
+    assert not list(spool.iterdir())
+
+
 def test_cli_new_collection_then_lost_ack_replay_without_gitlab(configuration, monkeypatch, capsys):
     path, _, spool = configuration
     assert cli.main(["init", "--config", str(path)]) == 0
@@ -193,7 +231,7 @@ def test_cli_new_collection_then_lost_ack_replay_without_gitlab(configuration, m
         assert targets[0].id == "first"
         return raw(batch(sequence))
     class Sender:
-        def __init__(self, endpoint, _key): self.endpoint = endpoint
+        def __init__(self, endpoint, _key, *, ca_file=None): self.endpoint = endpoint
         def send(self, data, *, timeout):
             nonlocal snapshot
             update = apply_batch(snapshot, data, policy(), received_at=NOW)
@@ -283,9 +321,17 @@ def test_duplicate_managers_is_failure_not_complete_success(credential, monkeypa
         client.managers(7)
 
 
-def test_full_cli_real_adapter_and_clients_with_fake_http(configuration, credential, monkeypatch):
+@pytest.mark.parametrize("use_ca", [False, True])
+def test_full_cli_real_adapter_and_clients_with_fake_http(configuration, credential, monkeypatch, request, use_ca):
     from test_runner_observation_delivery import HTTPResponse
     path, value, spool = configuration
+    ca, server = request.getfixturevalue("tls_certificate") if use_ca else (None, None)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    environment = dict(os.environ)
+    if use_ca:
+        value["delivery_ca_file"] = str(ca)
+        path.write_text(json.dumps(value))
     key = Path(value["key_file"])
     key.write_text("synthetic-cx-collector-key-not-secret-1234")
     key.chmod(0o600)
@@ -313,8 +359,21 @@ def test_full_cli_real_adapter_and_clients_with_fake_http(configuration, credent
                 raise OSError("synthetic lost response")
             assert not update.changed and update.acknowledgement["status"] == "duplicate"
             return HTTPResponse(raw(update.acknowledgement))
-    monkeypatch.setattr(gitlab, "build_opener", lambda *_handlers: GitLab())
-    monkeypatch.setattr(transport, "build_opener", lambda *_handlers: CX())
+    def gitlab_opener(*handlers):
+        assert not any(isinstance(handler, transport.HTTPSHandler) for handler in handlers)
+        if use_ca:
+            with pytest.raises(ssl.SSLCertVerificationError):
+                memory_handshake(ssl.create_default_context(), server)
+        assert dict(os.environ) == environment
+        return GitLab()
+    def cx_opener(*handlers):
+        context = next(handler._context for handler in handlers if isinstance(handler, transport.HTTPSHandler))
+        if use_ca:
+            memory_handshake(context, server)
+        assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+        return CX()
+    monkeypatch.setattr(gitlab, "build_opener", gitlab_opener)
+    monkeypatch.setattr(transport, "build_opener", cx_opener)
     def run(*args):
         return delivery.run_once(*args, sleep=lambda _seconds: None)
     monkeypatch.setattr(cli, "run_once", run)
@@ -325,6 +384,7 @@ def test_full_cli_real_adapter_and_clients_with_fake_http(configuration, credent
     assert state["next_sequence"] == 2 and state["pending"] is None
     assert len(snapshot["runners"]) == 1 and len(snapshot["targets"]) == 1
     assert "synthetic" not in json.dumps(snapshot) + json.dumps(state)
+    assert dict(os.environ) == environment
 
 
 def test_empty_inventory_is_complete_not_failure(monkeypatch):

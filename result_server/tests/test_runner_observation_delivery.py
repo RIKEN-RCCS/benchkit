@@ -8,6 +8,7 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
 import ssl
 import subprocess
@@ -351,6 +352,109 @@ def test_dedicated_post_and_verified_tls(key_file, monkeypatch):
 def test_invalid_endpoint_never_reads_key(endpoint):
     with pytest.raises(DeliveryError, match="invalid_delivery_endpoint"):
         transport.HTTPSDelivery(endpoint, "/unused/fixture")
+
+
+@pytest.mark.parametrize("ca", ["", "relative.crt", "/unused/../ca.crt", "/unused/ca\n.crt", False])
+def test_delivery_ca_path_rejected_before_key_read(monkeypatch, ca):
+    monkeypatch.setattr(transport, "read_delivery_key", lambda *_args: pytest.fail("no credential read"))
+    with pytest.raises(DeliveryError, match="^invalid_delivery_ca_file$"):
+        transport.HTTPSDelivery(ENDPOINT, "/unused/key", ca_file=ca)
+
+
+@pytest.mark.parametrize("kind", ["missing", "invalid", "directory"])
+def test_delivery_ca_failure_stops_before_http(key_file, tmp_path, monkeypatch, kind):
+    ca = tmp_path / "ca.pem"
+    if kind == "invalid": ca.write_text("not a certificate; synthetic private detail")
+    if kind == "directory": ca.mkdir()
+    monkeypatch.setattr(transport, "build_opener", lambda *_args: pytest.fail("no HTTP before valid CA"))
+    with pytest.raises(DeliveryError, match="^delivery_tls_failed$"):
+        transport.HTTPSDelivery(ENDPOINT, key_file, ca_file=ca).send(b"fixture", timeout=20)
+
+
+@pytest.fixture
+def tls_certificate(tmp_path):
+    openssl = shutil.which("openssl")
+    if not openssl:
+        pytest.skip("OpenSSL executable required for synthetic in-memory TLS handshake")
+    certificate, key = tmp_path / "ca.pem", tmp_path / "server.key"
+    result = subprocess.run([
+        openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+        "-keyout", str(key), "-out", str(certificate), "-subj", "/CN=delivery.example.org",
+        "-addext", "subjectAltName=DNS:delivery.example.org",
+        "-addext", "basicConstraints=critical,CA:TRUE",
+        "-addext", "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign",
+        "-addext", "extendedKeyUsage=serverAuth",
+    ], capture_output=True, timeout=30)
+    assert result.returncode == 0, "synthetic certificate generation failed"
+    key.chmod(0o600)
+    server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server.load_cert_chain(certificate, key)
+    return certificate, server
+
+
+def memory_handshake(context, server_context, hostname="delivery.example.org"):
+    client_in, client_out, server_in, server_out = (ssl.MemoryBIO() for _ in range(4))
+    client = context.wrap_bio(client_in, client_out, server_hostname=hostname)
+    server = server_context.wrap_bio(server_in, server_out, server_side=True)
+    completed = set()
+    for _ in range(20):
+        for name, connection in (("client", client), ("server", server)):
+            if name not in completed:
+                try:
+                    connection.do_handshake()
+                    completed.add(name)
+                except ssl.SSLWantReadError:
+                    pass
+        if client_out.pending: server_in.write(client_out.read())
+        if server_out.pending: client_in.write(server_out.read())
+        if len(completed) == 2:
+            return
+    pytest.fail("in-memory TLS handshake did not finish")
+
+
+def test_delivery_ca_only_adds_trust_to_its_context(key_file, tls_certificate, monkeypatch):
+    ca, server = tls_certificate
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    before = dict(os.environ)
+    defaults = ssl.create_default_context().get_ca_certs(binary_form=True)
+    sender = transport.HTTPSDelivery(ENDPOINT, key_file, ca_file=ca)
+    context = sender._tls_context()
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+    assert set(defaults) <= set(context.get_ca_certs(binary_form=True))
+    memory_handshake(context, server)
+    with pytest.raises(ssl.SSLCertVerificationError):
+        memory_handshake(context, server, hostname="wrong.example.org")
+    with pytest.raises(ssl.SSLCertVerificationError):
+        memory_handshake(ssl.create_default_context(), server)
+    assert dict(os.environ) == before
+
+
+def test_delivery_ca_reaches_only_post_handler(key_file, tls_certificate, monkeypatch):
+    ca, server = tls_certificate
+    calls = opener(monkeypatch, HTTPResponse())
+    original = transport.build_opener
+    def build(*handlers):
+        context = next(h._context for h in handlers if isinstance(h, transport.HTTPSHandler))
+        memory_handshake(context, server)
+        return original(*handlers)
+    monkeypatch.setattr(transport, "build_opener", build)
+    assert transport.HTTPSDelivery(ENDPOINT, key_file, ca_file=ca).send(b"fixture", timeout=20).status == 200
+    assert len(calls) == 1 and calls[0][0].method == "POST"
+
+
+def test_delivery_ca_repair_replays_same_pending_batch(spool, key_file, tls_certificate, monkeypatch):
+    ca, _server = tls_certificate
+    sender = transport.HTTPSDelivery(ENDPOINT, key_file, ca_file=ca.with_name("missing.pem"))
+    calls = opener(monkeypatch, HTTPResponse(ack().body))
+    with pytest.raises(DeliveryError, match="^delivery_tls_failed$"):
+        run(spool, sender)
+    before = load(spool)
+    assert before["pending"] is not None and before["next_sequence"] == 1 and not calls
+    repaired = transport.HTTPSDelivery(ENDPOINT, key_file, ca_file=ca)
+    assert run(spool, repaired, no_collect) == "acknowledged"
+    assert calls[0][0].data == before["pending"].encode()
+    assert load(spool)["next_sequence"] == 2 and load(spool)["pending"] is None
 
 
 @pytest.mark.parametrize("kind", ["mode", "symlink", "value"])
