@@ -48,7 +48,7 @@ def checks(tmp_path):
                     data['calls'].append(args)
                 stream.seek(0); json.dump(data, stream); stream.truncate()
         update(1)
-        time.sleep(0.05)
+        time.sleep(float(os.environ["CHECK_DELAY"]))
         update(-1)
         raise SystemExit(int(os.environ.get('FAIL_CODE', '0')) if args[4] == os.environ.get('FAIL_FILE') else 0)
     '''))
@@ -69,7 +69,7 @@ def checks(tmp_path):
     changed = tmp_path / "changed"
     changed.write_bytes(b"")
     env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
-               CHECK_STATE=str(state), CHANGED_FILES=str(changed), GITHUB_BASE_REF="develop",
+               CHECK_STATE=str(state), CHECK_DELAY="0", CHANGED_FILES=str(changed), GITHUB_BASE_REF="develop",
                SHARD_INDEX="0", SHARD_COUNT="3", GITHUB_OUTPUT=str(tmp_path / "outputs"))
     return tmp_path, state, changed, env
 
@@ -109,7 +109,8 @@ def execute(checks, warning=False):
 
 @pytest.mark.parametrize("warning", [False, True])
 def test_each_file_is_checked_once_with_at_most_two_processes(checks, warning):
-    root, state, changed, _ = checks
+    root, state, changed, env = checks
+    env["CHECK_DELAY"] = "0.05"
     names = ["programs/first/plain.sh", "programs/first/space name.sh", "programs/second/line\nbreak.sh"]
     if not warning:
         names += ["scripts/helper.sh", "benchpark-bridge/scripts/bridge.sh"]

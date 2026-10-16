@@ -52,7 +52,6 @@ jobs:
 
       - name: Install result_server test dependencies
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -r requirements-result-server.txt
 
       - name: Run site configuration preflight
