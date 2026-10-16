@@ -46,7 +46,7 @@ SBD source clone into `artifacts/` by `build.sh` (see
 `BK_SBD_INPUT_DIR` when a project-storage copy is preferred.
 
 The DGX Spark route uses the H2O `1em5` input (about 30.4 million product
-determinants), the Thrust backend with `cc120`, NVHPC/HPC-X CUDA 13 `26.3`,
+determinants), eight host threads, the Thrust backend with `cc120`, NVHPC/HPC-X CUDA 13 `26.3`,
 and one MPI rank on the single GB10 GPU. The larger `1em7` case reaches about
 98 GB before its first Davidson iteration and is killed by the 128 GB node's
 memory limit. `1em5` retains a substantial GPU workload while leaving enough
@@ -57,7 +57,7 @@ their remaining rank factor becomes SBD's implicit Hamiltonian communicator.
 
 The R-CCS Cloud GH200 route uses the H2O `1em6` input (about 191 million
 product determinants), the Thrust backend with `cc90`, NVHPC/HPC-X CUDA 13
-`26.9`, and one MPI rank on its unified Grace Hopper superchip. No Slurm GPU
+`26.9`, eight host threads, and one MPI rank on its unified Grace Hopper superchip. No Slurm GPU
 request is made because `qc-gh200` exposes its single GPU as part of the node.
 NCCL is disabled for the single-rank case.
 
