@@ -95,7 +95,12 @@ if [[ -z "$env_file" ]]; then
   env_file="$HOME/.config/fncx/$site.env"
 fi
 
-[[ -d "$repo_dir/.git" ]] || die "--repo-dir must point at a Benchkit checkout"
+# Linked worktrees have a .git file rather than a directory. Ask Git, and
+# retain the requirement that --repo-dir names the checkout root.
+repo_top=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null) || \
+  die "--repo-dir must point at a Benchkit checkout"
+[[ "$(cd -- "$repo_dir" && pwd -P)" == "$(cd -- "$repo_top" && pwd -P)" ]] || \
+  die "--repo-dir must point at a Benchkit checkout root"
 [[ -x "$venv_dir/bin/python" ]] || die "Python not found: $venv_dir/bin/python"
 [[ -f "$db_path" ]] || die "DB not found: $db_path"
 [[ -f "$env_file" ]] || die "EnvironmentFile not found: $env_file"
