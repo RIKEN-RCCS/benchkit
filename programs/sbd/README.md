@@ -130,19 +130,24 @@ the existing CPU route. The initial ten-minute configuration uses
 site-default memory and is enabled after direct Slurm and Jacamar validation.
 
 
-## Flow2 Type II preparation
+## Flow2 Type II CPU execution
 
-The proposed native ARM CPU route uses GNU C++17 through the existing
-HPC-X MPI wrapper (`OMPI_CXX=g++`), GNU OpenMP, and NVPL from NVHPC 26.5.
-CMake 4.4.3 selects NVPL LP64 (32-bit BLAS/LAPACK integers) and sequential
-BLAS/LAPACK, keeping threading in SBD's OpenMP regions. The GPU backend,
-NCCL, cuBLAS, and NVTX are disabled. MPI/PMIx libraries remain from the same
-HPC-X installation; the site's existing UCX is retained.
+The native ARM CPU route uses GNU C++17 through the existing HPC-X MPI
+wrapper (`OMPI_CXX=g++`), GNU OpenMP, and NVPL from NVHPC 26.5. CMake 4.4.3
+selects NVPL LP64 (32-bit BLAS/LAPACK integers) and sequential BLAS/LAPACK,
+keeping threading in SBD's OpenMP regions. The GPU backend, NCCL, cuBLAS,
+and NVTX are disabled. MPI/PMIx libraries remain from the same HPC-X
+installation; the site's existing UCX is retained.
 
-The initial H2O-1em4 validation plan uses t2-debug, one node, four MPI ranks
-and 18 OpenMP threads per rank, with a 30-minute limit including compilation.
-A native MPI/OpenMP and BLAS/LAPACK numerical probe must pass before SBD.
-Retain the established 1x2x2 communicator layout, calculation parameters,
-energy reference/tolerance, Davidson FOM, multiply section, toolchain and
-both actual input file records. The normal matrix row remains disabled
-until native compilation and numerical validation succeed.
+The normal matrix enables H2O-1em4 on one node with four MPI ranks,
+18 OpenMP threads per rank, and a 30-minute limit including compilation.
+The site's default queue applies. Validation used t2-debug: MPI/OpenMP,
+BLAS/LAPACK numerical probes, and per-rank library selection passed before
+SBD completed with energy `-76.2429584823075 Ha` and internal Davidson FOM
+`34.293082 s` (one run).
+
+The existing 1x2x2 communicator layout, calculation parameters, energy
+reference/tolerance, Davidson FOM, multiply section, toolchain, and both
+actual input file records are retained. Input source metadata remains a
+staged-file declaration; the observed digests and sizes identify the files
+actually used. No GPU profiling is enabled for this CPU route.
