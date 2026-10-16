@@ -279,6 +279,10 @@ CLI or CX receiver configuration changes automatically. Do not run old and new
 writers against one observation store. Generation/cursor handoff, rollback and
 isolated deployment acceptance remain separate work.
 
+The [handoff rehearsal](runner-observation-handoff.md) defines the frozen-copy
+checks, generation/cursor continuity and pre-/post-write return boundaries.
+Its synthetic SQLCipher tests are not a live migration or reset command.
+
 ## Synthetic Tests
 
 ```bash
