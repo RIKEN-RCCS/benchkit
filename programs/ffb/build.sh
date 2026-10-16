@@ -25,6 +25,7 @@ case "$system" in
     fi
     module purge
     module load nvhpc-hpcx/25.7
+    export NVHPC_CUDA_HOME="$(dirname "$(dirname "$(command -v nvcc)")")"
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
