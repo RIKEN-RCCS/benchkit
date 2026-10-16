@@ -50,43 +50,29 @@ resolve release tags to commits, update all workflow references, and verify
 pull-request checks. Push-only synchronization must also be verified after
 merge; do not start benchmark workflows merely to test an Action upgrade.
 
-## Optional Browser Tests
+## Display Checks
 
-`scripts/tests/test_result_charts_browser.py` checks the native result plots at
-desktop and mobile sizes. It is an optional developer test, not part of the
-default CI jobs or Portal runtime. Browser code is not bundled in this repository.
+Normal Python tests check template rendering, chart data serialization, escaping,
+data-table fallback markup and Version Check states without a browser. These
+checks do not execute JavaScript or validate layout and actual plotting.
+Benchkit does not select, download or maintain a dedicated test browser.
 
-Use a separate Python 3.12+ environment with the result server dependencies and
-`requirements-browser-tests.txt`. The selected browser dependency is
-[Playwright Python 1.64.0](https://pypi.org/project/playwright/1.64.0/), from PyPI.
-Its packaged `playwright/driver/package/browsers.json` selects Chromium and
-Chromium Headless Shell **156.0.8078.4**, Playwright revision **1248**;
-the installer also selects FFmpeg revision **1013**. These are Playwright build
-revisions, not Chromium source commits. The test uses the default headless shell,
-not an arbitrary system Chrome executable.
+After changing chart JavaScript, templates or related styles, manually check the
+affected views in an up-to-date browser maintained by the tester:
 
-From the repository root, with that environment active:
+- Result detail: plotted values and logarithmic X spacing, legend toggles and
+  pointer/keyboard value display; check empty, single-point and missing-value
+  cases without turning missing values into zero or connecting gaps.
+- Result comparison: multiple series and FOM timeline agree with the source data.
+- Desktop and narrow/mobile widths: charts resize, and labels, tables and long
+  Version Check names stay readable. Check the panel collapsed and expanded.
+- JavaScript disabled or the chart asset blocked: the result data table remains
+  available. Check the browser console for unexpected errors during normal use.
 
-```sh
-python -m pip install -r requirements-result-server.txt
-python -m pip install -r requirements-browser-tests.txt
-python -m playwright install --dry-run --only-shell chromium
-python -m playwright install --only-shell chromium
-python scripts/tests/test_result_charts_browser.py
-```
-
-The dry run shows the selected revisions and download URLs. The default source
-is Playwright's Microsoft-managed CDN (`cdn.playwright.dev`), with
-`playwright.download.prss.microsoft.com` among installer fallbacks. Browser
-downloads happen during test setup, not when viewing the Portal. OS libraries
-must meet the [upstream browser requirements](https://playwright.dev/python/docs/browsers);
-installing system packages is a separate administrator-controlled step.
-
-When updating Playwright, change the pin, inspect the new package's browser
-manifest and installer dry run, reinstall the corresponding browser, and rerun
-all five checks. Update the version/revision record above together. The test
-prints the actual Playwright and launched Chromium versions. Keep downloaded
-packages, browsers, and optional screenshots outside the source distribution.
+Use synthetic or authorized development data. Record the browser version, checked
+views and outcome with the change. Do not use production data or alter production
+services merely for a display check. Manual display checks are not a new
+benchmark-CI job or a prerequisite for unrelated changes.
 
 ## GitLab Secrets / GitLab secret
 
