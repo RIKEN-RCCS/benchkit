@@ -264,6 +264,47 @@ jq -e '.node_status_snapshot.summary.observed_host_count == 1 and
   .node_status_snapshot.artifact.path == "results/node_status_snapshot_run.json"' \
   "${TMP_DIR}/project/send_results_workspace/results/result0.json" >/dev/null
 
+# A missing jq must fail conversion, clear stale completion and never call sender.
+mkdir -p "${TMP_DIR}/no-jq"
+for tool in bash rm mkdir cp chmod cat; do
+  ln -s "$(command -v "$tool")" "${TMP_DIR}/no-jq/$tool"
+done
+PATH="${TMP_DIR}/no-jq" bash -c '! command -v jq'
+before=$(wc -l < "${TMP_DIR}/curl.log")
+cp "${TMP_DIR}/project/scripts/result_server/send_results.sh" "${TMP_DIR}/send-results-original.sh"
+cat > "${TMP_DIR}/project/scripts/result_server/send_results.sh" <<'EOF'
+#!/bin/bash
+printf called > "$BK_TEST_SENDER_CALLED"
+exit 99
+EOF
+export BK_TEST_SENDER_CALLED="${TMP_DIR}/sender-called"
+pushd "${TMP_DIR}/project" >/dev/null
+if PATH="${TMP_DIR}/no-jq" bash scripts/result_server/process_and_send_results.sh \
+    qws Fugaku cross build run 12345 > "${TMP_DIR}/no-jq.log" 2>&1; then
+  echo 'Conversion without jq unexpectedly succeeded' >&2
+  exit 1
+fi
+popd >/dev/null
+grep -q 'ERROR: Result conversion requires jq in PATH' "${TMP_DIR}/no-jq.log"
+test ! -e "${TMP_DIR}/project/send_results_workspace/results/.complete"
+test ! -e "${TMP_DIR}/project/send_results_workspace/results/result0.json"
+test ! -e "$BK_TEST_SENDER_CALLED"
+test "$(wc -l < "${TMP_DIR}/curl.log")" -eq "$before"
+# Direct invocation must give the same diagnostic and invalidate old completion.
+mkdir -p "${TMP_DIR}/direct/results"
+printf stale > "${TMP_DIR}/direct/results/.complete"
+pushd "${TMP_DIR}/direct" >/dev/null
+if PATH="${TMP_DIR}/no-jq" bash "${REPO_DIR}/scripts/result.sh" \
+    qws Fugaku cross build run 12345 > "${TMP_DIR}/direct-no-jq.log" 2>&1; then
+  echo 'Direct conversion without jq unexpectedly succeeded' >&2
+  exit 1
+fi
+popd >/dev/null
+grep -q 'ERROR: Result conversion requires jq in PATH' "${TMP_DIR}/direct-no-jq.log"
+test ! -e "${TMP_DIR}/direct/results/.complete"
+cp "${TMP_DIR}/send-results-original.sh" "${TMP_DIR}/project/scripts/result_server/send_results.sh"
+echo 'Missing jq conversion and sender tests passed'
+
 # Invalid new evidence must not reuse an older successful snapshot or be sent.
 chmod -R u+w "${TMP_DIR}/project/results"
 printf '%s\n' '{"record_format":"unknown"}' > "${TMP_DIR}/project/results/node_status_snapshot_run.json.capture"

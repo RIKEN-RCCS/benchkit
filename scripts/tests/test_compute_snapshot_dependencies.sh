@@ -12,7 +12,7 @@ unset -f module _module_raw 2>/dev/null || true
 
 # Assertions run on the test host; collectors see only ordinary shell utilities.
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/work"
-for tool in bash dirname basename mkdir date awk sed tr readlink sha256sum hostname uname mktemp rm getconf cat sort; do
+for tool in bash dirname basename mkdir date awk sed tr readlink sha256sum hostname uname mktemp rm getconf realpath cat sort cp mv stat find cut wc flock cmp head dd tee mkfifo; do
   ln -s "$(command -v "$tool")" "$TMP_DIR/bin/$tool"
 done
 restricted_path="$TMP_DIR/bin"
@@ -81,4 +81,19 @@ bash "$REPO_DIR/scripts/result_server/finalize_node_status_snapshot.sh" "$TMP_DI
 jq -e '.summary.observed_host_count == 1 and
   .observed.hosts[0].gpu_state.query_status == "unavailable" and
   (has("record_format") | not)' "$TMP_DIR/node.json" >/dev/null
+# Input declarations and actual file observations also work without jq/Python.
+(
+  cd "$TMP_DIR/work"
+  export PATH="$restricted_path"
+  source "$REPO_DIR/scripts/bk_functions.sh"
+  # No positional input: exercise the documented stdin form.
+  # shellcheck disable=SC2119
+  printf '{"schema_version":1,"inputs":[]}' | bk_record_input_info
+  cp results/input_info.json declaration.json
+  printf 'sample input\n' > input.dat
+  bk_record_input --file input.dat
+)
+jq -e '.schema_version == 1 and .inputs == []' "$TMP_DIR/work/declaration.json" >/dev/null
+jq -e '.inputs[-1].observation_capture.collection_status == "recorded"' \
+  "$TMP_DIR/work/results/input_info.json" >/dev/null
 echo 'Compute snapshot dependency tests passed'

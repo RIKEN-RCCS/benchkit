@@ -334,6 +334,11 @@ Typical requirements include:
 - GitLab CI runner support
 - site-specific scheduler/runtime support
 - `jq` and `curl` on the result sender, not on common build/run paths
+  (`result.sh` also requires `jq` when invoked manually on another host).
+  Common input, timing and node-state collection does not require `jq`.
+  `bk_record_input_info` checks JSON object syntax when `jq` is available;
+  input assembly and validation run on the sender in all cases. Result conversion
+  checks for `jq` before assembly and fails without sending if it is missing.
 - Python 3.12 or later for Result Server and Portal components
 - Flask-related Python packages for `result_server`
 - package-specific runtimes for external estimation tools
