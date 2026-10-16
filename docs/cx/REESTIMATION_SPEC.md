@@ -191,6 +191,43 @@ However, when those artifacts do not exist on the server:
 - `weakscaling` or artifact-free re-estimation may succeed
 - detailed re-estimation that depends on missing artifacts may terminate as `not_applicable`
 
+### 6.1 手動条件の復元 / Restored Manual Conditions
+
+When `results/reestimation_context.json` is present, the shared entrypoint reads
+`results/source_estimate.json` before calling the application estimator. It restores
+the baseline system/experiment, future system, target node counts, and requested
+current/future packages. Explicit `BK_ESTIMATION_*` settings take precedence and
+are recorded with their previous values in `reestimation.resolved_request`.
+Applied fallback packages are not substituted for missing requested packages.
+Missing required values require an explicit setting; app defaults are not used
+to reconstruct an unknown prior request.
+
+`reuse-recorded-baseline` selects the recorded current benchmark UUID and checks
+the returned UUID, system, code and experiment. To select a new baseline, set
+`reestimation_baseline_policy=select-latest-baseline`; this uses the existing
+system/code/experiment query. A UUID cannot be combined with that policy.
+Changing the baseline system or experiment while reusing a UUID requires a
+matching explicitly selected UUID, or the latest-selection policy.
+
+This initial implementation supports `scope=both`. A separate future reference
+that differs from the fetched source Result is reported as unsupported rather
+than silently replaced. Package/model versions come from the executing code;
+the old versions are not asserted to be the versions of a new execution.
+
+### 6.2 明示的な実行commit / Explicit Execution Commit
+
+Initial estimation and re-estimation share the optional
+`BK_ESTIMATION_EXPECTED_COMMIT` variable. Set it to a full 40-character commit
+SHA and start the pipeline at that same commit. The shared estimation entrypoint
+checks HEAD and rejects tracked modifications before preparing inputs or running
+the estimator. Generated input and output artifacts may remain untracked.
+Successful outputs record the checked commit in
+`estimation_execution.benchkit_commit` and `requested_commit`.
+
+This check does not select or fetch a commit, restore prior estimation conditions,
+or pin external packages and models. Without the variable, existing execution is
+unchanged. A branch name is not an acceptable substitute for the full SHA.
+
 ## 7. 現行実装と仕様のギャップ / Gaps Between Current Implementation and the Intended Specification
 
 ### 7.1 再推定取得口の仕様 / Re-Estimation Retrieval Interfaces
@@ -328,43 +365,6 @@ Current restoration should follow this flow:
 5. require runner authentication; distinguish HTTP 404 (not stored) from authentication or transport failures (preparation failed). The estimation package decides applicability when inputs are genuinely missing
 
 ## 9. 次の実装候補 / Next Implementation Candidates
-
-### Restored manual conditions
-
-When `results/reestimation_context.json` is present, the shared entrypoint reads
-`results/source_estimate.json` before calling the application estimator. It restores
-the baseline system/experiment, future system, target node counts, and requested
-current/future packages. Explicit `BK_ESTIMATION_*` settings take precedence and
-are recorded with their previous values in `reestimation.resolved_request`.
-Applied fallback packages are not substituted for missing requested packages.
-Missing required values require an explicit setting; app defaults are not used
-to reconstruct an unknown prior request.
-
-`reuse-recorded-baseline` selects the recorded current benchmark UUID and checks
-the returned UUID, system, code and experiment. To select a new baseline, set
-`reestimation_baseline_policy=select-latest-baseline`; this uses the existing
-system/code/experiment query. A UUID cannot be combined with that policy.
-Changing the baseline system or experiment while reusing a UUID requires a
-matching explicitly selected UUID, or the latest-selection policy.
-
-This initial implementation supports `scope=both`. A separate future reference
-that differs from the fetched source Result is reported as unsupported rather
-than silently replaced. Package/model versions come from the executing code;
-the old versions are not asserted to be the versions of a new execution.
-
-### Explicit execution commit
-
-Initial estimation and re-estimation share the optional
-`BK_ESTIMATION_EXPECTED_COMMIT` variable. Set it to a full 40-character commit
-SHA and start the pipeline at that same commit. The shared estimation entrypoint
-checks HEAD and rejects tracked modifications before preparing inputs or running
-the estimator. Generated input and output artifacts may remain untracked.
-Successful outputs record the checked commit in
-`estimation_execution.benchkit_commit` and `requested_commit`.
-
-This check does not select or fetch a commit, restore prior estimation conditions,
-or pin external packages and models. Without the variable, existing execution is
-unchanged. A branch name is not an acceptable substitute for the full SHA.
 
 次に候補となる実装は以下である。
 
