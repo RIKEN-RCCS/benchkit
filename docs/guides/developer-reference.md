@@ -68,6 +68,10 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 
 ## Result Portal
 
+The experimental [runner observation protocol core](../runner-observation-protocol.md)
+provides pure validation and snapshot updates only. It does not enable a new
+HTTP endpoint or change the existing collector and encrypted storage.
+
 ### Overview
 
 `result_server/` provides:
