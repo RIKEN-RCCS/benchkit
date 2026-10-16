@@ -27,8 +27,7 @@ for script in programs/ffb/build.sh programs/ffb/run.sh; do
   grep -Fq 'nvhpc-hpcx/25.7' "${script}"
 done
 
-grep -Fq 'export NVHPC_CUDA_HOME=' programs/ffb/build.sh
-grep -Fq 'export NVCOMPILER_COMM_LIBS_HOME=' programs/ffb/build.sh
+grep -Fq -- '-lnvToolsExt/d' programs/ffb/build.sh
 for script in \
   programs/genesis/build.sh programs/genesis/run.sh \
   programs/salmon/build.sh programs/salmon/run.sh \
