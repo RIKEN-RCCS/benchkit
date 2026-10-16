@@ -21,7 +21,7 @@ def main(argv=None):
             DeliveryState(config.state_directory, config.policy, config.endpoint).initialize()
             print("Collector state initialized")
         else:
-            sender = HTTPSDelivery(config.endpoint, config.key_file)
+            sender = HTTPSDelivery(config.endpoint, config.key_file, ca_file=config.delivery_ca_file)
             result = run_once(config.state_directory, config.policy, sender,
                               lambda seq: collect_batch(config.policy, config.targets, seq))
             print("Collector delivery: " + result)

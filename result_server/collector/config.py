@@ -18,6 +18,7 @@ class Configuration:
     state_directory: Path = field(repr=False)
     key_file: Path = field(repr=False)
     targets: tuple[MonitorTarget, ...] = field(repr=False)
+    delivery_ca_file: Path | None = field(default=None, repr=False)
 
 
 def _path(value):
@@ -31,7 +32,7 @@ def load_configuration(path):
         path = _path(str(path))
         with private_directory(path.parent) as directory:
             value = json.loads(_read(directory, path.name, 1024 * 1024), object_pairs_hook=_object)
-        if (not isinstance(value, dict) or set(value) != {
+        if (not isinstance(value, dict) or set(value) - {"delivery_ca_file"} != {
                 "schema_version", "collector_id", "source_id", "generation", "endpoint",
                 "state_directory", "key_file", "targets"}
                 or type(value["schema_version"]) is not int or value["schema_version"] != 1
@@ -55,8 +56,11 @@ def load_configuration(path):
             targets.append(target)
             specs.append(TargetSpec(target.id, item["server_id"], target.server, target.project, target.runner_types))
         policy = SourcePolicy(value["collector_id"], value["source_id"], value["generation"], tuple(specs))
+        ca_file = _path(value["delivery_ca_file"]) if "delivery_ca_file" in value else None
+        if ca_file is not None and any(ord(c) < 32 for c in str(ca_file)):
+            raise ValueError
         return Configuration(policy, validate_endpoint(value["endpoint"]), _path(value["state_directory"]),
-                             key, tuple(targets))
+                             key, tuple(targets), ca_file)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError,
             DeliveryError, ObservationError):
         raise DeliveryError("invalid_collector_configuration") from None

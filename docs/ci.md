@@ -52,6 +52,12 @@ merge; do not start benchmark workflows merely to test an Action upgrade.
 
 ## Result Server Test Parallelism / Result Serverテストの並列化
 
+Collector TLS regression tests generate short-lived synthetic certificates with
+the OpenSSL executable and perform handshakes through Python `ssl.MemoryBIO`,
+without opening network listeners or using deployed credentials. These tests
+skip explicitly if the executable is unavailable; transport/configuration tests
+still run. This is a test-only prerequisite, not a Collector runtime dependency.
+
 The full pytest suite runs in two file shards for each Python version. Files are
 assigned deterministically by size to balance work, and each job retains two
 workers with `--dist loadfile`. New test files enter the partition automatically;
