@@ -75,3 +75,35 @@ def test_failed_attempt_discards_previous_aligned_prediction(tmp_path, monkeypat
     with pytest.raises(ValueError, match='wide NCU CSV'):
         adapter.main()
     assert not output.exists()
+
+
+def test_mixed_process_profile_needs_explicit_selection():
+    frame = pd.DataFrame({'Process ID': [100, 200, 100], 'value': [1, 2, 3]})
+    with pytest.raises(ValueError, match='representative'):
+        adapter.select_process(frame)
+    selected, sampling = adapter.select_process(frame, '100')
+    assert selected['value'].tolist() == [1, 3]
+    assert sampling['process_id'] == '100'
+    assert sampling['mpi_rank'] is None  # A PID is not an MPI rank number.
+    assert sampling['available_process_ids'] == ['100', '200']
+    with pytest.raises(ValueError, match='not present'):
+        adapter.select_process(frame, '999')
+
+
+def test_single_process_and_preselected_input_without_pid():
+    frame = pd.DataFrame({'Process ID': [100., 100.], 'value': [1, 2]})
+    selected, sampling = adapter.select_process(frame)
+    assert len(selected) == 2 and sampling['selection'] == 'single_process_input'
+    selected, sampling = adapter.select_process(frame.drop(columns=['Process ID']))
+    assert sampling['selection'] == 'preselected_input' and sampling['process_id'] is None
+    with pytest.raises(ValueError, match='no Process ID'):
+        adapter.select_process(frame.drop(columns=['Process ID']), '100')
+
+
+def test_sample_counts_follow_the_upstream_configuration_order():
+    frame = pd.DataFrame({'Kernel Name': ['same'] * 3, 'Grid Size': [20, 10, 10],
+                          'Block Size': [256, 128, 128]})
+    features, _ = evidence()
+    assert adapter.configuration_counts(frame, features).tolist() == [2, 1]
+    with pytest.raises(ValueError, match='identities'):
+        adapter.configuration_counts(frame, features.iloc[:1])

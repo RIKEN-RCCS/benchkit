@@ -61,6 +61,44 @@ def normalize(frame):
     return frame, notes
 
 
+def select_process(frame, requested=""):
+    """Select an explicitly identified sample, never infer MPI rank from a PID."""
+    if "Process ID" not in frame:
+        if requested:
+            raise ValueError("Cannot select a process: input has no Process ID column")
+        return frame.copy(), {"selection": "preselected_input", "process_id": None,
+                              "available_process_ids": [], "mpi_rank": None}
+    ids = frame["Process ID"].astype("string").str.replace(r"\.0$", "", regex=True)
+    available = sorted(ids.dropna().unique().tolist())
+    requested = requested.removesuffix(".0")
+    if not requested:
+        if len(available) != 1 or ids.isna().any():
+            raise ValueError("Multiple or unknown processes: select a representative with "
+                             "BK_GPU_LIGHTGBM_PROFILE_PROCESS_ID (or --profile-process-id)")
+        requested = available[0]
+        selection = "single_process_input"
+    else:
+        selection = "explicit_process_id"
+    if requested not in available:
+        raise ValueError("Selected profile process is not present in the input")
+    return frame.loc[ids == requested].copy(), {
+        "selection": selection, "process_id": requested,
+        "available_process_ids": available, "mpi_rank": None,
+    }
+
+
+def configuration_counts(frame, features):
+    keys = ["Kernel Name", "Grid Size", "Block Size"]
+    grouped = frame.groupby(keys, as_index=False).size()
+    names = grouped["Kernel Name"].str.replace(r"^\d+\s+", "", regex=True)
+    if len(grouped) != len(features) or names.tolist() != features["meta-kernel"].tolist():
+        raise ValueError("Grouped sample identities do not match inference features")
+    for raw, feature in [("Grid Size", "I-kcfg::Grid Size"), ("Block Size", "I-kcfg::Block Size")]:
+        if not np.allclose(grouped[raw], features[feature], equal_nan=False):
+            raise ValueError("Grouped sample configurations do not match inference features")
+    return grouped["size"].to_numpy()
+
+
 def align(features, prediction):
     """Both files come from the same upstream invocation and retain its row order."""
     keys = ["meta-kernel", "meta-src_gpu", "meta-tgt_gpu"]
@@ -89,6 +127,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ["model-dir", "src_gpu", "tgt_gpu", "ncu_csv", "out", "log"]:
         parser.add_argument("--" + arg, required=True)
+    parser.add_argument("--profile-process-id", default="")
     args = parser.parse_args()
     model = Path(args.model_dir).resolve()
     output = Path(args.out).resolve()
@@ -98,7 +137,8 @@ def main():
     frame = pd.read_csv(args.ncu_csv)
     if "Kernel Name" not in frame or "Metric Name" in frame:
         raise ValueError("The v1.1 adapter requires a wide NCU CSV")
-    normalized, aliases = normalize(frame)
+    selected, sampling = select_process(frame, args.profile_process_id)
+    normalized, aliases = normalize(selected)
     input_path = Path(str(output) + ".input.csv")
     normalized.to_csv(input_path, index=False)
     raw_prediction = model / "benchkit_prediction.csv"
@@ -116,7 +156,8 @@ def main():
     columns = [reverse.get(key, key) for key in expected]
     validation = {
         "model_version": "1.1", "group_by_config": True, "input_rows": len(frame),
-        "aggregation": "mean_per_kernel_grid_block", "launch_weighting": "not_applied",
+        "aggregation": "representative_sample_time_ratio", "sampling": sampling,
+        "selected_rows": len(selected), "launch_weighting": "observed_sample_count",
         "configuration_rows": len(features), "aliases": aliases,
         "missing_model_columns": [c for c in columns if c not in features],
         "nan_model_columns": {c: int(features[c].isna().sum()) for c in columns
@@ -125,6 +166,8 @@ def main():
     }
     Path(str(output) + ".validation.json").write_text(json.dumps(validation, indent=2) + "\n")
     aligned = align(features, pd.read_csv(raw_prediction))
+    aligned["benchkit-sample-count"] = configuration_counts(normalized, features)
+    aligned["benchkit-profile-process-id"] = sampling["process_id"] or ""
     aligned.to_csv(output, index=False)
 
 

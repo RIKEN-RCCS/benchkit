@@ -93,7 +93,12 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
         }
     if version == 'lightgbm' and model_version == '1.1' and mode != 'precomputed_prediction':
         adapter = Path('scripts/estimation/run_gpu_lightgbm_v11.py')
-        data['adapter'] = {'path': str(adapter), 'sha256': digest(adapter), 'group_by_config': True}
+        data['adapter'] = {'path': str(adapter), 'sha256': digest(adapter), 'group_by_config': True,
+                           'aggregation': 'representative_sample_time_ratio'}
+        validation_path = Path(prediction_csv + '.validation.json')
+        if validation_path.is_file():
+            validation = json.loads(validation_path.read_text())
+            data['adapter']['sampling'] = validation.get('sampling')
         for suffix, role in [('.features.csv', 'inference_features'), ('.input.csv', 'normalized_input'), ('.validation.json', 'feature_validation')]:
             path = Path(prediction_csv + suffix)
             if path.is_file():

@@ -549,6 +549,7 @@ else:
     source_metrics_rows = source_metrics_by_row(input_csv)
 total_source_seconds = 0.0
 source_time_count = 0
+profile_process_ids = set()
 
 for idx, row in enumerate(reader, start=1):
     predicted_ns = as_number(row.get(time_column))
@@ -563,8 +564,17 @@ for idx, row in enumerate(reader, start=1):
     if target_gpu:
         target_gpus.append(target_gpu)
 
+    sample_count = 1
+    if model_version == "1.1":
+        sample_count = as_number(row.get("benchkit-sample-count"))
+        if sample_count is None or sample_count <= 0 or not sample_count.is_integer():
+            raise SystemExit("LightGBM 1.1 prediction requires positive aligned sample counts")
+        sample_count = int(sample_count)
+        pid = row.get("benchkit-profile-process-id", "").strip()
+        if pid:
+            profile_process_ids.add(pid)
     seconds = predicted_ns / 1e9
-    total_seconds += seconds
+    total_seconds += seconds * sample_count
     if model_version == "1.1":
         source_ns = as_number(row.get("benchkit-source-time-ns"))
         if source_ns is None or source_ns <= 0:
@@ -578,7 +588,7 @@ for idx, row in enumerate(reader, start=1):
         source_metrics = source_metrics_rows[idx - 1] if idx - 1 < len(source_metrics_rows) else {}
     source_seconds = source_ns / 1e9 if source_ns is not None else None
     if source_seconds is not None:
-        total_source_seconds += source_seconds
+        total_source_seconds += source_seconds * sample_count
         source_time_count += 1
 
     metrics = {
@@ -597,6 +607,8 @@ for idx, row in enumerate(reader, start=1):
         if grid is None or block is None or grid <= 0 or block <= 0 or predicted_ns < 0:
             raise SystemExit("LightGBM 1.1 prediction requires valid aligned configuration")
         kernel["configuration"] = {"grid_size": grid, "block_size": block}
+        kernel["sample_count"] = sample_count
+        kernel["profile_process_id"] = pid or None
     if source_ns is not None:
         kernel["source_time_ns"] = source_ns
         kernel["source_time"] = source_seconds
@@ -617,6 +629,9 @@ for idx, row in enumerate(reader, start=1):
         kernel["metric_comparisons"] = comparisons
     kernels.append(kernel)
 
+if model_version == "1.1" and len(profile_process_ids) > 1:
+    raise SystemExit("LightGBM 1.1 prediction mixes representative processes")
+
 summary_metrics = {
     "kernel_count": len(kernels),
     "time_column": time_column,
@@ -625,6 +640,10 @@ summary_metrics = {
     "target_gpus": sorted(set(target_gpus)),
     "kernels": kernels,
 }
+if model_version == "1.1":
+    summary_metrics["sampling"] = {"scope": "representative_process_sample",
+                                   "process_ids": sorted(profile_process_ids),
+                                   "mpi_rank": None, "aggregation": "sample_time_ratio"}
 if source_time_column is not None:
     total_source_ns = total_source_seconds * 1e9
     summary_metrics["source_time_column"] = source_time_column
@@ -702,6 +721,9 @@ _bk_gpu_lightgbm_run_predictor() {
   local slug
   local version="${_BK_GPU_LIGHTGBM_VERSION:-1.0}"
   local adapter="${PWD}/scripts/estimation/run_gpu_lightgbm_v11.py"
+  local process_var process_id
+  process_var=$(_bk_gpu_lightgbm_section_var BK_GPU_LIGHTGBM_PROFILE_PROCESS_ID "$section_name")
+  process_id="${!process_var:-${BK_GPU_LIGHTGBM_PROFILE_PROCESS_ID:-}}"
 
   root=$(_bk_gpu_lightgbm_ensure_perftools_root) || return 1
   model_dir=$(_bk_gpu_lightgbm_model_dir "$root")
@@ -732,7 +754,7 @@ _bk_gpu_lightgbm_run_predictor() {
     cd "$scratch_root/LightGBM_model/$version" || exit 1
     local -a predictor=(AI_model/run_inference.py)
     if [[ "$version" == "1.1" ]]; then
-      predictor=("$adapter" --model-dir "$PWD")
+      predictor=("$adapter" --model-dir "$PWD" --profile-process-id "$process_id")
     fi
     "$python_bin" "${predictor[@]}" \
       --src_gpu="$source_gpu" \
@@ -822,8 +844,8 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
       else ((.name // "") == $value)
       end;
     def ratio_from_kernels($kernels):
-      ($kernels | map(.source_time_ns // null) | map(select(. != null)) | add // null) as $source_ns
-      | ($kernels | map(.predicted_time_ns // null) | map(select(. != null)) | add // null) as $predicted_ns
+      ($kernels | map(select(.source_time_ns != null) | .source_time_ns * (.sample_count // 1)) | add // null) as $source_ns
+      | ($kernels | map(select(.predicted_time_ns != null) | .predicted_time_ns * (.sample_count // 1)) | add // null) as $predicted_ns
       | if ($source_ns != null and $source_ns != 0 and $predicted_ns != null) then ($predicted_ns / $source_ns) else null end;
     . as $parsed | $item
     | ((.time // .bench_time // null) | if . == null then null else tonumber? end) as $source_section_time

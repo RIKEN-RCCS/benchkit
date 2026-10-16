@@ -24,5 +24,9 @@ bk_section_package_transform_gpu_kernel_lightgbm_v11() {
       result=$(jq -c --arg path "$path" '.artifacts += [{kind: "gpu_lightgbm_v11_evidence", path: $path}]' <<< "$result") || return 1
     fi
   done
+  if [[ -f "$prediction.validation.json" ]]; then
+    result=$(jq -c --slurpfile report "$prediction.validation.json" \
+      '.metrics.profile_sample = $report[0]' <<< "$result") || return 1
+  fi
   printf '%s\n' "$result"
 }

@@ -1,6 +1,6 @@
 {
   "name": "gpu_kernel_lightgbm_v11",
-  "version": "0.1",
+  "version": "0.2",
   "fallback_target": "identity",
   "source_system_scope": {
     "kind": "benchmark_system",
@@ -42,6 +42,7 @@
     "prediction CSV does not contain a recognized execution-time column",
     "prediction/input pair does not provide a source-kernel time ratio",
     "app-side GPU section time is not available",
-    "precomputed v1.1 prediction lacks aligned positive source times"
+    "mixed-process input has no representative process selected",
+    "precomputed v1.1 prediction lacks aligned positive source times or sample counts"
   ]
 }
