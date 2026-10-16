@@ -1,9 +1,9 @@
 # Runner Observation Protocol Core
 
-This is an experimental, storage-free core, not an enabled HTTP API. Existing
-collection, credentials, encrypted storage and console routes are unchanged.
-Transport, authentication, local delivery state and persistence are separate
-future work. See [current monitoring](guides/runner-monitoring.md) for the
+The protocol has a pure core and an experimental, opt-in CX receiver. The
+receiver is disabled by default; existing collection and credentials remain
+unchanged. Collector transport and local delivery state are separate future
+work. See [current monitoring](guides/runner-monitoring.md) for the existing
 operational interface.
 
 ## Entry Points
@@ -14,7 +14,7 @@ library. It does not import the web application, GitLab client or SQLCipher.
 - `TargetSpec` defines a target ID, stable server ID, canonical HTTPS server URL,
   project and permitted runner types.
 - `SourcePolicy` defines the collector/source IDs, active generation UUID and
-  complete set of targets. A future receiver must supply this from authenticated
+  complete set of targets. The receiver supplies this from authenticated
   configuration, never from the observation body.
 - `validate_batch(raw, policy, received_at=...)` validates UTF-8 JSON bytes and
   returns normalized data. `received_at` must be an explicit UTC datetime.
@@ -74,11 +74,71 @@ equivalent UTC timestamp spelling do not create a conflict. Receipt time does
 not refresh observation freshness. The content digest is not authentication.
 Corrupt cursor state is an error, never a fresh starting sequence.
 
-A future receiver must reload the latest snapshot inside a writer transaction,
-call this core, then commit snapshot and cursor together. Do not enable this
-alongside a legacy direct-DB writer, which does not preserve these cursors.
-Atomic persistence, encryption, concurrency, authentication and HTTP isolation
-are **not** provided or validated by this pure module.
+The receiver reloads the latest snapshot inside a writer transaction, calls this
+core, then commits snapshot and cursor together. Do not enable this alongside a
+legacy direct-DB writer, which does not preserve these cursors. The pure module
+itself does not perform authentication, HTTP handling or persistence.
+
+## Opt-In CX Receiver
+
+The dedicated receiver accepts `POST /api/v1/runner-observations` below the
+configured console prefix. It is not registered on public portals or unless
+`RESULT_SERVER_RUNNER_OBSERVATION_INGEST_ENABLED=true` (or `1`). It uses a
+separate blueprint and `collector_api` access class, not the general Result API.
+Only this machine endpoint is additionally exempted from CSRF; browser routes
+remain protected.
+
+`RESULT_SERVER_RUNNER_OBSERVATION_SOURCES` is a JSON object of permitted sources:
+
+```json
+{
+  "example-source": {
+    "collector_id": "example-collector",
+    "generation": "11111111-1111-4111-8111-111111111111",
+    "key_sha256": "<64 lowercase hexadecimal SHA-256 characters>",
+    "targets": [{"target_id": "example", "server_id": "example-server"}]
+  }
+}
+```
+
+The verifier is a placeholder, not a usable credential. Generate a high-entropy
+random, URL-safe ASCII key (32 to 256 characters), not a human password. Keep the
+plaintext key only with the collector and send it in `X-Collector-Key` over
+HTTPS. CX stores its lowercase SHA-256 verifier and uses constant-time digest
+comparison. This credential is independent of the observation database's
+encryption key. Do not log keys or include them in URLs or command arguments.
+
+Target IDs refer to the existing `RESULT_SERVER_GITLAB_TARGETS` catalog, for
+example `example=gitlab.example.org/group/project`. Server URLs and projects are
+resolved there, not repeated in the source configuration or trusted from the
+request body. Each target may also specify `runner_types`. Duplicate source
+verifiers, reuse of a configured Result API key and overlapping target/server
+ownership are rejected. Invalid active configuration returns a generic 503,
+with no fallback to other credentials.
+
+The receiver does not accept `X-API-Key`, trusted-proxy headers or browser
+sessions instead of its dedicated key; observation keys are not Result API keys.
+It does not fetch GitLab or authorize executions. After authentication, the
+existing namespace-scoped rate limiter applies (20 requests/minute per source
+by default). Required Redis failures return 503. Body size is bounded even
+without Content-Length; compressed bodies are not accepted. Responses use
+`Cache-Control: no-store` and fixed error codes, not upstream bodies or paths.
+
+The receiver uses the configured observation DB/key references from
+`RESULT_SERVER_RUNNER_MONITOR_DB_PATH` and
+`RESULT_SERVER_RUNNER_MONITOR_KEY_FILE`. Registration never opens or creates
+these files. Initialize storage through the existing explicit lifecycle only.
+Requests use `BEGIN IMMEDIATE`, read the latest state, apply the core and commit
+one encrypted snapshot row containing both data and cursor. Rejected requests
+and failed transactions do not advance the cursor. Duplicate delivery does not
+issue an UPDATE. Existing schema-1 readers can read the additional metadata;
+no automatic schema migration is performed.
+
+Activation requires stopping the legacy direct-DB collector, a current encrypted
+backup and a tested handoff/rollback plan. New writes make unconditional restore
+of an older backup unsafe. Use a separate store and credential for trials, never
+an observation DB shared with production. Merely deploying code does not enable
+this endpoint, and these tests do not constitute deployment acceptance.
 
 ## Synthetic Tests
 
@@ -92,3 +152,11 @@ multi-project identity, independent sources, replay/order, malformed data,
 bounds and corrupt cursors. I/O guards check the pure operations, and an import
 test rejects dependencies on CX modules, Flask or SQLCipher. No configuration,
 credential, live database, network service or deployed application is required.
+
+`test_runner_observation_ingest.py` tests authentication, CSRF isolation, public
+and disabled surfaces, bounded bodies and rate limiting with a fake store and
+fake Redis. `test_runner_observation_ingest_storage.py` additionally requires
+the optional SQLCipher dependency and uses synthetic keys and temporary DBs for
+round trips, duplicate delivery, rollback, competing writers and latest-cursor
+checks. Missing SQLCipher is a skip locally, not successful encryption coverage;
+the encrypted CI job requires the driver and runs these cases explicitly.

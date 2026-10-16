@@ -68,9 +68,10 @@ The supported baseline is that contributors can add apps, sites, and estimation 
 
 ## Result Portal
 
-The experimental [runner observation protocol core](../runner-observation-protocol.md)
-provides pure validation and snapshot updates only. It does not enable a new
-HTTP endpoint or change the existing collector and encrypted storage.
+The experimental [runner observation protocol](../runner-observation-protocol.md)
+has a pure core and a dedicated, opt-in CX receiver with atomic encrypted
+snapshot updates. The endpoint is disabled by default; the existing collector
+is not changed or automatically switched to API delivery.
 
 ### Overview
 

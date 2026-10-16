@@ -8,6 +8,7 @@ from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from routes.api import api_bp
+from routes.runner_observation_ingest import runner_observation_ingest_bp, register_runner_observation_ingest
 from routes.estimated import estimated_bp
 from routes.home import register_home_routes
 from routes.results import results_bp
@@ -173,6 +174,7 @@ def _register_portal_blueprints(app, prefix):
     app.register_blueprint(admin_bp, url_prefix=f"{prefix}/admin")
     register_budget_registry(app, prefix)
     register_runner_monitor(app, prefix)
+    register_runner_observation_ingest(app, prefix)
 
 
 def create_app(prefix="", base_dir=None, *, instance_settings=None, public_portal_mode=None):
@@ -214,7 +216,7 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     configure_estimate_version_check(app)
     app.config["PORTAL_VERSION"] = portal_version_info()
     register_public_portal_guard(app)
-    init_csrf(app, exempt_blueprints=(api_bp,))
+    init_csrf(app, exempt_blueprints=(api_bp, runner_observation_ingest_bp))
 
     register_home_routes(app, prefix=prefix)
     _register_portal_blueprints(app, prefix)
