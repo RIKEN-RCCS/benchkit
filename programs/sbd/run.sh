@@ -19,10 +19,14 @@ mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
 
 case "${system}" in
-  Camphor3|Flow2_Type1)
+  Camphor3|Flow2_Type1|Flow2_Type2)
     [[ "$nodes" = 1 && "$n_ranks" = 4 ]] || { echo "$system H2O validation requires four ranks on one node" >&2; exit 1; }
     if [[ "$system" == "Camphor3" ]]; then
       module switch PrgEnvIntel PrgEnvIntel/2023
+    elif [[ "$system" == "Flow2_Type2" ]]; then
+      module purge
+      module load nvhpc/26.5 nv-hpcx/26.5
+      source "$BK_BENCHKIT_ROOT/programs/sbd/flow2_type2_env.sh"
     else
       module purge
       module load oneapi/2026.1.0 impi/2021.18
@@ -141,6 +145,10 @@ if [[ "${system}" == "Camphor3" ]]; then
 elif [[ "${system}" == "Flow2_Type1" ]]; then
   export MKL_NUM_THREADS=1
   bk_run --log diag.log -- mpirun -np "${n_ranks}" ./diag "${diag_args[@]}"
+elif [[ "${system}" == "Flow2_Type2" ]]; then
+  export OMP_DYNAMIC=false OMP_PLACES=cores OMP_PROC_BIND=close
+  bk_run --log diag.log -- mpirun -n "$n_ranks" --bind-to core \
+    --map-by "ppr:${numproc_node}:node:PE=${nthreads}" ./diag "${diag_args[@]}"
 elif [[ "${system}" == "RC_FX700" ]]; then
   bk_run --log diag.log -- \
     mpirun -np "${n_ranks}" -bind-to numa ./diag "${diag_args[@]}"

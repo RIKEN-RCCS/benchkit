@@ -14,6 +14,28 @@ bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${SBD_BRANCH:-main}" "${SBD_SOURCE_
 cd "${REPO_DIR}"
 
 case "${system}" in
+  Flow2_Type2)
+    [[ "$(uname -m)" == aarch64 ]] || { echo "SBD Type II requires native ARM compilation" >&2; exit 1; }
+    module purge
+    module load nvhpc/26.5 nv-hpcx/26.5 cmake/4.4.3
+    source "$BK_BENCHKIT_ROOT/programs/sbd/flow2_type2_env.sh"
+    BUILD_DIR="build-flow2-type2-cpu"
+    cmake -S . -B "$BUILD_DIR" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CXX_COMPILER=mpic++ \
+      -Dnvpl_DIR="$SBD_FLOW2_NVPL_ROOT/lib/cmake/nvpl" \
+      -DBLA_VENDOR=NVPL \
+      -DBLA_SIZEOF_INTEGER=4 \
+      -DBLA_THREAD=SEQ \
+      -DSBD_GPU_BACKEND=none \
+      -DSBD_USE_NCCL=OFF \
+      -DSBD_USE_CUBLAS=OFF \
+      -DSBD_USE_NVTX=OFF \
+      -DSBD_USE_RANK_DISTRIBUTION=ON \
+      -DSBD_USE_BLOCK_RANK_DISTRIBUTION=ON \
+      -DSBD_REORDER_INDEX_ARRAY=ON
+    cmake --build "$BUILD_DIR" --target tpb_diag --parallel 4
+    ;;
   Camphor3)
     module switch PrgEnvIntel PrgEnvIntel/2023
     BUILD_DIR="build-camphor3-cpu"
