@@ -112,10 +112,15 @@ while the existing `from routes.*` and `from utils.*` imports are resolved by
 putting `benchkit/result_server` on `PYTHONPATH` or making it the working
 directory.
 
-`BASE_PATH` is required because the application validates the result-data root
-when `app.py` is imported. Point it at the directory that contains the portal's
-received results, estimated results, profiler archives, and related runtime
-data.
+The legacy `app` and `app_dev` objects require `BASE_PATH` when requested and
+use its `main` and `dev1` subdirectories respectively. Importing the module
+alone does not initialize either application. Existing explicit
+`create_app(prefix=..., base_dir=...)` calls remain supported.
+
+For a shared instance definition across public Web, Console, and scheduled
+triggers, see [Instance Configuration and Startup](instance-layout.md). The
+opt-in factory requires an explicit instance and can use a direct data directory
+without `BASE_PATH`; adopting it does not change existing deployments.
 
 For deployments that want a separate audit file in addition to stderr capture,
 set:
