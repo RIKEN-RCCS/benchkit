@@ -9,6 +9,7 @@ import time
 
 from .encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
 from .runner_monitor import ObservationError, RunnerClient
+from .runner_observation_protocol import apply_batch
 
 
 class RunnerObservations:
@@ -31,14 +32,30 @@ class RunnerObservations:
     def read(self):
         with self.storage.connect(readonly=True) as conn:
             self._schema(conn)
-            row = conn.execute("SELECT data FROM runner_observations WHERE id=1").fetchone()
-            try:
-                data = json.loads(row[0])
-                if not isinstance(data["targets"], dict) or not isinstance(data["runners"], dict):
-                    raise ValueError
-                return data
-            except (ValueError, TypeError, KeyError):
-                raise EncryptedDatabaseError("Runner observation data is invalid") from None
+            return self._read_snapshot(conn)
+
+    @staticmethod
+    def _read_snapshot(conn):
+        row = conn.execute("SELECT data FROM runner_observations WHERE id=1").fetchone()
+        try:
+            data = json.loads(row[0])
+            if not isinstance(data["targets"], dict) or not isinstance(data["runners"], dict):
+                raise ValueError
+            return data
+        except (ValueError, TypeError, KeyError, RecursionError):
+            raise EncryptedDatabaseError("Runner observation data is invalid") from None
+
+    def ingest(self, raw, policy, *, received_at):
+        """Serialize API writers and commit cursor and snapshot as one value."""
+        with self.storage.connect() as conn:
+            with conn:
+                conn.execute("BEGIN IMMEDIATE")
+                self._schema(conn)
+                update = apply_batch(self._read_snapshot(conn), raw, policy, received_at=received_at)
+                if update.changed:
+                    conn.execute("UPDATE runner_observations SET data=? WHERE id=1",
+                                 (json.dumps(update.snapshot),))
+            return update
 
     def save(self, snapshot):
         with self.storage.connect() as conn:

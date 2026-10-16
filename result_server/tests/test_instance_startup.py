@@ -1,6 +1,7 @@
 """Exercise factory and legacy startup with temporary storage and fake Redis only."""
 
 import os
+import json
 from pathlib import Path
 import secrets
 import subprocess
@@ -34,6 +35,38 @@ with patch("redis.from_url", side_effect=AssertionError("unexpected Redis setup"
 assert "app" not in vars(app) and "app_dev" not in vars(app)
 assert not list(Path(os.environ["CASE_ROOT"]).iterdir())
 ''')
+
+
+def test_opt_in_observation_receiver_has_no_startup_database_access(tmp_path):
+    run_isolated(tmp_path, '''
+import os
+from pathlib import Path
+from unittest.mock import patch
+import fakeredis
+from app import create_instance_app
+root = Path(os.environ["CASE_ROOT"])
+with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=True)), \\
+     patch("routes.runner_observation_ingest.RunnerObservations", side_effect=AssertionError("unexpected store access")):
+    for surface in ("public", "console"):
+        application = create_instance_app(surface)
+        assert ("runner_observation_ingest" in application.blueprints) == (surface == "console")
+        prefix = "/dev2" + ("/console" if surface == "console" else "")
+        response = application.test_client().post(prefix + "/api/v1/runner-observations")
+        assert response.status_code == (404 if surface == "public" else 401)
+assert not (root / "absent.db").exists() and not (root / "absent.key").exists()
+''', {
+        "BASE_PATH": str(tmp_path), "RESULT_SERVER_INSTANCE": "dev2",
+        "FLASK_SECRET_KEY": secrets.token_hex(32),
+        "RESULT_SERVER_KEYS": "fixture:" + secrets.token_hex(32),
+        "RESULT_SERVER_RUNNER_MONITOR_DB_PATH": str(tmp_path / "absent.db"),
+        "RESULT_SERVER_RUNNER_MONITOR_KEY_FILE": str(tmp_path / "absent.key"),
+        "RESULT_SERVER_GITLAB_TARGETS": "example=gitlab.example.org/group/project",
+        "RESULT_SERVER_RUNNER_OBSERVATION_INGEST_ENABLED": "true",
+        "RESULT_SERVER_RUNNER_OBSERVATION_SOURCES": json.dumps({"example-source": {
+            "collector_id": "example-collector", "generation": "11111111-1111-4111-8111-111111111111",
+            "key_sha256": "0" * 64, "targets": [{"target_id": "example", "server_id": "example-server"}],
+        }}),
+    })
 
 
 @pytest.mark.parametrize("name,prefix,identity", [

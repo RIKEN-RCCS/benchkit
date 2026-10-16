@@ -84,7 +84,7 @@ jobs:
       - name: Require SQLCipher and run encrypted database tests
         run: |
           python -c 'from sqlcipher3 import dbapi2'
-          python -m pytest -q -n 2 --dist loadfile --durations=10 result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py result_server/tests/test_sqlcipher_runtime_report.py
+          python -m pytest -q -n 2 --dist loadfile --durations=10 result_server/tests/test_budget_registry.py result_server/tests/test_budget_routes.py result_server/tests/test_budget_groups.py result_server/tests/test_budget_group_routes.py result_server/tests/test_db_migrations.py result_server/tests/test_runner_observations.py result_server/tests/test_runner_observation_ingest_storage.py result_server/tests/test_budget_profile_preview.py result_server/tests/test_budget_pipeline.py result_server/tests/test_budget_profile_binding.py result_server/tests/test_sqlcipher_runtime_report.py
 
   profile-data-shell-group:
     needs: test-scope

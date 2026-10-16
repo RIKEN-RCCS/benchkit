@@ -11,6 +11,7 @@ ACCESS_RESTRICTED_VIEWER = "restricted_viewer"
 ACCESS_AUTHENTICATED_CONSOLE = "authenticated_console"
 ACCESS_OPERATOR = "operator"
 ACCESS_RUNNER_API = "runner_api"
+ACCESS_COLLECTOR_API = "collector_api"
 
 ACCESS_CLASSES = {
     ACCESS_PUBLIC,
@@ -19,6 +20,7 @@ ACCESS_CLASSES = {
     ACCESS_AUTHENTICATED_CONSOLE,
     ACCESS_OPERATOR,
     ACCESS_RUNNER_API,
+    ACCESS_COLLECTOR_API,
 }
 
 PUBLIC_ENDPOINTS = frozenset(
@@ -62,6 +64,7 @@ OPERATOR_ENDPOINTS = frozenset({
     "results.usage_report",
 })
 RUNNER_API_ENDPOINT_PREFIXES = ("api.",)
+COLLECTOR_API_ENDPOINT_PREFIXES = ("runner_observation_ingest.",)
 PUBLIC_ENDPOINT_PREFIXES = ("security_metadata",)
 PUBLIC_PORTAL_ALLOWED_ACCESS_CLASSES = frozenset(
     {
@@ -95,6 +98,8 @@ def classify_endpoint(endpoint: str) -> str | None:
         return ACCESS_AUTHENTICATED_CONSOLE
     if endpoint.startswith(RUNNER_API_ENDPOINT_PREFIXES):
         return ACCESS_RUNNER_API
+    if endpoint.startswith(COLLECTOR_API_ENDPOINT_PREFIXES):
+        return ACCESS_COLLECTOR_API
     return None
 
 
