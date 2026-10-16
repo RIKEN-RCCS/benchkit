@@ -81,20 +81,21 @@ not used because MPI startup and scheduler overhead are substantial on RIKYU.
 The run is accepted only when its energy matches the established reference for
 its selected input within a combined `1e-12 + 1e-11 |E|` tolerance.
 
-The DGX Spark route was validated on `ng-dgx-m2` with NVHPC 26.3. The exact
-energy was `-76.24373504205295 Ha`; the internal Davidson FOM was
-`228.928853 s`, and the complete Slurm job took 4 minutes 9 seconds.
+The DGX Spark route was validated on `ng-dgx-m1` with NVHPC 26.3 and eight
+host threads. The exact energy was `-76.24373504205296 Ha`; the internal
+Davidson FOM was `220.402954 s`, the multiply section was `9.990933 s`, and
+the complete Slurm job took 3 minutes 59 seconds.
 
 The R-CCS Cloud GH200 route was directly validated on `qc-gh200-01` with
-NVHPC 26.3. The exact energy was `-76.24377593489788 Ha`; the internal
-Davidson FOM was `520.734720 s`, the multiply section was `22.730310 s`, and
-the complete Slurm job took 9 minutes 34 seconds.
+NVHPC 26.9 and eight host threads. The exact energy was
+`-76.24377593489787 Ha`; the internal Davidson FOM was `485.725737 s`, the
+multiply section was `21.229936 s`, and the complete Slurm job took 8 minutes
+53 seconds.
 
-The R-CCS Cloud FX700 route was directly validated on `fx29` with GCC 8.5,
-MPICH 4.0, 512-bit SVE, and Fujitsu LAPACK. The exact energy was
-`-76.2429584823075 Ha`; the internal Davidson FOM was `747.636165 s`, the
-multiply section was `33.897903 s`, and the complete Slurm job took 13 minutes
-3 seconds.
+The R-CCS Cloud FX700 route was directly validated with GCC 8.5, MPICH 4.0,
+512-bit SVE, and Fujitsu LAPACK. The exact energy was `-76.2429584823075 Ha`;
+the internal Davidson FOM was `739.454590 s`, the multiply section was
+`33.575472 s`, and the complete Slurm job took 12 minutes 55 seconds.
 
 The Rikyu route was validated with NVHPC 26.3 on project `rkp00012`. All
 three rows converged to `-76.243776776861 Ha`:
