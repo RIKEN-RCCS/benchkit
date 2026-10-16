@@ -25,18 +25,6 @@ case "$system" in
     fi
     module purge
     module load nvhpc-hpcx/25.7
-    nvhpc_sdk_root="$(dirname "$(dirname "$(dirname "$(command -v nvcc)")")")"
-    nvhpc_cuda_version="${FFB_NVHPC_CUDA_VERSION:-12.9}"
-    export NVHPC_CUDA_HOME="${nvhpc_sdk_root}/cuda/${nvhpc_cuda_version}"
-    export NVCOMPILER_COMM_LIBS_HOME="${nvhpc_sdk_root}/comm_libs/${nvhpc_cuda_version}"
-    if [[ ! -d "${NVHPC_CUDA_HOME}" ]]; then
-      echo "NVHPC CUDA toolkit not found: ${NVHPC_CUDA_HOME}" >&2
-      exit 1
-    fi
-    if [[ ! -d "${NVCOMPILER_COMM_LIBS_HOME}" ]]; then
-      echo "NVHPC communication libraries not found: ${NVCOMPILER_COMM_LIBS_HOME}" >&2
-      exit 1
-    fi
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
@@ -55,6 +43,11 @@ fi
 bk_record_file_source_info "$archive" "$archive_sha256" "FFB source archive"
 tar -xzf "$archive" -C "${WORK_DIR}" --strip-components=1
 cd "${WORK_DIR}"
+
+if [[ "${system}" == "RC_GH200" ]]; then
+  sed -i -e '/^FOPT+=-DUSE_NVTX$/d' -e '/-lnvToolsExt/d' ver.67.01/FILES
+fi
+
 
 chmod +x make.FP3.sh
 bash ./make.FP3.sh
