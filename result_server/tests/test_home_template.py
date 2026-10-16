@@ -1,5 +1,8 @@
 import os
 import sys
+from html.parser import HTMLParser
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from test_support import build_portal_shell_app, install_portal_test_stubs
@@ -7,87 +10,113 @@ from test_support import build_portal_shell_app, install_portal_test_stubs
 install_portal_test_stubs(include_otp=False)
 
 from routes.home import register_home_routes
-from utils.portal_version import portal_release_notes
 
 
-def test_home_page_renders_landing_content(monkeypatch):
-    monkeypatch.delenv("CX_DISCORD_INVITE_URL", raising=False)
+class _HomeLinks(HTMLParser):
+    """Inspect the landing page cards without depending on their wording."""
+
+    def __init__(self, html):
+        super().__init__()
+        self.links = []
+        self.access_notes = 0
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "a" and "home-link-card" in attrs.get("class", "").split():
+            self.links.append(attrs)
+        if tag == "span" and "home-access-note" in attrs.get("class", "").split():
+            self.access_notes += 1
+
+
+def _home_app(prefix=""):
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
         include_home_route=False,
+        prefix=prefix,
     )
-    register_home_routes(app)
+    register_home_routes(app, prefix=prefix)
+    return app
 
+
+@pytest.mark.parametrize("prefix", ["", "/dev2"])
+@pytest.mark.parametrize("public,role", [
+    (False, None), (False, "dev"), (False, "admin"),
+    (True, None), (True, "dev"), (True, "admin"),
+])
+def test_home_entry_points_follow_access_mode(monkeypatch, prefix, public, role):
+    monkeypatch.delenv("CX_DISCORD_INVITE_URL", raising=False)
+    app = _home_app(prefix)
+    app.config["PUBLIC_PORTAL_MODE"] = public
     with app.test_client() as client:
-        response = client.get("/")
-
+        if role:
+            with client.session_transaction() as sess:
+                sess["authenticated"] = True
+                sess["user_affiliations"] = [role]
+                sess["user_email"] = "user@example.invalid"
+        response = client.get(f"{prefix}/")
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
-    assert "CX Portal" in html
-    assert "Main Entry Points" in html
-    assert "User Guide: Add a New Application" in html
-    assert "GPU Performance Estimation" not in html
-    assert "Available Systems" not in html
-    assert "At a Glance" not in html
-    assert "Start Here" not in html
-    assert "Add a New Site" not in html
-    assert "Add Estimation Support" not in html
-    assert "PerfTools" not in html
-    assert "Benchkit Application Guide" in html
-    assert "Benchpark FN_apps Onboarding" in html
-    assert "Benchpark Upstream Project" in html
-    assert "RIKEN-RCCS Benchpark FN_apps branch" in html
-    assert "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-site.md" not in html
-    assert "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-estimation.md" not in html
-    assert "https://github.com/masaaki-kondo/PerfTools" not in html
-    assert "https://github.com/RIKEN-RCCS/benchpark/blob/FN_apps/User_Guide.md" in html
-    assert "https://github.com/llnl/benchpark" in html
-    assert "Browse Results" in html
-    assert "Estimated Results" in html
-    assert "Login required" in html
-    assert "Questions and Discussion" not in html
+    page = _HomeLinks(response.get_data(as_text=True))
+    cards = page.links
+    assert page.access_notes == int(not public and role is None)
+    hrefs = [card["href"] for card in cards]
+    with app.test_request_context():
+        from flask import url_for
+
+        expected = [url_for("results.results"), url_for("systemlist")]
+        restricted = [url_for("estimated.estimated_results"),
+                      url_for("results.usage_report"), url_for("admin.users")]
+        if not public:
+            expected.append(url_for("estimated.estimated_results") if role else url_for("auth.login"))
+            if role == "admin":
+                expected.extend(restricted[1:])
+        assert {href for href in hrefs if href.startswith("/")} == set(expected)
+
+    guide_urls = {
+        "https://github.com/RIKEN-RCCS/benchkit/blob/main/docs/guides/add-app.md",
+        "https://github.com/RIKEN-RCCS/benchpark/blob/FN_apps/User_Guide.md",
+        "https://github.com/llnl/benchpark",
+    }
+    assert {href for href in hrefs if href.startswith("https://")} == guide_urls
+    for card in cards:
+        if card["href"] in guide_urls:
+            assert card.get("target") == "_blank"
+            assert {"noopener", "noreferrer"} <= set(card.get("rel", "").split())
 
 
 def test_home_page_renders_discord_link_when_configured(monkeypatch):
-    monkeypatch.setenv("CX_DISCORD_INVITE_URL", "https://discord.gg/example")
-    app = build_portal_shell_app(
-        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
-        include_home_route=False,
-    )
-    register_home_routes(app)
-
+    invite = "https://discord.gg/example"
+    monkeypatch.setenv("CX_DISCORD_INVITE_URL", invite)
+    app = _home_app()
     with app.test_client() as client:
         response = client.get("/")
-
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
-    assert "Questions and Discussion" in html
-    assert "invitation-only Discord" in html
-    assert "application-onboarding coordination" in html
-    assert "https://discord.gg/example" in html
+    cards = _HomeLinks(response.get_data(as_text=True)).links
+    invite_cards = [card for card in cards if card["href"] == invite]
+    assert len(invite_cards) == 1
+    assert invite_cards[0].get("target") == "_blank"
+    assert {"noopener", "noreferrer"} <= set(invite_cards[0].get("rel", "").split())
 
 
 def test_changes_page_renders_release_notes(monkeypatch):
-    monkeypatch.delenv("CX_DISCORD_INVITE_URL", raising=False)
-    app = build_portal_shell_app(
-        templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
-        include_home_route=False,
-    )
-    register_home_routes(app)
+    from routes import home
 
+    releases = [
+        {"version": "v2099.01", "date": "2099-01-02", "title": "Example update",
+         "summary": "Example summary", "changes": ["First example change", "Second example change"]},
+        {"version": "v2098.12", "date": "", "title": "Earlier update",
+         "summary": "Earlier summary", "changes": ["Earlier example change"]},
+    ]
+    monkeypatch.setattr(home, "portal_release_notes", lambda: releases)
+    app = _home_app()
     with app.test_client() as client:
         response = client.get("/changes")
-
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "CX Portal Changes" in html
-    assert "v2026.08.31" in html
-    assert "Initial public CX Portal baseline" in html
-    assert "Compare selected public results" in html
-    for release in portal_release_notes():
-        assert release["version"] in html
-        assert release["title"] in html
-        if release["date"]:
-            assert release["date"] in html
+    for release in releases:
+        for key in ("version", "title", "date", "summary"):
+            if release[key]:
+                assert release[key] in html
         for change in release["changes"]:
             assert change in html
+    assert html.index(releases[0]["version"]) < html.index(releases[1]["version"])
