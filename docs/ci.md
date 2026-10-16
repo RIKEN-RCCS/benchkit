@@ -70,17 +70,19 @@ python result_server/tests/run_result_server_tests.py --shard 0 -q -n 2 --dist l
 python result_server/tests/run_result_server_tests.py --shard 1 -q -n 2 --dist loadfile
 ```
 
-The shell matrix runs observation, execution-run, execution-other, result-sender,
-and estimation groups independently. `common-execution-run` runs the execution
+The shell matrix runs observation-profiler, observation-other, execution-run,
+execution-other, result-sender, and estimation groups independently. `common-execution-run` runs the execution
 wrapper tests; `common-execution-other` runs the remaining execution tests.
-`common-execution`, `common`, and `all` remain local aliases with no duplicate
-execution. Failures stop the selected shell group, and the aggregate rejects
+`common-observation-profiler` runs the profiler tests; `common-observation-other`
+runs the remaining observation tests. `common-observation`, `common-execution`,
+`common`, and `all` remain local aliases with no duplicate execution. Failures stop the selected shell group, and the aggregate rejects
 failed, cancelled, or unexpectedly skipped groups. SQLCipher test coverage and the
 Python versions remain unchanged.
 
 pytestはPython各版でファイルを2群へ分け、各job内では従来どおり2 workerで実行します。
 分割指定なしの入口は全件実行を維持します。shellの実行群もwrapper単独と残りへ分け、
-`common-execution`・`common`・`all`は漏れ・重複なく従来範囲を実行します。
+観測群もprofiler単独と残り4本へ分けます。
+`common-observation`・`common-execution`・`common`・`all`は漏れ・重複なく従来範囲を実行します。
 検査範囲の省略やSQLCipher検査の削減は行いません。
 
 The dedicated SQLCipher selection also runs in two shards per Python version:

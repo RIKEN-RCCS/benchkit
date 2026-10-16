@@ -3,15 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ALL_GROUPS=(common-observation common-execution-run common-execution-other result-sender estimation)
+ALL_GROUPS=(common-observation-profiler common-observation-other common-execution-run common-execution-other result-sender estimation)
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-execution|common-execution-run|common-execution-other|result-sender|estimation|list|list-tests [GROUP]]
+Usage: bash scripts/tests/run_profile_data_shell_tests.sh [all|common|common-observation|common-observation-profiler|common-observation-other|common-execution|common-execution-run|common-execution-other|result-sender|estimation|list|list-tests [GROUP]]
 
 Runs the shell tests covered by the Result Server Tests workflow.
 Use "all" locally for the full suite, "common" for both common groups,
-"common-execution" for both execution parts, or a group name in CI matrix jobs.
+"common-observation" or "common-execution" for both parts, or a CI group name.
 EOF
 }
 
@@ -43,8 +43,14 @@ tests_for_group() {
       tests_for_group common-execution
       ;;
     common-observation)
+      tests_for_group common-observation-profiler
+      tests_for_group common-observation-other
+      ;;
+    common-observation-profiler)
+      echo scripts/tests/test_bk_profiler.sh
+      ;;
+    common-observation-other)
       cat <<'EOF'
-scripts/tests/test_bk_profiler.sh
 scripts/tests/test_workflow_timing.sh
 scripts/tests/test_bk_timing_observations.sh
 scripts/tests/test_ncu_plan_generation.sh
