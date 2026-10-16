@@ -5,6 +5,11 @@ running instance. Begin with synthetic data and fake transports. Do not use an
 existing shared observation store, deployed credentials or a scheduled Collector
 for this acceptance exercise. See the [copy-only handoff rehearsal](runner-observation-handoff.md).
 
+For a stable receiver independent of a Portal checkout, use the
+[standalone service entry and templates](deploy/runner-observation-service.md).
+That entry still requires deployment-specific acceptance; it does not turn these
+preparation checks into an automatic installation or cutover.
+
 ## Administrative Safety Review
 
 Prefer a new isolated store and a new generation for the initial acceptance.

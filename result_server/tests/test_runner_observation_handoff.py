@@ -457,3 +457,36 @@ def test_isolated_cli_through_receiver_and_encrypted_store(
     trial.storage.check()
     output = capsys.readouterr().out + caplog.text + json.dumps(trial.read())
     assert KEY not in output and credential.read_text() not in output
+
+
+def test_standalone_receiver_accepts_only_its_encrypted_copy(copies):
+    from observation_app import create_app
+
+    _, copy_store = copies
+    trial = copy_store("standalone-receiver")
+    root = trial.storage.path.parent.parent
+    env = settings(
+        RESULT_SERVER_RUNNER_MONITOR_DB_PATH=str(trial.storage.path),
+        RESULT_SERVER_RUNNER_MONITOR_KEY_FILE=str(trial.storage.key_file),
+        RESULT_SERVER_RUNNER_OBSERVATION_REDIS_SOCKET=str(root / "redis/fixture.sock"),
+        RESULT_SERVER_RUNNER_OBSERVATION_REDIS_PREFIX="standalone-fixture:",
+        RESULT_SERVER_RUNNER_OBSERVATION_PREFIX="/observations",
+        RESULT_SERVER_RUNNER_OBSERVATION_BIND="127.0.0.1:8810",
+        RESULT_SERVER_RUNNER_OBSERVATION_TLS_CERT_FILE=str(root / "tls/server.crt"),
+        RESULT_SERVER_RUNNER_OBSERVATION_TLS_KEY_FILE=str(root / "tls/server.key"),
+    )
+    app = create_app(env)
+    app.config["REDIS_CONN"] = FakeRedis()
+    client = app.test_client()
+    kwargs = {"base_url": "https://localhost", "data": raw(batch()),
+              "content_type": "application/json", "headers": {"X-Collector-Key": KEY}}
+    response = client.post("/observations" + PATH, **kwargs)
+    assert response.status_code == 200 and response.json["status"] == "accepted"
+    before = trial.read()
+    duplicate = client.post("/observations" + PATH, **kwargs)
+    assert duplicate.status_code == 200 and duplicate.json["status"] == "duplicate"
+    assert trial.read() == before and before["_ingest"]["source"]["sequence"] == 1
+    assert response.headers["Cache-Control"] == "no-store"
+    assert client.post("/api/ingest/result", **kwargs).status_code == 404
+    assert set(app.blueprints) == {"runner_observation_ingest"}
+    trial.storage.check()

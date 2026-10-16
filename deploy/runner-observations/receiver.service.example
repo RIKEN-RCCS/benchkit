@@ -1,0 +1,18 @@
+[Unit]
+Description=Benchkit observation receiver
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/lib/benchkit/observation-api/current/result_server
+EnvironmentFile=%h/.config/benchkit/observation-api.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/example/receiver-venv/bin/gunicorn --config python:observation_gunicorn observation_app:create_app()
+UMask=0077
+NoNewPrivileges=yes
+KillMode=mixed
+TimeoutStopSec=45
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
