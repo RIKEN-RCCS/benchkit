@@ -1,5 +1,6 @@
 """Exercise complete, disjoint file selection and real pytest exit statuses."""
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -70,17 +71,39 @@ def test_real_shards_collect_all_cases_and_propagate_failure(tmp_path):
     shutil.copyfile(SCRIPT, script)
     (tests / "test_pass.py").write_text("def test_pass(): assert True\n")
     (tests / "test_fail.py").write_text("def test_fail(): assert False\n")
+    (tests / "conftest.py").write_text(textwrap.dedent("""\
+        import json
+        from pathlib import Path
+
+        calls = []
+
+        def pytest_runtest_logreport(report):
+            if report.when == "call":
+                calls.append([report.nodeid, report.outcome])
+
+        def pytest_sessionfinish(session, exitstatus):
+            Path("observed.json").write_text(json.dumps({
+                "collected": [item.nodeid for item in session.items], "calls": calls,
+            }))
+    """))
     seen = []
+    outcomes = []
     statuses = []
     for index in range(2):
-        collection = subprocess.run([sys.executable, str(script), "--shard", str(index),
-                                     "--collect-only", "-q"], cwd=tmp_path, capture_output=True, text=True)
-        assert collection.returncode == 0, collection.stdout + collection.stderr
-        seen.extend(line for line in collection.stdout.splitlines() if "::test_" in line)
+        report = tmp_path / "observed.json"
+        report.unlink(missing_ok=True)
         result = subprocess.run([sys.executable, str(script), "--shard", str(index), "-q"],
                                 cwd=tmp_path, capture_output=True, text=True)
+        observation = json.loads(report.read_text())
+        assert observation["collected"] == [node for node, _ in observation["calls"]]
+        seen.extend(observation["collected"])
+        outcomes.extend(observation["calls"])
         statuses.append(result.returncode)
     assert sorted(seen) == ["result_server/tests/test_fail.py::test_fail", "result_server/tests/test_pass.py::test_pass"]
+    assert sorted(outcomes) == [
+        ["result_server/tests/test_fail.py::test_fail", "failed"],
+        ["result_server/tests/test_pass.py::test_pass", "passed"],
+    ]
     assert sorted(statuses) == [0, 1]
 
 
