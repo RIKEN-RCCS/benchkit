@@ -32,7 +32,8 @@ def checks(tmp_path):
     shutil.copy(REPO_ROOT / "scripts/tests/shellcheck_app_matrix.py", tmp_path / "scripts/tests/")
     tools = tmp_path / "tools"
     checker = tools / "shellcheck"
-    checker.write_text("#!" + sys.executable + "\n" + textwrap.dedent('''
+    concurrent_checker = tools / "concurrent_checker.py"
+    concurrent_checker.write_text("#!" + sys.executable + "\n" + textwrap.dedent('''
         import fcntl, json, os, sys, time
         args = sys.argv[1:]
         assert args[0] == '-x'
@@ -52,6 +53,22 @@ def checks(tmp_path):
         update(-1)
         raise SystemExit(int(os.environ.get('FAIL_CODE', '0')) if args[4] == os.environ.get('FAIL_FILE') else 0)
     '''))
+    checker.write_text(textwrap.dedent('''\
+        #!/bin/bash
+        set -euo pipefail
+        if ! { [ "$#" -eq 6 ] && [ "$1" = -x ] && [ "$2" = -S ] &&
+                 [ "$4" = -f ] && [ "$5" = gcc ]; }; then
+          exit 2
+        fi
+        if [ "$CHECK_DELAY" != 0 ]; then
+          exec "$CHECK_PYTHON" "$CHECK_CONCURRENT" "$@"
+        fi
+        shift
+        printf '%s\\0' "$@" > "$CHECK_CALLS/$$"
+        if [ "$5" = "${FAIL_FILE:-}" ]; then
+          exit "${FAIL_CODE:-0}"
+        fi
+    '''))
     checker.chmod(0o700)
     git = tools / "git"
     git.write_text("#!" + sys.executable + "\n" + textwrap.dedent('''
@@ -66,12 +83,24 @@ def checks(tmp_path):
     git.chmod(0o700)
     state = tmp_path / "state.json"
     state.write_text(json.dumps({"active": 0, "maximum": 0, "calls": []}))
+    calls = state.with_suffix(".calls")
+    calls.mkdir()
     changed = tmp_path / "changed"
     changed.write_bytes(b"")
     env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
-               CHECK_STATE=str(state), CHECK_DELAY="0", CHANGED_FILES=str(changed), GITHUB_BASE_REF="develop",
+               CHECK_STATE=str(state), CHECK_DELAY="0", CHECK_CALLS=str(calls),
+               CHECK_PYTHON=sys.executable, CHECK_CONCURRENT=str(concurrent_checker), CHANGED_FILES=str(changed), GITHUB_BASE_REF="develop",
                SHARD_INDEX="0", SHARD_COUNT="6", GITHUB_OUTPUT=str(tmp_path / "outputs"))
     return tmp_path, state, changed, env
+
+
+def checker_state(state):
+    data = json.loads(state.read_text())
+    for record in state.with_suffix(".calls").iterdir():
+        fields = record.read_bytes().split(b"\0")
+        assert len(fields) == 6 and fields[-1] == b""
+        data["calls"].append([os.fsdecode(field) for field in fields[:-1]])
+    return data
 
 
 def execute(checks, warning=False):
@@ -122,7 +151,7 @@ def test_each_file_is_checked_once_with_at_most_two_processes(checks, warning):
     changed.write_bytes(b"\0".join(name.encode() for name in names) + b"\0")
     result = execute(checks, warning)
     assert result.returncode == 0, result.stderr
-    data = json.loads(state.read_text())
+    data = checker_state(state)
     assert sorted(call[-1] for call in data["calls"]) == sorted(names)
     assert all(call[1] == ("warning" if warning else "error") for call in data["calls"])
     assert data["maximum"] == 2
@@ -148,13 +177,13 @@ def test_syntax_failure_stops_before_shellcheck(checks):
     root, state, _, _ = checks
     (root / "scripts/invalid.sh").write_text("if then\n")
     assert execute(checks).returncode != 0
-    assert json.loads(state.read_text())["calls"] == []
+    assert checker_state(state)["calls"] == []
 
 
 @pytest.mark.parametrize("warning", [False, True])
 def test_empty_selection_does_not_run_checker(checks, warning):
     assert execute(checks, warning).returncode == 0
-    assert json.loads(checks[1].read_text())["calls"] == []
+    assert checker_state(checks[1])["calls"] == []
 
 
 @pytest.mark.parametrize("warning", [False, True])
@@ -165,7 +194,7 @@ def test_selection_failure_is_not_reported_as_empty_success(checks, warning):
     else:
         (root / "benchpark-bridge/scripts").rmdir()
     assert execute(checks, warning).returncode != 0
-    assert json.loads(state.read_text())["calls"] == []
+    assert checker_state(state)["calls"] == []
 
 
 @pytest.mark.parametrize("count", [1, 2, 5, 6, 7, 123, 136])
@@ -178,11 +207,13 @@ def test_shards_cover_every_file_without_overlap(checks, count):
     seen = []
     for shard in range(6):
         state.write_text(json.dumps({"active": 0, "maximum": 0, "calls": []}))
+        for record in state.with_suffix(".calls").iterdir():
+            record.unlink()
         result = subprocess.run(
             ["bash", "-c", workflow_script("Run bash syntax checks and shellcheck at error level")],
             cwd=root, env=dict(env, SHARD_INDEX=str(shard)), capture_output=True, timeout=15)
         assert result.returncode == 0, result.stderr
-        actual = sorted(call[-1] for call in json.loads(state.read_text())["calls"])
+        actual = sorted(call[-1] for call in checker_state(state)["calls"])
         assert actual == names[shard::6]
         seen += actual
     assert sorted(seen) == names
@@ -208,7 +239,7 @@ def test_invalid_shard_configuration_fails(checks, index, count):
         ["bash", "-c", workflow_script("Run bash syntax checks and shellcheck at error level")],
         cwd=root, env=dict(env, SHARD_INDEX=index, SHARD_COUNT=count), capture_output=True)
     assert result.returncode != 0
-    assert json.loads(state.read_text())["calls"] == []
+    assert checker_state(state)["calls"] == []
 
 
 def test_workflow_runs_independent_shards_and_preserves_required_check():
