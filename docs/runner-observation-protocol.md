@@ -2,8 +2,9 @@
 
 The protocol has a pure core and an experimental, opt-in CX receiver. The
 receiver is disabled by default; existing collection and credentials remain
-unchanged. Collector transport and local delivery state are separate future
-work. See [current monitoring](guides/runner-monitoring.md) for the existing
+unchanged. Collector delivery components are available separately; wiring the
+existing collection command to them remains future work. See
+[current monitoring](guides/runner-monitoring.md) for the existing
 operational interface.
 
 ## Entry Points
@@ -140,6 +141,72 @@ of an older backup unsafe. Use a separate store and credential for trials, never
 an observation DB shared with production. Merely deploying code does not enable
 this endpoint, and these tests do not constitute deployment acceptance.
 
+## Collector Delivery Components
+
+`result_server/collector/` is a separate, standard-library-only delivery package.
+Its sole CX-side code dependency is the pure observation protocol contract. It
+does not import Flask, Redis, SQLCipher, the application factory or the GitLab
+client, and never loads runtime environment settings. It is a component API,
+not a replacement for the existing collection command or a new scheduled job.
+
+- Construct a `SourcePolicy` and an `HTTPSDelivery(endpoint, key_file)` explicitly.
+  The endpoint must be the exact HTTPS observation API URL, including any console
+  prefix. It is never inferred from a Result Server default. Credentials, query
+  strings, fragments and path traversal are not allowed in the endpoint.
+- Create a dedicated private state directory (owner-only mode 700), then call
+  `DeliveryState(directory, policy, endpoint).initialize()` once. Initialization
+  never overwrites existing state. Missing or corrupt state on a later run stops
+  delivery; it does not restart the sequence or generate a new generation.
+- Call `run_once(directory, policy, transport, collect)` explicitly. The injected
+  `collect(sequence)` producer returns complete JSON bytes conforming to the
+  shared protocol. `batch_identity(policy, sequence)` supplies common envelope
+  fields without maintaining a second identity definition. Collection wiring
+  and GitLab credential configuration are not implemented by this API.
+- State binds the endpoint, collector/source/generation and full target scope.
+  Endpoint or scope changes require an explicit handoff, not silent reuse. A
+  separate state directory is required for each source/destination combination.
+
+The state directory holds `delivery.json` and `delivery.lock`, both mode 600.
+Directory/file ownership, canonical paths, symlinks and file hardlinks are
+checked. A nonblocking process lock covers loading, collection, delivery and
+acknowledgement. A same-directory temporary file is flushed and fsynced before
+atomic publication, followed by directory fsync. No CX DB or encryption key is
+needed. The local spool contains potentially sensitive observations in plaintext;
+keep it private and do not put it in a source checkout or logs. It contains no
+delivery credential.
+
+One pending batch is saved durably **before** sending. When pending state exists,
+the next invocation resends those exact bytes and does not collect another batch,
+even if the replay succeeds. Sequence advances and pending state is cleared only
+after a matching `200 accepted` or `200 duplicate` acknowledgement. The source,
+generation, sequence, batch ID, schema and UTC receipt timestamp are checked;
+arbitrary 2xx responses, malformed acknowledgements and mismatches do not clear
+state. An accepted request followed by a lost response or local-save failure is
+therefore replayed through CX's duplicate contract. It never refreshes observed
+timestamps. Sequence exhaustion requires administrative attention, not wraparound.
+
+The plaintext delivery key is read only from an explicitly supplied private
+file (parent 700/file 600), never an argument containing the key itself. HTTPS
+uses certificate/hostname verification, rejects redirects and disables ambient
+proxy discovery. Only `X-Collector-Key` is sent; there is no alternate API-key,
+session or proxy-authentication fallback. Responses are bounded to 64 KiB, and
+compressed responses are rejected. Diagnostics are fixed codes, not HTTP bodies,
+credentials or filesystem paths.
+
+Connection failures and HTTP 429/500/502/503/504 may retry the same pending batch.
+There are at most three attempts, with a monotonic 60-second retry budget and
+per-attempt I/O timeout of at most 20 seconds. Retry-After (seconds or HTTP date)
+is honored only within the remaining budget; otherwise the batch stays pending
+for a later invocation. These are retry/I/O budgets, not a process watchdog for
+DNS resolution or a continuously trickling peer. Certificate failures, redirects,
+other status codes and invalid acknowledgements stop without changing pending
+content, generation or sequence. Scheduling and service-level timeouts remain
+explicit deployment concerns.
+
+These components do not enable the CX receiver, fetch GitLab, schedule a timer,
+modify existing collection, or perform a handoff/rollback. Validate the producer
+adapter and generation/cursor handoff separately before a deployment trial.
+
 ## Synthetic Tests
 
 ```bash
@@ -160,3 +227,11 @@ the optional SQLCipher dependency and uses synthetic keys and temporary DBs for
 round trips, duplicate delivery, rollback, competing writers and latest-cursor
 checks. Missing SQLCipher is a skip locally, not successful encryption coverage;
 the encrypted CI job requires the driver and runs these cases explicitly.
+
+`test_runner_observation_delivery.py` uses synthetic private state/key files,
+fake HTTP and clocks, and a guard rejecting real socket connections. It covers
+durable-before-send ordering, replay after response/ack-save loss, process locks,
+corrupt state, permission/symlink/hardlink rejection, scope binding, bounded
+retries and protocol-compatible duplicate acknowledgements. Isolated import
+checks run without site packages and reject web/database dependencies. TLS and
+redirect handling are checked with fake openers, not live HTTPS connections.

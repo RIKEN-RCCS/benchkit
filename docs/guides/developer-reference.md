@@ -72,6 +72,9 @@ The experimental [runner observation protocol](../runner-observation-protocol.md
 has a pure core and a dedicated, opt-in CX receiver with atomic encrypted
 snapshot updates. The endpoint is disabled by default; the existing collector
 is not changed or automatically switched to API delivery.
+Separate standard-library-only Collector delivery components provide a private
+single-batch spool and bounded replay. They are not wired to the existing CLI
+or scheduler; producer integration and deployment handoff remain separate work.
 
 ### Overview
 
