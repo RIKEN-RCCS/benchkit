@@ -311,6 +311,28 @@ configure_genesis_nvidia_gpu() {
 
 make_args=(-j)
 case "$system" in
+    Flow2_Type2)
+        module purge
+        module load nvhpc/26.5 nv-hpcx/26.5
+        source "$BK_BENCHKIT_ROOT/programs/genesis/flow2_type2_env.sh"
+        FC=mpif90
+        CC=mpicc
+        F77=mpif90
+        CXX=mpic++
+        apply_genesis_nvfortran_configure_patch
+        apply_genesis_nvhpc_configure_flags_patch
+        # Some PGI options start immediately after a quote, so the shared
+        # whitespace-based patch above does not remove them. Neither belongs
+        # in the native ARM CPU configuration.
+        perl -0pi -e 's/(?<=[\s"])-fastsse\b//g; s/(?<=[\s"])-m64\b//g; s/(?<=[\s"])-Msmartalloc=huge//g; s/(?<=[\s"])-Mipa=fast,inline//g; s/(?<=[\s"])-pc 64//g; s/(?<=[\s"])-mcmodel=medium//g' configure.ac
+        # Upstream configure preserves FFLAGS but replaces FCFLAGS.
+        # Match the validated main Fortran compilation options.
+        export FFLAGS="-O2 -mp -Mflushz" CFLAGS="-O3"
+        export FCFLAGS="$FFLAGS"
+        CONFIG_ARGS=(--enable-mixed --enable-mpi --enable-openmp --with-simd=auto --without-lapack)
+        make_args=(-j4)
+        version="--version"
+        ;;
     Flow2_Type1)
         module purge
         module load oneapi/2026.1.0 impi/2021.18
@@ -390,7 +412,13 @@ fi
 if [ -n "${F77:-}" ]; then
     configure_env+=(F77="$F77")
 fi
+if [[ "$system" == Flow2_Type2 ]]; then
+    configure_env+=(FFLAGS="$FFLAGS" FCFLAGS="$FCFLAGS")
+fi
 ./configure "${configure_env[@]}" "${CONFIG_ARGS[@]}"
+if [[ "$system" == Flow2_Type2 ]]; then
+    bash "$BK_BENCHKIT_ROOT/programs/genesis/verify_fortran_flags.sh" "$FFLAGS" src/lib/Makefile src/spdyn/Makefile
+fi
 apply_genesis_nvtx_include_patch
 if ! make "${make_args[@]}" > make.log 2>&1; then
     echo "make failed. Error-like lines from make.log:" >&2
@@ -398,6 +426,10 @@ if ! make "${make_args[@]}" > make.log 2>&1; then
     echo "make failed. Last 1000 lines of make.log:" >&2
     tail -n 1000 make.log >&2 || true
     exit 1
+fi
+if [[ "$system" == Flow2_Type2 ]]; then
+    bash "$BK_BENCHKIT_ROOT/programs/genesis/verify_fortran_flags.sh" --compile-log "$FFLAGS" make.log
+    cp make.log ../results/genesis_fortran_compile.log
 fi
 make install
 cp "bin/spdyn" "../artifacts/"

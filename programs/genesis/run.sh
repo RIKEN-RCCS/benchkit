@@ -197,6 +197,15 @@ genesis_rikyu_apptainer_run_prefix() {
 }
 
 case "$system" in
+  Flow2_Type2)
+    [[ "$nodes" = 1 && "$numproc" = 8 ]] || { echo "Flow2 p8 requires eight MPI ranks on one node" >&2; exit 1; }
+    module purge
+    module load nvhpc/26.5 nv-hpcx/26.5
+    source "$BK_BENCHKIT_ROOT/programs/genesis/flow2_type2_env.sh"
+    export OMP_NUM_THREADS="$nthreads" OMP_PLACES=cores OMP_PROC_BIND=close
+    bk_run --log "$output" -- mpirun -n "$numproc" --bind-to core --map-by "ppr:${numproc_node}:node:PE=${nthreads}" ./"$binary" "$input.sub"
+    bash "$SCRIPT_DIR/programs/genesis/validate_cpu_run.sh" "$output" "$input.sub"
+    ;;
   Flow2_Type1)
     [[ "$nodes" = 1 && "$numproc" = 8 ]] || { echo "Flow2 p8 requires eight MPI ranks on one node" >&2; exit 1; }
     module purge

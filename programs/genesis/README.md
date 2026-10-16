@@ -276,3 +276,37 @@ scheduler on compute nodes.
 ## Flow2 Type I CPU preparation
 
 Flow2_Type1 uses Intel MPI 2021.18 and oneAPI 2026.1.0 (mpiifx/mpiicx), with the upstream automatic SIMD selection. The original p8 input requires eight MPI ranks; the initial share plan is eight ranks with six threads each. Run the upstream numerical regression cases before the unchanged p8 benchmark.
+
+
+## Flow2 Type II CPU execution
+
+Flow2_Type2 uses NVHPC 26.5 and the site's existing HPC-X stack for a
+native ARM CPU build with MPI/OpenMP, mixed precision, automatic SIMD
+selection, and LAPACK disabled. The normal matrix enables one node with
+eight MPI ranks, nine threads each, and a 30-minute build/run limit. The
+site's default queue applies; validation used t2-debug.
+
+Configure patches recognize nvfortran and remove obsolete PGI/x86 options.
+Explicit `FFLAGS` and `FCFLAGS` preserve `-O2 -mp -Mflushz` through upstream
+configure. The build checks generated Makefiles and actual Fortran compile
+commands and retains the compilation log.
+
+The environment helper uses the module's `OMPI_HOME` to select matching
+MPI/PMIx and companion libraries and set Open MPI, PRRTE, and PMIx prefixes.
+Source it after loading modules for build, upstream regression, and p8. This
+avoids mixing a system PMIx with HPC-X libraries sharing the same SONAME.
+
+Validation with the existing UCX passed an eight-rank MPI probe, the upstream
+`test_spdyn/jac_param27/PME_autoselect` and
+`test_spdyn/dppc/VRES_NPT_BUSSI_group8` reference checks, and then the unchanged
+p8 input (2x2x2 domains, 6000 steps). The run records FOM and the digests and
+sizes of the six actual input files; p8 completion checks are separate from
+the upstream numerical reference comparisons.
+
+With the site's existing UCX, MPI initialization can set the IEEE invalid
+flag, which GENESIS reports at normal termination. This warning did not fail
+the validated reference checks, p8 completion, or job exit status. The
+upstream UCX fix is tracked in
+[openucx/ucx#11672](https://github.com/openucx/ucx/pull/11672).
+The normal route retains the site's UCX and does not suppress or clear IEEE
+flags.

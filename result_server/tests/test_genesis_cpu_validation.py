@@ -36,7 +36,7 @@ def test_genesis_completion_checks(tmp_path, mutation):
     assert (process.returncode == 0) == (mutation == 'none')
 
 
-@pytest.mark.parametrize("system,threads", [("Camphor3", "14"), ("Flow2_Type1", "6")])
+@pytest.mark.parametrize("system,threads", [("Camphor3", "14"), ("Flow2_Type1", "6"), ("Flow2_Type2", "9")])
 def test_cpu_run_preserves_build_source_and_emits_observations(tmp_path, system, threads):
     import os
     (tmp_path / 'scripts').symlink_to(ROOT / 'scripts', target_is_directory=True)
@@ -70,12 +70,18 @@ printf 'INFO: STEP TIME TOTAL_ENE TEMPERATURE\nINFO: 20 0.02 -12 300\n dynamics 
     bindir = tmp_path / 'bin'
     bindir.mkdir()
     launch = bindir / ('srun' if system == 'Camphor3' else 'mpirun')
-    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" > "$LAUNCH_LOG"\nshift '+('4' if system == 'Camphor3' else '2')+'\nexec "$@"\n')
+    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" > "$LAUNCH_LOG"\nshift '+('4' if system == 'Camphor3' else '6' if system == 'Flow2_Type2' else '2')+'\nexec "$@"\n')
     launch.chmod(0o755)
     envfile = tmp_path / 'bash-env'
     envfile.write_text('module() { :; }\n')
     env = dict(os.environ, BASH_ENV=str(envfile), PATH=str(bindir)+':'+os.environ['PATH'],
                GENESIS_INPUT_COMMIT=sha, LAUNCH_LOG=str(tmp_path / 'launch.log'))
+    if system == 'Flow2_Type2':
+        mpi = tmp_path / 'hpcx/ompi5'
+        (mpi / 'lib').mkdir(parents=True)
+        for library in ['libmpi.so', 'libopen-pal.so', 'libpmix.so']:
+            (mpi / 'lib' / library).touch()
+        env['OMPI_HOME'] = str(mpi)
     process = subprocess.run(['bash', str(ROOT / 'programs/genesis/run.sh'), system,
                               '1', '8', threads], cwd=tmp_path, env=env,
                              capture_output=True, text=True)
@@ -104,3 +110,65 @@ printf 'INFO: STEP TIME TOTAL_ENE TEMPERATURE\nINFO: 20 0.02 -12 300\n dynamics 
         assert record['result_exp'] == 'p8' and record['resolved_commit'] == sha
     assert (work / 'p8.inp.sub').read_bytes() != (work / 'p8.inp').read_bytes()
     assert files['p8.inp.sub']['observation_capture']['manifest']['files'][0]['sha256'] != hashlib.sha256((work / 'p8.inp').read_bytes()).hexdigest()
+
+    if system == 'Flow2_Type2':
+        assert '--bind-to core --map-by ppr:8:node:PE=9' in (tmp_path / 'launch.log').read_text()
+
+
+def test_type2_mpi_library_selection(tmp_path):
+    import os
+    import shutil
+    gcc = shutil.which('gcc')
+    if not gcc:
+        pytest.skip('gcc required for dynamic loader reproduction')
+    mpi = tmp_path / 'hpcx/ompi5'
+    lib = mpi / 'lib'
+    lib.mkdir(parents=True)
+    old = tmp_path / 'old'
+    old.mkdir()
+    def compile_source(name, source, *args):
+        path = tmp_path / (name + '.c')
+        path.write_text(source)
+        subprocess.run([gcc, str(path), *args], check=True, capture_output=True)
+    compile_source('pmix', 'int pmix_framework_names = 7;', '-shared', '-fPIC',
+                   '-Wl,-soname,libpmix.so.2', '-o', str(lib / 'libpmix.so.2'))
+    (lib / 'libpmix.so').symlink_to('libpmix.so.2')
+    compile_source('oldpmix', 'int old_pmix = 1;', '-shared', '-fPIC',
+                   '-Wl,-soname,libpmix.so.2', '-o', str(old / 'libpmix.so.2'))
+    compile_source('pal', 'extern int pmix_framework_names; int check(void) {return pmix_framework_names;}',
+                   '-shared', '-fPIC', '-L'+str(lib), '-lpmix', '-Wl,--enable-new-dtags,-rpath,$ORIGIN',
+                   '-o', str(lib / 'libopen-pal.so'))
+    (lib / 'libmpi.so').touch()
+    exe = tmp_path / 'probe'
+    compile_source('main', 'extern int check(void); int main(void) {return check() != 7;}',
+                   '-L'+str(lib), '-lopen-pal', '-Wl,--enable-new-dtags,-rpath,'+str(lib),
+                   '-Wl,-rpath-link,'+str(lib), '-o', str(exe))
+    env = dict(os.environ, OMPI_HOME=str(mpi), LD_LIBRARY_PATH=str(old))
+    failed = subprocess.run([str(exe)], env=env, capture_output=True, text=True)
+    assert failed.returncode != 0 and 'pmix_framework_names' in failed.stderr
+    helper = ROOT / 'programs/genesis/flow2_type2_env.sh'
+    fixed = subprocess.run(['bash', '-eu', '-c', 'source "$1"; exec "$2"',
+                            '_', str(helper), str(exe)], env=env, capture_output=True, text=True)
+    assert fixed.returncode == 0, fixed.stderr
+    (lib / 'libpmix.so').unlink()
+    missing = subprocess.run(['bash', '-eu', str(helper)], env=env, capture_output=True, text=True)
+    assert missing.returncode != 0 and 'missing HPC-X library' in missing.stderr
+
+
+@pytest.mark.parametrize("mode,text,passed", [
+    ("makefile", "FCFLAGS = -O2 -mp -Mflushz\n", True),
+    ("makefile", "FCFLAGS = -O2 -Mflushz\n", False),
+    ("makefile", "CFLAGS = -O2 -mp -Mflushz\n", False),
+    ("compile", "mpif90 -O2 -mp -Mflushz -c main.f90\n", True),
+    ("compile", "mpif90 -O3 -c main.f90\n", False),
+    ("compile", "mpicc -O2 -mp -Mflushz -c main.c\n", False),
+])
+def test_type2_rejects_lost_fortran_options(tmp_path, mode, text, passed):
+    evidence = tmp_path / "evidence"
+    evidence.write_text(text)
+    command = ["bash", str(ROOT / "programs/genesis/verify_fortran_flags.sh")]
+    if mode == "compile":
+        command.append("--compile-log")
+    command += ["-O2 -mp -Mflushz", str(evidence)]
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert (result.returncode == 0) == passed, result.stdout + result.stderr
