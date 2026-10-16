@@ -100,7 +100,8 @@ jobs:
       fail-fast: false
       matrix:
         shell-group:
-          - common-observation
+          - common-observation-profiler
+          - common-observation-other
           - common-execution-run
           - common-execution-other
           - result-sender

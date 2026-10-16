@@ -22,7 +22,7 @@ def _runner_lines(*args):
 def test_profile_data_shell_runner_covers_shell_tests_once():
     groups = _runner_lines("list")
     assert "common" not in groups
-    assert {"common-observation", "common-execution-run", "common-execution-other"} <= set(groups)
+    assert {"common-observation-profiler", "common-observation-other", "common-execution-run", "common-execution-other"} <= set(groups)
 
     grouped_tests = []
     for group in groups:
@@ -50,7 +50,7 @@ def test_common_alias_covers_both_parts_without_overlap():
     assert _runner_lines("list-tests", "common") == observation + execution
 
 
-@pytest.mark.parametrize("group", ["common", "common-execution", "common-execution-run", "common-execution-other", "all"])
+@pytest.mark.parametrize("group", ["common-observation-profiler", "common-observation-other", "common-observation", "common", "common-execution", "common-execution-run", "common-execution-other", "all"])
 def test_runner_dispatches_each_selected_test_once(tmp_path, group):
     tools = tmp_path / "bin"
     tools.mkdir()
@@ -79,19 +79,34 @@ def test_execution_alias_covers_both_parts_without_overlap():
     assert run + other == execution
 
 
-@pytest.mark.parametrize("group", ["common-execution-run", "common-execution-other", "common-execution", "common", "all"])
-def test_runner_stops_and_returns_failure(tmp_path, group):
+@pytest.mark.parametrize("group", ["common-observation-profiler", "common-observation-other", "common-observation", "common-execution-run", "common-execution-other", "common-execution", "common", "all"])
+@pytest.mark.parametrize("failure_position", ["first", "last"])
+def test_runner_stops_and_returns_failure(tmp_path, group, failure_position):
     tools = tmp_path / "bin"
     tools.mkdir()
     record = tmp_path / "executed"
     fake_bash = tools / "bash"
     fake_bash.write_text(
-        "#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$TEST_EXECUTION_RECORD\"\nexit 7\n"
+        "#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$TEST_EXECUTION_RECORD\"\n[ \"$1\" != \"$TEST_FAILURE_PATH\" ] || exit 7\n"
     )
     fake_bash.chmod(0o700)
+    selected = _runner_lines("list-tests", group)
+    failure_index = 0 if failure_position == "first" else len(selected) - 1
     result = subprocess.run([shutil.which("bash"), str(RUNNER), group], cwd=REPO_DIR,
                             env=dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
-                                     TEST_EXECUTION_RECORD=str(record)),
+                                     TEST_EXECUTION_RECORD=str(record),
+                                     TEST_FAILURE_PATH=str(REPO_DIR / selected[failure_index])),
                             capture_output=True, text=True)
     assert result.returncode == 7
-    assert record.read_text().splitlines() == [str(REPO_DIR / _runner_lines("list-tests", group)[0])]
+    assert record.read_text().splitlines() == [
+        str(REPO_DIR / path) for path in selected[:failure_index + 1]
+    ]
+
+
+def test_observation_alias_covers_both_parts_without_overlap():
+    observation = _runner_lines("list-tests", "common-observation")
+    profiler = _runner_lines("list-tests", "common-observation-profiler")
+    other = _runner_lines("list-tests", "common-observation-other")
+    assert profiler and other
+    assert not set(profiler) & set(other)
+    assert profiler + other == observation
