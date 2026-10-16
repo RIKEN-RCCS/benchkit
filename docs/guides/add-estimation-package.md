@@ -277,3 +277,21 @@ Set `BK_PERFTOOLS_COMMIT` to a full commit SHA to pin inference. Package-specifi
 MLP NCU preprocessing records the GPU specification fields actually supplemented and its parameters. Prepared-input CSVs bypass that preprocessing. These records identify code and model inputs; Python and library versions still matter for full reproducibility.
 
 The GPU MLP NCU bridge preserves collected source specification values per kernel. Missing source observations are not filled with GPU constants and fail the existing missing-input check unless explicitly allowed. Target specification supplements are recorded separately. Maximum warps per scheduler accepts the exported display-name column or `device__attribute_max_warps_per_scheduler` (verified with NCU 2025.4.1 on GB200). Existing display-name values take precedence; only missing rows are filled from the raw metric. If neither is available, the value remains missing.
+
+### Experimental LightGBM 1.1 section adapter
+
+Select `gpu_kernel_lightgbm_v11` explicitly to try PerfTools
+`LightGBM_model/1.1`; the v1.0 package and ensemble defaults remain unchanged.
+The adapter uses the existing `BK_GPU_LIGHTGBM_*` settings and Python environment
+with pandas, NumPy, LightGBM and PyYAML. Use `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`
+to select a reviewed full upstream commit.
+
+Wide NCU input (including conversion from a Benchkit padata archive) is passed
+with `--group_by_config`. The adapter keeps grouped source times, grid/block
+configuration, inference features and a feature-validation report with its
+prediction. Precomputed predictions must contain the aligned source-time
+columns produced by this adapter; raw upstream predictions are insufficient.
+
+Upstream defaults and NaN inputs are recorded, not replaced by Benchkit GPU
+constants. Their intended use, and the averaging of repeated launches, remain
+under evaluation. Successful inference does not establish prediction accuracy.

@@ -366,3 +366,29 @@ def test_lightgbm_names_preserve_observations_and_convert_instruction_counts(tmp
         assert wide[column].iloc[2:].isna().all()
     assert wide['Kernel Name'].tolist() == ['a', 'b', 'c', 'd']
     assert wide['smsp__average_warp_latency_per_inst_issued.ratio'].tolist() == [99, 10, 10, 10]
+
+
+def test_lightgbm_v11_records_actual_bundle_adapter_and_evidence(repo, tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    names = ['LightGBM_model/1.1/AI_model/run_inference.py',
+             'LightGBM_model/1.1/extract_features.py',
+             'LightGBM_model/1.1/AI_model/model/lgbm_Execution_Time.txt',
+             'LightGBM_model/1.1/AI_model/model/feature_names.pkl',
+             'LightGBM_model/1.1/AI_model/model/clean_map.pkl', 'data/gpu_microarch_specs.csv']
+    for name in names:
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name)
+    prediction = tmp_path / 'prediction.csv'
+    prediction.write_text('prediction')
+    for suffix in ['.input.csv', '.features.csv', '.validation.json']:
+        Path(str(prediction) + suffix).write_text(suffix)
+    data = provenance.make_manifest(str(repo), 'lightgbm', 'run_inference.py',
+                                    'prepared_csv', '', str(prediction), 'main', '',
+                                    'GB200', 'H100', model_version='1.1')
+    assert set(names) == {f['path'] for f in data['external_inference']['files']}
+    assert data['external_inference']['missing_files'] == []
+    assert data['adapter']['group_by_config'] is True
+    assert data['adapter']['sha256'] == provenance.digest(ROOT / data['adapter']['path'])
+    assert {i['role'] for i in data['inputs']} == {
+        'prediction_csv', 'normalized_input', 'inference_features', 'feature_validation'}

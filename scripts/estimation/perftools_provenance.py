@@ -52,7 +52,7 @@ def record_files(root, patterns):
     return files, missing
 
 
-def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, requested_ref, pin, source_gpu="", target_gpu="", row="all"):
+def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, requested_ref, pin, source_gpu="", target_gpu="", row="all", model_version="1.0"):
     repo_root = Path(root) if root else None
     data = {'schema_version': 1, 'input_mode': mode, 'external_inference': None,
             'preprocessing': None, 'inputs': []}
@@ -64,11 +64,11 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
             data['inputs'].append({'role': role, 'sha256': digest(Path(value))})
     if mode != 'precomputed_prediction' and repo_root:
         if version == 'lightgbm':
-            patterns = ['LightGBM_model/1.0/AI_model/run_inference.py',
-                        'LightGBM_model/1.0/extract_features.py',
-                        'LightGBM_model/1.0/AI_model/model/lgbm_*.txt',
-                        'LightGBM_model/1.0/AI_model/model/feature_names.pkl',
-                        'LightGBM_model/1.0/AI_model/model/clean_map.pkl']
+            patterns = [f'LightGBM_model/{model_version}/AI_model/run_inference.py',
+                        f'LightGBM_model/{model_version}/extract_features.py',
+                        f'LightGBM_model/{model_version}/AI_model/model/lgbm_*.txt',
+                        f'LightGBM_model/{model_version}/AI_model/model/feature_names.pkl',
+                        f'LightGBM_model/{model_version}/AI_model/model/clean_map.pkl']
             # Include the actual hardware table selected by the upstream entrypoint.
             patterns += ['data/gpu_microarch_specs.csv']
         else:
@@ -91,6 +91,13 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
             'files': files, 'missing_files': missing,
             'file_scope': 'inference dependency bundle; may include unused GPU weights',
         }
+    if version == 'lightgbm' and model_version == '1.1' and mode != 'precomputed_prediction':
+        adapter = Path('scripts/estimation/run_gpu_lightgbm_v11.py')
+        data['adapter'] = {'path': str(adapter), 'sha256': digest(adapter), 'group_by_config': True}
+        for suffix, role in [('.features.csv', 'inference_features'), ('.input.csv', 'normalized_input'), ('.validation.json', 'feature_validation')]:
+            path = Path(prediction_csv + suffix)
+            if path.is_file():
+                data['inputs'].append({'role': role, 'sha256': digest(path)})
     if mode == 'ncu_archive':
         script = 'prepare_gpu_lightgbm_ncu_input.py' if version == 'lightgbm' else 'prepare_gpu_mlp_ncu_input.py'
         path = Path('scripts/estimation') / script
@@ -111,9 +118,10 @@ def main():
     parser = argparse.ArgumentParser()
     for name in ['root', 'version', 'predictor', 'mode', 'input-csv', 'prediction-csv', 'requested-ref', 'pin', 'output', 'source-gpu', 'target-gpu', 'row']:
         parser.add_argument('--' + name, default='')
+    parser.add_argument("--model-version", choices=["1.0", "1.1"], default="1.0")
     args = parser.parse_args()
     manifest = make_manifest(args.root, args.version, args.predictor, args.mode,
-                             args.input_csv, args.prediction_csv, args.requested_ref, args.pin, args.source_gpu, args.target_gpu, args.row or "all")
+                             args.input_csv, args.prediction_csv, args.requested_ref, args.pin, args.source_gpu, args.target_gpu, args.row or "all", args.model_version)
     contents = json.dumps(manifest, sort_keys=True, indent=2) + '\n'
     manifest_sha = hashlib.sha256(contents.encode()).hexdigest()
     target = Path(args.output)

@@ -100,7 +100,7 @@ _bk_gpu_lightgbm_model_dir() {
     return 0
   fi
 
-  printf '%s\n' "${root}/LightGBM_model/1.0"
+  printf '%s\n' "${root}/LightGBM_model/${_BK_GPU_LIGHTGBM_VERSION:-1.0}"
 }
 
 _bk_gpu_lightgbm_predictor() {
@@ -373,7 +373,7 @@ EOF
       missing+=('"BK_GPU_LIGHTGBM_PERFTOOLS_ROOT"')
     fi
     if [[ -z "$predictor" || ! -f "$predictor" ]]; then
-      missing+=('"PerfTools LightGBM_model/1.0/AI_model/run_inference.py"')
+      missing+=('"PerfTools LightGBM predictor"')
     fi
   fi
 
@@ -541,8 +541,12 @@ kernels = []
 source_gpus = []
 target_gpus = []
 total_seconds = 0.0
-source_times_ns, source_time_column = source_time_by_row(input_csv)
-source_metrics_rows = source_metrics_by_row(input_csv)
+if model_version == "1.1":
+    source_times_ns, source_time_column = [], "benchkit-source-time-ns"
+    source_metrics_rows = []
+else:
+    source_times_ns, source_time_column = source_time_by_row(input_csv)
+    source_metrics_rows = source_metrics_by_row(input_csv)
 total_source_seconds = 0.0
 source_time_count = 0
 
@@ -561,8 +565,17 @@ for idx, row in enumerate(reader, start=1):
 
     seconds = predicted_ns / 1e9
     total_seconds += seconds
-    source_ns = source_times_ns[idx - 1] if idx - 1 < len(source_times_ns) else None
-    source_metrics = source_metrics_rows[idx - 1] if idx - 1 < len(source_metrics_rows) else {}
+    if model_version == "1.1":
+        source_ns = as_number(row.get("benchkit-source-time-ns"))
+        if source_ns is None or source_ns <= 0:
+            raise SystemExit("LightGBM 1.1 prediction requires a positive aligned source time")
+    else:
+        source_ns = source_times_ns[idx - 1] if idx - 1 < len(source_times_ns) else None
+    if model_version == "1.1":
+        source_metrics = {key: as_number(row.get("benchkit-source::" + key)) for key in metric_columns
+                          if as_number(row.get("benchkit-source::" + key)) is not None}
+    else:
+        source_metrics = source_metrics_rows[idx - 1] if idx - 1 < len(source_metrics_rows) else {}
     source_seconds = source_ns / 1e9 if source_ns is not None else None
     if source_seconds is not None:
         total_source_seconds += source_seconds
@@ -578,6 +591,12 @@ for idx, row in enumerate(reader, start=1):
         "predicted_time_ns": predicted_ns,
         "predicted_time": seconds,
     }
+    if model_version == "1.1":
+        grid = as_number(row.get("benchkit-grid-size"))
+        block = as_number(row.get("benchkit-block-size"))
+        if grid is None or block is None or grid <= 0 or block <= 0 or predicted_ns < 0:
+            raise SystemExit("LightGBM 1.1 prediction requires valid aligned configuration")
+        kernel["configuration"] = {"grid_size": grid, "block_size": block}
     if source_ns is not None:
         kernel["source_time_ns"] = source_ns
         kernel["source_time"] = source_seconds
@@ -630,7 +649,7 @@ print(json.dumps({
     },
     "model": {
         "type": "cross_gpu_kernel_prediction_model",
-        "name": "PerfTools LightGBM_model/1.0",
+        "name": "PerfTools LightGBM_model/" + model_version,
         "version": model_version,
         "repository": "https://github.com/masaaki-kondo/PerfTools",
     },
@@ -669,7 +688,7 @@ _bk_gpu_lightgbm_run_predictor() {
   local model_dir
   local input_csv
   local ncu_archive
-  local output_dir="${BK_GPU_LIGHTGBM_OUTPUT_DIR:-results/estimation_artifacts/gpu_kernel_lightgbm_v10}"
+  local output_dir="${BK_GPU_LIGHTGBM_OUTPUT_DIR:-results/estimation_artifacts/${_BK_GPU_LIGHTGBM_PACKAGE:-gpu_kernel_lightgbm_v10}}"
   local prediction_csv
   local prediction_log
   local input_csv_abs
@@ -678,9 +697,11 @@ _bk_gpu_lightgbm_run_predictor() {
   local python_bin="${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-$(_bk_gpu_lightgbm_default_python)}}"
   local source_gpu="${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU:-H100}}"
   local target_gpu="${BK_GPU_LIGHTGBM_TARGET_GPU:-${BK_GPU_MLP_TARGET_GPU:-A100}}"
-  local package_name=gpu_kernel_lightgbm_v10
+  local package_name=${_BK_GPU_LIGHTGBM_PACKAGE:-gpu_kernel_lightgbm_v10}
   local provenance_json mode=prepared_csv
   local slug
+  local version="${_BK_GPU_LIGHTGBM_VERSION:-1.0}"
+  local adapter="${PWD}/scripts/estimation/run_gpu_lightgbm_v11.py"
 
   root=$(_bk_gpu_lightgbm_ensure_perftools_root) || return 1
   model_dir=$(_bk_gpu_lightgbm_model_dir "$root")
@@ -700,33 +721,37 @@ _bk_gpu_lightgbm_run_predictor() {
   prediction_csv_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_csv")
   prediction_log_abs=$(_bk_gpu_lightgbm_abs_path "$prediction_log")
 
-  echo "Running PerfTools LightGBM_model/1.0 for ${section_name}: ${source_gpu}->${target_gpu}" >&2
+  echo "Running PerfTools LightGBM_model/${version} for ${section_name}: ${source_gpu}->${target_gpu}" >&2
   if ! (
     # Upstream writes extracted_features.csv beside its model; isolate that output.
     scratch_root=$(mktemp -d) || exit 1
     trap 'rm -rf "$scratch_root"' EXIT
     mkdir -p "$scratch_root/LightGBM_model"
-    cp -a "$model_dir" "$scratch_root/LightGBM_model/1.0" || exit 1
+    cp -a "$model_dir" "$scratch_root/LightGBM_model/$version" || exit 1
     cp -a "$root/data" "$scratch_root/data" || exit 1
-    cd "$scratch_root/LightGBM_model/1.0" || exit 1
-    "$python_bin" AI_model/run_inference.py \
+    cd "$scratch_root/LightGBM_model/$version" || exit 1
+    local -a predictor=(AI_model/run_inference.py)
+    if [[ "$version" == "1.1" ]]; then
+      predictor=("$adapter" --model-dir "$PWD")
+    fi
+    "$python_bin" "${predictor[@]}" \
       --src_gpu="$source_gpu" \
       --tgt_gpu="$target_gpu" \
       --ncu_csv="$input_csv_abs" \
       --out="$prediction_csv_abs" \
       --log="$prediction_log_abs"
   ) >/dev/null; then
-    echo "ERROR: PerfTools LightGBM_model/1.0 inference failed" >&2
+    echo "ERROR: PerfTools LightGBM_model/${version} inference failed" >&2
     return 1
   fi
 
   if [[ ! -s "$prediction_csv_abs" ]]; then
-    echo "ERROR: PerfTools LightGBM_model/1.0 did not create prediction CSV: ${prediction_csv_abs}" >&2
+    echo "ERROR: PerfTools LightGBM_model/${version} did not create prediction CSV: ${prediction_csv_abs}" >&2
     return 1
   fi
 
   provenance_json=$("$python_bin" scripts/estimation/perftools_provenance.py \
-    --root "$root" --version "lightgbm" --predictor "run_inference.py" \
+    --root "$root" --version "lightgbm" --model-version "$version" --predictor "run_inference.py" \
     --source-gpu "${BK_GPU_LIGHTGBM_SOURCE_GPU:-${BK_GPU_MLP_SOURCE_GPU:-H100}}" --target-gpu "${BK_GPU_LIGHTGBM_TARGET_GPU:-${BK_GPU_MLP_TARGET_GPU:-A100}}" \
     --mode "$mode" --input-csv "$input_csv" --prediction-csv "$prediction_csv" \
     --requested-ref "${BK_GPU_LIGHTGBM_PERFTOOLS_REF:-${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}}" --pin "${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}}" \
@@ -747,7 +772,7 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
   local provenance_json="" provenance_path provenance_python
   local run_outputs
   local parsed_json
-  local package_name="gpu_kernel_lightgbm_v10"
+  local package_name="${_BK_GPU_LIGHTGBM_PACKAGE:-gpu_kernel_lightgbm_v10}"
   local model_version="${BK_GPU_LIGHTGBM_MODEL_VERSION:-1.0}"
   local selector_kind=""
   local selector_value=""
@@ -779,9 +804,9 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
       --mode precomputed_prediction --input-csv "$input_csv" --prediction-csv "$prediction_csv" \
       --output "$provenance_path") || return 1
   fi
-  parsed_json=$(_bk_gpu_lightgbm_parse_prediction_csv "$prediction_csv" "$input_csv" "$package_name" "$model_version")
+  parsed_json=$(_bk_gpu_lightgbm_parse_prediction_csv "$prediction_csv" "$input_csv" "$package_name" "$model_version") || return 1
 
-  echo "$item_json" | jq -c \
+  printf '%s\n' "$parsed_json" | jq -c \
     --argjson model_provenance "$provenance_json" \
     --arg prediction_csv "$prediction_csv" \
     --arg input_csv "$input_csv" \
@@ -790,7 +815,7 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
     --arg selector_value "$selector_value" \
     --arg metadata_json_path "$metadata_json_path" \
     --argjson discovery_metadata "$metadata_json" \
-    --argjson parsed "$parsed_json" '
+    --argjson item "$item_json" '
     def selector_matches($kind; $value):
       if $kind == "" or $value == "" then true
       elif $kind == "regex" then ((.name // "") | test($value))
@@ -800,7 +825,7 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
       ($kernels | map(.source_time_ns // null) | map(select(. != null)) | add // null) as $source_ns
       | ($kernels | map(.predicted_time_ns // null) | map(select(. != null)) | add // null) as $predicted_ns
       | if ($source_ns != null and $source_ns != 0 and $predicted_ns != null) then ($predicted_ns / $source_ns) else null end;
-    .
+    . as $parsed | $item
     | ((.time // .bench_time // null) | if . == null then null else tonumber? end) as $source_section_time
     | (($parsed.metrics.kernels // []) | map(select(selector_matches($selector_kind; $selector_value)))) as $matched_kernels
     | ($matched_kernels | map(.name // "") | unique | sort) as $kernel_names
@@ -830,7 +855,7 @@ bk_section_package_transform_gpu_kernel_lightgbm_v10() {
           end
         ),
         bench_time: $source_section_time,
-        scaling_method: (if $can_identity_fallback then "identity" else "gpu-kernel-lightgbm-v1.0" end),
+        scaling_method: (if $can_identity_fallback then "identity" else ("gpu-kernel-lightgbm-v" + $parsed.model.version) end),
         estimation_package: (if $can_identity_fallback then "identity" else $parsed.estimation_package end),
         requested_estimation_package: (if $can_identity_fallback then $parsed.estimation_package else (.requested_estimation_package // $parsed.estimation_package) end),
         fallback_used: (if $can_identity_fallback then "identity" else null end),
