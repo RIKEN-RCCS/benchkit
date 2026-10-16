@@ -23,8 +23,11 @@ if rg -n '^[[:space:]]*module load system/' "${active_rc_scripts[@]}"; then
   exit 1
 fi
 
+for script in programs/ffb/build.sh programs/ffb/run.sh; do
+  grep -Fq 'nvhpc-hpcx/25.7' "${script}"
+done
+
 for script in \
-  programs/ffb/build.sh programs/ffb/run.sh \
   programs/genesis/build.sh programs/genesis/run.sh \
   programs/salmon/build.sh programs/salmon/run.sh \
   programs/sbd/build.sh programs/sbd/run.sh; do

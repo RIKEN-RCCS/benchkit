@@ -24,7 +24,7 @@ case "$system" in
       source /etc/profile.d/modules.sh
     fi
     module purge
-    module load nvhpc-hpcx/26.9
+    module load nvhpc-hpcx/25.7
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"
