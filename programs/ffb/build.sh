@@ -20,6 +20,11 @@ case "$system" in
     exe_relpath="bin/les3x.mpi"
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
+    module purge
+    module load nvhpc-hpcx/26.9
     archive="${GPU_ARCHIVE}"
     archive_sha256="${FFB_GPU_ARCHIVE_SHA256:-${BK_FFB_GPU_ARCHIVE_SHA256:-}}"
     exe_relpath="bin.acc_gpu/les3x.mpi"

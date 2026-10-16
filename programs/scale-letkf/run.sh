@@ -131,9 +131,11 @@ case "$system" in
     SCALE_TESTDATA="/lvs0/rccs-sdt/tyamaura/tgz-archive/SCALE-LETKF.dataset-SC23.part1.20240410.tar.gz"
     TESTDIR="benchmark.scale-letkf.RC_GH200"
 
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200
-    module load nvhpc/25.9
+    module load nvhpc-hpcx/26.9
 
     source artifacts/setup-env.RC_GH200.sh
     export OMP_NUM_THREADS=1

@@ -60,9 +60,11 @@ case "${system}" in
     cmake --build "${BUILD_DIR}" --parallel
     ;;
   RC_DGXSP)
-    source /etc/profile.d/modules.sh
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.3
     BUILD_DIR="build-dgxsp-nvhpc-thrust-rankdist"
     cmake -S . -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Release \
@@ -76,8 +78,11 @@ case "${system}" in
     cmake --build "${BUILD_DIR}" --parallel
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200 nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.9
     BUILD_DIR="build-gh200-nvhpc-thrust-rankdist"
     cmake -S . -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Release \
@@ -91,8 +96,11 @@ case "${system}" in
     cmake --build "${BUILD_DIR}" --parallel
     ;;
   RC_FX700)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/fx700 mpi/mpich-aarch64
+    module load mpi/mpich-aarch64
     BUILD_DIR="build-fx700-gcc-mpich-rankdist"
     fjlib="/opt/FJSVstclanga/cp-1.0.30.01/lib64"
     cmake -S . -B "${BUILD_DIR}" \

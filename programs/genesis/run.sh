@@ -138,7 +138,10 @@ run_genesis_nvidia_gpu() {
     local -a nvidia_mpi_args
 
     local module_name="${!module_var:-$default_module}"
-    if [ "$module_name" != "none" ] && command -v module >/dev/null 2>&1; then
+    if [ "$module_name" != "none" ]; then
+        if ! type module >/dev/null 2>&1; then
+            source /etc/profile.d/modules.sh
+        fi
         read -r -a module_names <<< "$module_name"
         module load "${module_names[@]}"
     fi
@@ -238,7 +241,7 @@ case "$system" in
     run_genesis_nvidia_gpu "$system" GENESIS_MIYABIG none manual
     ;;
   RC_GH200)
-    run_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9" manual
+    run_genesis_nvidia_gpu "$system" GENESIS_GH200 "nvhpc-hpcx/26.9" manual
     ;;
   RIKYU)
     export GENESIS_RIKYU_MODULE="${GENESIS_RIKYU_MODULE:-none}"

@@ -166,19 +166,22 @@ case "${system}" in
     ' "${tddft_nml}" > "${tddft_nml}.tmp" && mv "${tddft_nml}.tmp" "${tddft_nml}"
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200 nvhpc-hpcx-cuda12/25.7
+    module load nvhpc-hpcx/26.9
     export OMP_NUM_THREADS="${nthreads}"
     ;;
   RC_DGXSP)
-    source /etc/profile.d/modules.sh
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.3
     export OMP_NUM_THREADS="${nthreads}"
     ;;
   RC_GENOA)
-    module purge
-    module load system/genoa mpi/openmpi-x86_64
     export SLURM_MPI_TYPE=pmix
     aocl_root="${BK_SALMON_AOCL_ROOT:-${AOCL_ROOT_DEFAULT}}"
     aocl_blis_lib="${aocl_root}/amd-blis/lib/LP64"

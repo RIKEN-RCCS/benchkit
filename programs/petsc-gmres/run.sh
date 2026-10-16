@@ -97,8 +97,10 @@ case "${system}" in
     # and readable on the ng-dgx compute nodes (verified with a compute-node
     # read test), so the data lives in the site's CX_input like everywhere
     # else.
-    source /etc/profile.d/modules.sh
-    module load system/ng-dgx nvhpc-hpcx
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
+    module load nvhpc-hpcx/26.3
     bk_run --log "${logfile}" -- mpirun -np "${n_ranks}" \
       bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \

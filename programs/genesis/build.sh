@@ -258,7 +258,10 @@ configure_genesis_nvidia_gpu() {
     local cuda_prefix=""
 
     local module_name="${!module_var:-$default_module}"
-    if [ "$module_name" != "none" ] && command -v module >/dev/null 2>&1; then
+    if [ "$module_name" != "none" ]; then
+        if ! type module >/dev/null 2>&1; then
+            source /etc/profile.d/modules.sh
+        fi
         read -r -a module_names <<< "$module_name"
         module load "${module_names[@]}"
     fi
@@ -357,7 +360,7 @@ case "$system" in
 	;;
 
     RC_GH200)
-    configure_genesis_nvidia_gpu "$system" GENESIS_GH200 "system/qc-gh200 nvhpc/25.9"
+    configure_genesis_nvidia_gpu "$system" GENESIS_GH200 "nvhpc-hpcx/26.9"
 	;;
 
     RIKYU)

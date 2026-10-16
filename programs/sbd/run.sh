@@ -47,9 +47,11 @@ case "${system}" in
     bdet_comm_size=2
     ;;
   RC_DGXSP)
-    source /etc/profile.d/modules.sh
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/ng-dgx nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.3
     determinant_file=h2o-1em5-alpha.txt
     experiment=H2O-1em5
     reference_energy=-76.24373504205295
@@ -59,8 +61,11 @@ case "${system}" in
     bdet_comm_size=1
     ;;
   RC_GH200)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/qc-gh200 nvhpc-hpcx-cuda13/26.3
+    module load nvhpc-hpcx/26.9
     determinant_file=h2o-1em6-alpha.txt
     experiment=H2O-1em6
     reference_energy=-76.2437759348979
@@ -70,8 +75,11 @@ case "${system}" in
     bdet_comm_size=1
     ;;
   RC_FX700)
+    if ! type module >/dev/null 2>&1; then
+      source /etc/profile.d/modules.sh
+    fi
     module purge
-    module load system/fx700 mpi/mpich-aarch64
+    module load mpi/mpich-aarch64
     determinant_file=h2o-1em4-alpha.txt
     experiment=H2O-1em4
     reference_energy=-76.2429584823075

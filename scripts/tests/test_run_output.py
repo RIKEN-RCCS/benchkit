@@ -1325,7 +1325,7 @@ printf ' 1 USRT:TIME-LOOP 1.25\\n' > output.sample/0/17/stdout.17.0
                 script = re.sub(rf'^(\s*(?:{variables})=).*$',
                                 lambda match: match[1] + '"' + str(archive) + '"', script, flags=re.M)
                 (app / "run.sh").write_text(script)
-                result = self.run_shell(f'bash programs/{name}/run.sh {system} 1 1 1')
+                result = self.run_shell(f'unset -f module _module_raw 2>/dev/null || true; bash programs/{name}/run.sh {system} 1 1 1')
                 self.assert_ok(result)
                 self.assertIn("FOM:", (self.root / "results/result").read_text())
 
