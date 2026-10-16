@@ -6,6 +6,10 @@ Collector state, then operate only on private copies. They neither read a deploy
 configuration/key/DB nor contact GitLab or CX. No administrative cursor-reset,
 restore or service-switch command is added.
 
+The [isolated acceptance checklist](runner-observation-isolated-acceptance.md)
+separates administrative safety requirements, synthetic integration checks and
+deployment-specific checks that still require approval.
+
 See the [protocol and Collector CLI](runner-observation-protocol.md). Enabling a
 receiver, provisioning credentials and changing running writers require a
 separately reviewed, deployment-specific plan.
