@@ -33,7 +33,7 @@ jq -e '.estimation_package == "gpu_kernel_lightgbm_v11" and .model.version == "1
   .metrics.sampling.scope == "representative_process_sample" and
   [.metrics.matched_kernels[].source_time_ns] == [200,900] and
   [.metrics.matched_kernels[].configuration.block_size] == [128,256]' <<< "$result" >/dev/null
-# Discover the opt-in package through the ordinary section dispatcher.
+# Discover the package through the ordinary section dispatcher.
 source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 breakdown=$(jq -cn --argjson item "$item" '{sections:[$item + {estimation_package:"gpu_kernel_lightgbm_v11"}]}')

@@ -278,10 +278,17 @@ MLP NCU preprocessing records the GPU specification fields actually supplemented
 
 The GPU MLP NCU bridge preserves collected source specification values per kernel. Missing source observations are not filled with GPU constants and fail the existing missing-input check unless explicitly allowed. Target specification supplements are recorded separately. Maximum warps per scheduler accepts the exported display-name column or `device__attribute_max_warps_per_scheduler` (verified with NCU 2025.4.1 on GB200). Existing display-name values take precedence; only missing rows are filled from the raw metric. If neither is available, the value remains missing.
 
-### Experimental LightGBM 1.1 section adapter
+### LightGBM 1.1 section adapter
 
-Select `gpu_kernel_lightgbm_v11` explicitly to try PerfTools
-`LightGBM_model/1.1`; the v1.0 package and ensemble defaults remain unchanged.
+The default `gpu_kernel_ensemble_average` candidates are
+`gpu_kernel_lightgbm_v11`, `gpu_kernel_mlp_v15`, `gpu_kernel_mlp_v21`, and
+`gpu_kernel_mlp_v41`. LightGBM 1.1 replaces 1.0 in that default set; the MLP
+candidates are unchanged. The ensemble's declared version is `0.2`.
+The v1.0 package remains available for explicit selection or an override through
+`BK_GPU_KERNEL_ENSEMBLE_PACKAGES`.
+
+`gpu_kernel_lightgbm_v11` uses PerfTools `LightGBM_model/1.1` and may also be
+selected directly for a section.
 The adapter uses the existing `BK_GPU_LIGHTGBM_*` settings and Python environment
 with pandas, NumPy, LightGBM and PyYAML. Use `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`
 to select a reviewed full upstream commit.
@@ -310,5 +317,8 @@ prediction. Precomputed predictions must contain aligned source times and sample
 counts produced by this adapter; raw upstream predictions are insufficient.
 
 Upstream defaults and NaN inputs are recorded, not replaced by Benchkit GPU
-constants. Their intended use and the representativeness of the selected profile
-remain under evaluation. Successful inference does not establish prediction accuracy.
+constants. [Upstream confirms](https://github.com/masaaki-kondo/PerfTools/issues/2#issuecomment-6228683968)
+that zero defaults and preserved workload NaNs are intentional and match its
+training preprocessing. The representativeness of the
+selected profile and prediction accuracy still require evaluation; successful
+inference alone does not establish either.
