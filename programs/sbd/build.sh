@@ -71,6 +71,7 @@ case "${system}" in
     cmake -S . -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Release \
       -DSBD_GPU_BACKEND=thrust \
+      -DSBD_USE_NVTX=ON \
       -DSBD_GPU_ARCH=cc100 \
       -DSBD_THRUST_SAFE_MPI_ALLREDUCE=ON \
       -DSBD_USE_RANK_DISTRIBUTION=ON \
@@ -91,6 +92,7 @@ case "${system}" in
     cmake -S . -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Release \
       -DSBD_GPU_BACKEND=thrust \
+      -DSBD_USE_NVTX=ON \
       -DSBD_GPU_ARCH=cc120 \
       -DSBD_THRUST_SAFE_MPI_ALLREDUCE=ON \
       -DSBD_USE_RANK_DISTRIBUTION=ON \
@@ -109,6 +111,7 @@ case "${system}" in
     cmake -S . -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Release \
       -DSBD_GPU_BACKEND=thrust \
+      -DSBD_USE_NVTX=ON \
       -DSBD_GPU_ARCH=cc90 \
       -DSBD_THRUST_SAFE_MPI_ALLREDUCE=ON \
       -DSBD_USE_RANK_DISTRIBUTION=ON \

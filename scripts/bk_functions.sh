@@ -2012,10 +2012,14 @@ bk_profiler() {
       _bk_ncu_level_args=$(bk_profiler_ncu_level_args "$_bk_profiler_level") || return 1
       echo "bk_profiler[ncu]: starting ${_bk_ncu_rep_name} level=${_bk_profiler_level}" >&2
       bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_ncu_rep_name" "$_bk_profiler_level" "$@" || return 1
+      local _bk_ncu_nvtx_args=()
+      if [ -n "${BK_PROFILER_NCU_NVTX_INCLUDE:-}" ]; then
+        _bk_ncu_nvtx_args=(--nvtx --nvtx-include "$BK_PROFILER_NCU_NVTX_INCLUDE")
+      fi
       # BK_PROFILER_ARGS is intentionally word-split into ncu options.
       # shellcheck disable=SC2086
       if bk_profile_execute --tool ncu --profile "${_bk_workflow_profile}/${_bk_ncu_rep_name}" -- \
-        ncu -o "$_bk_ncu_profile_base" --target-processes all ${_bk_ncu_level_args} ${_bk_profiler_extra_args} "$@"; then
+        ncu -o "$_bk_ncu_profile_base" --target-processes all ${_bk_ncu_level_args} ${_bk_profiler_extra_args} "${_bk_ncu_nvtx_args[@]}" "$@"; then
         _bk_profiler_status=0
       else
         _bk_profiler_status=$?

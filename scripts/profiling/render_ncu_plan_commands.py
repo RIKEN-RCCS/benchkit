@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Any
 
 
+from nvtx_plan import ncu_nvtx_args
+
+
 def _shell_join(args: list[str]) -> str:
     return " ".join(shlex.quote(str(item)) for item in args)
 
@@ -64,11 +67,13 @@ def _command_record(
     profiler_args = _profile_args(profile)
     archive_report = bool(profile.get("archive_ncu_report", False))
 
+    nvtx_args = ncu_nvtx_args(profile)
     env = {
         "BK_PROFILER_ARGS": _profiler_args_env(profiler_args),
         "BK_PROFILER_NCU_RAW_CSV": "true",
         "BK_PROFILER_ARCHIVE_NCU_REPORT": _truth(archive_report),
     }
+    env["BK_PROFILER_NCU_NVTX_INCLUDE"] = nvtx_args[-1] if nvtx_args else ""
     argv = [
         "bk_profiler",
         "ncu",
@@ -89,7 +94,7 @@ def _command_record(
         "archive": str(archive),
         "raw_dir": raw_dir,
         "env": env,
-        "bk_profiler_args": profiler_args,
+        "bk_profiler_args": profiler_args + nvtx_args,
         "argv": argv,
         "selection": profile.get("selection") if isinstance(profile.get("selection"), dict) else {},
     }
