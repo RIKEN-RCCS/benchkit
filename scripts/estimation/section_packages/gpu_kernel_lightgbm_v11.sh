@@ -1,5 +1,5 @@
 #!/bin/bash
-# Experimental opt-in adapter; v1.0 selection and ensemble defaults are unchanged.
+# PerfTools LightGBM 1.1 adapter, used by the default GPU ensemble.
 # shellcheck source=scripts/estimation/section_packages/gpu_kernel_lightgbm_v10.sh
 source "${BASH_SOURCE[0]%/*}/gpu_kernel_lightgbm_v10.sh"
 
