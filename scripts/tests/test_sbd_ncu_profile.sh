@@ -65,8 +65,13 @@ case "${1:-}" in
   stats)
     shift
     output=""
+    report=""
     while [ $# -gt 0 ]; do
       case "$1" in
+        --report)
+          shift
+          report="$1"
+          ;;
         --output)
           shift
           output="$1"
@@ -75,6 +80,13 @@ case "${1:-}" in
       shift || true
     done
     test -n "$output"
+    if [ "$report" = nvtx_kern_sum ]; then
+      if [ -n "${FAKE_NVTX_RANGE:-}" ]; then
+        printf '"NVTX Range","Style","PID","TID","NVTX Inst","Kern Inst","Total Time (ns)","Kernel Name"\n' > "${output}_nvtx_kern_sum.csv"
+        printf '"%s","PushPop",100,101,2,4,400,"void sbd::MultAlphaBeta<double>(double*, double const*)"\n' "$FAKE_NVTX_RANGE" >> "${output}_nvtx_kern_sum.csv"
+      fi
+      exit 0
+    fi
     cat > "${output}_cuda_gpu_kern_sum.csv" <<'CSV'
 CUDA Kernel Summary
 "Time (%)","Total Time (ns)","Instances","Avg (ns)","Med (ns)","Min (ns)","Max (ns)","StdDev (ns)","Name"
@@ -104,6 +116,7 @@ fi
 output=""
 kernel=""
 launch_count=""
+nvtx_include=""
 launch_count_seen=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -127,6 +140,10 @@ while [ $# -gt 0 ]; do
     --kernel-name-base|--launch-skip|--target-processes|--set)
       shift
       ;;
+    --nvtx-include)
+      shift
+      nvtx_include="$1"
+      ;;
     --nvtx)
       ;;
     ./*)
@@ -144,6 +161,7 @@ fi
 mkdir -p "$(dirname "$output")"
 printf '%s\tlaunch_count=%s\tlaunch_count_seen=%s\n' "$kernel" "$launch_count" "$launch_count_seen" >> "$FAKE_NCU_LOG"
 printf 'fake ncu report\n' > "${output}.ncu-rep"
+if [ -n "${FAKE_NVTX_LOG:-}" ]; then printf '%s\n' "$nvtx_include" >> "$FAKE_NVTX_LOG"; fi
 EOF
 
 cat > "${RUN_DIR}/diag" <<'EOF'
@@ -278,4 +296,28 @@ done < <(jq -r '.profiles[].name' "$plan_json")
 
 test ! -e "${RESULTS_DIR}/sbd_stage_timing.json"
 test ! -e "${RESULTS_DIR}/timing_observations.json"
+# Reuse the actual SBD launcher with a coarse, spaced NVTX label.
+export FAKE_NVTX_RANGE='SBD : Davidson'
+export BK_NCU_NVTX_RANGE="$FAKE_NVTX_RANGE"
+export FAKE_NVTX_LOG="${TMP_DIR}/nvtx-args.log"
+pushd "${RUN_DIR}" >/dev/null
+sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt --adetfile h2o-1em7-alpha.txt
+popd >/dev/null
+test "$(cat "$FAKE_NVTX_LOG")" = 'SBD : Davidson/'
+mapfile -t scoped_plans < <(find "$RESULTS_DIR" -name plan.json | sort)
+test "${#scoped_plans[@]}" -eq 2
+scoped_count=0
+for scoped_plan in "${scoped_plans[@]}"; do
+  if jq -e '.source.report == "nvtx_kern_sum" and .profiles[0].nvtx.range == "SBD : Davidson" and .profiles[0].selection.source_launches == 4' "$scoped_plan" >/dev/null; then
+    scoped_count=$((scoped_count + 1))
+  fi
+done
+test "$scoped_count" -eq 1
+# A required scope must never silently turn into a whole-application NCU run.
+export BK_NCU_NVTX_RANGE=missing
+if (cd "$RUN_DIR"; sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt); then
+  echo 'missing NVTX range must fail' >&2
+  exit 1
+fi
+test "$(wc -l < "$FAKE_NVTX_LOG")" -eq 1
 echo "SBD NCU profile test passed"

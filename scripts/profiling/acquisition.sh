@@ -14,7 +14,7 @@ import sys
 if sys.version_info < (3, 7):
     sys.exit("Python 3.7 or newer is required")
 import argparse, csv, dataclasses, json, pathlib, re, shlex, typing
-for name in ("generate_ncu_plan.py", "iter_ncu_plan_profiles.py", "render_ncu_plan_commands.py"):
+for name in ("generate_ncu_plan.py", "iter_ncu_plan_profiles.py", "render_ncu_plan_commands.py", "nvtx_plan.py"):
     path = pathlib.Path(sys.argv[1]) / name
     compile(path.read_text(encoding="utf-8"), str(path), "exec")
 ' "${BK_BENCHKIT_ROOT}/scripts/profiling"; then
@@ -94,8 +94,16 @@ bk_acquire_ncu() {
   [[ "$skip" =~ ^[0-9]+$ && "$count" =~ ^[1-9][0-9]*$ && "$timeout_seconds" =~ ^[0-9]+$ ]] || return 2
   if [ -n "$plan" ]; then
     bk_require_ncu_plan_python || return 1
+    section=$("${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/iter_ncu_plan_profiles.py" \
+      --plan "$plan" --section-binding "$name" --section "$section") || return 1
     discovery=$("${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/iter_ncu_plan_profiles.py" \
       --plan "$plan" --metadata "$name" --section "$section") || return 1
+  fi
+  local nvtx_text="" nvtx_args=()
+  if [ -n "$plan" ]; then
+    nvtx_text=$("${PYTHON_BIN:-python3}" "${BK_BENCHKIT_ROOT}/scripts/profiling/iter_ncu_plan_profiles.py" \
+      --plan "$plan" --nvtx-args "$name") || return 1
+    if [ -n "$nvtx_text" ]; then mapfile -t nvtx_args <<< "$nvtx_text"; fi
   fi
   local work archive metadata stage rep report status=0 level_text
   local application=("$@") prefix=() command=() export_command=() level_args=()
@@ -107,7 +115,7 @@ bk_acquire_ncu() {
   stage="$work/bk_profiler_artifact"; rep="$work/raw/rep1"
   mkdir -p "$rep" "$stage/raw" "$stage/reports" || return 1
   prefix=(ncu -o "$rep/profile" --target-processes all "${level_args[@]}"
-    --kernel-name-base demangled --kernel-name "$kernel" --launch-skip "$skip" --launch-count "$count")
+    --kernel-name-base demangled --kernel-name "$kernel" --launch-skip "$skip" --launch-count "$count" "${nvtx_args[@]}")
   "$builder" prefix application command || return 1
   if [ "$timeout_seconds" -gt 0 ]; then
     command=(timeout --kill-after=60s "$timeout_seconds" "${command[@]}")
@@ -128,7 +136,7 @@ bk_acquire_ncu() {
     find "$stage/raw/rep1" -maxdepth 1 -type f \( -name '*.ncu-rep' -o -name '*.nsight-cuprof' \) -delete || return 1
   fi
   bk_profiler_write_meta "$stage" ncu "$level" both rep1 "$level" \
-    "--kernel-name-base demangled --kernel-name $kernel --launch-skip $skip --launch-count $count" "" || return 1
+    "--kernel-name-base demangled --kernel-name $kernel --launch-skip $skip --launch-count $count ${nvtx_text//$'\n'/ }" "" || return 1
   tar -czf "$archive" -C "$work" bk_profiler_artifact || return 1
   rm -rf "$stage" "$work/raw"
   # Failed acquisitions retain local diagnostics but cannot become usable profiles.
@@ -141,12 +149,16 @@ bk_acquire_ncu() {
 
 bk_discover_ncu_plan() {
   local csv="" section="" builder=_bk_profile_host_command exporter=_bk_profile_host_export
+  local nvtx_csv="${BK_NCU_NVTX_CSV:-}" nvtx_range="${BK_NCU_NVTX_RANGE:-}"
   local options=()
   while [ "$#" -gt 0 ]; do
     [ "$1" != -- ] || { shift; break; }
     [ "$#" -ge 2 ] || return 2
     case "$1" in
       --csv) csv="$2" ;;
+      --nvtx-csv) nvtx_csv="$2" ;;
+      --nvtx-range) nvtx_range="$2" ;;
+      --nvtx-process-id|--nvtx-thread-id) options+=("$1" "$2") ;;
       --section) section="$2" ;;
       --command-builder) builder="$2" ;;
       --export-builder) exporter="$2" ;;
@@ -163,7 +175,9 @@ bk_discover_ncu_plan() {
   report="$work/discovery.nsys-rep"; discovery="$work/discovery.json"; plan="$work/plan.json"
   if [ -z "$csv" ]; then
     [ "${#application[@]}" -gt 0 ] || return 2
-    prefix=(nsys profile --force-overwrite=true --trace=cuda --sample=none -o "$work/discovery")
+    # Passed by name to the application command builder.
+    # shellcheck disable=SC2034
+    prefix=(nsys profile --force-overwrite=true "--trace=cuda,nvtx" --sample=none -o "$work/discovery")
     "$builder" prefix application command || return 1
     bk_profile_execute --tool nsys --phase collect --log "$work/collect.log" -- "${command[@]}" >&2 || return $?
     [ -s "$report" ] || { echo 'NSYS report was not produced' >&2; return 1; }
@@ -173,9 +187,28 @@ bk_discover_ncu_plan() {
     mapfile -t candidates < <(find "$work" -maxdepth 1 -type f \( -name 'summary' -o -name 'summary*cuda_gpu_kern_sum*.csv' \) | sort)
     [ "${#candidates[@]}" -eq 1 ] || { echo 'NSYS kernel summary is missing or ambiguous' >&2; return 1; }
     csv="${candidates[0]}"
+    if [ -z "$nvtx_csv" ]; then
+      "$exporter" application export_command nsys stats --force-export=true --report nvtx_kern_sum \
+        --format csv --output "$work/nvtx" "$report" || return 1
+      if bk_profile_execute --tool nsys --phase export -- "${export_command[@]}" >&2; then
+        mapfile -t candidates < <(find "$work" -maxdepth 1 -type f -name 'nvtx*nvtx_kern_sum*.csv' | sort)
+        if [ "${#candidates[@]}" -eq 1 ] && [ -s "${candidates[0]}" ]; then
+          nvtx_csv="${candidates[0]}"
+        fi
+      fi
+      if [ -z "$nvtx_csv" ]; then
+        echo 'NSYS NVTX summary unavailable; retaining the unscoped kernel plan unless a range is required.' >&2
+      fi
+    fi
   fi
   [ -s "$csv" ] || { echo 'NSYS kernel summary is empty' >&2; return 1; }
   cp -- "$csv" "$work/kernel-summary.csv" || return 1
+  if [ -n "$nvtx_csv" ]; then
+    [ -s "$nvtx_csv" ] || { echo 'NVTX summary is empty or missing' >&2; return 1; }
+    cp -- "$nvtx_csv" "$work/nvtx-summary.csv" || return 1
+    options+=(--nvtx-csv nvtx-summary.csv)
+  fi
+  if [ -n "$nvtx_range" ]; then options+=(--nvtx-range "$nvtx_range"); fi
   (
     cd "$work" || exit 1
     bk_generate_ncu_plan --nsys-csv kernel-summary.csv --out-discovery discovery.json \

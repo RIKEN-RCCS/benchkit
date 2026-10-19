@@ -193,8 +193,46 @@ GPU kernel 時間内の割合であり、app FOM 全体に対する割合では�
 - `archive_ncu_report`
 - `selection` metadata
 
-現時点の helper は app section との対応を自動確定しない。
-NVTX range や app-side section timing と接続できる場合は、将来 `section` を埋める拡張で section-aware discovery に進める。
+helper は app section の意味を自動確定しない。NSYS 探索は CUDA と NVTX を採取し、
+利用可能なら `nvtx_kern_sum` の範囲別 kernel 情報を discovery と plan の selection に残す。
+入れ子 range の時間・launch 数を全体集計へ加算しない。range を選ばない場合は従来の全体 kernel 選択を維持する。
+
+粗い NVTX 範囲を使う場合は、`bk_discover_ncu_plan --nvtx-range 'exact label'`、または
+`BK_NCU_NVTX_RANGE='exact label'` を指定する。SBD の GPU build は既存 NVTX を有効にするが、
+range の選択や新たな同期は追加しない。ラベルは上流の file/function/line とメッセージを含むため、
+実際の report から選び、source の更新後に再確認する。NVTX header がない build では上流の注釈が無効な場合もある。
+
+保存済み CSV だけでも計画を作成できる:
+
+```bash
+python3 scripts/profiling/generate_ncu_plan.py \
+  --nsys-csv kernel-summary.csv --nvtx-csv nvtx-summary.csv \
+  --nvtx-range 'sbdiag.h:Run:461 : Davidson' \
+  --out-discovery discovery.json --out-plan plan.json
+```
+
+`--nvtx-csv` / `BK_NCU_NVTX_CSV` は NSYS の `nvtx_kern_sum` CSV を受け付ける。
+範囲指定時は、その範囲内の kernel 時間・回数から候補と skip/count を作り、
+plan の `section` は別途明示した場合だけ区間へ結び付ける。NVTX で絞った計画に section がなければ、
+wrapper の既定 section へは結び付けず、範囲情報だけを残す（SBD の Davidson 内採取を FOM 外の mult と扱わない）。
+plan の `nvtx` を NCU の `--nvtx --nvtx-include` へ引き継ぐ。Push/Pop と Start/End の違い、
+空白やフィルタ記号を含むラベルを保持する。現対応は default NVTX domain の literal label のみ。
+別 domain、入れ子に同名の range がある場合、異なる範囲の union はこの最小経路の対象外。
+複数 PID/TID/style が一致した場合は曖昧として停止する。CLI の `--nvtx-process-id` /
+`--nvtx-thread-id`（`bk_discover_ncu_plan` でも指定可）で discovery 側の対象を選択できるが、
+PID は再実行時の rank ID ではない。NCU の実行 command は同じ代表 rank を対象にする必要がある。
+全 rank の情報を黙って合算したり、NCU 側で元 PID を再利用したりしない。
+
+範囲が必須なのに情報がない・範囲が見つからない場合は、全体採取へ fallback せず停止する。
+NVTX を指定していない場合は、NVTX なし／追加レポートを出せない NSYS でも既存計画を維持する。
+明示した CSV が不正なら停止する。NSYS の report 列・NCU のフィルタはサイトに配置された版で実機確認が必要。
+
+範囲との対応は、範囲内のホスト CUDA API が起動した kernel の対応である。
+GPU 実行が範囲の終了後まで続いても、壁時計で切り落とさない。これは CPU/GPU/通信の
+時間分解や causal な overlap モデルではなく、通常実行の区間時間を置き換えるものでもない。
+NCU の replay による性能影響、代表 rank/窓の妥当性、区間全体の推定精度は別途確認する。
+公式仕様: [NSYS analysis](https://docs.nvidia.com/nsight-systems/AnalysisGuide/) /
+[NCU NVTX filtering](https://docs.nvidia.com/nsight-compute/NsightComputeCli/).
 NVTX がない場合でも、アプリ全体の上位 GPU kernel を自動抽出することで、手書きの kernel regex / skip / count を減らせる。
 
 GPU 実機で走らせる前には、plan を `bk_profiler ncu` の dry-run command manifest に変換して確認できる。

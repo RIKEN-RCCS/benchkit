@@ -24,6 +24,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+from nvtx_plan import read_nvtx_summary
+
+
 SCHEMA_VERSION = 1
 
 
@@ -404,6 +407,10 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--nsys-csv", required=True, type=Path, help="nsys cuda_gpu_kern_sum CSV")
+    parser.add_argument("--nvtx-csv", type=Path, help="optional nsys nvtx_kern_sum CSV")
+    parser.add_argument("--nvtx-range", help="exact coarse NVTX range in the default domain")
+    parser.add_argument("--nvtx-process-id", help="select one discovery process ID")
+    parser.add_argument("--nvtx-thread-id", help="select one discovery thread ID")
     parser.add_argument("--out-discovery", type=Path, help="output kernel discovery JSON")
     parser.add_argument("--out-plan", type=Path, help="output NCU plan JSON")
     parser.add_argument("--top-k", type=int, default=5, help="maximum selected kernels; 0 selects all")
@@ -431,6 +438,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No CUDA kernels parsed from {args.nsys_csv}", file=sys.stderr)
         return 1
 
+    nvtx_rows = read_nvtx_summary(args.nvtx_csv) if args.nvtx_csv else []
+    if (args.nvtx_process_id or args.nvtx_thread_id) and not args.nvtx_range:
+        parser.error("NVTX PID/TID selection requires --nvtx-range")
+    scope = None
+    if args.nvtx_range:
+        rows = [r for r in nvtx_rows if r['range'] == args.nvtx_range
+                and (not args.nvtx_process_id or r['process_id'] == args.nvtx_process_id)
+                and (not args.nvtx_thread_id or r['thread_id'] == args.nvtx_thread_id)]
+        contexts = {(r['process_id'], r['thread_id'], r['style']) for r in rows}
+        if len(contexts) != 1:
+            parser.error("NVTX scope missing or ambiguous; select one PID/TID and style")
+        if len({r['kernel_name'] for r in rows}) != len(rows):
+            parser.error("Duplicate NVTX kernel rows; cannot safely combine ranges")
+        scope = {k: rows[0][k] for k in ('range', 'style', 'process_id', 'thread_id')}
+        scope['domain'] = 'default'
+        kernels = [KernelSummary(name=r['kernel_name'], total_time_ns=r['total_time_ns'],
+                                 instances=r['instances']) for r in rows]
+        kernels.sort(key=lambda k: k.total_time_ns, reverse=True)
+
     selected = select_kernels(
         kernels,
         top_k=args.top_k,
@@ -452,6 +478,20 @@ def main(argv: list[str] | None = None) -> int:
         max_launch_skip=args.max_launch_skip,
         archive_ncu_report=args.archive_ncu_report,
     )
+    if args.nvtx_csv:
+        # Association evidence, never an additive time breakdown or app section guess.
+        discovery['nvtx'] = {'report': 'nvtx_kern_sum', 'path': str(args.nvtx_csv),
+                             'associations': nvtx_rows, 'selected_scope': scope}
+        plan['source']['nvtx'] = {'report': 'nvtx_kern_sum', 'path': str(args.nvtx_csv)}
+        for profile in plan['profiles']:
+            profile['selection']['nvtx_associations'] = [r for r in nvtx_rows
+                if r['kernel_name'] == profile['kernel_name']]
+            if scope:
+                profile['nvtx'] = scope
+                profile['selection']['scope'] = 'nvtx_range'
+        if scope:
+            discovery['source']['report'] = 'nvtx_kern_sum'
+            plan['source']['report'] = 'nvtx_kern_sum'
     if args.out_discovery:
         write_json(args.out_discovery, discovery)
     if args.out_plan:

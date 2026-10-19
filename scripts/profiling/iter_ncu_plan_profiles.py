@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 
+from nvtx_plan import ncu_nvtx_args
+
+
 def _profile_section(profile: dict[str, Any]) -> str:
     section = profile.get("section")
     if section:
@@ -29,6 +32,8 @@ def _profile_pattern(profile: dict[str, Any]) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", required=True, type=Path, help="input ncu_plan.json")
+    parser.add_argument("--section-binding", help="emit the section for one profile, without guessing from NVTX")
+    parser.add_argument("--nvtx-args", help="emit one NCU NVTX argument per line for one profile")
     parser.add_argument("--metadata", help="emit selection metadata for one profile")
     parser.add_argument("--section", default="")
     args = parser.parse_args(argv)
@@ -41,13 +46,31 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.plan} has no profiles", file=sys.stderr)
         return 1
 
+    if args.section_binding:
+        profile = next((p for p in profiles if p.get('name') == args.section_binding), None)
+        if profile is None:
+            return 1
+        section = (profile.get('section') or '') if profile.get('nvtx') is not None else args.section
+        if any(ord(c) < 32 for c in str(section)):
+            return 1
+        print(section)
+        return 0
+
+    if args.nvtx_args:
+        profile = next((p for p in profiles if p.get('name') == args.nvtx_args), None)
+        if profile is None:
+            return 1
+        for argument in ncu_nvtx_args(profile):
+            print(argument)
+        return 0
+
     if args.metadata:
         profile = next((item for item in profiles if item.get("name") == args.metadata), None)
         if profile is None:
             return 1
         discovery = dict(profile.get("selection") or {})
         discovery.update({key: profile.get(key) for key in
-                          ("kernel_name", "kernel_match", "launch_skip", "launch_count", "metric_set")})
+                          ("kernel_name", "kernel_match", "launch_skip", "launch_count", "metric_set", "nvtx")})
         discovery.update(section=args.section, profile_name=profile.get("name"))
         print(json.dumps(discovery, separators=(",", ":")))
         return 0
