@@ -216,6 +216,35 @@ timings. The GPU section packages compute source/target kernel time ratios from
 these samples. Those ratios are applied to app-side section times measured from
 the profiler-free GENESIS run.
 
+## Agent-Assisted Estimation Method Version Review
+
+When an agent changes either GENESIS method file, it should run this tool before
+reporting the change ready for review, as described in [AGENTS.md](AGENTS.md).
+The user need not remember to invoke it separately. With Python 3.12+ and Git,
+compare the two method files in the working tree against an existing local
+target commit or ref:
+
+```bash
+python3.12 scripts/check_estimation_version.py --app genesis --base refs/remotes/origin/develop
+```
+
+`--app` is required and selects only `programs/<app>/estimate.sh` and
+`programs/<app>/estimate.metadata.json`; applications are not scanned automatically.
+The default base is `HEAD`. Staged and unstaged edits are included. If
+`estimate.sh` contents changed but `estimate.metadata.json` has the same
+nonempty string `version`, the tool asks whether a version update is needed.
+Comment/formatting edits may need no bump; this is a human decision. A changed
+version is reported as changed, without ordering version strings. Missing or
+invalid files/versions are reported as unknown.
+
+Only those two files are inspected: source dependencies, observation definitions
+and shared package changes are outside this check. This manual tool neither
+fetches Git objects nor changes files, runs estimation, or connects to a server.
+Review/unknown messages return zero; an unavailable base or unsupported partial
+clone is a comparison error. No CI gate or automatic version update is added.
+The agent reports the output and the reason for updating or keeping the version;
+a zero exit status alone does not mean that no review is needed.
+
 ## Site-Specific Build/Run Overrides
 
 These variables are app-local knobs consumed by `programs/genesis/build.sh` and
