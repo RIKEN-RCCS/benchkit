@@ -37,6 +37,53 @@ assert not list(Path(os.environ["CASE_ROOT"]).iterdir())
 ''')
 
 
+def test_public_site_information_factory_uses_only_explicit_public_fields(tmp_path):
+    run_isolated(tmp_path, '''
+from unittest.mock import patch
+import fakeredis
+from app import create_instance_app
+with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=True)):
+    for surface in ("public", "console"):
+        application = create_instance_app(surface)
+        prefix = "/dev2" + ("/console" if surface == "console" else "")
+        response = application.test_client().get(prefix + "/about")
+        assert response.status_code == 200
+        page = response.get_data(as_text=True)
+        assert "Example operator" in page
+        assert 'href="' + prefix + '/about"' in page
+        assert "private-sentinel-not-public" not in page
+''', {
+        "BASE_PATH": str(tmp_path), "RESULT_SERVER_INSTANCE": "dev2",
+        "FLASK_SECRET_KEY": secrets.token_hex(32),
+        "RESULT_SERVER_KEYS": "fixture:" + secrets.token_hex(32),
+        "RESULT_SERVER_PUBLIC_SITE_INFO": json.dumps({"operator": "Example operator"}),
+        "PRIVATE_TEST_VALUE": "private-sentinel-not-public",
+    })
+
+
+def test_invalid_public_site_information_fails_before_storage_creation(tmp_path):
+    run_isolated(tmp_path, '''
+import os
+from pathlib import Path
+from unittest.mock import patch
+from app import create_instance_app
+with patch("redis.from_url", side_effect=AssertionError("unexpected Redis setup")):
+    try:
+        create_instance_app("public")
+    except ValueError as error:
+        assert "private-sentinel" not in str(error)
+        assert "RESULT_SERVER_PUBLIC_SITE_INFO" in str(error)
+    else:
+        raise AssertionError("invalid public settings accepted")
+assert not list(Path(os.environ["CASE_ROOT"]).iterdir())
+''', {
+        "BASE_PATH": str(tmp_path), "RESULT_SERVER_INSTANCE": "dev2",
+        "FLASK_SECRET_KEY": secrets.token_hex(32),
+        "RESULT_SERVER_KEYS": "fixture:" + secrets.token_hex(32),
+        "RESULT_SERVER_PUBLIC_SITE_INFO": '{"private-sentinel":"not-allowed"}',
+    })
+
+
 def test_opt_in_observation_receiver_has_no_startup_database_access(tmp_path):
     run_isolated(tmp_path, '''
 import os

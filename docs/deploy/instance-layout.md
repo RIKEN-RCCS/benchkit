@@ -47,6 +47,43 @@ distribution when consolidating files.
 
 ## Startup Entrypoints
 
+### Optional Public Explanation and Contact
+
+Set `RESULT_SERVER_PUBLIC_SITE_INFO` in the instance-specific environment to a
+JSON object containing only information intended for anonymous publication:
+
+```sh
+export RESULT_SERVER_PUBLIC_SITE_INFO='{"title":"About this data","operator":"Example Research Group","paragraphs":["Measurements depend on the stated execution conditions."],"contact":{"label":"Questions and corrections","url":"https://support.example.org/questions"}}'
+```
+
+This example uses shell syntax; use the corresponding quoting rules in your
+service manager's environment file. Restart the instance through your normal
+deployment procedure to load changes. Do not place private contacts, credentials,
+internal URLs, or other non-public settings in this object.
+
+All fields are optional. `title` defaults to `About this data`; `operator` is a
+short display label; `paragraphs` and `acknowledgements` are lists of plain-text
+paragraphs. `contact` and `terms` each contain exactly `label` and `url`, with an
+absolute HTTPS URL. Text is escaped, not interpreted as HTML. Links are ordinary
+external links: their content is not fetched or embedded.
+
+The footer shows the operator, explanation link, and optional contact link.
+The prefix-local `/about` page shows the paragraphs, optional terms link, and
+acknowledgements. With no content configured, the footer is unchanged and
+`/about` returns 404. Unknown fields, duplicate keys, malformed values, and unsafe
+links fail application startup without echoing the supplied content. The JSON
+limit is 64 KiB; title/operator/link-label limits are 128/256/256 characters,
+URLs 2048, and each paragraph list allows 32 nonempty entries of 8192 characters.
+
+Keep organizational wording, applicable data terms, acknowledgements, and real
+contact destinations in deployment settings, not shared source defaults. This
+site-level explanation does not replace individual data responsibility labels,
+change data visibility, or grant publication permission. The legacy
+`CX_DISCORD_INVITE_URL` home-guide setting remains independent and is not used
+as a contact fallback. No chat-service integration or new dependency is needed.
+
+### Web and Trigger Entrypoints
+
 Use the same code revision and compatible venv for an instance's public Web,
 Console, and trigger runner. Put `result_server` on `PYTHONPATH` and use these
 entrypoints from that directory:

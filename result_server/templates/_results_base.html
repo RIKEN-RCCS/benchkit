@@ -34,6 +34,14 @@
         <span class="portal-version-commit">commit {{ portal_version_commit }}</span>
         {% endif %}
         <a href="{{ url_for('changes') }}">Changes</a>
+        {% set site_info = config.get('PUBLIC_SITE_INFO') %}
+        {% if site_info %}
+        {% if site_info.operator %}<span class="portal-operator">{{ site_info.operator }}</span>{% endif %}
+        <a href="{{ url_for('about') }}">{{ site_info.title }}</a>
+        {% if site_info.contact %}
+        <a href="{{ site_info.contact.url }}" rel="noreferrer">{{ site_info.contact.label }}</a>
+        {% endif %}
+        {% endif %}
     </footer>
 </div>
 

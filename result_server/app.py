@@ -21,6 +21,7 @@ from utils.portal_version import portal_version_info
 from utils.estimate_version_view import configure_estimate_version_check
 from utils.preflight import validate_production_config
 from utils.instance_config import resolve_instance_settings
+from utils.public_site_info import configure_public_site_info
 
 
 DEFAULT_MAX_UPLOAD_MB = 512
@@ -198,6 +199,7 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     app.secret_key = secret_key
     app.config["INGEST_KEYS"] = ingest_keys
     configure_audit_logging(app)
+    configure_public_site_info(app)
 
     _configure_session(app, base_dir)
     _configure_redis(app, prefix, instance_settings)
