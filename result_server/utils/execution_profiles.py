@@ -214,6 +214,13 @@ def normalize_profile(raw_profile: Any, index: int = 0) -> tuple[dict[str, Any] 
         errors.append(f"profile[{index}] metadata_json must be an object")
         metadata = {}
 
+    from .benchpark import normalize_pipeline_config
+
+    pipeline, pipeline_errors = normalize_pipeline_config(metadata.get("pipeline"))
+    errors.extend(pipeline_errors)
+    if pipeline:
+        metadata = dict(metadata, pipeline=pipeline)
+
     normalized = {
         "id": profile_id,
         "display_name": display_name,
@@ -768,6 +775,8 @@ class ExecutionProfileStore:
             previous = json.loads(existing["metadata_json"] or "{}")
             if "budget_binding" in previous:
                 metadata["budget_binding"] = previous["budget_binding"]
+            if isinstance(previous, dict) and "pipeline" in previous and "pipeline" not in metadata:
+                metadata["pipeline"] = previous["pipeline"]
         profile["metadata_json"] = metadata
         approved_by = ""
         approved_at = ""

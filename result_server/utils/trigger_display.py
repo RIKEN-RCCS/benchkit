@@ -40,11 +40,50 @@ def load_trigger_run_lookup(db_path: str | None, *, limit: int = 500) -> dict[st
 def build_trigger_run_lookup(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Return latest trigger run by GitLab pipeline id."""
     lookup: dict[str, dict[str, Any]] = {}
+    ambiguous = set()
     for run in runs:
+        project = _run_project(run)
         for pipeline_id in _trigger_run_pipeline_ids(run):
-            if pipeline_id and pipeline_id not in lookup:
-                lookup[pipeline_id] = run
+            if project:
+                lookup.setdefault(project + "#" + pipeline_id, run)
+            if pipeline_id in lookup and _run_project(lookup[pipeline_id]) != project:
+                ambiguous.add(pipeline_id)
+            lookup.setdefault(pipeline_id, run)
+    for pipeline_id in ambiguous:
+        lookup.pop(pipeline_id, None)
     return lookup
+
+
+def _run_project(run):
+    payload = run.get("payload_json")
+    payload = payload if isinstance(payload, dict) else {}
+    return str(payload.get("gitlab_project") or "").strip().removesuffix(".git")
+
+
+def _run_backend(run):
+    payload = run.get("payload_json")
+    payload = payload if isinstance(payload, dict) else {}
+    plan = payload.get("payload")
+    plan = plan if isinstance(plan, dict) else {}
+    variables = plan.get("variables")
+    variables = variables if isinstance(variables, dict) else {}
+    return variables.get("BK_PIPELINE_BACKEND") or "benchkit"
+
+
+def iter_result_trigger_runs(result, lookup):
+    """Yield matching child/parent runs, keeping recorded project/producer boundaries."""
+    from utils.benchpark import result_pipeline_backend
+
+    project = str(result.get("ci_project") or "").strip().removesuffix(".git")
+    backend = result_pipeline_backend(result)
+    for pipeline_id in _result_pipeline_ids(result):
+        run = lookup.get(project + "#" + pipeline_id if project else pipeline_id)
+        if run and (project or not backend or backend == _run_backend(run)):
+            yield run
+
+
+def find_result_trigger_run(result, lookup):
+    return next(iter_result_trigger_runs(result, lookup), None)
 
 
 def build_trigger_result_links(
@@ -64,9 +103,16 @@ def build_trigger_result_links(
 
     by_run_id: dict[int, list[dict[str, str]]] = {}
     indexed_runs = [_index_trigger_run(run) for run in runs]
+    projects_by_id = {}
+    for run in indexed_runs:
+        for pipeline_id in run["pipeline_ids"]:
+            projects_by_id.setdefault(pipeline_id, set()).add(run["project"])
+    ambiguous_ids = {key for key, projects in projects_by_id.items() if len(projects) > 1}
     for filename in filenames:
         result = _load_result_json(filename, results_dir)
         if not isinstance(result, dict):
+            continue
+        if not result.get("ci_project") and ambiguous_ids.intersection(_result_pipeline_ids(result)):
             continue
         for indexed in indexed_runs:
             if _result_matches_trigger_run(result, indexed):
@@ -125,6 +171,8 @@ def summarize_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
     plan_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
     variables = plan_payload.get("variables") if isinstance(plan_payload.get("variables"), dict) else {}
     errors = run.get("errors") if isinstance(run.get("errors"), list) else []
+    from utils.benchpark import benchpark_run_context
+    benchpark_context = benchpark_run_context(variables)
     return {
         "id": run.get("id"),
         "trigger_id": run.get("trigger_id") or "-",
@@ -138,11 +186,11 @@ def summarize_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
         "gitlab_target": payload.get("gitlab_target") or "-",
         "gitlab_project": payload.get("gitlab_project") or "-",
         "target_ref": plan_payload.get("ref") or "-",
-        "code": variables.get("code") or "-",
-        "system": variables.get("system") or "-",
+        "code": variables.get("code") or benchpark_context.get("code") or "-",
+        "system": variables.get("system") or benchpark_context.get("system") or "-",
         "activity": variables.get("BK_EXECUTION_ACTIVITY") or payload.get("activity") or "-",
         "allocation_project_id": variables.get("BK_ALLOCATION_PROJECT_ID") or payload.get("allocation_project_id") or "-",
-        "result_server": variables.get("RESULT_SERVER") or "-",
+        "result_server": benchpark_context.get("result_server") or variables.get("RESULT_SERVER") or "-",
         "pipeline_id": _trigger_run_pipeline_ids(run)[0] if _trigger_run_pipeline_ids(run) else "-",
         "errors": errors,
         "error_summary": "; ".join(str(error) for error in errors) if errors else "",
@@ -156,13 +204,25 @@ def _index_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
         "trigger_type": str(run.get("trigger_type") or "").strip(),
         "reason": str(run.get("reason") or "").strip(),
         "pipeline_ids": set(_trigger_run_pipeline_ids(run)),
+        "project": _run_project(run),
+        "backend": _run_backend(run),
     }
 
 
 def _result_matches_trigger_run(result: dict[str, Any], run: dict[str, Any]) -> bool:
+    from utils.benchpark import result_pipeline_backend
+
+    project = str(result.get("ci_project") or "").strip().removesuffix(".git")
+    if project and project != run.get("project", ""):
+        return False
+    backend = result_pipeline_backend(result)
+    if not project and backend and backend != run["backend"]:
+        return False
     result_pipeline_ids = _result_pipeline_ids(result)
     if set(result_pipeline_ids).intersection(run["pipeline_ids"]):
         return True
+    if project and result_pipeline_ids and run["pipeline_ids"]:
+        return False
     trigger = extract_execution_trigger(result)
     if not trigger["id"]:
         return False
@@ -206,11 +266,7 @@ def _execution_trigger_from_pipeline(
     trigger_runs_by_pipeline: dict[str, dict[str, Any]],
 ) -> dict[str, str]:
     data = result if isinstance(result, dict) else {}
-    run = None
-    for pipeline_id in _result_pipeline_ids(data):
-        run = trigger_runs_by_pipeline.get(pipeline_id)
-        if run:
-            break
+    run = find_result_trigger_run(data, trigger_runs_by_pipeline)
     if not run:
         return {"id": "", "type": "", "reason": ""}
     return {

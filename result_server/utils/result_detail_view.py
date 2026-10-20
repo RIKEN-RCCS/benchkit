@@ -1,5 +1,7 @@
 from flask import url_for
 
+from utils.benchpark import benchpark_detail_rows
+
 from utils.measurement_artifacts import (
     profile_archive_filename_candidates,
     stored_measurement_artifact_filename_from_path,
@@ -149,6 +151,7 @@ def _build_meta_rows(result, trigger_runs_by_pipeline=None, *, public_surface=Fa
         ("Node Count", result.get("node_count", "N/A")),
     ]
     if not public_surface:
+        base_items.extend(benchpark_detail_rows(result))
         base_items.extend([
             ("Pipeline ID", result.get("pipeline_id", "N/A")),
             (

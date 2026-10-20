@@ -45,6 +45,7 @@ from utils.gitlab_pipeline import (
     profile_scope_csv,
     submit_pipeline_plan,
 )
+from utils.benchpark import parse_benchpark_profile_form, benchpark_manual_errors
 from utils.rate_limit import rate_limited
 from utils.trigger_display import build_trigger_result_links, summarize_trigger_run
 from utils.user_store import get_user_store
@@ -111,7 +112,7 @@ def _split_form_list(value):
 def _parse_execution_profile_form():
     """Return a raw execution profile object from the submitted admin form."""
     errors = []
-    metadata = {}
+    metadata = parse_benchpark_profile_form(request.form)
     code = _split_form_list(request.form.get("code", ""))
     system = _split_form_list(request.form.get("system", ""))
     allocation_project_id = request.form.get("allocation_project_id", "").strip()
@@ -731,6 +732,7 @@ def _build_execution_pipeline_plan(store):
     request_errors = []
     if not profile_id:
         request_errors.append("profile_id is required")
+    request_errors.extend(benchpark_manual_errors(profile, request.form))
     if effective_exp:
         plan.warnings.append(
             "Profile Exp is used for Portal profile matching and is not sent to GitLab CI."

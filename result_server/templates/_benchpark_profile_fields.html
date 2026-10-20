@@ -1,0 +1,34 @@
+        {% set profile_metadata = edit_profile.metadata_json if edit_profile and edit_profile.metadata_json is mapping else {} %}
+        {% set pipeline = profile_metadata.get('pipeline') if profile_metadata.get('pipeline') is mapping else {} %}
+        <label>Pipeline backend
+            <select name="pipeline_backend">
+                <option value="benchkit" {% if pipeline.get('backend', 'benchkit') == 'benchkit' %}selected{% endif %}>Benchkit</option>
+                <option value="benchpark" {% if pipeline.get('backend') == 'benchpark' %}selected{% endif %}>Benchpark CI</option>
+            </select>
+        </label>
+        <label>Benchpark GitLab target
+            <input name="benchpark_gitlab_target" value="{{ pipeline.get('gitlab_target', '') }}">
+            <span class="field-help">Use the same target for manual and scheduled runs.</span>
+        </label>
+        <label>Benchpark site
+            <input name="benchpark_site" placeholder="example-site" value="{{ pipeline.get('site', '') }}">
+        </label>
+        <label>Benchpark experiment
+            <input name="benchpark_experiment_config" placeholder="config/experiments/example.yaml" value="{{ pipeline.get('experiment_config', '') }}">
+            <span class="field-help">Selects the experiment. Code, System and Exp scopes describe its results. Use an explicit CI ref in the trigger.</span>
+        </label>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const backendSelect = document.querySelector('[name="pipeline_backend"]');
+    function updateBackendFields() {
+        if (!backendSelect) return;
+        document.querySelectorAll('[name^="benchpark_"]').forEach(function (field) {
+            field.disabled = backendSelect.value !== "benchpark";
+            field.closest("label").hidden = field.disabled;
+        });
+    }
+    if (backendSelect) backendSelect.addEventListener("change", updateBackendFields);
+    updateBackendFields();
+});
+</script>

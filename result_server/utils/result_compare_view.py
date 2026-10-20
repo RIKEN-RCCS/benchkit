@@ -1,5 +1,7 @@
 from flask import abort
 
+from utils.benchpark import result_pipeline_backend
+
 from utils.result_file import check_file_permission, load_public_result_json
 from utils.result_records import (
     build_axis_label,
@@ -171,6 +173,8 @@ def _summarize_compare_result(row, *, include_evidence=True):
         "profile_display": profile_summary["display"],
         "profile_key": profile_summary["key"],
     })
+    if result_pipeline_backend(data) == "benchpark":
+        summary["backend"] = "benchpark"
     return summary
 
 
@@ -220,6 +224,8 @@ def _build_diff_rows(baseline, latest):
             ("Profile", "profile"),
             ("Quality", "quality"),
         ])
+    if baseline.get("backend") or latest.get("backend"):
+        specs.append(("Execution Backend", "backend"))
     rows = []
     display_keys = {"source", "input", "build_cache", "profile"}
     for label, key in specs:
