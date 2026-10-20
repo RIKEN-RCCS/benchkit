@@ -114,6 +114,7 @@ set -euo pipefail
 outfile=""
 import_file=""
 import_mode=0
+nvtx_seen=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -o|--output)
@@ -129,6 +130,14 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     --nvtx)
+      nvtx_seen=$((nvtx_seen + 1))
+      if [ "$nvtx_seen" -gt 1 ]; then
+        echo 'duplicate --nvtx' >&2
+        exit 1
+      fi
+      ;;
+    --nvtx-include)
+      shift
       ;;
     --*)
       ;;
@@ -270,6 +279,14 @@ test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile_raw.csv"
 ! test -f "${ncu_raw_csv_extract}/bk_profiler_artifact/raw/rep1/profile.ncu-rep"
 grep -q '"kind": "ncu_raw_csv"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
 ! grep -q '"kind": "ncu_report"' "${ncu_raw_csv_extract}/bk_profiler_artifact/meta.json"
+
+# The scoped path must enable NVTX once for both implicit and explicit presets.
+for scoped_level in single detailed; do
+  BK_PROFILER_NCU_NVTX_INCLUDE=':sbdiag.h:461 \[diag\] : Davidson/' \
+    bk_profiler ncu --level "$scoped_level" \
+    --archive "${TMP_DIR}/ncu_scoped_${scoped_level}.tgz" \
+    --raw-dir "${TMP_DIR}/ncu_scoped_${scoped_level}" -- true
+done
 
 ncu_acq_archive="${TMP_DIR}/ncu_acq.tgz"
 ncu_acq_metadata="${TMP_DIR}/ncu_acq.metadata.json"

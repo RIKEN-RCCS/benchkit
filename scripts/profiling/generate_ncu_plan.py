@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-from nvtx_plan import read_nvtx_summary
+from nvtx_plan import read_nvtx_summary, resolve_nsys_nvtx_scope
 
 
 SCHEMA_VERSION = 1
@@ -408,7 +408,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--nsys-csv", required=True, type=Path, help="nsys cuda_gpu_kern_sum CSV")
     parser.add_argument("--nvtx-csv", type=Path, help="optional nsys nvtx_kern_sum CSV")
-    parser.add_argument("--nvtx-range", help="exact coarse NVTX range in the default domain")
+    parser.add_argument("--nvtx-sqlite", type=Path,
+                        help="resolve a selected NSYS display label to its raw default-domain name")
+    parser.add_argument("--nvtx-range", help="exact range label; CSV display label when --nvtx-sqlite is provided")
     parser.add_argument("--nvtx-process-id", help="select one discovery process ID")
     parser.add_argument("--nvtx-thread-id", help="select one discovery thread ID")
     parser.add_argument("--out-discovery", type=Path, help="output kernel discovery JSON")
@@ -439,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     nvtx_rows = read_nvtx_summary(args.nvtx_csv) if args.nvtx_csv else []
+    if args.nvtx_sqlite and not args.nvtx_range:
+        parser.error("NVTX SQLite resolution requires --nvtx-range")
     if (args.nvtx_process_id or args.nvtx_thread_id) and not args.nvtx_range:
         parser.error("NVTX PID/TID selection requires --nvtx-range")
     scope = None
@@ -453,6 +457,15 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("Duplicate NVTX kernel rows; cannot safely combine ranges")
         scope = {k: rows[0][k] for k in ('range', 'style', 'process_id', 'thread_id')}
         scope['domain'] = 'default'
+        if args.nvtx_sqlite:
+            try:
+                import sqlite3
+            except ImportError:
+                parser.error("--nvtx-sqlite requires Python sqlite3 support")
+            try:
+                scope = resolve_nsys_nvtx_scope(scope, args.nvtx_sqlite)
+            except (ValueError, OSError, sqlite3.Error) as error:
+                parser.error(str(error))
         kernels = [KernelSummary(name=r['kernel_name'], total_time_ns=r['total_time_ns'],
                                  instances=r['instances']) for r in rows]
         kernels.sort(key=lambda k: k.total_time_ns, reverse=True)
@@ -483,6 +496,9 @@ def main(argv: list[str] | None = None) -> int:
         discovery['nvtx'] = {'report': 'nvtx_kern_sum', 'path': str(args.nvtx_csv),
                              'associations': nvtx_rows, 'selected_scope': scope}
         plan['source']['nvtx'] = {'report': 'nvtx_kern_sum', 'path': str(args.nvtx_csv)}
+        if args.nvtx_sqlite:
+            discovery['nvtx']['sqlite_path'] = str(args.nvtx_sqlite)
+            plan['source']['nvtx']['sqlite_path'] = str(args.nvtx_sqlite)
         for profile in plan['profiles']:
             profile['selection']['nvtx_associations'] = [r for r in nvtx_rows
                 if r['kernel_name'] == profile['kernel_name']]
