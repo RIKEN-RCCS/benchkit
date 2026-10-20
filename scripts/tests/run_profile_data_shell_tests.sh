@@ -101,6 +101,7 @@ scripts/tests/test_estimation_gpu_kernel_lightgbm_v10.sh
 scripts/tests/test_estimation_gpu_kernel_lightgbm_v11.sh
 scripts/tests/test_estimation_gpu_kernel_mlp_v15.sh
 scripts/tests/test_genesis_gpu_mlp_estimation.sh
+scripts/tests/test_sbd_davidson_ratio.sh
 EOF
       ;;
     all)
