@@ -242,3 +242,5 @@ for app participation registration.
 escape hatches for bring-up and sites that do not yet use Portal execution
 profiles. They should not be the primary governance interface once a site uses
 Portal-managed profiles and triggers.
+
+For an independent Benchpark CI producer, see [Benchpark CI integration](benchpark-ci-integration.md) for the input contract, schedule ownership and shared result views.

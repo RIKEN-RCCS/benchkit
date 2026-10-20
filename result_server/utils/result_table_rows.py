@@ -8,7 +8,8 @@ from utils.result_records import (
     format_result_timestamp,
     summarize_result_quality,
 )
-from utils.trigger_display import summarize_execution_trigger
+from utils.trigger_display import summarize_execution_trigger, iter_result_trigger_runs
+from utils.benchpark import result_pipeline_backend
 
 
 def build_result_table_row(
@@ -42,7 +43,7 @@ def build_result_table_row(
         ci_title = f"{ci_trigger} / child #{pipeline_id} / parent #{parent_pipeline_id}"
         ci_subline = f"parent #{parent_pipeline_id}"
 
-    return {
+    row = {
         "timestamp": timestamp,
         "code": result_data.get("code", "N/A"),
         "exp": result_data.get("Exp", "N/A"),
@@ -88,6 +89,9 @@ def build_result_table_row(
         "profile_summary": _format_profile_summary(profile_data),
         "profile_summary_meta": _build_profile_summary_meta(profile_data),
     }
+    if result_pipeline_backend(result_data) == "benchpark":
+        row["execution_backend"] = "benchpark"
+    return row
 
 
 def _normalize_optional_field(value):
@@ -116,8 +120,7 @@ def _build_activity_context(result_data, trigger_runs_by_pipeline=None, *, publi
     allocation_project_id = _extract_result_allocation_project_id(result_data)
 
     if (not activity or not allocation_project_id) and trigger_runs_by_pipeline:
-        for pipeline_id in _result_pipeline_ids(result_data):
-            run = trigger_runs_by_pipeline.get(pipeline_id)
+        for run in iter_result_trigger_runs(result_data, trigger_runs_by_pipeline):
             variables = _trigger_run_activity_context(run)
             if not activity:
                 activity = variables.get("activity", "")
@@ -158,6 +161,9 @@ def _build_activity_context(result_data, trigger_runs_by_pipeline=None, *, publi
 
 
 def _extract_result_activity(result_data):
+    activity = result_data.get("execution_activity")
+    if result_pipeline_backend(result_data) == "benchpark" and isinstance(activity, str) and activity.strip():
+        return activity.strip()
     snapshot = result_data.get("environment_snapshot")
     if not isinstance(snapshot, dict):
         return ""

@@ -374,6 +374,7 @@
                 <option value="retired" {% if selected_status == 'retired' %}selected{% endif %}>retired</option>
             </select>
         </label>
+        {% include "_benchpark_profile_fields.html" %}
         <label>
             Activity
             <input type="text" name="activity" placeholder="FutureSystem" value="{{ edit_profile.activity if edit_profile else '' }}">
@@ -513,7 +514,13 @@
                             <form method="POST" action="{{ url_for('admin.submit_execution_profile_pipeline') }}">
                                 {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                                {% set row_metadata = profile.metadata_json if profile.metadata_json is mapping else {} %}
+                                {% set row_pipeline = row_metadata.get('pipeline') if row_metadata.get('pipeline') is mapping else {} %}
+                                {% if row_pipeline.get('backend') == 'benchpark' %}
+                                <input type="text" name="target_ref" required placeholder="CI ref" aria-label="Benchpark CI ref">
+                                {% else %}
                                 <input type="hidden" name="target_ref" value="{{ default_target_ref }}">
+                                {% endif %}
                                 <input type="hidden" name="confirm_submit" value="on">
                                 {% if 'budget_binding' in (profile.metadata_json or {}) %}
                                 <span>Budget</span>
@@ -521,7 +528,7 @@
                                 {% if gitlab_targets | length > 1 %}
                                 <select name="gitlab_target" aria-label="GitLab target">
                                     {% for target in gitlab_targets %}
-                                    <option value="{{ target.id }}">{{ target.id }}</option>
+                                    <option value="{{ target.id }}" {% if row_pipeline.get('backend') == 'benchpark' and row_pipeline.get('gitlab_target') == target.id %}selected{% endif %}>{{ target.id }}</option>
                                     {% endfor %}
                                 </select>
                                 {% else %}
@@ -539,7 +546,7 @@
                     </td>
                     <td class="profile-col-scope">
                         <span class="profile-scope-line">
-                            <span class="profile-mono">{{ profile.code | join(', ') or '*' }}</span>
+                            <span class="profile-mono">{{ profile.code | join(', ') or '*' }}{% if profile.metadata_json is mapping and profile.metadata_json.get('pipeline') is mapping and profile.metadata_json.pipeline.get('backend') == 'benchpark' %}<br>Benchpark: {{ profile.metadata_json.pipeline.site }} / {{ profile.metadata_json.pipeline.experiment_config }}{% endif %}</span>
                             on
                             <span class="profile-mono">{{ profile.system | join(', ') or '*' }}</span>
                             {% if profile.exp %}

@@ -250,6 +250,15 @@ def build_profile_pipeline_plan(
     system: str = "",
 ) -> GitLabPipelinePlan:
     """Map a resolved profile to CI inputs; callers retain validation and provenance."""
+    from .benchpark import build_benchpark_profile_plan
+
+    adapted = build_benchpark_profile_plan(
+        profile=profile, allocation_project_id=allocation_project_id, gitlab_repo=gitlab_repo,
+        target_ref=target_ref, result_server_url=result_server_url,
+        target_id=target_id, code=code, system=system,
+    )
+    if adapted is not None:
+        return adapted
     return build_pipeline_plan(
         gitlab_repo=gitlab_repo,
         target_ref=target_ref,

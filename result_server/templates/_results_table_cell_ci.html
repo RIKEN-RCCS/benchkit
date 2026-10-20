@@ -1,5 +1,6 @@
 {% set pipeline_label = row.pipeline_label | default('#' ~ row.pipeline_id if row.pipeline_id != '-' else '-') %}
 <td class="ci-cell" title="{{ row.ci_title | default(row.ci_trigger ~ ' / ' ~ pipeline_label) }}">
+    {% if row.execution_backend | default('') %}<span class="ci-subline">{{ row.execution_backend }}</span>{% endif %}
     <span class="ci-trigger">{{ row.ci_trigger }}</span>
     <span class="ci-pipeline">{{ pipeline_label }}</span>
     {% if row.ci_subline | default('') %}
