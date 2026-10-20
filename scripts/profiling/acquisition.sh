@@ -110,6 +110,15 @@ bk_acquire_ncu() {
   slug="${slug:-$(bk_profile_slug "$name")}"
   level_text=$(bk_ncu_window_level_args "$level") || return 1
   mapfile -t level_args <<< "$level_text"
+  # The detailed preset already enables NVTX; retain only the plan's filter.
+  local level_arg
+  for level_arg in "${level_args[@]}"; do
+    if [ "$level_arg" = --nvtx ] && [ "${nvtx_args[0]:-}" = --nvtx ]; then
+      nvtx_args=("${nvtx_args[@]:1}")
+      nvtx_text=$(printf '%s\n' "${nvtx_args[@]}")
+      break
+    fi
+  done
   work=$(_bk_profile_workspace) || return 1
   archive="$work/profile.tgz"; metadata="$work/profile.metadata.json"
   stage="$work/bk_profiler_artifact"; rep="$work/raw/rep1"
@@ -150,6 +159,7 @@ bk_acquire_ncu() {
 bk_discover_ncu_plan() {
   local csv="" section="" builder=_bk_profile_host_command exporter=_bk_profile_host_export
   local nvtx_csv="${BK_NCU_NVTX_CSV:-}" nvtx_range="${BK_NCU_NVTX_RANGE:-}"
+  local nvtx_sqlite="${BK_NCU_NVTX_SQLITE:-}"
   local options=()
   while [ "$#" -gt 0 ]; do
     [ "$1" != -- ] || { shift; break; }
@@ -157,6 +167,7 @@ bk_discover_ncu_plan() {
     case "$1" in
       --csv) csv="$2" ;;
       --nvtx-csv) nvtx_csv="$2" ;;
+      --nvtx-sqlite) nvtx_sqlite="$2" ;;
       --nvtx-range) nvtx_range="$2" ;;
       --nvtx-process-id|--nvtx-thread-id) options+=("$1" "$2") ;;
       --section) section="$2" ;;
@@ -168,6 +179,10 @@ bk_discover_ncu_plan() {
     esac
     shift 2
   done
+  if [ -n "$nvtx_sqlite" ]; then
+    [ -n "$nvtx_range" ] || { echo 'NVTX SQLite requires an explicit range' >&2; return 2; }
+    [ -s "$nvtx_sqlite" ] || { echo 'NVTX SQLite is empty or missing' >&2; return 1; }
+  fi
   local application=("$@") prefix=() command=() export_command=() candidates=()
   local work report discovery plan
   bk_require_ncu_plan_python || return 1
@@ -207,6 +222,10 @@ bk_discover_ncu_plan() {
     [ -s "$nvtx_csv" ] || { echo 'NVTX summary is empty or missing' >&2; return 1; }
     cp -- "$nvtx_csv" "$work/nvtx-summary.csv" || return 1
     options+=(--nvtx-csv nvtx-summary.csv)
+  fi
+  if [ -n "$nvtx_sqlite" ]; then
+    cp -- "$nvtx_sqlite" "$work/nvtx.sqlite" || return 1
+    options+=(--nvtx-sqlite nvtx.sqlite)
   fi
   if [ -n "$nvtx_range" ]; then options+=(--nvtx-range "$nvtx_range"); fi
   (

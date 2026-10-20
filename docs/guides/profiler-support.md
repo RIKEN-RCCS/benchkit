@@ -212,6 +212,14 @@ python3 scripts/profiling/generate_ncu_plan.py \
 ```
 
 `--nvtx-csv` / `BK_NCU_NVTX_CSV` は NSYS の `nvtx_kern_sum` CSV を受け付ける。
+CSV の表示名が生の NVTX 名と異なる場合は、同じ採取の SQLite を
+`bk_discover_ncu_plan --nvtx-sqlite discovery.sqlite` または
+`BK_NCU_NVTX_SQLITE=discovery.sqlite` で渡せる。通常の SBD 採取入口もこの環境変数を使う。
+この場合の範囲指定は CSV 表示名（例 `:sbdiag.h:461 [diag] : Davidson`）とし、
+SQLite の default domain と照合して plan の `range` に生名、`display_range` に表示名を残す。
+NCU へは生名から作った filter を渡す。SQLite は成果物側の `nvtx.sqlite` に保存する。
+範囲未指定・ファイル欠落・照合不一致は停止する。先頭コロンを推測で削らない。
+SQLite を指定しない既存の literal 名経路は維持するが、表示名の自動解決は行わない。
 範囲指定時は、その範囲内の kernel 時間・回数から候補と skip/count を作り、
 plan の `section` は別途明示した場合だけ区間へ結び付ける。NVTX で絞った計画に section がなければ、
 wrapper の既定 section へは結び付けず、範囲情報だけを残す（SBD の Davidson 内採取を FOM 外の mult と扱わない）。

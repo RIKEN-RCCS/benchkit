@@ -2,6 +2,7 @@
 import csv
 import math
 import re
+from pathlib import Path
 
 
 def ncu_nvtx_args(profile):
@@ -66,4 +67,27 @@ def read_nvtx_summary(path):
                 'total_time_ns': number(unit) * scale}
         ncu_nvtx_args({'nvtx': item})
         result.append(item)
+    return result
+
+
+def resolve_nsys_nvtx_scope(scope, sqlite_path):
+    """Resolve a domain-prefixed NSYS display label using raw default-domain data.
+
+    Do not strip a colon from arbitrary literal labels. With no SQLite proof,
+    callers must retain the existing literal-name path instead.
+    """
+    import sqlite3
+
+    display = scope['range']
+    uri = Path(sqlite_path).resolve().as_uri() + '?mode=ro'
+    with sqlite3.connect(uri, uri=True) as database:
+        rows = database.execute(
+            'SELECT DISTINCT COALESCE(n.text, s.value) '
+            'FROM NVTX_EVENTS n LEFT JOIN StringIds s ON s.id = n.textId '
+            'WHERE n.domainId = 0')
+        names = {name for (name,) in rows if name and ':' + name == display}
+    if len(names) != 1:
+        raise ValueError('NSYS display range has no unique raw name in the default domain')
+    result = dict(scope, range=next(iter(names)), display_range=display, domain='default')
+    ncu_nvtx_args({'nvtx': result})
     return result

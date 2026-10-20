@@ -117,6 +117,7 @@ output=""
 kernel=""
 launch_count=""
 nvtx_include=""
+nvtx_seen=0
 launch_count_seen=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -145,6 +146,11 @@ while [ $# -gt 0 ]; do
       nvtx_include="$1"
       ;;
     --nvtx)
+      nvtx_seen=$((nvtx_seen + 1))
+      if [ "$nvtx_seen" -gt 1 ]; then
+        echo 'duplicate --nvtx' >&2
+        exit 1
+      fi
       ;;
     ./*)
       "$@" >/dev/null
@@ -320,4 +326,64 @@ if (cd "$RUN_DIR"; sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt
   exit 1
 fi
 test "$(wc -l < "$FAKE_NVTX_LOG")" -eq 1
+# The normal SBD entry must forward SQLite evidence, not call the generator directly.
+export FAKE_NVTX_RANGE=':sbdiag.h:461 [diag] : Davidson'
+export BK_NCU_NVTX_RANGE="$FAKE_NVTX_RANGE"
+export BK_NCU_NVTX_SQLITE="${TMP_DIR}/nvtx evidence.sqlite"
+"${PYTHON_BIN:-python3}" - "$BK_NCU_NVTX_SQLITE" <<'PYSQL'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as database:
+    database.executescript("CREATE TABLE StringIds(id INTEGER, value TEXT); "
+                           "CREATE TABLE NVTX_EVENTS(text TEXT, textId INTEGER, domainId INTEGER); "
+                           "INSERT INTO NVTX_EVENTS VALUES('sbdiag.h:461 [diag] : Davidson', NULL, 0);")
+PYSQL
+pushd "${RUN_DIR}" >/dev/null
+sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt --adetfile h2o-1em7-alpha.txt
+popd >/dev/null
+test "$(tail -1 "$FAKE_NVTX_LOG")" = 'sbdiag.h:461 \[diag\] : Davidson/'
+test "$(wc -l < "$FAKE_NVTX_LOG")" -eq 2
+resolved_plan=""
+for candidate in "$RESULTS_DIR"/*/plan.json; do
+  if jq -e '.profiles[0].nvtx.display_range == ":sbdiag.h:461 [diag] : Davidson"' "$candidate" >/dev/null; then
+    resolved_plan="$candidate"
+  fi
+done
+test -n "$resolved_plan"
+jq -e '.source.nvtx.sqlite_path == "nvtx.sqlite" and
+  .profiles[0].nvtx.range == "sbdiag.h:461 [diag] : Davidson" and
+  .profiles[0].nvtx.domain == "default" and .profiles[0].section == null and
+  .profiles[0].selection.nvtx_associations[0].range == ":sbdiag.h:461 [diag] : Davidson"' "$resolved_plan" >/dev/null
+cmp "$BK_NCU_NVTX_SQLITE" "$(dirname "$resolved_plan")/nvtx.sqlite"
+resolved_metadata=0
+for candidate in "$RESULTS_DIR"/*/profile.metadata.json; do
+  if jq -e '.nsys_discovery_json | fromjson | .nvtx.display_range == ":sbdiag.h:461 [diag] : Davidson" and
+    .nvtx.range == "sbdiag.h:461 [diag] : Davidson" and .section == ""' "$candidate" >/dev/null; then
+    resolved_metadata=$((resolved_metadata + 1))
+  fi
+done
+test "$resolved_metadata" -eq 1
+# The CLI override also works with saved CSVs and a path containing spaces.
+sqlite_evidence="$BK_NCU_NVTX_SQLITE"
+cli_plan=$(BK_NCU_NVTX_SQLITE="${TMP_DIR}/missing.sqlite" bk_discover_ncu_plan \
+  --csv "$(dirname "$resolved_plan")/kernel-summary.csv" \
+  --nvtx-csv "$(dirname "$resolved_plan")/nvtx-summary.csv" \
+  --nvtx-range "$FAKE_NVTX_RANGE" --nvtx-sqlite "$sqlite_evidence" -- true)
+jq -e '.profiles[0].nvtx.range == "sbdiag.h:461 [diag] : Davidson"' "$cli_plan" >/dev/null
+# Incorrect/missing evidence must stop without invoking NCU.
+"${PYTHON_BIN:-python3}" - "$BK_NCU_NVTX_SQLITE" <<'PYSQL'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as database:
+    database.execute("UPDATE NVTX_EVENTS SET domainId = 1")
+PYSQL
+if (cd "$RUN_DIR"; sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt); then
+  echo 'unconfirmed default-domain scope must fail' >&2
+  exit 1
+fi
+export BK_NCU_NVTX_SQLITE="${TMP_DIR}/missing.sqlite"
+if (cd "$RUN_DIR"; sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt); then
+  echo 'missing SQLite evidence must fail' >&2
+  exit 1
+fi
+test "$(wc -l < "$FAKE_NVTX_LOG")" -eq 2
+unset BK_NCU_NVTX_SQLITE
 echo "SBD NCU profile test passed"

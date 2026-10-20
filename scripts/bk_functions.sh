@@ -2014,7 +2014,10 @@ bk_profiler() {
       bk_profiler_call_optional_hook bk_profiler_before_run "$_bk_profiler_tool" "$_bk_profiler_level" "$_bk_ncu_rep_name" "$_bk_profiler_level" "$@" || return 1
       local _bk_ncu_nvtx_args=()
       if [ -n "${BK_PROFILER_NCU_NVTX_INCLUDE:-}" ]; then
-        _bk_ncu_nvtx_args=(--nvtx --nvtx-include "$BK_PROFILER_NCU_NVTX_INCLUDE")
+        _bk_ncu_nvtx_args=(--nvtx-include "$BK_PROFILER_NCU_NVTX_INCLUDE")
+        if [[ " $_bk_ncu_level_args " != *" --nvtx "* ]]; then
+          _bk_ncu_nvtx_args=(--nvtx "${_bk_ncu_nvtx_args[@]}")
+        fi
       fi
       # BK_PROFILER_ARGS is intentionally word-split into ncu options.
       # shellcheck disable=SC2086

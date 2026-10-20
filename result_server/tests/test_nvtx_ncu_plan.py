@@ -160,3 +160,56 @@ bk_acquire_ncu --profile-name "$NAME" --section unrelated --kernel-regex same_ke
     assert r.returncode == 0, r.stderr
     generic_argv = json.loads((tmp_path / 'argv.json').read_text())
     assert generic_argv[generic_argv.index('--nvtx-include')+1] == env['BK_PROFILER_NCU_NVTX_INCLUDE']
+
+
+@pytest.mark.parametrize('raw_name', [LABEL, ':' + LABEL])
+def test_sqlite_resolves_display_label_and_preserves_literal_name(tmp_path, raw_name):
+    import sqlite3
+    db = tmp_path / 'discovery.sqlite'
+    with sqlite3.connect(db) as connection:
+        connection.executescript('CREATE TABLE StringIds(id INTEGER, value TEXT); '
+                                 'CREATE TABLE NVTX_EVENTS(text TEXT, textId INTEGER, domainId INTEGER);')
+        connection.execute('INSERT INTO StringIds VALUES(1, ?)', (raw_name,))
+        connection.execute('INSERT INTO NVTX_EVENTS VALUES(NULL, 1, 0)')
+    display = ':' + raw_name
+    result, plan, discovery = generate(tmp_path, [sample(display)],
+        '--nvtx-range', display, '--nvtx-sqlite', str(db))
+    assert result.returncode == 0, result.stderr
+    scope = json.loads(plan.read_text())['profiles'][0]['nvtx']
+    assert scope['range'] == raw_name
+    assert scope['display_range'] == display
+    assert scope['domain'] == 'default'
+    assert json.loads(discovery.read_text())['nvtx']['associations'][0]['range'] == display
+    assert json.loads(discovery.read_text())['nvtx']['selected_scope'] == scope
+    result = subprocess.run([sys.executable, str(TOOLS / 'render_ncu_plan_commands.py'),
+        '--plan', str(plan), '--format', 'json', '--', './diag'],
+        capture_output=True, text=True, check=True)
+    record = json.loads(result.stdout)['commands'][0]
+    assert record['env']['BK_PROFILER_NCU_NVTX_INCLUDE'] == raw_name.replace('[', r'\[').replace(']', r'\]') + '/'
+    result = subprocess.run([sys.executable, str(TOOLS / 'iter_ncu_plan_profiles.py'),
+        '--plan', str(plan), '--metadata', json.loads(plan.read_text())['profiles'][0]['name']],
+        capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout)['nvtx'] == scope
+
+
+@pytest.mark.parametrize('domain,name', [(1, LABEL), (0, 'other range')])
+def test_sqlite_unconfirmed_or_named_domain_fails_closed(tmp_path, domain, name):
+    import sqlite3
+    db = tmp_path / 'discovery.sqlite'
+    with sqlite3.connect(db) as connection:
+        connection.executescript('CREATE TABLE StringIds(id INTEGER, value TEXT); '
+                                 'CREATE TABLE NVTX_EVENTS(text TEXT, textId INTEGER, domainId INTEGER);')
+        connection.execute('INSERT INTO NVTX_EVENTS VALUES(?, NULL, ?)', (name, domain))
+    result, plan, _ = generate(tmp_path, [sample(':' + LABEL)],
+        '--nvtx-range', ':' + LABEL, '--nvtx-sqlite', str(db))
+    assert result.returncode != 0
+    assert not plan.exists()
+
+
+def test_sqlite_missing_is_not_created_or_ignored(tmp_path):
+    db = tmp_path / 'missing.sqlite'
+    result, plan, _ = generate(tmp_path, [sample(':' + LABEL)],
+        '--nvtx-range', ':' + LABEL, '--nvtx-sqlite', str(db))
+    assert result.returncode != 0
+    assert not plan.exists()
+    assert not db.exists()
