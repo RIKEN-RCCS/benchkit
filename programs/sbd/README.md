@@ -151,3 +151,67 @@ reference/tolerance, Davidson FOM, multiply section, toolchain, and both
 actual input file records are retained. Input source metadata remains a
 staged-file declaration; the observed digests and sizes identify the files
 actually used. No GPU profiling is enabled for this CPU route.
+
+## Offline Davidson time-ratio projection
+
+`estimation/aggregate_davidson.py` is an explicit, offline calculation for a
+single profiled rank/GPU. It does not run NSYS/NCU, change normal collection,
+replace the benchmark FOM, or emit a full Estimate. Use Python 3.11+ on the
+estimation host; the script needs only the standard library.
+
+Supply the saved NSYS SQLite, its **raw** outer Davidson NVTX name, parsed
+LightGBM 1.1 JSON (`metrics.kernels`), and an explicit sample association:
+
+```sh
+python3.11 programs/sbd/estimation/aggregate_davidson.py \
+  --nsys-sqlite discovery.sqlite \
+  --nvtx-range 'sbdiag.h:461 [diag] : Davidson' \
+  --predictions parsed-predictions.json --samples samples.json > davidson-ratio.json
+```
+
+Use the raw label from the actual source/trace; its line number can change.
+The JSON prediction rows are the common LightGBM parser's output, before any
+projection onto an application section. Each row must retain its name,
+configuration, source/target GPU, aligned source/predicted nanoseconds and
+`sample_count: 1`. A combined document may contain additional rows, but only
+the five explicitly associated rows are used.
+
+`samples.json` declares `scope` (`nsys_sha256`, `nvtx_range`, `mpi_size: 1`,
+`mpi_rank: 0`), `source_gpu`, `target_gpu`, and five `samples`. Each sample has
+`family`, the exact NSYS `kernel_name`, three-dimensional `grid` and `block`
+arrays, a zero-based `launch_index` **within that family and Davidson range**,
+and a zero-based `prediction_index` in `metrics.kernels`. The required families
+are `MultAlphaBeta`, `MultUnified<0,1>`, `MultUnified<1,1>`,
+`MultUnified<1,0>` and `MultUnified<0,0>`. Choose one non-first, typical launch
+per family. Check the profiler's actual filter/skip and saved metadata when
+creating this association: a CSV PID alone is not an MPI rank or a link between
+separate profiling runs. This helper validates the declaration against NSYS and
+prediction signatures/configurations; it does not verify the raw NCU report.
+The 1-rank declaration likewise records a known acquisition condition rather
+than inferring the MPI job size from a single profiled PID.
+
+The source trace must have all five families, one signature/Grid/Block per
+family, unambiguous launch origins, no kernels crossing the Davidson boundary,
+and no kernel/kernel or kernel/transfer overlap. The post-Davidson multiply is
+excluded even when it uses the same kernel names. Unsupported traces and
+missing/mismatched predictions fail without a ratio; they do not silently use
+identity predictions.
+
+For NSYS family totals `K_i`, aligned predicted/source sample ratios `r_i`,
+and Davidson wall time `T`, the conditional projected time is:
+
+```text
+U = T - sum(K_i)
+T' = U + sum(K_i * r_i)
+time_ratio_predicted_over_source = T' / T
+```
+
+`U` contains unselected kernels, the union of copy/memset events, and GPU-event
+gaps. These parts are held unchanged on the target as an explicit assumption.
+Host synchronization already overlaps GPU execution and is never added as a
+second duration. NCU replay time and sample counts are not NSYS weights.
+The output records the terms, coverage, residual components, sample association,
+input digests and assumptions. This is a conditional projection, not an accuracy
+claim: representative samples, unchanged execution structure/residual time and
+target-side overlap remain unvalidated. It does not predict multi-rank MPI or
+other ranks and must not be generalized to overlapping GPU workloads.
