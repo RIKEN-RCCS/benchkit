@@ -1,6 +1,6 @@
 import os
 
-from flask import render_template
+from flask import abort, render_template
 
 from utils.portal_version import portal_release_notes
 
@@ -31,6 +31,12 @@ def register_home_routes(app, prefix=""):
             release_notes=portal_release_notes(),
         )
 
+    def about():
+        site_info = app.config.get("PUBLIC_SITE_INFO")
+        if not site_info:
+            abort(404)
+        return render_template("about.html", site_info=site_info)
+
     app.add_url_rule(f"{prefix}/", endpoint="home", view_func=homepage, strict_slashes=False)
     app.add_url_rule(
         f"{prefix}/changes",
@@ -38,3 +44,4 @@ def register_home_routes(app, prefix=""):
         view_func=changes,
         strict_slashes=False,
     )
+    app.add_url_rule(f"{prefix}/about", endpoint="about", view_func=about, strict_slashes=False)

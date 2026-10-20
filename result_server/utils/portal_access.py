@@ -26,6 +26,7 @@ ACCESS_CLASSES = {
 PUBLIC_ENDPOINTS = frozenset(
     {
         "changes",
+        "about",
         "home",
         "systemlist",
         "static",

@@ -1,0 +1,26 @@
+{% extends "_results_base.html" %}
+
+{% block title %}{{ site_info.title }}{% endblock %}
+{% block page_title %}{{ site_info.title }}{% endblock %}
+{% block page_subtitle %}{{ site_info.operator }}{% endblock %}
+
+{% block content %}
+<style>
+    .public-site-info { max-width: 80ch; overflow-wrap: anywhere; }
+    .public-site-info p { line-height: 1.6; white-space: pre-line; }
+    .public-site-info h2 { font-size: 18px; letter-spacing: 0; margin-top: 24px; }
+</style>
+<article class="public-site-info">
+    {% for paragraph in site_info.paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+    {% if site_info.contact %}
+    <p><a href="{{ site_info.contact.url }}" rel="noreferrer">{{ site_info.contact.label }}</a></p>
+    {% endif %}
+    {% if site_info.terms %}
+    <p><a href="{{ site_info.terms.url }}" rel="noreferrer">{{ site_info.terms.label }}</a></p>
+    {% endif %}
+    {% if site_info.acknowledgements %}
+    <h2>Acknowledgements</h2>
+    {% for paragraph in site_info.acknowledgements %}<p>{{ paragraph }}</p>{% endfor %}
+    {% endif %}
+</article>
+{% endblock %}
