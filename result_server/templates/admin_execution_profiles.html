@@ -763,7 +763,7 @@
 </section>
 <section class="page-card table-card">
     <h2 class="section-title">Trigger Run History</h2>
-    <p class="help-text">Recent trigger runner decisions, including why scheduled and repo/ref triggers did or did not submit a GitLab pipeline.</p>
+    <p class="help-text">Recent manual submissions and trigger runner decisions. Submission status records the Portal request; follow the pipeline link for job progress.</p>
     <div class="table-wrap">
         <table class="trigger-history-table">
             <thead>
@@ -787,7 +787,7 @@
                     </td>
                     <td>
                         <span class="profile-mono">{{ run.trigger_id }}</span>
-                        <span class="trigger-run-subline">{{ run.trigger_type }}</span>
+                        <span class="trigger-run-subline">{{ run.history_source }} #{{ run.record_id }} / {{ run.trigger_type }}</span>
                     </td>
                     <td>{{ run.status }}</td>
                     <td title="{{ run.reason }}">
@@ -796,6 +796,9 @@
                     <td>
                         <span class="profile-mono">{{ run.gitlab_target }}</span>
                         <span class="trigger-run-subline">{{ run.target_ref }}</span>
+                        {% if run.pipeline_url %}
+                        <a class="trigger-run-subline" href="{{ run.pipeline_url }}" target="_blank" rel="noopener noreferrer">Pipeline #{{ run.pipeline_id }}</a>
+                        {% endif %}
                     </td>
                     <td>
                         <span class="profile-mono">{{ run.code }}</span>
@@ -825,7 +828,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="8">No trigger runner decisions have been recorded.</td>
+                    <td colspan="8">No manual submissions or trigger runner decisions have been recorded.</td>
                 </tr>
             {% endfor %}
             </tbody>

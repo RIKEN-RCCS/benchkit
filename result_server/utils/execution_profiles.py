@@ -2144,6 +2144,28 @@ class ExecutionProfileStore:
             )
         return ExecutionProfileResolveResult(profile=matches[0], errors=[])
 
+    def list_execution_requests(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        """Read persisted manual pipeline submissions, excluding preview requests."""
+        self.migrate()
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM execution_requests
+                   WHERE request_type = 'gitlab_pipeline' AND dry_run = 0
+                   ORDER BY created_at DESC, id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        requests = []
+        for row in rows:
+            item = dict(row)
+            for field, fallback in (("payload_json", {}), ("errors_json", [])):
+                try:
+                    value = json.loads(item[field] or json.dumps(fallback))
+                except (TypeError, ValueError):
+                    value = fallback
+                item[field] = value if isinstance(value, type(fallback)) else fallback
+            requests.append(item)
+        return requests
+
     def create_execution_request(
         self,
         *,
