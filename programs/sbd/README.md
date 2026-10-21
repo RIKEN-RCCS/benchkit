@@ -228,11 +228,10 @@ BK_ESTIMATION_PYTHON=python3.11 bash programs/sbd/estimate.sh \
   > estimate.json
 ```
 
-Use the prediction and sample formats described above. In addition, declare
-`scope.source_result_sha256` in `samples.json` as the SHA256 of the corresponding
-Result. This records an explicit association; the digest cannot establish that
-separate runs have equivalent scientific conditions. Check the input, source,
-configuration and profiling provenance before making that association.
+Use the prediction and sample formats described above and supply the
+corresponding Result explicitly. Check input, source, configuration and profiling
+provenance before associating these separate runs. The Result digest is recorded
+as provenance; no additional field in `samples.json` is required.
 The entry point requires an SBD `davidson_internal_s` Result in seconds with one
 node and one MPI rank. It neither fetches inputs nor sends the Estimate.
 
