@@ -28,6 +28,8 @@
     "gpu_kernel_mlp_v15",
     "gpu_kernel_mlp_v21",
     "gpu_kernel_mlp_v41",
+    "gpu_kernel_mlp_v455",
+    "gpu_kernel_pinn_v325",
     "logp"
   ],
   "supported_overlap_packages": [

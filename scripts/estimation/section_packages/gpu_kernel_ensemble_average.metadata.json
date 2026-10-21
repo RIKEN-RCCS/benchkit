@@ -1,6 +1,6 @@
 {
   "name": "gpu_kernel_ensemble_average",
-  "version": "0.2",
+  "version": "0.3",
   "method_class": "detailed",
   "detail_level": "intermediate",
   "required_inputs": {

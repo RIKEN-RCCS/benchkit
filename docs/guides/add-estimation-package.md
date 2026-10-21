@@ -85,7 +85,11 @@ metadataの`version`には、このパッケージの変換・集約規則の版
 GPU kernel 単位の外部推定ツールは、通常は section package として扱います。
 たとえば次の package は、PerfTools の各モデルを「GPU 区間だけを変換する package」として接続します。
 
-- `gpu_kernel_mlp_v15`
+- `gpu_kernel_mlp_v455` / `gpu_kernel_pinn_v325`
+  - Current PerfTools MLP-NN v4.55 / PINN v3.25; see [current adapters](#current-mlp-nn-and-pinn-section-adapters).
+- `gpu_kernel_lightgbm_v11`
+  - PerfTools LightGBM 1.1.
+- `gpu_kernel_mlp_v15` (legacy, explicit selection)
   - PerfTools `MLP_NN/v1.5`
   - 主な依存: numpy/pandas/torch
 - `gpu_kernel_mlp_v21`
@@ -281,10 +285,9 @@ The GPU MLP NCU bridge preserves collected source specification values per kerne
 ### LightGBM 1.1 section adapter
 
 The default `gpu_kernel_ensemble_average` candidates are
-`gpu_kernel_lightgbm_v11`, `gpu_kernel_mlp_v15`, `gpu_kernel_mlp_v21`, and
-`gpu_kernel_mlp_v41`. LightGBM 1.1 replaces 1.0 in that default set; the MLP
-candidates are unchanged. The ensemble's declared version is `0.2`.
-The v1.0 package remains available for explicit selection or an override through
+`gpu_kernel_lightgbm_v11`, `gpu_kernel_mlp_v455`, and `gpu_kernel_pinn_v325`.
+The ensemble's declared version is `0.3`. The older LightGBM and MLP packages
+remain available for explicit selection or an override through
 `BK_GPU_KERNEL_ENSEMBLE_PACKAGES`.
 
 `gpu_kernel_lightgbm_v11` uses PerfTools `LightGBM_model/1.1` and may also be
@@ -322,3 +325,60 @@ that zero defaults and preserved workload NaNs are intentional and match its
 training preprocessing. The representativeness of the
 selected profile and prediction accuracy still require evaluation; successful
 inference alone does not establish either.
+
+### Current MLP-NN and PINN section adapters
+
+`gpu_kernel_mlp_v455` uses PerfTools MLP-NN v4.55; `gpu_kernel_pinn_v325`
+uses PINN v3.25. Both require Python 3.11+ with NumPy, pandas and PyTorch on the
+estimation runner. Select a checkout containing the current upstream entrypoints
+and release weights, and explicitly identify the source and target GPU:
+
+```bash
+export BK_GPU_NEURAL_PYTHON=python3.12
+export BK_GPU_NEURAL_PERFTOOLS_ROOT=/path/to/PerfTools
+export BK_GPU_NEURAL_SOURCE_GPU=GH200
+export BK_GPU_NEURAL_TARGET_GPU=GB200
+export BK_GPU_NEURAL_PROFILE_PROCESS_ID=1234
+```
+
+Use `BK_GPU_NEURAL_PERFTOOLS_COMMIT` to pin a full, reviewed upstream SHA.
+Root/ref/commit also accept the shared `BK_PERFTOOLS_*` settings. Neural settings
+take precedence over the corresponding `BK_GPU_MLP_*` compatibility settings.
+An unavailable or changed pinned checkout fails instead of switching models.
+
+Input is a section's padata archive containing `profile_raw.csv`, or a wide
+per-launch NCU CSV selected with `BK_GPU_NEURAL_INPUT_CSV`. Override an archive
+with `BK_GPU_NEURAL_NCU_ARCHIVE`. Input, GPU, process and kernel selector settings
+accept a section suffix, for example `BK_GPU_NEURAL_PROFILE_PROCESS_ID_PAIRLIST`.
+Multiple process IDs require an explicit choice. A PID is not an MPI rank number,
+and the adapter does not establish that the chosen sample represents other ranks.
+`BK_GPU_NEURAL_KERNEL_NAME` / `BK_GPU_NEURAL_KERNEL_REGEX` can select one kernel
+family with several grid/block configurations. Precomputed legacy prediction
+CSVs and paired model-input CSVs are not inputs to these new adapters.
+
+Each observed launch is passed separately to the official upstream input
+generator, then predicted on both the target and the source GPU using the same
+release weights. This preserves configurations and repeated launches that a
+bulk upstream preparation would collapse by kernel name. The section time is
+multiplied by `sum(target predictions) / sum(source self predictions)` over the
+same observed sample. Counts describe the profile window, not all application
+launches. LightGBM 1.1 keeps its existing predicted/observed ratio.
+
+Artifacts are written below `results/estimation_artifacts` by default;
+`BK_GPU_NEURAL_OUTPUT_DIR` can select another artifact directory.
+
+The Estimate records the ratio basis, observed/source-self/target sample totals,
+self-prediction error, process selection, each launch's configuration, and the
+requested/applied model and package versions. Its provenance artifact hashes the
+release weights, code, statistics, hardware table, runtime inputs, upstream input
+generator, Benchkit adapter and conversion, original input and generated files.
+Upstream representative specification fields are retained as generated; the new
+adapters do not apply the legacy Benchkit target-specification supplements.
+Missing generated input values remain visible in the provenance; any model-side
+imputation is distinct from an observed counter value.
+
+A self-normalized ratio of one on the source GPU is a mathematical property,
+not evidence of accurate absolute prediction. Source self-prediction error is
+retained for that reason. Transfer accuracy and sample representativeness need
+independent target measurements. The adapter does not infer CPU/communication
+or overlap timing from GPU counters.

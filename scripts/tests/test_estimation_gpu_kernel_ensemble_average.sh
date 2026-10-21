@@ -149,8 +149,8 @@ bk_section_package_metadata_gpu_kernel_mlp_v15() {
 }
 transformed_single=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 echo "$transformed_single" | jq -e '
-  .sections[0].requested_estimation_package_version == "0.2" and
-  .sections[0].estimation_package_version == "0.2" and
+  .sections[0].requested_estimation_package_version == "0.3" and
+  .sections[0].estimation_package_version == "0.3" and
   .sections[0].candidate_estimates[0].requested_estimation_package == "gpu_kernel_lightgbm_v10" and
   .sections[0].candidate_estimates[0].estimation_package_version == "lightgbm-2" and
   .sections[0].candidate_estimates[1].requested_estimation_package == "gpu_kernel_mlp_v15" and
@@ -170,8 +170,26 @@ jq -e '.schema_version == 2 and has("nsys_discovery_json")' results/padata0.meta
 
 unset BK_GPU_KERNEL_ENSEMBLE_PACKAGES
 default_packages=$(_bk_gpu_kernel_ensemble_packages "$(cat "${TMP_DIR}/breakdown.json")" | paste -sd, -)
-test "$default_packages" = "gpu_kernel_lightgbm_v11,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v41"
+test "$default_packages" = "gpu_kernel_lightgbm_v11,gpu_kernel_mlp_v455,gpu_kernel_pinn_v325"
 
+# Isolate dispatch/averaging from the optional external neural runtime.
+# Real input generation/inference is exercised separately with saved profiles.
+bk_section_package_check_applicability_gpu_kernel_mlp_v455() {
+  printf '%s\n' '{"status":"applicable","missing_inputs":[]}'
+}
+bk_section_package_check_applicability_gpu_kernel_pinn_v325() {
+  printf '%s\n' '{"status":"applicable","missing_inputs":[]}'
+}
+bk_section_package_transform_gpu_kernel_mlp_v455() {
+  jq '. + {time: (.time * 3), estimation_package:"gpu_kernel_mlp_v455",
+    model:{version:"v4.55"}, metrics:{time_ratio_predicted_over_source:3,
+    time_ratio_basis:"predicted_target_over_predicted_source", self_prediction_over_observed_source:1.5}}' <<< "$1"
+}
+bk_section_package_transform_gpu_kernel_pinn_v325() {
+  jq '. + {time: (.time * 4), estimation_package:"gpu_kernel_pinn_v325",
+    model:{version:"v3.25"}, metrics:{time_ratio_predicted_over_source:4,
+    time_ratio_basis:"predicted_target_over_predicted_source", self_prediction_over_observed_source:2}}' <<< "$1"
+}
 # Run all default candidates through the dispatcher and retain their own versions.
 cat > "${TMP_DIR}/lightgbm_pred_v11.csv" <<'EOF'
 meta-kernel,meta-src_gpu,meta-tgt_gpu,O-Execution Time,benchkit-source-time-ns,benchkit-grid-size,benchkit-block-size,benchkit-sample-count
@@ -180,17 +198,19 @@ EOF
 export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred_v11.csv"
 transformed_default=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" 1 1 1 identity identity)
 jq -e '
-  .sections[0].requested_estimation_package_version == "0.2" and
-  .sections[0].estimation_package_version == "0.2" and
+  .sections[0].requested_estimation_package_version == "0.3" and
+  .sections[0].estimation_package_version == "0.3" and
   .sections[0].package_applicability.status == "applicable" and
-  .sections[0].time == 27.5 and
+  .sections[0].time == 30 and
   [.sections[0].candidate_estimates[].requested_estimation_package] ==
-    ["gpu_kernel_lightgbm_v11", "gpu_kernel_mlp_v15", "gpu_kernel_mlp_v21", "gpu_kernel_mlp_v41"] and
+    ["gpu_kernel_lightgbm_v11", "gpu_kernel_mlp_v455", "gpu_kernel_pinn_v325"] and
   [.sections[0].candidate_estimates[].estimation_package] ==
-    ["gpu_kernel_lightgbm_v11", "gpu_kernel_mlp_v15", "gpu_kernel_mlp_v21", "gpu_kernel_mlp_v41"] and
+    ["gpu_kernel_lightgbm_v11", "gpu_kernel_mlp_v455", "gpu_kernel_pinn_v325"] and
   .sections[0].candidate_estimates[0].requested_estimation_package_version == "0.2" and
   .sections[0].candidate_estimates[0].estimation_package_version == "0.2" and
-  [.sections[0].candidate_estimates[].model.version] == ["1.1", "v1.5", "v2.1", "v4.1"]
+  [.sections[0].candidate_estimates[].model.version] == ["1.1", "v4.55", "v3.25"] and
+  .sections[0].metrics.package_summaries[1].time_ratio_basis == "predicted_target_over_predicted_source" and
+  .sections[0].metrics.package_summaries[1].self_prediction_over_observed_source == 1.5
 ' <<< "$transformed_default" >/dev/null
 export BK_GPU_LIGHTGBM_PREDICTION_CSV="${TMP_DIR}/lightgbm_pred_single.csv"
 export BK_GPU_KERNEL_ENSEMBLE_PACKAGES="gpu_kernel_lightgbm_v10,gpu_kernel_mlp_v15"
@@ -206,7 +226,7 @@ export BK_GPU_MLP_INPUT_CSV="${TMP_DIR}/source_input_mixed.csv"
 transformed_mixed=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown.json")" "1" "1" "1" "identity" "identity")
 echo "$transformed_mixed" | jq -e '
   .sections[0].requested_estimation_package == "gpu_kernel_ensemble_average" and
-  .sections[0].requested_estimation_package_version == "0.2" and
+  .sections[0].requested_estimation_package_version == "0.3" and
   .sections[0].estimation_package == "identity" and .sections[0].estimation_package_version == "0.1" and
   .sections[0].candidate_estimates[1].requested_estimation_package == "gpu_kernel_mlp_v15" and
   .sections[0].candidate_estimates[1].requested_estimation_package_version == "mlp-3" and
@@ -250,14 +270,14 @@ est_future_bench_fom=10
 est_future_fom_breakdown="$transformed_single"
 print_json > results/ensemble_versions.json
 jq -e '
-  .future_system.fom_breakdown.sections[0].estimation_package_version == "0.2" and
+  .future_system.fom_breakdown.sections[0].estimation_package_version == "0.3" and
   .future_system.fom_breakdown.sections[0].candidate_estimates[1].estimation_package_version == "mlp-3"
 ' results/ensemble_versions.json >/dev/null
 est_future_fom_breakdown="$transformed_default"
 print_json > results/default_ensemble_versions.json
 jq -e '
-  .future_system.fom_breakdown.sections[0].requested_estimation_package_version == "0.2" and
-  .future_system.fom_breakdown.sections[0].estimation_package_version == "0.2" and
+  .future_system.fom_breakdown.sections[0].requested_estimation_package_version == "0.3" and
+  .future_system.fom_breakdown.sections[0].estimation_package_version == "0.3" and
   .future_system.fom_breakdown.sections[0].candidate_estimates[0].estimation_package == "gpu_kernel_lightgbm_v11" and
   .future_system.fom_breakdown.sections[0].candidate_estimates[0].estimation_package_version == "0.2" and
   .future_system.fom_breakdown.sections[0].candidate_estimates[0].model.version == "1.1" and

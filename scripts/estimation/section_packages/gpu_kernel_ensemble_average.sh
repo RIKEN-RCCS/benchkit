@@ -8,7 +8,7 @@ bk_section_package_metadata_gpu_kernel_ensemble_average() {
 
 _bk_gpu_kernel_ensemble_packages() {
   local item_json="$1"
-  local raw="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-gpu_kernel_lightgbm_v11,gpu_kernel_mlp_v15,gpu_kernel_mlp_v21,gpu_kernel_mlp_v41}"
+  local raw="${BK_GPU_KERNEL_ENSEMBLE_PACKAGES:-gpu_kernel_lightgbm_v11,gpu_kernel_mlp_v455,gpu_kernel_pinn_v325}"
 
   if echo "$item_json" | jq -e '(.candidate_estimation_packages // []) | length > 0' >/dev/null 2>&1; then
     echo "$item_json" | jq -r '.candidate_estimation_packages[]'
@@ -141,15 +141,19 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
               | ($kernel.time_ratio_predicted_over_source // null) as $time_ratio
               | select($source_time_ns != null and $time_ratio != null)
               | {
-                  key: (($entry.key | tostring) + "\u001f" + ($kernel.name // ("kernel_" + ($entry.key | tostring)))),
+                  key: ([$kernel.name, ($kernel.configuration // {ordinal: $entry.key})] | tojson),
                   ordinal: $entry.key,
                   name: ($kernel.name // ("kernel_" + ($entry.key | tostring))),
+                  configuration: ($kernel.configuration // null),
+                  sample_count: ($kernel.sample_count // 1),
                   source_time_ns: $source_time_ns,
                   source_gpu: ($kernel.source_gpu // null),
                   target_gpu: ($kernel.target_gpu // null),
                   estimation_package: ($candidate.estimation_package // ""),
                   predicted_time_ns: ($kernel.predicted_time_ns // null),
                   time_ratio_predicted_over_source: $time_ratio,
+                  time_ratio_basis: ($kernel.time_ratio_basis // "predicted_target_over_observed_source"),
+                  self_predicted_time_ns: ($kernel.self_predicted_time_ns // null),
                   nsys_discovery: ($candidate.metrics.nsys_discovery // null),
                   source_metrics: ($kernel.source_metrics // {}),
                   predicted_metrics: ($kernel.metrics // {}),
@@ -181,6 +185,10 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                 source_section_time: $app_section_time,
                 projected_section_time: ($candidate.time // null),
                 time_ratio_predicted_over_source: $ratio,
+                time_ratio_basis: ($candidate.metrics.time_ratio_basis // "predicted_target_over_observed_source"),
+                self_prediction_over_observed_source: ($candidate.metrics.self_prediction_over_observed_source // null),
+                self_prediction_error_percent: ($candidate.metrics.self_prediction_error_percent // null),
+                model: ($candidate.model // null),
                 source_gpus: ($candidate.metrics.source_gpus // []),
                 target_gpus: ($candidate.metrics.target_gpus // []),
                 kernel_count: ($candidate.metrics.kernel_count // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | length)),
@@ -190,6 +198,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   kernel_count: ($candidate.metrics.kernel_count // (($candidate.metrics.matched_kernels // $candidate.metrics.kernels // []) | length)),
                   source_time: ($candidate.metrics.total_source_time // (if ($candidate.metrics.total_source_time_ns // null) != null then ($candidate.metrics.total_source_time_ns / 1000000000) else null end)),
                   source_time_ns: ($candidate.metrics.total_source_time_ns // null),
+                  self_predicted_time_ns: ($candidate.metrics.total_self_predicted_time_ns // null),
                   predicted_time: ($candidate.metrics.sample_predicted_time // (if ($candidate.metrics.total_predicted_time_ns // null) != null then ($candidate.metrics.total_predicted_time_ns / 1000000000) else null end)),
                   predicted_time_ns: ($candidate.metrics.total_predicted_time_ns // null)
                 },
@@ -212,6 +221,7 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
             | {
                 ordinal: $group[0].ordinal,
                 name: $group[0].name,
+                configuration: $group[0].configuration,
                 source_time_ns: $source_time_ns,
                 source_time: ($source_time_ns / 1000000000),
                 mean_time_ratio_predicted_over_source: $mean_ratio,
@@ -222,6 +232,10 @@ bk_section_package_transform_gpu_kernel_ensemble_average() {
                   time_ratio_predicted_over_source: .time_ratio_predicted_over_source,
                   predicted_time_ns: .predicted_time_ns,
                   source_time_ns: .source_time_ns,
+                  time_ratio_basis: .time_ratio_basis,
+                  configuration: .configuration,
+                  sample_count: .sample_count,
+                  self_predicted_time_ns: .self_predicted_time_ns,
                   nsys_discovery: .nsys_discovery,
                   source_gpu: .source_gpu,
                   target_gpu: .target_gpu
