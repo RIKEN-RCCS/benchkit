@@ -238,7 +238,6 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
             FOM='2.0', FOM_unit='s', FOM_version='davidson_internal_s',
             node_count='1', numproc_node='1', _server_uuid='known-result',
             _server_timestamp='2026-01-01 00:00:00')))
-        self.samples['scope']['source_result_sha256'] = hashlib.sha256(result.read_bytes()).hexdigest()
         self.pred.update(model=dict(name='test model', version='1.1'),
                          estimation_package='gpu_kernel_lightgbm_v11')
         pred = folder/'pred.json'; pred.write_text(json.dumps(self.pred))
@@ -260,6 +259,8 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
         self.assertEqual(data['current_system']['benchmark']['uuid'], 'known-result')
         self.assertEqual(data['estimate_metadata']['app_estimation_method']['version'], '1')
         self.assertEqual(len(data['input_artifacts']), 4)
+        self.assertEqual(data['estimate_metadata']['estimation_package'], 'gpu_kernel_lightgbm_v11')
+        self.assertEqual(data['estimate_metadata']['estimation_package_version'], '1.1')
 
     def test_estimate_invalid_inputs_emit_no_json(self):
         result, pred, samples = self.estimate_inputs()
@@ -268,9 +269,6 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
                         dict(FOM_version='other'), dict(numproc_node='2')):
             r = json.loads(original); r.update(changes)
             result.write_text(json.dumps(r))
-            scope = json.loads(samples.read_text())
-            scope['scope']['source_result_sha256'] = hashlib.sha256(result.read_bytes()).hexdigest()
-            samples.write_text(json.dumps(scope))
             run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result),
                 str(self.db), str(pred), str(samples), 'target'], cwd=ROOT,
                 env=dict(os.environ, BK_ESTIMATION_PYTHON=sys.executable),
