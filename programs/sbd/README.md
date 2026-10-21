@@ -215,3 +215,40 @@ input digests and assumptions. This is a conditional projection, not an accuracy
 claim: representative samples, unchanged execution structure/residual time and
 target-side overlap remain unvalidated. It does not predict multi-rank MPI or
 other ranks and must not be generalized to overlapping GPU workloads.
+
+
+## Local Davidson Estimate
+
+Run the offline projection through the standard Estimate writer with Python
+3.11+ and jq on the estimation host, from the repository root:
+
+```sh
+BK_ESTIMATION_PYTHON=python3.11 bash programs/sbd/estimate.sh \
+  result.json discovery.sqlite predictions.json samples.json TARGET_SYSTEM \
+  > estimate.json
+```
+
+Use the prediction and sample formats described above. In addition, declare
+`scope.source_result_sha256` in `samples.json` as the SHA256 of the corresponding
+Result. This records an explicit association; the digest cannot establish that
+separate runs have equivalent scientific conditions. Check the input, source,
+configuration and profiling provenance before making that association.
+The entry point requires an SBD `davidson_internal_s` Result in seconds with one
+node and one MPI rank. It neither fetches inputs nor sends the Estimate.
+
+The current FOM is the original Result FOM; the future FOM is that value times
+the NSYS-derived Davidson ratio. NSYS wall time is retained separately in
+`measurement`, and the full projection, residual and model provenance are in
+`future_system.model`. `input_artifacts` records paths and digests; keep these
+files with the Estimate. An existing server Result identity is preserved;
+missing server identity is not invented. No post-Davidson `mult` section is
+used as a Davidson timing section.
+
+The output is conditional on applying the NSYS range ratio to the internal
+Davidson timer, representative samples and unchanged residual/structure.
+`performance_ratio` follows the existing Estimate convention (current/future),
+which is the inverse of `time_ratio_predicted_over_source`. Unsupported or
+incomplete inputs exit unsuccessfully without an Estimate; there is no identity
+fallback. Source/target GPU names and the requested target system are recorded
+separately. This does not establish target-side accuracy or support multi-rank
+scaling.
