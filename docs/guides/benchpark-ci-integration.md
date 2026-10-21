@@ -52,6 +52,13 @@ under a separate reviewed deployment. Do not enable both owners for the same
 workload. Preserve unrelated canary/maintenance schedules. This integration does
 not reconcile or delete GitLab schedules, nor enable any Portal schedule on install.
 
+Manual submissions remain in **Trigger Run History** after reloading the page,
+with their request number, pipeline link and matching received results. Runner
+and manual records share the latest-history list without rewriting stored data.
+The submission status records the Portal request; the pipeline link shows CI job
+progress. Preview requests are excluded, and result links require the recorded
+pipeline identity rather than a reusable manual profile ID.
+
 ## Results and compatibility
 
 Benchpark keeps application source_info, FOM/FOM_unit/FOM_version, Exp,

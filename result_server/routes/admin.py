@@ -47,7 +47,8 @@ from utils.gitlab_pipeline import (
 )
 from utils.benchpark import parse_benchpark_profile_form, benchpark_manual_errors
 from utils.rate_limit import rate_limited
-from utils.trigger_display import build_trigger_result_links, summarize_trigger_run
+from utils.trigger_display import build_trigger_result_links
+from utils.execution_history import list_execution_history, summarize_execution_history
 from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -334,7 +335,7 @@ def _list_trigger_definitions(db_path):
 
 def _list_trigger_runs(db_path):
     try:
-        runs = ExecutionProfileStore(db_path).list_trigger_runs(limit=80)
+        runs = list_execution_history(ExecutionProfileStore(db_path), limit=80)
     except sqlite3.Error as exc:
         flash(f"Trigger run history could not be loaded: {exc}")
         return []
@@ -344,7 +345,7 @@ def _list_trigger_runs(db_path):
     )
     summaries = []
     for run in runs:
-        summary = summarize_trigger_run(run)
+        summary = summarize_execution_history(run)
         summary["result_links"] = result_links.get(int(run.get("id") or 0), [])
         summaries.append(summary)
     return summaries
