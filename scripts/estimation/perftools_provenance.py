@@ -58,7 +58,7 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
             'preprocessing': None, 'inputs': []}
     if mode != 'precomputed_prediction':
         data['inference_parameters'] = ({'source_gpu': source_gpu or None, 'target_gpu': target_gpu or None}
-                                        if version == 'lightgbm' else {'row': row})
+                                        if version in ('lightgbm', 'mlp455', 'pinn325') else {'row': row})
     for role, value in [('input_csv', input_csv), ('prediction_csv', prediction_csv)]:
         if value and Path(value).is_file():
             data['inputs'].append({'role': role, 'sha256': digest(Path(value))})
@@ -71,19 +71,30 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
                         f'LightGBM_model/{model_version}/AI_model/model/clean_map.pkl']
             # Include the actual hardware table selected by the upstream entrypoint.
             patterns += ['data/gpu_microarch_specs.csv']
+        elif version in ('mlp455', 'pinn325'):
+            family, release, core = ('MLP_NN', 'v4.55', 'mlpnn_core.py') if version == 'mlp455' else ('PINN', 'v3.25', 'pinn_core.py')
+            patterns = [f'{family}/{predictor}', f'{family}/network.py', f'{family}/{core}',
+                        f'{family}/data_pipeline_v2.py',
+                        f'{family}/{release}/meta.pkl', f'{family}/{release}/runtime_inputs_training.csv',
+                        'examples/kernel_inputs/prepare_data.py', 'data/v4/gpu_microarch_specs.csv']
+            patterns += [f'{family}/{release}/model_seed{i}.pt' for i in range(5 if version == 'mlp455' else 3)]
+            if version == 'pinn325':
+                patterns += ['PINN/v3.25/trust_anchor.json']
         else:
             patterns = [f'MLP_NN/{version}/{predictor}', 'MLP_NN/v1.5/v15_core.py']
             if version == 'v4.1':
                 patterns += ['MLP_NN/v4.1/v40_core.py', 'MLP_NN/v4.1/v41_artifact/*']
             else:
                 patterns += ['MLP_NN/v1.5/v15_artifact/*']
-        if mode == 'ncu_archive' and version != 'lightgbm':
+        if mode == 'ncu_archive' and version not in ('lightgbm', 'mlp455', 'pinn325'):
             patterns += ['MLP_NN/examples/prepare_data.py', 'data/gpu_microarch_specs.csv']
         files, missing = record_files(repo_root, patterns)
         dirty = git(repo_root, 'status', '--porcelain', '--untracked-files=all')
         commit = git(repo_root, 'rev-parse', 'HEAD')
         if pin and (dirty is None or dirty or not commit or commit.lower() != pin.lower()):
             raise SystemExit('Pinned PerfTools checkout changed during inference')
+        if version in ('mlp455', 'pinn325') and missing:
+            raise ValueError('Current PerfTools model dependencies are missing: ' + ', '.join(missing))
         data['external_inference'] = {
             'repository': public_repo(git(repo_root, 'remote', 'get-url', 'origin')),
             'requested_ref': requested_ref, 'resolved_commit': commit,
@@ -103,7 +114,15 @@ def make_manifest(root, version, predictor, mode, input_csv, prediction_csv, req
             path = Path(prediction_csv + suffix)
             if path.is_file():
                 data['inputs'].append({'role': role, 'sha256': digest(path)})
-    if mode == 'ncu_archive':
+    if version in ('mlp455', 'pinn325'):
+        dependencies = ['scripts/estimation/' + name for name in
+                        ['run_gpu_neural.py', 'run_gpu_lightgbm_v11.py', 'prepare_gpu_lightgbm_ncu_input.py',
+                         'prepare_gpu_mlp_ncu_input.py', 'perftools_provenance.py']]
+        data['preprocessing'] = {'benchkit_commit': git(Path('.'), 'rev-parse', 'HEAD'),
+                                 'spec_supplements': [],
+                                 'spec_policy': 'upstream input generator representatives and release runtime inputs',
+                                 'files': record_files(Path('.'), dependencies)[0]}
+    elif mode == 'ncu_archive':
         script = 'prepare_gpu_lightgbm_ncu_input.py' if version == 'lightgbm' else 'prepare_gpu_mlp_ncu_input.py'
         path = Path('scripts/estimation') / script
         data['preprocessing'] = {'benchkit_commit': git(Path('.'), 'rev-parse', 'HEAD'),

@@ -1,0 +1,30 @@
+{
+  "name": "gpu_kernel_pinn_v325",
+  "version": "0.1",
+  "fallback_target": "identity",
+  "item_kind_scope": [
+    "section"
+  ],
+  "required_result_fields": [
+    "name",
+    "app-side GPU section time as time or bench_time"
+  ],
+  "required_artifact_kinds": [
+    "wide per-launch NCU CSV or padata archive with profile_raw.csv"
+  ],
+  "acquisition_mode": "external",
+  "models": {
+    "section": {
+      "type": "cross_gpu_kernel_prediction_model",
+      "name": "PerfTools PINN",
+      "version": "v3.25"
+    }
+  },
+  "output_fields": [
+    "time",
+    "bench_time",
+    "metrics",
+    "model",
+    "package_applicability"
+  ]
+}
