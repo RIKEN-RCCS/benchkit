@@ -3,6 +3,7 @@
 # This pipeline executes heavy benchmark processing, so we implement controls to avoid unnecessary executions.
 #
 # CI Control Method:
+# - Explicit trigger-token requests bypass change-based skips after execution-mode guards.
 # - File-based automatic skip: Skip CI when only specific files are changed
 #   Effect: Pipeline is created but jobs are skipped based on file changes
 #
@@ -105,6 +106,9 @@ generate_matrix:
       when: never  # [park-only]コミットメッセージでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
       when: never  # [park-send]コミットメッセージでは無効
+    # Explicit trigger-token requests use their selected ref, even for display-only changes.
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+      when: always
     - changes:
         compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
         paths:
@@ -150,6 +154,9 @@ trigger_child_pipeline:
       when: never  # [park-only]コミットメッセージでは無効
     - if: '$CI_COMMIT_MESSAGE =~ /\[park-send\]/'
       when: never  # [park-send]コミットメッセージでは無効
+    # Explicit trigger-token requests use their selected ref, even for display-only changes.
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+      when: always
     - changes:
         compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
         paths:
