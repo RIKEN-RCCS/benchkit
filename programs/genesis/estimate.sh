@@ -51,6 +51,48 @@ pme_real_intra|force_intra_cell
 EOF
 )"
 
+genesis_record_estimation_assumptions() {
+  local annotation
+  annotation=$("${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}" - "$1" "$est_future_fom_breakdown" <<'PYNOTES'
+import csv, json, math, sys
+result = json.load(open(sys.argv[1]))
+sections = {s['name']: s for s in (result.get('fom_breakdown') or {}).get('sections', [])}
+keys = ('pme_real_wait', 'pme_real_inter', 'pme_real_intra')
+values = [sections.get(k, {}).get('time') for k in keys]
+valid = all(isinstance(v, (int, float)) and not isinstance(v, bool)
+            and math.isfinite(v) and v >= 0 for v in values)
+fractions = dict(zip(keys, [v / sum(values) for v in values])) if valid and sum(values) > 0 else None
+models = []
+for section in (json.loads(sys.argv[2] or '{}') or {}).get('sections', []):
+    for candidate in section.get('candidate_estimates', []):
+        metrics = candidate.get('metrics', {})
+        source_gpus = metrics.get('source_gpus', [])
+        if not source_gpus:
+            continue
+        observed = set()
+        for artifact in candidate.get('artifacts', []):
+            if artifact.get('kind') != 'gpu_lightgbm_input_csv':
+                continue
+            try:
+                with open(artifact.get('path') or '', newline='') as handle:
+                    observed.update(row['device__attribute_display_name'] for row in csv.DictReader(handle)
+                                    if row.get('device__attribute_display_name') not in (None, '', 'nan'))
+            except (OSError, csv.Error, UnicodeError):
+                pass  # Missing physical identity must remain unknown.
+        models.append(dict(section=section['name'], package=candidate.get('estimation_package'),
+            observed_profile_gpu_names=sorted(observed), model_source_gpu_names=source_gpus,
+            specification_mapping=('gh200_using_h100_specifications' if 'H100' in source_gpus
+                and any('GH200' in name for name in observed) else 'unverified' if observed else 'unknown')))
+print(json.dumps(dict(pme_real_partition=dict(fractions=fractions,
+    basis='fractions_of_recorded_section_times' if fractions else 'unknown',
+    note='PME wait/inter/intra partitioning is an assumption, not independent measured timers.'),
+    gpu_specifications=models,
+    note='GPU specification substitution and representative PID accuracy are unvalidated; missing identity is not inferred.'), allow_nan=False))
+PYNOTES
+  )
+  est_assumptions_json=$(jq -c --argjson genesis "$annotation" '(. // {}) + {genesis:$genesis}' <<< "${est_assumptions_json:-null}")
+}
+
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   genesis_declare_estimation_layout
   bk_estimation_apply_declared_defaults
@@ -88,6 +130,8 @@ genesis_run_single_estimate() {
     bk_estimation_mark_gpu_section_time_missing "GENESIS"
     rm -f "$package_input_json"
   fi
+
+  genesis_record_estimation_assumptions "$input_json"
 
   # est_code is populated by the common estimation reader.
   # shellcheck disable=SC2154
