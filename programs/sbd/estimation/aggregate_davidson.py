@@ -30,6 +30,19 @@ def family(name):
     return f"MultUnified<{match[1]},{match[2]}>" if match else None
 
 
+def kernel_signature(name):
+    # Normalize only the observed SBD wrapper and its two boolean int arguments.
+    # Preserve the complete function argument list and all other type spelling.
+    text = re.sub(r"\s+", "", name)
+    match = re.fullmatch(
+        r"(?:void)?(?:sbd::)?tpb_for_each_n_kernel<(?:sbd::)?"
+        r"(MultAlphaBeta<double>|MultUnified<double,(?:\(int\))?[01],"
+        r"(?:\(int\))?[01]>)>\((.+)\)", text)
+    if match is None:
+        return None
+    return re.sub(r"\(int\)", "", match[1]), match[2]
+
+
 def union_time(spans):
     total = 0
     end = None
@@ -153,11 +166,7 @@ def aggregate(trace, predictions, samples):
         if type(row_index) is not int or not 0 <= row_index < len(rows):
             raise ValueError("Invalid prediction row index")
         row = rows[row_index]
-        # Preserve full argument lists; only permit the known SBD namespace spelling.
-        def canonical(s):
-            return re.sub(r'^(?:void)?(?:sbd::)?tpb_for_each_n_kernel<(?:sbd::)?',
-                          'tpb_for_each_n_kernel<', re.sub(r'\s+', '', s))
-        if family(row['name']) != f or canonical(row['name']) != canonical(name):
+        if family(row['name']) != f or kernel_signature(row['name']) != kernel_signature(name):
             raise ValueError("Prediction kernel signature mismatch")
         config = row['configuration']
         if config.get('grid_size') != math.prod(grid) or config.get('block_size') != math.prod(block):

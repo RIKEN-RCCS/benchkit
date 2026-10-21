@@ -133,6 +133,39 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
             row['name'] = name
             with self.assertRaises(ValueError): self.run_ratio()
 
+    def test_nsys_ncu_spelling_in_both_directions(self):
+        for row in self.pred['metrics']['kernels']:
+            row['name'] = row['name'].replace('sbd::', '').replace('(int)', '')
+        self.assertEqual(self.run_ratio()['time_ratio_predicted_over_source'], .85)
+        # Reverse which input supplies the cast and namespace spelling.
+        for k in self.trace['kernels']:
+            k['name'] = k['name'].replace('sbd::', '').replace('(int)', '')
+        for sample in self.samples['samples']:
+            sample['kernel_name'] = sample['kernel_name'].replace('sbd::', '').replace('(int)', '')
+        for row, name in zip(self.pred['metrics']['kernels'], self.names):
+            row['name'] = name
+        self.assertEqual(self.run_ratio()['time_ratio_predicted_over_source'], .85)
+
+    def test_spelling_does_not_hide_other_kernel_differences(self):
+        row = self.pred['metrics']['kernels'][1]
+        original = row['name']
+        for name in (
+            self.names[2],  # Different boolean template argument.
+            original.replace('double', 'float'),
+            original.replace('(int)0', '(unsigned)0'),
+            original.replace('(int)0', '(int)2'),
+            original.replace('T1', 'T2'),
+            original.replace('T1', '(int)T1'),
+            original.replace('unsigned long, T1', 'T1, unsigned long'),
+            original.replace('sbd::', 'other::'),
+            original.replace('tpb_for_each_n_kernel', 'other_kernel'),
+        ):
+            with self.subTest(name=name):
+                row['name'] = name
+                with self.assertRaisesRegex(ValueError, 'signature mismatch'):
+                    self.run_ratio()
+        row['name'] = original
+
     def test_warmup_and_sample_configuration(self):
         p = self.samples['samples'][0]
         for field, value in (('launch_index',0), ('launch_index',22),
