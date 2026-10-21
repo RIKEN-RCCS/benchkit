@@ -231,6 +231,53 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
         self.pred = json.loads(run.stdout)
         self.assertEqual(self.run_ratio()['time_ratio_predicted_over_source'],.85)
 
+    def estimate_inputs(self):
+        folder = Path(self.tmp.name)
+        result = folder/'result.json'
+        result.write_text(json.dumps(dict(code='sbd', Exp='test', system='source',
+            FOM='2.0', FOM_unit='s', FOM_version='davidson_internal_s',
+            node_count='1', numproc_node='1', _server_uuid='known-result',
+            _server_timestamp='2026-01-01 00:00:00')))
+        self.samples['scope']['source_result_sha256'] = hashlib.sha256(result.read_bytes()).hexdigest()
+        self.pred.update(model=dict(name='test model', version='1.1'),
+                         estimation_package='gpu_kernel_lightgbm_v11')
+        pred = folder/'pred.json'; pred.write_text(json.dumps(self.pred))
+        samples = folder/'samples.json'; samples.write_text(json.dumps(self.samples))
+        return result, pred, samples
+
+    def test_normal_estimate_writer_and_ratio_direction(self):
+        result, pred, samples = self.estimate_inputs()
+        run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result),
+            str(self.db), str(pred), str(samples), 'target-system'], cwd=ROOT,
+            env=dict(os.environ, BK_ESTIMATION_PYTHON=sys.executable),
+            capture_output=True, text=True, check=True)
+        data = json.loads(run.stdout)
+        self.assertEqual(data['current_system']['fom'], 2)
+        self.assertEqual(data['future_system']['fom'], 1.7)
+        self.assertEqual(data['performance_ratio'], 1.176)
+        self.assertEqual(data['future_system']['model']['projection']['host_wait_added_ns'], 0)
+        self.assertEqual(data['estimate_metadata']['source_result_uuid'], 'known-result')
+        self.assertEqual(data['current_system']['benchmark']['uuid'], 'known-result')
+        self.assertEqual(data['estimate_metadata']['app_estimation_method']['version'], '1')
+        self.assertEqual(len(data['input_artifacts']), 4)
+
+    def test_estimate_invalid_inputs_emit_no_json(self):
+        result, pred, samples = self.estimate_inputs()
+        original = result.read_bytes()
+        for changes in (dict(code='other'), dict(FOM='NaN'), dict(FOM_unit='ns'),
+                        dict(FOM_version='other'), dict(numproc_node='2')):
+            r = json.loads(original); r.update(changes)
+            result.write_text(json.dumps(r))
+            scope = json.loads(samples.read_text())
+            scope['scope']['source_result_sha256'] = hashlib.sha256(result.read_bytes()).hexdigest()
+            samples.write_text(json.dumps(scope))
+            run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result),
+                str(self.db), str(pred), str(samples), 'target'], cwd=ROOT,
+                env=dict(os.environ, BK_ESTIMATION_PYTHON=sys.executable),
+                capture_output=True, text=True)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertEqual(run.stdout, '')
+
     def test_cli_and_read_only_inputs(self):
         before = hashlib.sha256(self.db.read_bytes()).hexdigest()
         pred = Path(self.tmp.name)/'prediction.json'; pred.write_text(json.dumps(self.pred))
