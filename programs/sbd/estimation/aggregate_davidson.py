@@ -19,28 +19,21 @@ FAMILIES = ("MultAlphaBeta", "MultUnified<0,1>", "MultUnified<1,1>",
             "MultUnified<1,0>", "MultUnified<0,0>")
 
 
-def family(name):
-    # Match the observed fully qualified/unqualified SBD demangler forms only.
-    text = re.sub(r"\s+", "", name)
-    prefix = r"(?:void)?(?:sbd::)?tpb_for_each_n_kernel<(?:sbd::)?"
-    if re.fullmatch(prefix + r"MultAlphaBeta<double>>\(.+\)", text):
-        return FAMILIES[0]
-    match = re.fullmatch(prefix + r"MultUnified<double,(?:\(int\))?([01]),"
-                         r"(?:\(int\))?([01])>>\(.+\)", text)
-    return f"MultUnified<{match[1]},{match[2]}>" if match else None
-
-
 def kernel_signature(name):
-    # Normalize only the observed SBD wrapper and its two boolean int arguments.
-    # Preserve the complete function argument list and all other type spelling.
-    text = re.sub(r"\s+", "", name)
+    # Only known SBD namespace/cast spellings; keep the complete argument list.
     match = re.fullmatch(
         r"(?:void)?(?:sbd::)?tpb_for_each_n_kernel<(?:sbd::)?"
-        r"(MultAlphaBeta<double>|MultUnified<double,(?:\(int\))?[01],"
-        r"(?:\(int\))?[01]>)>\((.+)\)", text)
+        r"(?:MultAlphaBeta<double>|MultUnified<double,(?:\(int\))?([01]),"
+        r"(?:\(int\))?([01])>)>\((.+)\)", re.sub(r"\s+", "", name))
     if match is None:
         return None
-    return re.sub(r"\(int\)", "", match[1]), match[2]
+    family = f"MultUnified<{match[1]},{match[2]}>" if match[1] else FAMILIES[0]
+    return family, match[3]
+
+
+def family(name):
+    signature = kernel_signature(name)
+    return signature[0] if signature else None
 
 
 def union_time(spans):
@@ -67,9 +60,11 @@ def load_trace(path, label):
     with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
         strings = dict(db.execute("SELECT id,value FROM StringIds"))
-        rows = [dict(r) for r in db.execute("SELECT * FROM NVTX_EVENTS")]
-        ranges = [r for r in rows if r['domainId'] == 0 and r['end'] is not None
-                  and (r['text'] if r['text'] is not None else strings.get(r['textId'])) == label]
+        ranges = db.execute(
+            "SELECT n.start, n.end, n.globalTid FROM NVTX_EVENTS n "
+            "LEFT JOIN StringIds s ON s.id = n.textId "
+            "WHERE n.domainId = 0 AND n.end IS NOT NULL "
+            "AND COALESCE(n.text, s.value) = ?", (label,)).fetchall()
         if len(ranges) != 1:
             raise ValueError("Require exactly one default-domain Davidson range")
         scope = ranges[0]
@@ -136,11 +131,12 @@ def aggregate(trace, predictions, samples):
     if not isinstance(source_gpu, str) or not source_gpu.strip() or not isinstance(target_gpu, str) or not target_gpu.strip():
         raise ValueError("Require source and target GPU names")
     rows = predictions['metrics']['kernels']
+    signatures = {name: kernel_signature(name) for name in {k['name'] for k in trace['kernels']}}
     weights = {}
     for k in trace['kernels']:
-        f = family(k['name'])
-        if f:
-            weights.setdefault(f, []).append(k)
+        signature = signatures[k['name']]
+        if signature:
+            weights.setdefault(signature[0], []).append(k)
     if set(weights) != set(FAMILIES):
         raise ValueError("All five Davidson kernel families are required")
     plans = samples['samples']
@@ -166,7 +162,7 @@ def aggregate(trace, predictions, samples):
         if type(row_index) is not int or not 0 <= row_index < len(rows):
             raise ValueError("Invalid prediction row index")
         row = rows[row_index]
-        if family(row['name']) != f or kernel_signature(row['name']) != kernel_signature(name):
+        if kernel_signature(row['name']) != signatures[name]:
             raise ValueError("Prediction kernel signature mismatch")
         config = row['configuration']
         if config.get('grid_size') != math.prod(grid) or config.get('block_size') != math.prod(block):

@@ -205,6 +205,19 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
                 with self.assertRaises(ValueError): sbd.load_trace(self.db,LABEL)
                 self.db.write_bytes(before)
 
+    def test_range_lookup_text_ids_and_ignored_events(self):
+        # NSYS can store a label indirectly; other domains and open ranges
+        # must not create a second match for this closed default-domain range.
+        with sqlite3.connect(self.db) as c:
+            c.execute('INSERT INTO StringIds VALUES (100,?)', (LABEL,))
+            c.execute('UPDATE NVTX_EVENTS SET text=NULL,textId=100')
+            c.execute('INSERT INTO NVTX_EVENTS VALUES (1,0,1000,1,?,NULL)', (LABEL,))
+            c.execute('INSERT INTO NVTX_EVENTS VALUES (0,0,NULL,1,?,NULL)', (LABEL,))
+            c.execute('INSERT INTO NVTX_EVENTS VALUES (0,0,1000,1,?,100)', ('other',))
+        self.trace = sbd.load_trace(self.db, LABEL)
+        self.samples['scope']['nsys_sha256'] = self.trace['sha256']
+        self.assertEqual(self.run_ratio()['time_ratio_predicted_over_source'], .85)
+
     def test_ambiguous_range_or_origin_fail(self):
         for sql in ('INSERT INTO NVTX_EVENTS SELECT * FROM NVTX_EVENTS',
                     'INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME SELECT * FROM CUPTI_ACTIVITY_KIND_RUNTIME WHERE correlationId=0'):
