@@ -221,6 +221,29 @@
     .profile-col-trigger {
         width: 1%;
     }
+    .profile-table td.profile-col-trigger {
+        min-width: 15rem;
+        max-width: none;
+        white-space: normal;
+    }
+    .profile-table .profile-row-actions form {
+        flex-wrap: wrap;
+        width: 15rem;
+    }
+    .profile-table .profile-row-actions .profile-benchpark-ref {
+        flex: 0 0 100%;
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    .profile-table .profile-row-actions select {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: calc(100% - 28px);
+    }
+    .profile-table .profile-row-actions .profile-icon-button {
+        flex: 0 0 22px;
+    }
     .profile-col-id {
         width: 16ch;
         max-width: 16ch;
@@ -517,7 +540,7 @@
                                 {% set row_metadata = profile.metadata_json if profile.metadata_json is mapping else {} %}
                                 {% set row_pipeline = row_metadata.get('pipeline') if row_metadata.get('pipeline') is mapping else {} %}
                                 {% if row_pipeline.get('backend') == 'benchpark' %}
-                                <input type="text" name="target_ref" required placeholder="CI ref" aria-label="Benchpark CI ref">
+                                <input class="profile-benchpark-ref" type="text" name="target_ref" required placeholder="CI ref" aria-label="Benchpark CI ref">
                                 {% else %}
                                 <input type="hidden" name="target_ref" value="{{ default_target_ref }}">
                                 {% endif %}
