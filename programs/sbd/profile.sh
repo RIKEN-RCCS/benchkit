@@ -97,6 +97,18 @@ sbd_profile_command() {
 sbd_generate_ncu_plan() {
   local n_ranks="$1" top_k="${BK_SBD_NCU_PLAN_TOP_K:-}"
   shift
+  if bk_bool_enabled "${BK_SBD_DAVIDSON_PROFILE:-false}"; then
+    [ "$n_ranks" = 1 ] || { echo 'Davidson projection requires one MPI rank' >&2; return 1; }
+    "${PYTHON_BIN:-python3}" -c 'import sys; assert sys.version_info >= (3, 11), "SBD Davidson profiling requires Python 3.11+"' || return 1
+    local initial_plan davidson_plan
+    initial_plan=$(bk_discover_ncu_plan --command-builder sbd_profile_command --top-k 0 \
+      --launch-count 1 --metric-set gpu_kernel_estimation -- ./diag "$@") || return 1
+    davidson_plan=$("${PYTHON_BIN:-python3}" -B "${BK_BENCHKIT_ROOT}/programs/sbd/estimation/aggregate_davidson.py" \
+      --prepare-plan "$(dirname "$initial_plan")") || return 1
+    _bk_profile_register "" "$davidson_plan" "$(dirname "$initial_plan")/discovery.sqlite" || return 1
+    printf '%s\n' "$davidson_plan"
+    return 0
+  fi
   if [ -z "$top_k" ]; then
     case "$(sbd_ncu_profile_mode)" in
       discovery-only|auto-discovery-only) top_k=0 ;;
@@ -152,14 +164,18 @@ sbd_run_ncu_plan_profiles() {
   local kernel_name
   local profile_slug
   local profile_seen=0
+  if bk_bool_enabled "${BK_SBD_DAVIDSON_PROFILE:-false}"; then
+    profiler_level=detailed
+  fi
 
   while IFS=$'\t' read -r profile_name section_name kernel_regex launch_skip launch_count kernel_name; do
     if [ -z "$profile_name" ] || [ -z "$kernel_regex" ]; then
       continue
     fi
-    if [ "$section_name" = "-" ] || [ -z "$section_name" ]; then
+    if ! bk_bool_enabled "${BK_SBD_DAVIDSON_PROFILE:-false}" && { [ "$section_name" = "-" ] || [ -z "$section_name" ]; }; then
       section_name=$(sbd_profile_section_name_from_kernel "$kernel_name")
     fi
+    [ "$section_name" != "-" ] || section_name=""
     profile_slug=$(bk_profile_slug "$profile_name")
     profile_seen=$((profile_seen + 1))
     sbd_run_rank0_ncu_profile "$n_ranks" "$profile_name" "$profile_slug" \

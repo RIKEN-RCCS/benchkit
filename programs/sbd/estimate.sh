@@ -1,8 +1,8 @@
 #!/bin/bash
-# Offline SBD Davidson Estimate; writes JSON to stdout, never submits it.
+# SBD Davidson Estimate from local inputs; never submits it.
 set -euo pipefail
-if [[ $# != 5 || -z "$5" ]]; then
-  echo 'Usage: bash programs/sbd/estimate.sh RESULT NSYS_SQLITE PREDICTIONS SAMPLES TARGET_SYSTEM' >&2
+if [[ $# != 1 && $# != 5 ]] || [[ $# == 5 && -z "$5" ]]; then
+  echo 'Usage: estimate.sh RESULT [NSYS_SQLITE PREDICTIONS SAMPLES TARGET_SYSTEM]' >&2
   exit 2
 fi
 source scripts/estimation/common.sh
@@ -13,6 +13,43 @@ jq -e '(.code | ascii_downcase) == "sbd" and .FOM_unit == "s"
   and (.system | type == "string" and length > 0)
   and (.Exp | type == "string" and length > 0)
   and (.FOM | tonumber | . > 0 and (isinfinite | not))' "$1" >/dev/null
+# The normal wrapper supplies only Result; acquisition remains a separate stage.
+output_file=""
+if [[ $# == 1 ]]; then
+  : "${BK_SBD_DAVIDSON_PLAN:?Set the corresponding Davidson plan path}"
+  : "${BK_SBD_DAVIDSON_PROFILES_DIR:?Set its NCU profiles directory}"
+  : "${BK_GPU_LIGHTGBM_SOURCE_GPU:?Set the observed source GPU}"
+  : "${BK_GPU_LIGHTGBM_TARGET_GPU:?Set the model target GPU}"
+  : "${BK_ESTIMATION_FUTURE_SYSTEM:?Set the target system}"
+  source scripts/estimation/section_packages/gpu_kernel_lightgbm_v11.sh
+  work="results/estimation_artifacts/sbd_davidson/$(basename "$1" .json)"
+  python_bin="${BK_ESTIMATION_PYTHON:-python3}"
+  aggregate=programs/sbd/estimation/aggregate_davidson.py
+  "$python_bin" -B "$aggregate" --prepare-inputs "$BK_SBD_DAVIDSON_PLAN" \
+    --profiles-dir "$BK_SBD_DAVIDSON_PROFILES_DIR" --output-dir "$work" \
+    --source-gpu "$BK_GPU_LIGHTGBM_SOURCE_GPU" --target-gpu "$BK_GPU_LIGHTGBM_TARGET_GPU"
+  # A bundle must not be bypassed by precomputed/scoped per-kernel overrides.
+  while IFS= read -r variable; do
+    case "$variable" in
+      BK_GPU_LIGHTGBM_INPUT_CSV*|BK_GPU_LIGHTGBM_PREDICTION_CSV*|BK_GPU_LIGHTGBM_NCU_ARCHIVE*|BK_GPU_LIGHTGBM_METADATA_JSON*)
+        [[ -z "${!variable}" ]] || { echo "Conflicting bundle override: $variable" >&2; exit 2; } ;;
+    esac
+  done < <(compgen -A variable BK_GPU_LIGHTGBM_)
+  for i in 0 1 2 3 4; do
+    job=$(jq -c ".[$i]" "$work/jobs.json")
+    # Reuse conversion/inference/provenance; each component has its own outputs.
+    BK_GPU_LIGHTGBM_NCU_ARCHIVE=$(jq -r .archive <<< "$job") \
+    BK_GPU_LIGHTGBM_METADATA_JSON=$(jq -r .metadata <<< "$job") \
+    BK_GPU_LIGHTGBM_OUTPUT_DIR="$work/kernel_$i" \
+    BK_GPU_LIGHTGBM_FETCH_PERFTOOLS="${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS:-0}" \
+      bk_section_package_transform_gpu_kernel_lightgbm_v11 \
+        "$(jq -c .item <<< "$job")" 1 1 1 section > "$work/kernel_$i.json"
+  done
+  "$python_bin" -B "$aggregate" --combine "$work" > "$work/predictions.json"
+  output_file="results/estimate_sbd_$(basename "$1")"
+  set -- "$1" "$(dirname "$BK_SBD_DAVIDSON_PLAN")/discovery.sqlite" \
+    "$work/predictions.json" "$work/samples.json" "$BK_ESTIMATION_FUTURE_SYSTEM"
+fi
 jq -e '(.model | type == "object") and (.model.version | type == "string" and length > 0)
   and (.estimation_package | type == "string" and length > 0)' "$3" >/dev/null
 projection=$("${BK_ESTIMATION_PYTHON:-python3}" -B programs/sbd/estimation/aggregate_davidson.py \
@@ -58,4 +95,8 @@ est_assumptions_json=$(jq -c '.assumptions + [
   "The caller associates the supplied Result with this profiling bundle"]' <<< "$projection")
 est_notes_json=$(jq -c '{status,limitations,accuracy_verified:false}' <<< "$projection")
 bk_estimation_set_applicability applicable
-print_json | jq -e .
+if [[ -n "$output_file" ]]; then
+  bk_estimation_write_output "$output_file"
+else
+  print_json | jq -e .
+fi

@@ -7,6 +7,7 @@ Python 3.11+; standard library only.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -14,6 +15,7 @@ from pathlib import Path
 import re
 import sqlite3
 import sys
+import tarfile
 
 FAMILIES = ("MultAlphaBeta", "MultUnified<0,1>", "MultUnified<1,1>",
             "MultUnified<1,0>", "MultUnified<0,0>")
@@ -210,16 +212,160 @@ def aggregate(trace, predictions, samples):
                     'No prediction accuracy or cross-system overlap validation'])
 
 
+
+def davidson_plan(directory):
+    # Reuse common display/raw-name resolution and plan generation.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/profiling'))
+    from nvtx_plan import resolve_nsys_nvtx_scope
+    from generate_ncu_plan import main as generate_plan
+    discovery = json.loads((directory / 'discovery.json').read_text())
+    scopes = {(r['range'], r['style'], r['process_id'], r['thread_id'])
+              for r in discovery.get('nvtx', {}).get('associations', [])
+              if re.fullmatch(r':?sbdiag\.h:\d+ \[diag\] : Davidson', r['range'])}
+    if len(scopes) != 1:
+        raise ValueError('Require one outer Davidson NVTX scope')
+    label, style, pid, tid = next(iter(scopes))
+    sqlite = directory / 'discovery.sqlite'
+    scope = resolve_nsys_nvtx_scope(dict(range=label, style=style, process_id=pid,
+                                        thread_id=tid), sqlite)
+    trace = load_trace(sqlite, scope['range'])
+    output = directory / 'davidson-plan.json'
+    status = generate_plan(['--nsys-csv', str(directory / 'kernel-summary.csv'),
+        '--nvtx-csv', str(directory / 'nvtx-summary.csv'), '--nvtx-sqlite', str(sqlite),
+        '--nvtx-range', label, '--nvtx-process-id', pid, '--nvtx-thread-id', tid,
+        '--top-k', '0', '--launch-count', '1', '--max-launch-skip', '1',
+        '--out-plan', str(output)])
+    if status:
+        raise ValueError('Davidson plan generation failed')
+    plan = json.loads(output.read_text())
+    plan['profiles'] = [p for p in plan['profiles'] if family(p['kernel_name'])]
+    # Check all families/configurations before spending time on NCU.
+    make_samples(trace, plan, 'source', 'target')
+    output.write_text(json.dumps(plan, indent=2) + '\n')
+    return str(output)
+
+
+def make_samples(trace, plan, source_gpu, target_gpu):
+    profiles = plan['profiles']
+    samples = dict(scope=dict(nsys_sha256=trace['sha256'], nvtx_range=trace['label'],
+                             mpi_rank=0, mpi_size=1), source_gpu=source_gpu,
+                   target_gpu=target_gpu, samples=[])
+    rows = []
+    for i, profile in enumerate(profiles):
+        if (profile['nvtx']['range'] != trace['label']
+                or profile['nvtx'].get('domain', 'default') != 'default'
+                or profile['nvtx']['style'] != 'PushPop'
+                or profile['launch_skip'] != 1 or profile['launch_count'] != 1):
+            raise ValueError('Require Davidson-scoped second-launch samples')
+        launches = [k for k in trace['kernels'] if k['name'] == profile['kernel_name']]
+        if not launches:
+            raise ValueError('Plan kernel missing from Davidson')
+        k = launches[0]
+        grid, block = ([k[prefix+a] for a in 'XYZ'] for prefix in ('grid', 'block'))
+        samples['samples'].append(dict(family=family(k['name']), kernel_name=k['name'],
+            grid=grid, block=block, launch_index=1, prediction_index=i))
+        rows.append(dict(name=k['name'], configuration=dict(grid_size=math.prod(grid),
+            block_size=math.prod(block)), source_gpu=source_gpu, target_gpu=target_gpu,
+            sample_count=1, source_time_ns=1, predicted_time_ns=1))
+    aggregate(trace, dict(metrics=dict(kernels=rows)), samples)
+    return samples
+
+
+def prepare_inputs(plan_path, profiles_dir, output, source_gpu, target_gpu):
+    plan = json.loads(plan_path.read_text())
+    trace = load_trace(plan_path.parent / 'discovery.sqlite', plan['profiles'][0]['nvtx']['range'])
+    samples = make_samples(trace, plan, source_gpu, target_gpu)
+    metadata = [(p, json.loads(p.read_text())) for p in profiles_dir.rglob('profile.metadata.json')]
+    jobs = []
+    for i, profile in enumerate(plan['profiles']):
+        matches = [(p, m) for p, m in metadata if m.get('profile_name') == profile['name']]
+        if len(matches) != 1:
+            raise ValueError('Missing or duplicate NCU profile')
+        path, meta = matches[0]
+        selected = json.loads(meta['nsys_discovery_json'])
+        if (selected['nvtx'] != profile['nvtx'] or selected['kernel_name'] != profile['kernel_name']
+                or meta['ncu']['launch_skip'] != 1 or meta['ncu']['launch_count'] != 1
+                or meta['ncu']['kernel_regex'] != profile['kernel_match']['pattern']):
+            raise ValueError('NCU metadata does not match plan')
+        archive = path.with_name('profile.tgz')
+        # Inspect without extraction; validate full XYZ, not just the product.
+        with tarfile.open(archive) as tar:
+            members = [m for m in tar if m.isfile() and m.name.endswith('/profile_raw.csv')]
+            if len(members) != 1:
+                raise ValueError('Require one raw NCU CSV')
+            lines = tar.extractfile(members[0]).read().decode('utf-8-sig').splitlines()
+        header = next(j for j, line in enumerate(lines)
+                      if {'ID', 'Kernel Name'} <= set(next(csv.reader([line]))))
+        rows = [r for r in csv.DictReader(lines[header:]) if r.get('ID')]
+        if len(rows) != 1 or kernel_signature(rows[0]['Kernel Name']) != kernel_signature(profile['kernel_name']):
+            raise ValueError('Require one matching NCU launch')
+        row = rows[0]
+        for dimension in ('grid', 'block'):
+            if [float(row['launch__'+dimension+'_dim_'+a].replace(',', '')) for a in 'xyz'] != samples['samples'][i][dimension]:
+                raise ValueError('NCU Grid/Block mismatch')
+        samples['samples'][i]['ncu_artifact'] = dict(
+            path=str(archive.resolve()), sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+            metadata_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        jobs.append(dict(archive=str(archive.resolve()), metadata=str(path.resolve()),
+            item=dict(name='davidson_kernel_'+str(i), kernel_name=row['Kernel Name'],
+                time=sum(k['end']-k['start'] for k in trace['kernels']
+                         if k['name'] == profile['kernel_name']) / 1e9)))
+    output.mkdir(parents=True, exist_ok=True)
+    (output / 'samples.json').write_text(json.dumps(samples, indent=2) + '\n')
+    (output / 'jobs.json').write_text(json.dumps(jobs, indent=2) + '\n')
+
+
+def combine_predictions(directory):
+    results = [json.loads((directory / f'kernel_{i}.json').read_text()) for i in range(5)]
+    if any(r['package_applicability']['status'] != 'applicable'
+           or r['model']['version'] != '1.1' or len(r['metrics']['kernels']) != 1 for r in results):
+        raise ValueError('Require five applicable LightGBM 1.1 predictions')
+    commits = {r['model']['provenance']['external_commit'] for r in results}
+    if len(commits) != 1 or not re.fullmatch(r'[0-9a-f]{40}', next(iter(commits))):
+        raise ValueError('Require one resolved PerfTools commit across all five predictions')
+    for r in results:
+        provenance = r['model']['provenance']
+        if hashlib.sha256(Path(provenance['manifest']).read_bytes()).hexdigest() != provenance['sha256']:
+            raise ValueError('Prediction provenance manifest changed')
+    return dict(estimation_package='gpu_kernel_lightgbm_v11',
+        model=dict(name='PerfTools LightGBM_model/1.1', version='1.1', external_commit=next(iter(commits)),
+                   component_provenance=[r['model']['provenance'] for r in results]),
+        component_results=[dict(path=str(directory / f'kernel_{i}.json'),
+            sha256=hashlib.sha256((directory / f'kernel_{i}.json').read_bytes()).hexdigest())
+            for i in range(5)],
+        metrics=dict(kernels=[r['metrics']['kernels'][0] for r in results]))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--nsys-sqlite', required=True, type=Path)
-    parser.add_argument('--nvtx-range', required=True)
-    parser.add_argument('--predictions', required=True, type=Path,
+    parser.add_argument('--prepare-plan', type=Path)
+    parser.add_argument('--prepare-inputs', type=Path)
+    parser.add_argument('--profiles-dir', type=Path)
+    parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--source-gpu')
+    parser.add_argument('--target-gpu')
+    parser.add_argument('--combine', type=Path)
+    parser.add_argument('--nsys-sqlite', type=Path)
+    parser.add_argument('--nvtx-range')
+    parser.add_argument('--predictions', type=Path,
                         help='Parsed LightGBM 1.1 JSON containing metrics.kernels')
-    parser.add_argument('--samples', required=True, type=Path,
+    parser.add_argument('--samples', type=Path,
                         help='Explicit association of NCU samples with this NSYS scope')
     args = parser.parse_args()
     try:
+        if args.prepare_plan:
+            print(davidson_plan(args.prepare_plan))
+            return
+        if args.prepare_inputs:
+            if not all((args.profiles_dir, args.output_dir, args.source_gpu, args.target_gpu)):
+                raise ValueError('Require profiles directory, output directory and explicit GPU pair')
+            prepare_inputs(args.prepare_inputs, args.profiles_dir, args.output_dir, args.source_gpu, args.target_gpu)
+            return
+        if args.combine:
+            print(json.dumps(combine_predictions(args.combine), indent=2, allow_nan=False))
+            return
+        if not all((args.nsys_sqlite, args.nvtx_range, args.predictions, args.samples)):
+            raise ValueError('Require SQLite, raw NVTX range, predictions and samples')
         if not re.fullmatch(r'sbdiag\.h:\d+ \[diag\] : Davidson', args.nvtx_range):
             raise ValueError('Require the raw Davidson NVTX range, excluding post-Davidson mult')
         trace = load_trace(args.nsys_sqlite, args.nvtx_range)
@@ -229,7 +375,7 @@ def main():
                                   for key, p in (('predictions', args.predictions),
                                                  ('samples', args.samples))}
         print(json.dumps(result, indent=2, allow_nan=False))
-    except (ValueError, KeyError, TypeError, IndexError, sqlite3.Error, OSError) as exc:
+    except (ValueError, KeyError, TypeError, IndexError, sqlite3.Error, OSError, StopIteration, tarfile.TarError) as exc:
         parser.exit(2, f'SBD Davidson projection unavailable: {exc}\n')
 
 
