@@ -37,6 +37,19 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# This opt-in intentionally cannot include unrelated jobs that might send to CX.
+case "${BK_SBD_RIKYU_ARTIFACT_ONLY:-false}" in
+  false|0|'') sbd_artifact_only=false ;;
+  true|1)
+    sbd_artifact_only=true
+    if [[ "$CODE_FILTER/$SYSTEM_FILTER/$NODES_FILTER/$NUMPROC_NODE_FILTER/$NTHREADS_FILTER" != sbd/RIKYU/1/1/8 ]]; then
+      echo 'ERROR: SBD artifact-only requires code=sbd system=RIKYU nodes=1 numproc_node=1 nthreads=8' >&2
+      exit 1
+    fi
+    ;;
+  *) echo 'ERROR: BK_SBD_RIKYU_ARTIFACT_ONLY must be true/false or 1/0' >&2; exit 1 ;;
+esac
+
 _BK_EXECUTION_ROUTES=""
 if [[ -v BK_EXECUTION_ROUTE_SNAPSHOT || -n "${BK_EXECUTION_ROUTES_FILE:-}" ]]; then
   _BK_EXECUTION_ROUTES=$(bash scripts/execution_routes.sh --system-file "$SYSTEM_FILE" --selected-system "$SYSTEM_FILTER")
@@ -209,6 +222,11 @@ $(emit_execution_route_setup "$system")
     expire_in: 1 week
 
 " >> "$OUTPUT_FILE"
+
+    if [[ "$sbd_artifact_only" == true ]]; then
+      emit_estimate_job "$job_prefix" "${job_prefix}_run" "${job_prefix}_run" "$program" "$OUTPUT_FILE" "$system" "${build_key}_build"
+      continue
+    fi
 
     emit_send_results_job "$job_prefix" "${job_prefix}_run" "$OUTPUT_FILE" "$program" "$system" "cross" "${build_key}_build" "${job_prefix}_run"
 

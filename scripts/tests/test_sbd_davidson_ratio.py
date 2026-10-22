@@ -246,6 +246,30 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
         self.pred = json.loads(run.stdout)
         self.assertEqual(self.run_ratio()['time_ratio_predicted_over_source'],.85)
 
+    def test_local_plan_selection_is_unique_and_explicit_override_is_preserved(self):
+        folder = Path(self.tmp.name)
+        (folder/'scripts').symlink_to(ROOT/'scripts', target_is_directory=True)
+        (folder/'programs').symlink_to(ROOT/'programs', target_is_directory=True)
+        (folder/'results').mkdir()
+        result = folder/'result.json'
+        result.write_text(json.dumps(dict(code='sbd', Exp='test', system='source',
+            FOM=1, FOM_unit='s', FOM_version='davidson_internal_s', node_count=1, numproc_node=1)))
+        env = {k:v for k,v in os.environ.items() if not k.startswith(('BK_SBD_', 'BK_GPU_LIGHTGBM_'))}
+        def run(extra=None):
+            return subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result)],
+                cwd=folder, env=dict(env, **(extra or {})), text=True, capture_output=True)
+        self.assertIn('exactly one local Davidson plan', run().stderr)
+        for name in ('first', 'second'):
+            directory = folder/'results'/name
+            directory.mkdir(); (directory/'davidson-plan.json').write_text('{}')
+        self.assertIn('exactly one local Davidson plan', run().stderr)
+        selected = run(dict(BK_SBD_DAVIDSON_PLAN=str(folder/'results/first/davidson-plan.json')))
+        self.assertNotEqual(selected.returncode, 0)
+        self.assertIn('Set the observed source GPU', selected.stderr)
+        (folder/'results/second/davidson-plan.json').unlink()
+        self.assertIn('Set the observed source GPU', run().stderr)
+        self.assertFalse(list((folder/'results').glob('estimate*.json')))
+
     def estimate_inputs(self):
         folder = Path(self.tmp.name)
         result = folder/'result.json'
