@@ -74,6 +74,7 @@ scripts/tests/test_qws_timing_artifact.sh
 scripts/tests/test_rc_app_environments.sh
 scripts/tests/test_build_environment_snapshot.sh
 scripts/tests/test_flow2_cpu_sbd.sh
+scripts/tests/test_sbd_rikyu.sh
 scripts/tests/test_compute_snapshot_dependencies.sh
 scripts/tests/test_node_status_snapshot.sh
 scripts/tests/test_ci_timing_context.sh

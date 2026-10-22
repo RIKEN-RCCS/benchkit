@@ -60,6 +60,10 @@ sbd_configure_ncu_profile_from_run_env() {
   fi
   if [ "$system_name" = "RIKYU" ]; then
     default_profiler_level="single"
+    if [ "${n_ranks:-0}" = 1 ]; then
+      export BK_SBD_DAVIDSON_PROFILE="${BK_SBD_DAVIDSON_PROFILE:-true}"
+      export PYTHON_BIN="${PYTHON_BIN:-python3.12}"
+    fi
     if [ -z "${BK_SBD_NCU_PLAN_TOP_K:-}" ]; then
       export BK_SBD_NCU_PLAN_TOP_K=1
     fi
