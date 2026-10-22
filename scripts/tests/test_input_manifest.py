@@ -269,16 +269,22 @@ class ApplicationInputTests(unittest.TestCase):
         self.executable(self.root / "bin" / "module", "#!/bin/sh\nexit 0\n")
         self.executable(self.root / "bin" / "mpirun", """#!/bin/sh
 touch "$TEST_MPI_MARKER"
+if [ -n "${TEST_MPI_ARGS:-}" ]; then
+    printf '%s\\n' "$@" > "$TEST_MPI_ARGS"
+fi
 if [ "${TEST_MPI_RANK_LOG:-0}" = 1 ]; then
     mkdir -p output.sample/0/17
     exec > output.sample/0/17/stdout.17.0
+fi
+if [ "${TEST_PETSC_DIAGNOSTICS:-complete}" != missing ]; then
+    printf 'KSP_DIAGNOSTICS iterations=500 max_it=500 rtol=1e-14 reason=-3 reason_name=DIVERGED_ITS residual_l2=1 rhs_l2=2 relative_residual=0.5 benchmark_status=%s\\n' "${TEST_PETSC_STATUS:-completed_500}"
 fi
 printf 'FOM: ranks=1 ksp_iter_time_s=1.25\n'
 printf 'rt iterations 1.25 a b c\ntotal calculation time 1.25\n'
 exit "${TEST_MPI_STATUS:-0}"
 """)
         self.env = {key: value for key, value in os.environ.items()
-                    if not key.startswith(("BK_", "_BK_", "RESULT_SERVER_"))}
+                    if not key.startswith(("BK_", "_BK_", "RESULT_SERVER_", "BASH_FUNC_"))}
         self.env.update({"PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                          "PYTHON_BIN": sys.executable,
                          "TEST_MPI_MARKER": str(self.root / "mpi-started")})
@@ -346,6 +352,43 @@ exit "${TEST_MPI_STATUS:-0}"
             self.assertEqual(info["result_exp"], experiment)
             identities.append((experiment, info["dataset_id"], info["dataset_version"], info["sha256"]))
         self.assertEqual(*identities)
+
+    def test_petsc_fixed_iteration_options_and_result_version(self):
+        app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
+        data = self.root / "matrix.dat"
+        data.write_bytes(b"abc")
+        self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
+        self.env["TEST_MPI_ARGS"] = str(self.root / "mpi-args")
+        (self.root / "bin" / "mpiexec").symlink_to("mpirun")
+        for system in ("RIKYU", "Fugaku", "RC_DGXSP"):
+            with self.subTest(system=system):
+                result = self.run_app(app, system)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                args = (self.root / "mpi-args").read_text().splitlines()
+                for flag, value in (("-ksp_max_it", "500"), ("-ksp_rtol", "1e-14"),
+                                    ("-ksp_gmres_restart", "100")):
+                    self.assertEqual(args[args.index(flag) + 1], value)
+                output = (self.root / "results/result").read_text()
+                self.assertIn("FOM_version:ksp_iter_time_500", output)
+                self.assertTrue((self.root / "results/solve.log").is_file())
+                parameters = input_info(self.root)["inputs"][0]["parameters"]
+                self.assertEqual(parameters["ksp_max_it"], "500")
+                self.assertEqual(parameters["ksp_rtol"], "1e-14")
+
+    def test_petsc_rejects_noncompletion_and_stale_binary_logs(self):
+        app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
+        data = self.root / "matrix.dat"
+        data.write_bytes(b"abc")
+        self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
+        for status in ("early_convergence", "abnormal_stop", "invalid_diagnostics",
+                       "unexpected_iterations", "unexpected_settings", "missing"):
+            with self.subTest(status=status):
+                self.env["TEST_PETSC_STATUS"] = status
+                self.env["TEST_PETSC_DIAGNOSTICS"] = status
+                result = self.run_app(app)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((self.root / "results/result").read_text(), "")
+                self.assertTrue((self.root / "results/solve.log").is_file())
 
     def prepare_restart(self):
         source = self.root / "restart-source"
@@ -419,6 +462,21 @@ def split_run_tests(suite):
                 yield item
     tests = sorted(flatten(suite), key=lambda test: test.id())
     return [tests[index::4] for index in range(4)]
+
+
+class PetscEventLogTests(unittest.TestCase):
+    def test_diagnostic_stage_does_not_replace_original_events(self):
+        awk = REPO / "programs/petsc-gmres/FOM.awk"
+        def event(name, time):
+            return " ".join([name, "1", "1", str(time), "1", "123"] + ["0"] * 14 + ["456", "789"]) + "\n"
+        original = event("MatMult", 2.5) + event("KSPSolve", 10) + event("SFPack", 0.1) + event("SFUnpack", 0.2)
+        staged = "--- Event Stage 0: Main Stage\n" + original + "--- Event Stage 1: Final diagnostics\n" + event("MatMult", 999) + event("SFPack", 888)
+        outputs = [subprocess.run(["awk", "-f", str(awk)], input=value,
+                                 text=True, capture_output=True, check=True).stdout
+                   for value in (original, staged)]
+        self.assertEqual(*outputs)
+        self.assertIn("2.5", outputs[0])
+        self.assertNotIn("999", outputs[1])
 
 
 if __name__ == "__main__":

@@ -10,6 +10,14 @@ BEGIN{
    timeSFPack = 0.0;
    timeSFUnpack = 0.0;
 }
+# With multiple stages, only stage 0 contains the original solve events.
+# The final-residual MatMult belongs to a separate diagnostic stage. Retain
+# compatibility with old logs that have no stage header.
+/^--- Event Stage/ {
+   in_other_stage = ($4 != "0:");
+   next;
+}
+in_other_stage { next }
 # space is mandatory to exclude MatMult{Add,Transpose}
 /^MatMult /{
    timeMatMult = $4; flopMatMult = $6; totalflopsMatMult = $21; gpuflopsMatMult = $22;

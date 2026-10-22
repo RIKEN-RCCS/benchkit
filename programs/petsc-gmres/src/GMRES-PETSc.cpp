@@ -16,6 +16,7 @@
 static char help[] = "load a PETSc binary matrix and call the KSP solver\n";
 
 #include <petscksp.h>
+#include <cstring>
 
 #if defined(PETSC_HAVE_CUDA)
   #include <cuda_runtime.h>
@@ -100,23 +101,74 @@ int main(int argc, char **args)
   // Use -log_view for the per-event breakdown (PCSetUp_GAMG, MatMult, ...).
   PetscCall(KSPSetUp(ksp));
 
+  PetscLogStage diagnostics_stage;
+  PetscCall(PetscLogStageRegister("Final diagnostics", &diagnostics_stage));
+
   PetscLogDouble iter_t0, iter_t1;
   PetscCall(PetscBarrier((PetscObject)ksp));
   PetscCall(PetscTime(&iter_t0));
   PetscCall(KSPSolve(ksp, b, x));
   PetscCall(PetscBarrier((PetscObject)ksp));
   PetscCall(PetscTime(&iter_t1));
-  {
-    PetscReal local_dt = (PetscReal)(iter_t1 - iter_t0), max_dt;
-    PetscCallMPI(MPI_Allreduce(&local_dt, &max_dt, 1, MPIU_REAL, MPI_MAX, PETSC_COMM_WORLD));
-    PetscCall(PetscPrintf(PETSC_COMM_WORLD, "FOM: ranks=%d ksp_iter_time_s=%.6f\n", (int)size, (double)max_dt));
-  }
+  PetscReal local_dt = (PetscReal)(iter_t1 - iter_t0), max_dt;
+  PetscCallMPI(MPI_Allreduce(&local_dt, &max_dt, 1, MPIU_REAL, MPI_MAX, PETSC_COMM_WORLD));
+
+  // These extra matrix/vector operations must not enter the measured solve
+  // or its event breakdown. Compute the true residual before x becomes x-u.
+  PetscCall(PetscLogStagePush(diagnostics_stage));
+  PetscInt its, max_it;
+  PetscReal rtol, residual_l2, rhs_l2, relative_residual = 0.0;
+  KSPConvergedReason reason;
+  Vec residual;
+  PetscCall(KSPGetIterationNumber(ksp, &its));
+  PetscCall(KSPGetConvergedReason(ksp, &reason));
+  PetscCall(KSPGetTolerances(ksp, &rtol, NULL, NULL, &max_it));
+  PetscCall(VecDuplicate(b, &residual));
+  PetscCall(MatMult(A, x, residual));
+  PetscCall(VecAYPX(residual, -1.0, b));  // residual = b - A*x
+  PetscCall(VecNorm(residual, NORM_2, &residual_l2));
+  PetscCall(VecNorm(b, NORM_2, &rhs_l2));
+  if (rhs_l2 != 0.0) relative_residual = residual_l2 / rhs_l2;
+  PetscCall(VecDestroy(&residual));
 
   PetscCall(VecNorm(u, NORM_2, &e0));
   PetscCall(VecAXPY(x, -1.0, u));
   PetscCall(VecNorm(x, NORM_2, &e));
   PetscCall(PetscPrintf(PETSC_COMM_WORLD,
-			"relative L2 norm of the error: %g\n", (double)(e/e0)));
+                      "relative L2 norm of the error: %g\n", (double)(e/e0)));
+  PetscCall(PetscLogStagePop());
+
+  const char *status;
+  if (PetscIsInfOrNanReal(residual_l2) || PetscIsInfOrNanReal(rhs_l2) ||
+      PetscIsInfOrNanReal(relative_residual) || PetscIsInfOrNanReal(e/e0) ||
+      PetscIsInfOrNanReal(max_dt) || max_dt <= 0.0) {
+    status = "invalid_diagnostics";
+  } else if (max_it != 500 || rtol != (PetscReal)1e-14) {
+    status = "unexpected_settings";
+  } else if (reason <= 0 && reason != KSP_DIVERGED_ITS) {
+    status = "abnormal_stop";
+  } else if (its < 500 && reason > 0) {
+    status = "early_convergence";
+  } else if (its != 500) {
+    status = "unexpected_iterations";
+  } else {
+    status = "completed_500";
+  }
+  PetscCall(PetscPrintf(PETSC_COMM_WORLD,
+      "KSP_DIAGNOSTICS iterations=%" PetscInt_FMT " max_it=%" PetscInt_FMT
+      " rtol=%.17g reason=%d reason_name=%s residual_l2=%.17g rhs_l2=%.17g ",
+      its, max_it, (double)rtol, (int)reason, KSPConvergedReasons[reason],
+      (double)residual_l2, (double)rhs_l2));
+  if (rhs_l2 != 0.0) {
+    PetscCall(PetscPrintf(PETSC_COMM_WORLD, "relative_residual=%.17g ", (double)relative_residual));
+  } else {
+    PetscCall(PetscPrintf(PETSC_COMM_WORLD, "relative_residual=unavailable "));
+  }
+  PetscCall(PetscPrintf(PETSC_COMM_WORLD, "benchmark_status=%s\n", status));
+  const bool completed = std::strcmp(status, "completed_500") == 0;
+  if (completed) {
+    PetscCall(PetscPrintf(PETSC_COMM_WORLD, "FOM: ranks=%d ksp_iter_time_s=%.6f\n", (int)size, (double)max_dt));
+  }
 
   flg = PETSC_FALSE;
   PetscCall(PetscOptionsGetBool(NULL, NULL, "-print_error", &flg, NULL));
@@ -128,5 +180,5 @@ int main(int argc, char **args)
   PetscCall(VecDestroy(&b));
   PetscCall(MatDestroy(&A));
   PetscCall(PetscFinalize());
-  return 0;
+  return completed ? 0 : 2;
 }
