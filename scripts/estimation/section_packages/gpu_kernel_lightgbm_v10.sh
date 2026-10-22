@@ -64,32 +64,9 @@ _bk_gpu_lightgbm_env_value() {
   eval "printf '%s\n' \"\${${var_name}:-}\""
 }
 
-_bk_gpu_lightgbm_perftools_root() {
-  printf '%s\n' "${BK_GPU_LIGHTGBM_PERFTOOLS_ROOT:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-}}}"
-}
-
-_bk_gpu_lightgbm_bool_enabled() {
-  case "${1:-}" in
-    1|true|TRUE|yes|YES|on|ON) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-_bk_gpu_lightgbm_fetch_enabled() {
-  if [[ -n "${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS:-}" ]]; then
-    _bk_gpu_lightgbm_bool_enabled "$BK_GPU_LIGHTGBM_FETCH_PERFTOOLS"
-    return $?
-  fi
-
-  return 0
-}
-
 _bk_gpu_lightgbm_ensure_perftools_root() {
-  local root repo="${BK_GPU_LIGHTGBM_PERFTOOLS_REPO:-${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}}" ref="${BK_GPU_LIGHTGBM_PERFTOOLS_REF:-${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}}" pin="${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}}"
-  local fetch_enabled=false
-  root=$(_bk_gpu_lightgbm_perftools_root)
-  if _bk_gpu_lightgbm_fetch_enabled; then fetch_enabled=true; fi
-  bk_perftools_ensure_root "$root" "$repo" "$ref" "$pin" "$fetch_enabled"
+  local repo="${BK_GPU_LIGHTGBM_PERFTOOLS_REPO:-${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}}" ref="${BK_GPU_LIGHTGBM_PERFTOOLS_REF:-${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}}" pin="${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}}"
+  bk_perftools_ensure_root "$repo" "$ref" "$pin"
 }
 
 _bk_gpu_lightgbm_model_dir() {
@@ -354,12 +331,6 @@ EOF
       missing+=("\"prediction_csv:${prediction_csv}\"")
     fi
   else
-    root=$(_bk_gpu_lightgbm_ensure_perftools_root) || {
-      printf '%s\n' '{"status":"error","missing_inputs":["perftools_checkout_failed"]}'
-      return 1
-    }
-    predictor=$(_bk_gpu_lightgbm_predictor "$root")
-
     if [[ -z "$input_csv" && -z "$ncu_archive" ]]; then
       missing+=('"gpu_lightgbm_input_csv"')
     fi
@@ -369,11 +340,15 @@ EOF
     if [[ -n "$ncu_archive" && ! -f "$ncu_archive" ]]; then
       missing+=("\"ncu_archive:${ncu_archive}\"")
     fi
-    if [[ -z "$root" || ! -d "$root" ]]; then
-      missing+=('"BK_GPU_LIGHTGBM_PERFTOOLS_ROOT"')
-    fi
-    if [[ -z "$predictor" || ! -f "$predictor" ]]; then
-      missing+=('"PerfTools LightGBM predictor"')
+    if (( ${#missing[@]} == 0 )); then
+      root=$(_bk_gpu_lightgbm_ensure_perftools_root) || {
+        printf '%s\n' '{"status":"error","missing_inputs":["perftools_checkout_failed"]}'
+        return 1
+      }
+      predictor=$(_bk_gpu_lightgbm_predictor "$root")
+      if [[ ! -f "$predictor" ]]; then
+        missing+=('"PerfTools LightGBM predictor"')
+      fi
     fi
   fi
 

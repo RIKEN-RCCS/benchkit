@@ -29,7 +29,6 @@ if [[ $# == 1 ]]; then
     export BK_GPU_LIGHTGBM_TARGET_GPU="${BK_GPU_LIGHTGBM_TARGET_GPU:-H100}"
     export BK_ESTIMATION_FUTURE_SYSTEM="${BK_ESTIMATION_FUTURE_SYSTEM:-H100}"
     export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT="${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-7f89b7ae89fae858369dd9cf51f51bf3d5eb5901}"
-    export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=0
   fi
   : "${BK_GPU_LIGHTGBM_SOURCE_GPU:?Set the observed source GPU}"
   : "${BK_GPU_LIGHTGBM_TARGET_GPU:?Set the model target GPU}"
@@ -54,7 +53,6 @@ if [[ $# == 1 ]]; then
     BK_GPU_LIGHTGBM_NCU_ARCHIVE=$(jq -r .archive <<< "$job") \
     BK_GPU_LIGHTGBM_METADATA_JSON=$(jq -r .metadata <<< "$job") \
     BK_GPU_LIGHTGBM_OUTPUT_DIR="$work/kernel_$i" \
-    BK_GPU_LIGHTGBM_FETCH_PERFTOOLS="${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS:-0}" \
       bk_section_package_transform_gpu_kernel_lightgbm_v11 \
         "$(jq -c .item <<< "$job")" 1 1 1 section > "$work/kernel_$i.json"
   done

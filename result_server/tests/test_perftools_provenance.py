@@ -29,37 +29,127 @@ def repo(tmp_path):
     return root
 
 
-def ensure(root, source, ref, pin='', fetch=False, cache=None):
+def ensure(source, ref='main', pin='', cache=None, extra_env=None):
     env = dict(os.environ, BK_PERFTOOLS_CACHE_DIR=str(cache or source.parent / 'cache'))
-    return subprocess.run(['bash', '-c', 'source "$1"; bk_perftools_ensure_root "$2" "$3" "$4" "$5" "$6"',
+    env.update(extra_env or {})
+    return subprocess.run(['bash', '-c', 'source "$1"; bk_perftools_ensure_root "$2" "$3" "$4"',
                            'fixture', str(ROOT / 'scripts/estimation/section_packages/perftools_common.sh'),
-                           str(root) if root else '', str(source), ref, pin, str(fetch).lower()],
+                           str(source), ref, pin],
                           cwd=ROOT, env=env, capture_output=True, text=True)
 
 
 def test_checkout_fixed_and_dirty_rejected(repo):
     sha = run_git(repo, 'rev-parse', 'HEAD')
-    assert ensure(repo, repo, 'not-the-current-ref', sha).returncode == 0
-    assert ensure(repo, repo, 'main', '0' * 40).returncode != 0
-    (repo / 'file').write_text('changed')
-    assert ensure(repo, repo, 'main', sha).returncode != 0
-    assert ensure(repo, repo, 'main').returncode == 0  # Record-only use remains supported.
-    assert ensure(repo, repo, 'main', 'short-sha').returncode != 0
+    result = ensure(repo, 'not-the-current-ref', sha)
+    assert result.returncode == 0, result.stderr
+    checkout = Path(result.stdout.strip())
+    assert checkout != repo
+    assert run_git(checkout, 'rev-parse', 'HEAD') == sha
+    assert run_git(checkout, 'status', '--porcelain') == ''
+    assert ensure(repo, pin='0' * 40).returncode != 0
+    (checkout / 'file').write_text('changed')
+    assert ensure(repo, pin=sha).returncode != 0
+    assert (checkout / 'file').read_text() == 'changed'
+    assert ensure(repo, pin='short-sha').returncode != 0
 
 
 def test_local_ref_resolution_commit_cache_and_failure(repo):
     branch = run_git(repo, 'symbolic-ref', '--short', 'HEAD')
     sha = run_git(repo, 'rev-parse', 'HEAD')
-    result = ensure(None, repo, 'refs/heads/' + branch, fetch=True)
+    result = ensure(repo, 'refs/heads/' + branch)
     assert result.returncode == 0, result.stderr
     checkout = Path(result.stdout.strip())
     assert checkout.name == sha
     assert run_git(checkout, 'rev-parse', 'HEAD') == sha
-    assert ensure(None, repo, 'missing-ref', fetch=True).returncode != 0
-    assert ensure(None, repo, branch, pin='0' * 40, fetch=True).returncode != 0
-    assert ensure(None, repo, branch, pin=sha, fetch=False).returncode != 0
+    assert ensure(repo, 'missing-ref').returncode != 0
+    assert ensure(repo, branch, pin='0' * 40).returncode != 0
+    assert ensure(repo, pin=sha.upper()).stdout.strip() == str(checkout)
     (checkout / 'file').write_text('cache modified')
-    assert ensure(None, repo, branch, fetch=True).returncode != 0
+    assert ensure(repo, branch).returncode != 0
+
+
+def test_commit_cache_reuse_needs_no_repository_connection(repo):
+    sha = run_git(repo, 'rev-parse', 'HEAD')
+    first = ensure(repo, pin=sha)
+    assert first.returncode == 0, first.stderr
+    unavailable = repo.parent / 'unavailable'
+    second = ensure(unavailable, pin=sha)
+    assert second.returncode == 0, second.stderr
+    assert second.stdout == first.stdout
+
+
+def test_wrong_commit_in_cache_fails_without_switching_it(repo):
+    sha = run_git(repo, 'rev-parse', 'HEAD')
+    result = ensure(repo, pin=sha)
+    assert result.returncode == 0, result.stderr
+    checkout = Path(result.stdout.strip())
+    (repo / 'file').write_text('second')
+    run_git(repo, 'add', '.')
+    run_git(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+            'commit', '-qm', 'second')
+    other = run_git(repo, 'rev-parse', 'HEAD')
+    run_git(checkout, 'fetch', '-q', str(repo), other)
+    run_git(checkout, 'checkout', '--detach', other)
+    failed = ensure(repo, pin=sha)
+    assert failed.returncode != 0
+    assert 'does not match the resolved clean commit' in failed.stderr
+    assert run_git(checkout, 'rev-parse', 'HEAD') == other
+
+
+def test_ref_updates_select_separate_commits_and_preserve_old_checkout(repo):
+    branch = run_git(repo, 'symbolic-ref', '--short', 'HEAD')
+    old_sha = run_git(repo, 'rev-parse', 'HEAD')
+    first = ensure(repo, branch)
+    (repo / 'file').write_text('second')
+    run_git(repo, 'add', '.')
+    run_git(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+            'commit', '-qm', 'second')
+    second = ensure(repo, branch)
+    assert second.returncode == 0, second.stderr
+    assert second.stdout != first.stdout
+    assert run_git(Path(first.stdout.strip()), 'rev-parse', 'HEAD') == old_sha
+    assert ensure(repo, pin=old_sha).stdout == first.stdout
+
+
+@pytest.mark.parametrize('kind', ['file', 'directory', 'symlink'])
+def test_invalid_cache_is_not_repaired(repo, kind):
+    sha = run_git(repo, 'rev-parse', 'HEAD')
+    entry = repo.parent / 'cache' / sha
+    entry.parent.mkdir()
+    if kind == 'file':
+        entry.write_text('preserve')
+    elif kind == 'directory':
+        entry.mkdir()
+        (entry / 'file').write_text('preserve')
+    else:
+        entry.symlink_to(repo, target_is_directory=True)
+    assert ensure(repo, pin=sha).returncode != 0
+    assert (entry if kind == 'file' else entry / 'file').read_text() in ('preserve', 'first')
+
+
+@pytest.mark.parametrize('script,function', [
+    ('gpu_kernel_lightgbm_v10.sh', '_bk_gpu_lightgbm_ensure_perftools_root'),
+    ('gpu_kernel_lightgbm_v11.sh', '_bk_gpu_lightgbm_ensure_perftools_root'),
+    ('gpu_kernel_mlp_v15.sh', '_bk_gpu_mlp_ensure_perftools_root'),
+    ('gpu_kernel_mlp_v21.sh', '_bk_gpu_mlp_ensure_perftools_root'),
+    ('gpu_kernel_mlp_v41.sh', '_bk_gpu_mlp_ensure_perftools_root'),
+    ('gpu_kernel_neural_common.sh', '_bk_gpu_neural_root'),
+])
+def test_model_adapters_use_common_commit_checkout(repo, script, function):
+    sha = run_git(repo, 'rev-parse', 'HEAD')
+    env = dict(os.environ, BK_PERFTOOLS_REPO=str(repo), BK_PERFTOOLS_COMMIT=sha,
+               BK_PERFTOOLS_CACHE_DIR=str(repo.parent / 'cache'))
+    # Obsolete deployment variables cannot select code or prohibit acquisition.
+    for name in ('BK_PERFTOOLS_ROOT', 'BK_GPU_LIGHTGBM_PERFTOOLS_ROOT',
+                 'BK_GPU_MLP_PERFTOOLS_ROOT', 'BK_GPU_NEURAL_PERFTOOLS_ROOT'):
+        env[name] = str(repo.parent / 'not-a-model')
+    for family in ('LIGHTGBM', 'MLP', 'NEURAL'):
+        env[f'BK_GPU_{family}_FETCH_PERFTOOLS'] = 'false'
+    result = subprocess.run(['bash', '-c', 'source scripts/estimation/section_packages/gpu_kernel_mlp_v15.sh; source "$1"; "$2"', 'fixture',
+                             str(ROOT / 'scripts/estimation/section_packages' / script), function],
+                            cwd=ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == repo.parent / 'cache' / sha
 
 
 def test_precomputed_prediction_has_no_local_model_identity(tmp_path):
@@ -148,20 +238,21 @@ def test_pin_failure_does_not_turn_into_identity_fallback(repo):
     csv.write_text('fixture')
     import sys
     env = dict(os.environ, BK_GPU_MLP_PYTHON=sys.executable,
-               BK_GPU_MLP_PERFTOOLS_ROOT=str(repo), BK_GPU_MLP_PERFTOOLS_COMMIT='0' * 40,
+               BK_GPU_MLP_PERFTOOLS_REPO=str(repo), BK_GPU_MLP_PERFTOOLS_COMMIT='0' * 40,
+               BK_PERFTOOLS_CACHE_DIR=str(repo.parent / 'cache'),
                BK_GPU_MLP_INPUT_CSV=str(csv), BK_GPU_MLP_ARTIFACT_MODE='input')
     result = subprocess.run(['bash', '-c', '''source scripts/estimation/packages/top_level_package_common.sh
 bk_top_level_dispatch_bound_item '{"name":"gpu","time":1,"estimation_package":"gpu_kernel_mlp_v15"}' 1 1 1 section ""
 '''], cwd=ROOT, env=env, capture_output=True, text=True)
     assert result.returncode != 0
-    assert 'checkout does not match' in result.stderr
+    assert 'commit fetch failed' in result.stderr
     assert not result.stdout.strip()
 
 
 def test_annotated_tag_resolves_to_commit(repo):
     run_git(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
             'tag', '-a', 'release', '-m', 'release')
-    result = ensure(None, repo, 'refs/tags/release', fetch=True)
+    result = ensure(repo, 'refs/tags/release')
     assert result.returncode == 0, result.stderr
     assert run_git(Path(result.stdout.strip()), 'rev-parse', 'HEAD') == run_git(repo, 'rev-parse', 'HEAD')
 
