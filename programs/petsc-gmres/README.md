@@ -21,16 +21,41 @@ Confirmed working on Rikyu (GB200 NVL4), Fugaku (A64FX), and R-CCS
 Cloud's DGX Spark (`RC_DGXSP`, GB10 Blackwell) — see this app's `build.sh`
 for the per-system recipe.
 
-## Correctness
+## Fixed-iteration measurement and numerical diagnostics
 
-`relative L2 norm of the error` for `stokes2` lands near **0.23–0.26** at
-any rank count — higher than the ~0.03 typical for SPD matrices, because
-`stokes2` is a Stokes flow saddle-point system (velocity + pressure),
-which is indefinite and harder to solve. GMRES
-hits the default iteration limit rather than converging tightly, but the
-iteration count is stable across rank counts (193–232 on GPU), so the
-timing comparison is fair. A result far outside that band signals a real
-bug, not benchmark noise.
+Performance runs request `-ksp_max_it 500 -ksp_rtol 1e-14`, retaining the
+configured GMRES restart size (default 100). This requests, rather than
+unconditionally forces, 500 iterations. The application records the actual
+iteration count, configured limit/tolerance and PETSc stop reason. Reaching
+500 with `KSP_DIVERGED_ITS` is the expected iteration-limit termination for
+this benchmark, not evidence of numerical convergence. A converged stop at
+exactly 500 is also eligible. Early convergence, other abnormal stops and
+non-finite diagnostics do not emit the fixed-500 FOM; their logs are retained.
+They return a nonzero benchmark exit status. Early convergence is not itself
+a numerical failure; it does not complete the requested performance workload.
+
+After timing `KSPSolve`, the application explicitly computes the final true
+residual `||b-Ax||_2` and its relative value `||b-Ax||_2 / ||b||_2`, before
+modifying the solution for the existing relative L2 solution-error diagnostic.
+If `||b||_2` is zero, the absolute residual is still reported and the relative
+residual is `unavailable`. These quantities are distinct from a potentially
+preconditioned or estimated residual used by PETSc's convergence test.
+The extra calculations run in the `Final diagnostics` logging stage, excluded
+by `FOM.awk` from the original event breakdown and outside the FOM timer.
+`results/solve.log` records the diagnostics; `results/petsc.log` retains the
+complete staged event log. Both are kept by existing CI artifact collection,
+including failed runs. Result FOM version is `ksp_iter_time_500`; older
+variable-iteration timings are not directly comparable to this measurement.
+
+No formal numerical acceptance range has been established for this input.
+Previous stokes2 relative solution-error observations around 0.23–0.26 are
+measurement examples, not pass/fail limits. Parallel reduction order can
+change convergence; neither a different error nor an equal iteration count
+alone establishes a bug, numerical validity, or identical operation counts.
+The audikw_1 residual examples concern a different matrix and are not stokes2
+acceptance criteria. Final residuals are diagnostic observations without an
+application-defined magnitude threshold. Reference convergence-history
+comparisons can be considered separately when numerical criteria are defined.
 
 ## `-pc_gamg_square_graph 0`
 

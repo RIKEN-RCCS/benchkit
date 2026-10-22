@@ -32,17 +32,17 @@ export OMP_NUM_THREADS="${nthreads}"
 # ObjectView, so no mtx2petsc conversion is needed) is pre-staged at a
 # fixed path per system. See README.md for how each copy was produced and
 # how to re-stage it.
-logfile="solve.log"
+logfile="${RESULTS_DIR}/solve.log"
 # PETSc's own event log, parsed by FOM.awk for the per-routine breakdown.
-logpetsc="petsc.log"
+logpetsc="${RESULTS_DIR}/petsc.log"
 
 # GMRES restart (Krylov subspace size). PETSc's default of 30 is too small for
 # these Stokes systems: stokes3/stokes4 stagnate at it and never converge.
-# 100 converges stokes2 at every rank count and stokes3 at 2 and 4 GPUs. The
-# operators are singular, so no restart guarantees convergence and larger is
-# not monotonically better -- 80 converged and then broke down on a rerun of
-# the same config.
+# Keep the existing subspace size; performance runs request 500 iterations.
+# Convergence and breakdown can still depend on the matrix and MPI layout.
 KSP_RESTART="${BK_PETSC_GMRES_RESTART:-100}"
+KSP_MAX_IT=500
+KSP_RTOL=1e-14
 case "${system}" in
   RIKYU) DATA="${BK_PETSC_GMRES_MATRIX:-/data1/rkp00015/CX_input/petsc-gmres/stokes2.dat}" ;;
   Fugaku) DATA="${BK_PETSC_GMRES_MATRIX:-/vol0500/share/ra250029/CX_input/petsc-gmres/stokes2.dat}" ;;
@@ -58,6 +58,8 @@ bk_record_input \
   --type matrix \
   --result-exp "${matrix_name}" \
   --parameter ksp_gmres_restart "${KSP_RESTART}" \
+  --parameter ksp_max_it "${KSP_MAX_IT}" \
+  --parameter ksp_rtol "${KSP_RTOL}" \
   --recipe "Stokes flow saddle-point matrix generated with Gmsh/FreeFEM and stored in PETSc binary format."
 
 case "${system}" in
@@ -73,6 +75,7 @@ case "${system}" in
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
+      -ksp_max_it "${KSP_MAX_IT}" -ksp_rtol "${KSP_RTOL}" \
       -log_view ":${logpetsc}" -log_view_gpu_time
     ;;
   Fugaku)
@@ -90,6 +93,7 @@ case "${system}" in
       "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
+      -ksp_max_it "${KSP_MAX_IT}" -ksp_rtol "${KSP_RTOL}" \
       -log_view ":${logpetsc}"
     ;;
   RC_DGXSP)
@@ -106,6 +110,7 @@ case "${system}" in
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse -matload_block_size 1 \
       -ksp_gmres_restart "${KSP_RESTART}" \
+      -ksp_max_it "${KSP_MAX_IT}" -ksp_rtol "${KSP_RTOL}" \
       -log_view ":${logpetsc}" -log_view_gpu_time
     ;;
   *)
@@ -113,6 +118,14 @@ case "${system}" in
     exit 1
     ;;
 esac
+
+# Reject stale binaries that have no completion diagnostics as well as runs
+# that did not meet the fixed-iteration benchmark conditions. Logs remain in
+# results/ even when MPI or this check fails.
+if [[ $(grep -c '^KSP_DIAGNOSTICS .* benchmark_status=completed_500$' "${logfile}" || true) != 1 ]]; then
+  echo "petsc-gmres: missing fixed-500 completion diagnostics; inspect results/solve.log" >&2
+  exit 1
+fi
 
 if ! grep -q "^FOM: ranks=" "${logfile}" 2>/dev/null; then
   echo "petsc-gmres success marker not found" >&2
@@ -130,7 +143,7 @@ bk_emit_result \
   --from-log "${logfile}" \
   --fom "${ksp_iter_time}" \
   --fom-unit s \
-  --fom-version ksp_iter_time \
+  --fom-version ksp_iter_time_500 \
   --exp "${matrix_name}" \
   --nodes "${nodes}" \
   --numproc-node "${numproc_node}" \
