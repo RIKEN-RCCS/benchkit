@@ -80,7 +80,7 @@ case "${system}" in
       -DSBD_USE_NCCL=ON \
       -DCMAKE_CXX_FLAGS="-I${nccl_root}/include" \
       -DCMAKE_EXE_LINKER_FLAGS="-L${nccl_root}/lib -lnccl"
-    cmake --build "${BUILD_DIR}" --parallel
+    cmake --build "${BUILD_DIR}" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
     ;;
   RC_DGXSP)
     if ! type module >/dev/null 2>&1; then

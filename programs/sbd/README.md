@@ -299,3 +299,16 @@ Result condition is checked, and the bundle must have been acquired with that
 condition. The existing conditional projection and residual/representative
 sample assumptions still apply. This interface does not schedule GPU work,
 configure server retrieval, or submit an Estimate.
+
+### RIKYU single-rank Davidson collection
+
+The 1-node, 1-rank, 8-thread row uses H2O 1em4 and task/adet/bdet
+communication sizes 1/1/1. Existing 4-rank-per-node rows retain H2O 1em7
+and 1/2/2. The single-rank recipe selects the existing Davidson NSYS/NCU
+collection (five kernel families, one launch each); it requires Python 3.11+
+with sqlite3 and defaults to `python3.12`. Set `PYTHON_BIN` for another
+installed interpreter, `BK_SBD_DAVIDSON_PROFILE=false` for the previous
+profile selection, or `SBD_PROFILER_TOOL=none` to disable profiling.
+RIKYU builds use two compiler processes by default; override with
+`CMAKE_BUILD_PARALLEL_LEVEL`. GPU validation of this normal build/run recipe
+is pending; prior single-rank validation used a separate build/launch driver.

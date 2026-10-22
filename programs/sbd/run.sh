@@ -42,13 +42,21 @@ case "${system}" in
   RIKYU)
     module purge
     module load nvhpc/26.3
-    determinant_file=h2o-1em7-alpha.txt
-    experiment=H2O-1em7
-    reference_energy=-76.243776776861
     energy_abs_tolerance=1.0e-12
     task_comm_size=1
-    adet_comm_size=2
-    bdet_comm_size=2
+    if [[ "$n_ranks" = 1 ]]; then
+      determinant_file=h2o-1em4-alpha.txt
+      experiment=H2O-1em4
+      reference_energy=-76.2429584823075
+      adet_comm_size=1
+      bdet_comm_size=1
+    else
+      determinant_file=h2o-1em7-alpha.txt
+      experiment=H2O-1em7
+      reference_energy=-76.243776776861
+      adet_comm_size=2
+      bdet_comm_size=2
+    fi
     ;;
   RC_DGXSP)
     if ! type module >/dev/null 2>&1; then
