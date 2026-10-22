@@ -1,6 +1,8 @@
 """Offline checks of scope boundaries, projection weights and failure handling."""
 import copy
 import csv
+import io
+import tarfile
 import os
 import hashlib
 import importlib.util
@@ -288,6 +290,105 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
                 capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
             self.assertEqual(run.stdout, '')
+
+    def bundle_fixture(self):
+        directory = Path(self.tmp.name)
+        self.db.rename(directory / 'discovery.sqlite')
+        self.db = directory / 'discovery.sqlite'
+        plan = dict(profiles=[dict(name=f'kernel_{i}', kernel_name=n,
+            nvtx=dict(range=LABEL, domain='default', style='PushPop'),
+            kernel_match=dict(pattern=f'pattern_{i}'), launch_skip=1, launch_count=1)
+            for i, n in enumerate(self.names)])
+        path = directory / 'plan.json'
+        path.write_text(json.dumps(plan))
+        for profile in plan['profiles']:
+            folder = directory / 'profiles' / profile['name']; folder.mkdir(parents=True)
+            meta = dict(profile_name=profile['name'], nsys_discovery_json=json.dumps(profile),
+                ncu=dict(kernel_regex=profile['kernel_match']['pattern'], launch_skip=1, launch_count=1))
+            (folder/'profile.metadata.json').write_text(json.dumps(meta))
+            data = io.StringIO(); writer = csv.writer(data)
+            writer.writerow(['ID','Kernel Name'] + ['launch__'+d+'_dim_'+a
+                                                    for d in ('grid','block') for a in 'xyz'])
+            writer.writerow([0, profile['kernel_name'],10,1,1,64,1,1])
+            content = data.getvalue().encode()
+            with tarfile.open(folder/'profile.tgz', 'w:gz') as archive:
+                member = tarfile.TarInfo('raw/rep1/profile_raw.csv'); member.size=len(content)
+                archive.addfile(member, io.BytesIO(content))
+        return path, directory/'profiles', directory/'prepared'
+
+    def test_normal_profile_entry_prepares_five_scoped_launches(self):
+        plan_path, _, _ = self.bundle_fixture()
+        directory = plan_path.parent
+        associations = [dict(range=':'+LABEL, style='PushPop', process_id='0',
+            thread_id='1', kernel_name=n) for n in self.names]
+        (directory/'discovery.json').write_text(json.dumps(dict(nvtx=dict(associations=associations))))
+        for filename, header, rows in (
+            ('kernel-summary.csv', ['Name','Total Time (ns)','Instances'],
+             [[n,100,2] for n in self.names]),
+            ('nvtx-summary.csv', ['NVTX Range','Style','PID','TID','Kernel Name','Kern Inst','Total Time (ns)'],
+             [[':'+LABEL,'PushPop',0,1,n,2,100] for n in self.names])):
+            with (directory/filename).open('w',newline='') as f:
+                writer=csv.writer(f); writer.writerow(header); writer.writerows(rows)
+        calls=directory/'calls.log'
+        command = """
+source scripts/bk_functions.sh
+source programs/sbd/profile.sh
+bk_discover_ncu_plan() { printf '%s\\n' "$FIXTURE_PLAN"; }
+_bk_profile_register() { :; }
+bk_acquire_ncu() { printf '%s\\n' "$*" >> "$CALLS"; }
+sbd_run_configured_ncu_profiles RIKYU 1 --input unchanged
+"""
+        environment=dict(os.environ, FIXTURE_PLAN=str(plan_path), CALLS=str(calls),
+            BK_SBD_NCU_PROFILE='true', BK_SBD_DAVIDSON_PROFILE='true', PYTHON_BIN=sys.executable)
+        subprocess.run(['bash','-eu','-c',command], cwd=ROOT,env=environment,
+                       capture_output=True,text=True,check=True)
+        observed=calls.read_text().splitlines()
+        self.assertEqual(len(observed),5)
+        self.assertTrue(all('--launch-skip 1 --launch-count 1' in line and '--level detailed' in line for line in observed))
+        prepared=json.loads((directory/'davidson-plan.json').read_text())
+        self.assertEqual({sbd.family(p['kernel_name']) for p in prepared['profiles']},set(sbd.FAMILIES))
+        self.assertTrue(all(p['nvtx']['range']==LABEL and not p['section'] for p in prepared['profiles']))
+        calls.unlink()
+        run=subprocess.run(['bash','-eu','-c',command.replace('RIKYU 1','RIKYU 2')],
+            cwd=ROOT,env=environment,capture_output=True,text=True)
+        self.assertNotEqual(run.returncode,0)
+        self.assertFalse(calls.exists())
+
+    def test_bundle_preparation_and_missing_duplicate_metadata(self):
+        plan, profiles, output = self.bundle_fixture()
+        sbd.prepare_inputs(plan, profiles, output, 'source', 'target')
+        samples = json.loads((output/'samples.json').read_text())
+        self.assertEqual(sbd.aggregate(self.trace, self.pred, samples)['time_ratio_predicted_over_source'], .85)
+        self.assertEqual(len(json.loads((output/'jobs.json').read_text())), 5)
+        meta = profiles/'kernel_0/profile.metadata.json'
+        original = meta.read_bytes(); meta.unlink()
+        with self.assertRaises(ValueError): sbd.prepare_inputs(plan, profiles, output, 'source', 'target')
+        meta.write_bytes(original)
+        duplicate = profiles/'duplicate'; duplicate.mkdir()
+        (duplicate/'profile.metadata.json').write_bytes(original)
+        with self.assertRaises(ValueError): sbd.prepare_inputs(plan, profiles, output, 'source', 'target')
+
+    def test_plan_rejects_wrong_scope_first_launch_and_missing_family(self):
+        plan = dict(profiles=[dict(name=f'k{i}', kernel_name=n,
+            nvtx=dict(range=LABEL, domain='default', style='PushPop'), launch_skip=1, launch_count=1)
+            for i,n in enumerate(self.names)])
+        for changed in ('scope','first','family'):
+            candidate = copy.deepcopy(plan)
+            if changed == 'scope': candidate['profiles'][0]['nvtx']['range']='other'
+            elif changed == 'first': candidate['profiles'][0]['launch_skip']=0
+            else: candidate['profiles'].pop()
+            with self.assertRaises(ValueError): sbd.make_samples(self.trace,candidate,'source','target')
+
+    def test_bundle_rejects_raw_xyz_mismatch_with_same_product(self):
+        plan, profiles, output = self.bundle_fixture()
+        archive = profiles/'kernel_0/profile.tgz'
+        with tarfile.open(archive) as source:
+            content = source.extractfile('raw/rep1/profile_raw.csv').read()
+        content = content.replace(b',10,1,1,64,1,1', b',5,2,1,64,1,1')
+        with tarfile.open(archive,'w:gz') as target:
+            member = tarfile.TarInfo('raw/rep1/profile_raw.csv'); member.size=len(content)
+            target.addfile(member,io.BytesIO(content))
+        with self.assertRaisesRegex(ValueError,'Grid/Block'): sbd.prepare_inputs(plan,profiles,output,'source','target')
 
     def test_cli_and_read_only_inputs(self):
         before = hashlib.sha256(self.db.read_bytes()).hexdigest()

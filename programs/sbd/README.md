@@ -251,3 +251,51 @@ incomplete inputs exit unsuccessfully without an Estimate; there is no identity
 fallback. Source/target GPU names and the requested target system are recorded
 separately. This does not establish target-side accuracy or support multi-rank
 scaling.
+
+
+## Davidson acquisition and the estimation wrapper
+
+For a one-rank GPU run, explicitly enable `BK_SBD_DAVIDSON_PROFILE=true`
+in addition to the existing NCU profiling option. This mode requires
+`PYTHON_BIN` pointing to Python 3.11+ with sqlite3. It uses the existing
+NSYS discovery, selects the unique outer Davidson NVTX range, and samples
+the second launch of each of the five families once, using the existing
+`detailed`/full-counter preset required by the model. The resulting
+`davidson-plan.json` and `discovery.sqlite` stay with the discovery artifacts.
+Missing ranges, multiple configurations or unsupported overlap stop this
+profile mode; the normal benchmark Result is retained. Existing profiling
+without this option is unchanged. No synchronization is added.
+
+On the estimation host, prepare `results/result0.json` and the corresponding
+local discovery/NCU artifacts, then use the normal wrapper:
+
+```sh
+export BK_SBD_DAVIDSON_PLAN=path/to/discovery/davidson-plan.json
+export BK_SBD_DAVIDSON_PROFILES_DIR=path/to/profiles
+export BK_GPU_LIGHTGBM_SOURCE_GPU=GB200
+export BK_GPU_LIGHTGBM_TARGET_GPU=H100
+export BK_ESTIMATION_FUTURE_SYSTEM=H100
+export BK_ESTIMATION_PYTHON=python3.11
+# Configure the existing LightGBM 1.1 runtime and pinned PerfTools checkout.
+export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT=path/to/PerfTools
+export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=FULL_COMMIT_SHA
+export BK_GPU_LIGHTGBM_PYTHON=path/to/model-runtime/python
+bash scripts/estimation/run.sh sbd
+```
+
+The wrapper mode defaults to no PerfTools fetch. It verifies the selected
+plan/metadata, exactly one raw NCU row and full XYZ Grid/Block per family,
+then reuses LightGBM conversion/inference, Davidson aggregation and the
+standard Estimate writer. It writes `results/estimate_sbd_result0.json`;
+component results, sample associations and inference evidence remain under
+`results/estimation_artifacts/`. Precomputed or scoped input/archive overrides
+are rejected in this mode. Missing or mismatched inputs fail without an
+Estimate or identity fallback. Existing offline five-argument usage remains
+available.
+
+Supply the bundle for this Result explicitly; matching names or a digest do
+not establish scientific equivalence between separate runs. The one-rank
+Result condition is checked, and the bundle must have been acquired with that
+condition. The existing conditional projection and residual/representative
+sample assumptions still apply. This interface does not schedule GPU work,
+configure server retrieval, or submit an Estimate.
