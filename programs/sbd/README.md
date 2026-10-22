@@ -310,5 +310,8 @@ with sqlite3 and defaults to `python3.12`. Set `PYTHON_BIN` for another
 installed interpreter, `BK_SBD_DAVIDSON_PROFILE=false` for the previous
 profile selection, or `SBD_PROFILER_TOOL=none` to disable profiling.
 RIKYU builds use two compiler processes by default; override with
-`CMAKE_BUILD_PARALLEL_LEVEL`. GPU validation of this normal build/run recipe
-is pending; prior single-rank validation used a separate build/launch driver.
+`CMAKE_BUILD_PARALLEL_LEVEL`. The normal build/run wrapper has been validated
+on one GB200 with H2O 1em4, including energy verification, a fresh NSYS
+trace, and one launch from each of the five kernel families. This validates
+collection; target-GPU prediction accuracy and multi-rank projection remain
+unverified.
