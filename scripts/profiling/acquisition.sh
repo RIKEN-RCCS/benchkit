@@ -192,7 +192,9 @@ bk_discover_ncu_plan() {
     [ "${#application[@]}" -gt 0 ] || return 2
     # Passed by name to the application command builder.
     # shellcheck disable=SC2034
-    prefix=(nsys profile --force-overwrite=true "--trace=cuda,nvtx" --sample=none -o "$work/discovery")
+    # CUDA/NVTX discovery needs no external CPU debug symbols. Apply this
+    # after the application builder/login shell; keep the caller unchanged.
+    prefix=(env DEBUGINFOD_URLS= nsys profile --force-overwrite=true "--trace=cuda,nvtx" --sample=none -o "$work/discovery")
     "$builder" prefix application command || return 1
     bk_profile_execute --tool nsys --phase collect --log "$work/collect.log" -- "${command[@]}" >&2 || return $?
     [ -s "$report" ] || { echo 'NSYS report was not produced' >&2; return 1; }
