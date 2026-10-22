@@ -21,6 +21,8 @@ RUN_DIR="${TMP_DIR}/run"
 RESULTS_DIR="${TMP_DIR}/results"
 FAKE_NCU_LOG="${TMP_DIR}/ncu-kernels.log"
 export FAKE_NCU_LOG RESULTS_DIR
+# Simulate a site enabling symbol downloads; only NSYS collection may override it.
+export DEBUGINFOD_URLS=https://symbols.invalid
 
 mkdir -p "${FAKE_BIN}" "${RUN_DIR}" "${RESULTS_DIR}"
 
@@ -41,6 +43,7 @@ set -euo pipefail
 
 case "${1:-}" in
   profile)
+    test "${DEBUGINFOD_URLS-unset}" = ""
     shift
     output=""
     while [ $# -gt 0 ]; do
@@ -63,6 +66,7 @@ case "${1:-}" in
     printf 'fake nsys report\n' > "${output}.nsys-rep"
     ;;
   stats)
+    test "${DEBUGINFOD_URLS:-}" = https://symbols.invalid
     shift
     output=""
     report=""
@@ -107,6 +111,8 @@ EOF
 cat > "${FAKE_BIN}/ncu" <<'EOF'
 #!/bin/bash
 set -euo pipefail
+
+test "${DEBUGINFOD_URLS:-}" = https://symbols.invalid
 
 if [ "${1:-}" = "--import" ]; then
   printf 'metric,value\nfake,1\n'
@@ -386,4 +392,7 @@ if (cd "$RUN_DIR"; sbd_run_configured_ncu_profiles RIKYU 4 --fcidump fcidump.txt
 fi
 test "$(wc -l < "$FAKE_NVTX_LOG")" -eq 2
 unset BK_NCU_NVTX_SQLITE
+
+# The caller retains its original setting after the MPI/profile pipeline.
+test "$DEBUGINFOD_URLS" = https://symbols.invalid
 echo "SBD NCU profile test passed"
