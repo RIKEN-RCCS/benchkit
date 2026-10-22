@@ -21,6 +21,11 @@ Confirmed working on Rikyu (GB200 NVL4), Fugaku (A64FX), and R-CCS
 Cloud's DGX Spark (`RC_DGXSP`, GB10 Blackwell) — see this app's `build.sh`
 for the per-system recipe.
 
+On RIKYU, single-rank runs use `--bind-to none` to inherit the CPU affinity
+and cpuset imposed by Slurm. This disables additional Open MPI binding;
+it does not remove the scheduler's CPU constraints. Multiple-rank runs
+retain the existing core binding and mapping policy.
+
 ## Fixed-iteration measurement and numerical diagnostics
 
 Performance runs request `-ksp_max_it 500 -ksp_rtol 1e-14`, retaining the

@@ -390,6 +390,27 @@ exit "${TEST_MPI_STATUS:-0}"
                 self.assertEqual((self.root / "results/result").read_text(), "")
                 self.assertTrue((self.root / "results/solve.log").is_file())
 
+    def test_petsc_rikyu_single_rank_inherits_scheduler_cpu_constraints(self):
+        app = self.prepare_app("petsc-gmres", "GMRES-PETSc")
+        data = self.root / "matrix.dat"
+        data.write_bytes(b"abc")
+        self.env["BK_PETSC_GMRES_MATRIX"] = str(data)
+        self.env["TEST_MPI_ARGS"] = str(self.root / "mpi-args")
+        # Exercise actual launch arguments for one rank and both multi-rank
+        # layouts; a one-rank-per-node multi-node run is still multi-rank.
+        for nodes, ranks_per_node, binding in ((1, 1, "none"), (1, 2, "core"), (2, 1, "core")):
+            with self.subTest(nodes=nodes, ranks_per_node=ranks_per_node):
+                result = subprocess.run(
+                    ["bash", str(app / "run.sh"), "RIKYU", str(nodes), str(ranks_per_node), "1"],
+                    cwd=self.root, env=self.env, capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                args = (self.root / "mpi-args").read_text().splitlines()
+                for flag, value in (("-np", str(nodes * ranks_per_node)), ("-N", str(ranks_per_node)),
+                                    ("--bind-to", binding), ("--map-by", "core")):
+                    self.assertEqual(args[args.index(flag) + 1], value)
+                self.assertIn("CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK", " ".join(args))
+                self.assertIn("FOM_version:ksp_iter_time_500", (self.root / "results/result").read_text())
+
     def prepare_restart(self):
         source = self.root / "restart-source"
         (source / "restart").mkdir(parents=True)

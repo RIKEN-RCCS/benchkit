@@ -65,12 +65,16 @@ bk_record_input \
 case "${system}" in
   RIKYU)
     module load nvhpc-hpcx/26.3
+    # A single rank inherits Slurm's CPU affinity/cpuset. Rebinding against
+    # the MPI topology can select a CPU outside that allocation.
+    binding=core
+    if (( n_ranks == 1 )); then binding=none; fi
     # One MPI rank per GPU: each rank gets a distinct GPU via
     # CUDA_VISIBLE_DEVICES (set inside mpirun so OMPI_COMM_WORLD_LOCAL_RANK
     # is available per-rank), and -mat_type aijcusparse puts the matrix
     # on-device. Without these the solve runs on CPU even though GPUs
     # are allocated.
-    bk_run --log "${logfile}" -- mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to core --map-by core \
+    bk_run --log "${logfile}" -- mpirun -np "${n_ranks}" -N "${numproc_node}" --bind-to "${binding}" --map-by core \
       bash -c 'export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK; exec "$@"' \
       _ "${ARTIFACT}" -f "${DATA}" -pc_type gamg -pc_gamg_square_graph 0 \
       -mat_type aijcusparse -matload_block_size 1 \
