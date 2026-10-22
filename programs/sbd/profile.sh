@@ -105,7 +105,7 @@ sbd_generate_ncu_plan() {
       --launch-count 1 --metric-set gpu_kernel_estimation -- ./diag "$@") || return 1
     davidson_plan=$("${PYTHON_BIN:-python3}" -B "${BK_BENCHKIT_ROOT}/programs/sbd/estimation/aggregate_davidson.py" \
       --prepare-plan "$(dirname "$initial_plan")") || return 1
-    _bk_profile_register "" "$davidson_plan" "$(dirname "$initial_plan")/discovery.sqlite" || return 1
+    _bk_profile_register "" "$davidson_plan" || return 1
     printf '%s\n' "$davidson_plan"
     return 0
   fi
