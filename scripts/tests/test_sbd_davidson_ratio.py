@@ -392,6 +392,50 @@ sbd_run_configured_ncu_profiles RIKYU 1 --input unchanged
         (duplicate/'profile.metadata.json').write_bytes(original)
         with self.assertRaises(ValueError): sbd.prepare_inputs(plan, profiles, output, 'source', 'target')
 
+    def test_artifact_estimate_acquires_pinned_model_without_root_configuration(self):
+        import shutil
+        plan, profiles, _ = self.bundle_fixture()
+        directory = plan.parent
+        work = directory / 'work'
+        work.mkdir()
+        shutil.copytree(ROOT / 'scripts', work / 'scripts')
+        shutil.copytree(ROOT / 'programs/sbd', work / 'programs/sbd')
+        model = directory / 'model'
+        model.mkdir()
+        (model / 'file').write_text('model fixture')
+        def git(*args):
+            return subprocess.check_output(['git', '-C', str(model), *args], text=True).strip()
+        git('init', '-q')
+        git('add', '.')
+        git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+            'commit', '-qm', 'fixture')
+        commit = git('rev-parse', 'HEAD')
+        # Stop at the model boundary: acquisition is real, inference is not run.
+        adapter = work / 'scripts/estimation/section_packages/gpu_kernel_lightgbm_v11.sh'
+        with adapter.open('a') as handle:
+            handle.write('''
+bk_section_package_transform_gpu_kernel_lightgbm_v11() {
+  [[ -z "${BK_GPU_LIGHTGBM_FETCH_PERFTOOLS+x}" ]] || exit 76
+  _bk_gpu_lightgbm_ensure_perftools_root > selected-root || exit 75
+  exit 77
+}
+''')
+        result = work / 'result.json'
+        result.write_text(json.dumps(dict(code='sbd', Exp='H2O-1em4', system='RIKYU',
+            FOM=1, FOM_unit='s', FOM_version='davidson_internal_s',
+            node_count=1, numproc_node=1, nthreads=8)))
+        env = {k:v for k,v in os.environ.items() if not k.startswith(('BK_GPU_', 'BK_PERFTOOLS_', 'BK_SBD_'))}
+        env.update(BK_SBD_RIKYU_ARTIFACT_ONLY='true', BK_SBD_DAVIDSON_PLAN=str(plan),
+            BK_SBD_DAVIDSON_PROFILES_DIR=str(profiles), BK_GPU_LIGHTGBM_PERFTOOLS_REPO=str(model),
+            BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=commit, BK_PERFTOOLS_CACHE_DIR=str(work / 'cache'),
+            BK_ESTIMATION_PYTHON=sys.executable, GIT_ALLOW_PROTOCOL='file')
+        run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result)],
+            cwd=work, env=env, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 77, run.stderr)
+        self.assertEqual((work / 'selected-root').read_text().strip(), str(work / 'cache' / commit))
+        self.assertEqual(subprocess.check_output(['git', '-C', str(work / 'cache' / commit),
+            'rev-parse', 'HEAD'], text=True).strip(), commit)
+
     def test_plan_rejects_wrong_scope_first_launch_and_missing_family(self):
         plan = dict(profiles=[dict(name=f'k{i}', kernel_name=n,
             nvtx=dict(range=LABEL, domain='default', style='PushPop'), launch_skip=1, launch_count=1)

@@ -77,7 +77,6 @@ source scripts/estimation/common.sh
 source scripts/estimation/packages/instrumented_app_sections_dummy.sh
 
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="prediction"
-export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=false
 export BK_GPU_LIGHTGBM_INPUT_CSV="${TMP_DIR}/lightgbm_input.csv"
 export BK_GPU_LIGHTGBM_PYTHON="$PYTHON_BIN"
 
@@ -147,7 +146,12 @@ EOF
 
 pushd "${TMP_DIR}" >/dev/null
 export BK_GPU_LIGHTGBM_ARTIFACT_MODE="input"
-export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
+git -C "$FAKE_PERFTOOLS" init -q
+git -C "$FAKE_PERFTOOLS" add .
+git -C "$FAKE_PERFTOOLS" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm fixture
+export BK_GPU_LIGHTGBM_PERFTOOLS_REPO="$FAKE_PERFTOOLS"
+export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT
+BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=$(git -C "$FAKE_PERFTOOLS" rev-parse HEAD)
 export BK_GPU_LIGHTGBM_OUTPUT_DIR="${TMP_DIR}/lightgbm_outputs"
 if bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_input.json")" "1" "1" "1" "identity" "identity" >/tmp/benchkit-lightgbm-unexpected.out 2>"${TMP_DIR}/lightgbm_failure.err"; then
   echo "expected failing LightGBM predictor to fail the transform" >&2

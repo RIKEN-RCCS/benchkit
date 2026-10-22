@@ -175,13 +175,18 @@ EOF
 
 pushd "${TMP_DIR}" >/dev/null
 export BK_GPU_MLP_ARTIFACT_MODE="input"
-export BK_GPU_MLP_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
+git -C "$FAKE_PERFTOOLS" init -q
+git -C "$FAKE_PERFTOOLS" add .
+git -C "$FAKE_PERFTOOLS" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm fixture
+export BK_GPU_MLP_PERFTOOLS_REPO="$FAKE_PERFTOOLS"
+export BK_GPU_MLP_PERFTOOLS_COMMIT
+BK_GPU_MLP_PERFTOOLS_COMMIT=$(git -C "$FAKE_PERFTOOLS" rev-parse HEAD)
 export BK_GPU_MLP_OUTPUT_DIR="${TMP_DIR}/mlp_outputs"
 
 transformed_from_input=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_input.json")" "1" "1" "1" "identity" "identity")
 echo "$transformed_from_input" | jq -e '.sections[0].model.provenance.input_mode == "prepared_csv"' >/dev/null
 manifest_path=$(echo "$transformed_from_input" | jq -r '.sections[0].model.provenance.manifest')
-jq -e '.external_inference.resolved_commit == null and .preprocessing == null and (.external_inference.files | length > 0)' "$manifest_path" >/dev/null
+jq -e --arg commit "$BK_GPU_MLP_PERFTOOLS_COMMIT" '.external_inference.resolved_commit == $commit and .external_inference.dirty == false and .preprocessing == null and (.external_inference.files | length > 0)' "$manifest_path" >/dev/null
 
 popd >/dev/null
 
@@ -237,7 +242,6 @@ EOF
 
   pushd "${TMP_DIR}" >/dev/null
   export BK_GPU_MLP_ARTIFACT_MODE="input"
-  export BK_GPU_MLP_PERFTOOLS_ROOT="${FAKE_PERFTOOLS}"
   export BK_GPU_MLP_OUTPUT_DIR="${TMP_DIR}/${package_name}_outputs"
   transformed_family=$(bk_top_level_transform_breakdown "$(cat "${TMP_DIR}/breakdown_${package_name}.json")" "1" "1" "1" "identity" "identity")
   popd >/dev/null

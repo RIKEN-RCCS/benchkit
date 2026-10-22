@@ -276,14 +276,13 @@ export BK_GPU_LIGHTGBM_SOURCE_GPU=GB200
 export BK_GPU_LIGHTGBM_TARGET_GPU=H100
 export BK_ESTIMATION_FUTURE_SYSTEM=H100
 export BK_ESTIMATION_PYTHON=python3.11
-# Configure the existing LightGBM 1.1 runtime and pinned PerfTools checkout.
-export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT=path/to/PerfTools
+# Select PerfTools; the estimation job fetches this exact commit.
 export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=FULL_COMMIT_SHA
 export BK_GPU_LIGHTGBM_PYTHON=path/to/model-runtime/python
 bash scripts/estimation/run.sh sbd
 ```
 
-The wrapper mode defaults to no PerfTools fetch. It verifies the selected
+The wrapper uses the common commit-keyed PerfTools acquisition. It verifies the selected
 plan/metadata, exactly one raw NCU row and full XYZ Grid/Block per family,
 then reuses LightGBM conversion/inference, Davidson aggregation and the
 standard Estimate writer. It writes `results/estimate_sbd_result0.json`;
@@ -332,9 +331,9 @@ precedence. Missing or ambiguous bundles fail instead of choosing a sample.
 For this opt-in, the default pair is GB200 to H100, using LightGBM 1.1 at
 PerfTools commit `7f89b7ae89fae858369dd9cf51f51bf3d5eb5901`. The GPU names,
 target system and full model commit can be explicitly overridden with the
-existing estimation variables. Model fetching is disabled; provide a clean
-pinned checkout through `BK_GPU_LIGHTGBM_PERFTOOLS_ROOT` on the estimation
-runner. That runner needs Python 3.11+, sqlite3, jq and the existing LightGBM
+existing estimation variables. The estimation job fetches that commit through
+the common resolver; an existing clean commit cache is reused. No model checkout
+is required in the runner image or its mounts. That runner needs Python 3.11+, sqlite3, jq and the existing LightGBM
 inference dependencies. Set `BK_ESTIMATION_PYTHON` and
 `BK_GPU_LIGHTGBM_PYTHON` if its default Python is unsuitable.
 

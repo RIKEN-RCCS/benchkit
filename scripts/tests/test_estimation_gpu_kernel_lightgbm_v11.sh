@@ -11,7 +11,6 @@ cp -R "$REPO_DIR/scripts/result_server" "$TMP_DIR/scripts/"
 cd "$TMP_DIR"
 source scripts/estimation/section_packages/gpu_kernel_lightgbm_v11.sh
 export BK_GPU_LIGHTGBM_PYTHON="${BK_TEST_ESTIMATION_PYTHON:-python3.12}"
-export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=0
 export BK_GPU_LIGHTGBM_PREDICTION_CSV="$TMP_DIR/pred.csv"
 export BK_GPU_LIGHTGBM_INPUT_CSV="$TMP_DIR/input.csv"
 cat > input.csv <<'EOF'

@@ -231,7 +231,8 @@ def test_pinned_neural_checkout_failure_is_not_identity(adapter, tmp_path, packa
     python.chmod(0o755)
     csv_path = tmp_path / 'input.csv'
     csv_path.write_text('fixture')
-    env = dict(os.environ, BK_GPU_NEURAL_PYTHON=str(python), BK_GPU_NEURAL_PERFTOOLS_ROOT=str(repo),
+    env = dict(os.environ, BK_GPU_NEURAL_PYTHON=str(python), BK_GPU_NEURAL_PERFTOOLS_REPO=str(repo),
+               BK_PERFTOOLS_CACHE_DIR=str(tmp_path / 'cache'),
                BK_GPU_NEURAL_PERFTOOLS_COMMIT='0' * 40, BK_GPU_NEURAL_INPUT_CSV=str(csv_path),
                BK_GPU_NEURAL_SOURCE_GPU='S', BK_GPU_NEURAL_TARGET_GPU='T')
     item = json.dumps({'name': 'gpu', 'time': 1, 'estimation_package': package})
@@ -241,7 +242,7 @@ bk_top_level_dispatch_bound_item "$1" 1 1 1 section ''
 ''', 'fixture', item], cwd=ROOT, env=env, capture_output=True, text=True)
     assert result.returncode != 0
     assert not result.stdout.strip()
-    assert 'checkout does not match' in result.stderr
+    assert 'commit fetch failed' in result.stderr
 
 
 def test_missing_neural_runtime_records_requested_and_fallback_versions(tmp_path):

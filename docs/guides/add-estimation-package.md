@@ -114,13 +114,13 @@ kernel selector が無く複数 kernel family が混在している場合、候�
 アプリ側 GPU section time が未取得の場合、GPU kernel estimator は FOM 合成には使えず、まずアプリログ、NVTX、または別のアプリ側計時で掛け先となる section time を用意する必要があります。
 未指定時の既定値は接続確認中の実装に合わせて変わることがあるため、検証や再現性が必要な場合は明示してください。
 
-PerfTools 本体は Benchkit に vendoring せず、実行時に次の環境変数で渡します。
+PerfTools 本体・モデルは Benchkit や runner image に同梱せず、推定jobで取得します。
+使用するcommitと、依存ライブラリを導入したPythonを指定します。
 
 ```bash
-export BK_GPU_MLP_PERFTOOLS_ROOT=/path/to/PerfTools
+export BK_PERFTOOLS_COMMIT=FULL_COMMIT_SHA
 export BK_GPU_MLP_PYTHON=python3.11
 # LightGBM package だけを明示したい場合
-export BK_GPU_LIGHTGBM_PERFTOOLS_ROOT=/path/to/PerfTools
 export BK_GPU_LIGHTGBM_PYTHON=python3.11
 ```
 
@@ -276,7 +276,7 @@ section 名そのものより、
 
 GPU section estimators write a provenance manifest under `results/estimation_artifacts/` and reference its path and SHA-256 from `model.provenance`. Manifest filenames include the content digest so later inputs do not overwrite earlier references. It records the actual checkout commit and state, inference dependency files and digests, CSV input mode, and NCU preprocessing where performed. The dependency bundle can include weights for unused GPUs; it is not a trace of every file read. Missing files and unknown source revisions remain explicit. Precomputed predictions do not acquire the identity of a local model that was never run.
 
-Set `BK_PERFTOOLS_COMMIT` to a full commit SHA to pin inference. Package-specific overrides are `BK_GPU_MLP_PERFTOOLS_COMMIT` and `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`. A supplied checkout must match that commit and be clean. With automatic fetching, the selected ref is resolved to a commit and a detached checkout is cached by commit; fetch or checkout failures are reported rather than using different code. `BK_PERFTOOLS_CACHE_DIR` sets the checkout cache location. A supplied checkout without a pin remains supported and its actual state is recorded.
+Set `BK_PERFTOOLS_COMMIT` to a full commit SHA to pin inference. Package-specific overrides are `BK_GPU_MLP_PERFTOOLS_COMMIT` and `BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT`. A common resolver fetches that exact commit into a detached, commit-keyed checkout and reuses a clean cache entry without another download. Without an explicit commit, the selected ref is resolved to a commit before acquisition. Fetch failures, wrong commits and dirty cache entries fail rather than using different code or repairing the cache. The default cache is `.benchkit_estimation_tools/PerfTools/<commit>`; `BK_PERFTOOLS_CACHE_DIR` selects its parent directory. No preinstalled checkout, model mount or ROOT variable is needed. Runner images provide only the Python/library/tool dependencies; updating PerfTools does not require rebuilding an image unless its dependencies change. Precomputed prediction CSVs do not fetch a model.
 
 MLP NCU preprocessing records the GPU specification fields actually supplemented and its parameters. Prepared-input CSVs bypass that preprocessing. These records identify code and model inputs; Python and library versions still matter for full reproducibility.
 
@@ -330,19 +330,19 @@ inference alone does not establish either.
 
 `gpu_kernel_mlp_v455` uses PerfTools MLP-NN v4.55; `gpu_kernel_pinn_v325`
 uses PINN v3.25. Both require Python 3.11+ with NumPy, pandas and PyTorch on the
-estimation runner. Select a checkout containing the current upstream entrypoints
+estimation runner. Select a commit containing the current upstream entrypoints
 and release weights, and explicitly identify the source and target GPU:
 
 ```bash
 export BK_GPU_NEURAL_PYTHON=python3.12
-export BK_GPU_NEURAL_PERFTOOLS_ROOT=/path/to/PerfTools
+export BK_GPU_NEURAL_PERFTOOLS_COMMIT=FULL_COMMIT_SHA
 export BK_GPU_NEURAL_SOURCE_GPU=GH200
 export BK_GPU_NEURAL_TARGET_GPU=GB200
 export BK_GPU_NEURAL_PROFILE_PROCESS_ID=1234
 ```
 
 Use `BK_GPU_NEURAL_PERFTOOLS_COMMIT` to pin a full, reviewed upstream SHA.
-Root/ref/commit also accept the shared `BK_PERFTOOLS_*` settings. Neural settings
+Repository/ref/commit also accept the shared `BK_PERFTOOLS_*` settings. Neural settings
 take precedence over the corresponding `BK_GPU_MLP_*` compatibility settings.
 An unavailable or changed pinned checkout fails instead of switching models.
 

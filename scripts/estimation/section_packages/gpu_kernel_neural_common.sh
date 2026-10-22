@@ -12,13 +12,10 @@ _bk_gpu_neural_value() {
 }
 
 _bk_gpu_neural_root() {
-  local enabled=true
-  case "${BK_GPU_NEURAL_FETCH_PERFTOOLS:-${BK_GPU_MLP_FETCH_PERFTOOLS:-true}}" in 0|false|no|off) enabled=false ;; esac
   bk_perftools_ensure_root \
-    "${BK_GPU_NEURAL_PERFTOOLS_ROOT:-${BK_GPU_MLP_PERFTOOLS_ROOT:-${BK_PERFTOOLS_ROOT:-}}}" \
     "${BK_GPU_NEURAL_PERFTOOLS_REPO:-${BK_GPU_MLP_PERFTOOLS_REPO:-${BK_PERFTOOLS_REPO:-https://github.com/masaaki-kondo/PerfTools.git}}}" \
     "${BK_GPU_NEURAL_PERFTOOLS_REF:-${BK_GPU_MLP_PERFTOOLS_REF:-${BK_PERFTOOLS_REF:-main}}}" \
-    "${BK_GPU_NEURAL_PERFTOOLS_COMMIT:-${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}}" "$enabled"
+    "${BK_GPU_NEURAL_PERFTOOLS_COMMIT:-${BK_GPU_MLP_PERFTOOLS_COMMIT:-${BK_PERFTOOLS_COMMIT:-}}}"
 }
 
 _bk_gpu_neural_input() {
