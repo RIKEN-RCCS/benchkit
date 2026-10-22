@@ -315,3 +315,29 @@ on one GB200 with H2O 1em4, including energy verification, a fresh NSYS
 trace, and one launch from each of the five kernel families. This validates
 collection; target-GPU prediction accuracy and multi-rank projection remain
 unverified.
+
+### RIKYU artifact-only estimation
+
+Set `BK_SBD_RIKYU_ARTIFACT_ONLY=true` with the exact pipeline filters
+`code=sbd`, `system=RIKYU`, `nodes=1`, `numproc_node=1`, `nthreads=8`.
+Other or incomplete selections are rejected. This opt-in generates build,
+run and estimate jobs, with no Result/Estimate sender jobs. The estimate job
+receives `results/` directly from run, converts the Result locally and calls
+`scripts/estimation/run.sh sbd`. It saves the Estimate and its evidence as
+artifacts for one week and unsets `RESULT_SERVER`.
+
+The SBD estimator accepts exactly one `results/*/davidson-plan.json` when
+`BK_SBD_DAVIDSON_PLAN` is unset; an explicit plan/directory still takes
+precedence. Missing or ambiguous bundles fail instead of choosing a sample.
+For this opt-in, the default pair is GB200 to H100, using LightGBM 1.1 at
+PerfTools commit `7f89b7ae89fae858369dd9cf51f51bf3d5eb5901`. The GPU names,
+target system and full model commit can be explicitly overridden with the
+existing estimation variables. Model fetching is disabled; provide a clean
+pinned checkout through `BK_GPU_LIGHTGBM_PERFTOOLS_ROOT` on the estimation
+runner. That runner needs Python 3.11+, sqlite3, jq and the existing LightGBM
+inference dependencies. Set `BK_ESTIMATION_PYTHON` and
+`BK_GPU_LIGHTGBM_PYTHON` if its default Python is unsuitable.
+
+The default pipeline and other recipes retain their existing job graph.
+This mode does not configure CX storage, multi-rank projection or target-GPU
+accuracy validation.

@@ -414,6 +414,7 @@ has_estimate_script() {
 # $3: run_job_name (run/build_run job name, for artifacts)
 # $4: code (program code name)
 # $5: output_file
+# $6/$7: optional local Result conversion system/build job (no sender dependency)
 emit_estimate_job() {
     local job_prefix="$1"
     local depends_on="$2"
@@ -426,6 +427,16 @@ emit_estimate_job() {
     estimate_runner_tag=$(estimate_runner_tag_yaml)
     environment_name=$(gitlab_environment_name_yaml)
 
+    # Optional local conversion consumes the run artifact without a send job.
+    local local_system="${6:-}" build_job="${7:-}" setup
+    setup='    - if [ -d send_results_workspace/results ]; then cp -R send_results_workspace/results results; fi'
+    if [[ -n "$local_system" ]]; then
+      setup="    - unset RESULT_SERVER
+    - export BK_PUBLIC_ACCESS_CHECK=0
+    - bash scripts/collect_timing.sh
+    - bash scripts/result.sh $code $local_system cross $build_job $run_job \$CI_PIPELINE_ID"
+    fi
+
     echo "
 ${job_prefix}_estimate:
   stage: estimate
@@ -435,7 +446,7 @@ ${job_prefix}_estimate:
     name: ${environment_name}
   script:
     - echo \"Running estimation for ${code}\"
-    - if [ -d send_results_workspace/results ]; then cp -R send_results_workspace/results results; fi
+${setup}
     - bash scripts/estimation/run.sh ${code}
   artifacts:
     paths:

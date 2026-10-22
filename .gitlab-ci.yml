@@ -38,6 +38,7 @@ variables:
   # Infrastructure-level default only. App/package-specific estimation knobs
   # should live in the app wrapper, package wrapper, or explicit pipeline vars.
   BK_ESTIMATE_RUNNER_TAG: "fncx-estimate-python"
+  BK_SBD_RIKYU_ARTIFACT_ONLY: "false"
 
 # Extract system and code filters from API variables or commit message
 .filters: &filters

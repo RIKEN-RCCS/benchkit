@@ -16,8 +16,21 @@ jq -e '(.code | ascii_downcase) == "sbd" and .FOM_unit == "s"
 # The normal wrapper supplies only Result; acquisition remains a separate stage.
 output_file=""
 if [[ $# == 1 ]]; then
-  : "${BK_SBD_DAVIDSON_PLAN:?Set the corresponding Davidson plan path}"
-  : "${BK_SBD_DAVIDSON_PROFILES_DIR:?Set its NCU profiles directory}"
+  if [[ -z "${BK_SBD_DAVIDSON_PLAN:-}" ]]; then
+    shopt -s nullglob
+    plans=(results/*/davidson-plan.json)
+    [[ ${#plans[@]} = 1 ]] || { echo 'Require exactly one local Davidson plan' >&2; exit 2; }
+    BK_SBD_DAVIDSON_PLAN="${plans[0]}"
+  fi
+  BK_SBD_DAVIDSON_PROFILES_DIR="${BK_SBD_DAVIDSON_PROFILES_DIR:-results}"
+  if [[ "${BK_SBD_RIKYU_ARTIFACT_ONLY:-false}" = true || "${BK_SBD_RIKYU_ARTIFACT_ONLY:-}" = 1 ]]; then
+    jq -e '.system == "RIKYU" and .Exp == "H2O-1em4" and (.nthreads | tostring) == "8"' "$1" >/dev/null
+    export BK_GPU_LIGHTGBM_SOURCE_GPU="${BK_GPU_LIGHTGBM_SOURCE_GPU:-GB200}"
+    export BK_GPU_LIGHTGBM_TARGET_GPU="${BK_GPU_LIGHTGBM_TARGET_GPU:-H100}"
+    export BK_ESTIMATION_FUTURE_SYSTEM="${BK_ESTIMATION_FUTURE_SYSTEM:-H100}"
+    export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT="${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-7f89b7ae89fae858369dd9cf51f51bf3d5eb5901}"
+    export BK_GPU_LIGHTGBM_FETCH_PERFTOOLS=0
+  fi
   : "${BK_GPU_LIGHTGBM_SOURCE_GPU:?Set the observed source GPU}"
   : "${BK_GPU_LIGHTGBM_TARGET_GPU:?Set the model target GPU}"
   : "${BK_ESTIMATION_FUTURE_SYSTEM:?Set the target system}"

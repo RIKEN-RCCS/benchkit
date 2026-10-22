@@ -111,6 +111,37 @@ if bash scripts/matrix_generate.sh code=filterapp system=NativeSystem >/dev/null
   exit 1
 fi
 
+# The opt-in must never emit a sender or enable unrelated RIKYU recipes.
+printf 'RIKYU,cross,build-tag,run-tag,SLURM_TEST,gpu\n' >> config/system.csv
+ln -s "$REPO_DIR/programs/sbd" programs/sbd
+BK_SBD_RIKYU_ARTIFACT_ONLY=true bash scripts/matrix_generate.sh code=sbd system=RIKYU nodes=1 numproc_node=1 nthreads=8
+for job in build N1_P1_T8_run N1_P1_T8_estimate; do
+  grep -q "^sbd_RIKYU_${job}:" .gitlab-ci.generated.yml
+done
+if grep -Eq '^sbd_.*_(send_results|send_estimate):|^sbd_RIKYU_.*P4' .gitlab-ci.generated.yml; then
+  echo 'artifact-only emitted a sender or an unselected recipe' >&2; exit 1
+fi
+grep -Fq 'needs: ["sbd_RIKYU_N1_P1_T8_run"]' .gitlab-ci.generated.yml
+grep -Fq 'unset RESULT_SERVER' .gitlab-ci.generated.yml
+grep -Fq 'bash scripts/result.sh sbd RIKYU cross' .gitlab-ci.generated.yml
+for filters in 'code=sbd system=RIKYU nodes=1 numproc_node=4 nthreads=32' 'code=sbd system=RIKYU' 'code=filterapp system=FilterSystem nodes=1 numproc_node=1 nthreads=8'; do
+  # Intentional whitespace-separated filter arguments.
+  # shellcheck disable=SC2086
+  if BK_SBD_RIKYU_ARTIFACT_ONLY=true bash scripts/matrix_generate.sh $filters >/dev/null 2>&1; then
+    echo 'artifact-only accepted an unsupported selection' >&2; exit 1
+  fi
+done
+bash scripts/matrix_generate.sh code=sbd system=RIKYU
+grep -q '^sbd_RIKYU_N1_P1_T8_send_results:' .gitlab-ci.generated.yml
+grep -q '^sbd_RIKYU_N4_P4_T32_run:' .gitlab-ci.generated.yml
+if grep -q '^sbd_RIKYU_.*_estimate:' .gitlab-ci.generated.yml; then
+  echo 'default RIKYU unexpectedly enabled estimation' >&2; exit 1
+fi
+source scripts/job_functions.sh
+emit_estimate_job fixture fixture_send_results fixture_run filterapp legacy-estimate.yml
+grep -Fq 'needs: ["fixture_send_results"]' legacy-estimate.yml
+grep -Fq 'cp -R send_results_workspace/results results' legacy-estimate.yml
+
 popd >/dev/null
 
 echo "matrix generation filter test passed"
