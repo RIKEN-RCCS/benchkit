@@ -9,28 +9,19 @@ mkdir -p results && : > results/result
 
 source "${PWD}/scripts/bk_functions.sh"
 
-TARDIR=./
-case "$system" in
-  Fugaku*)
-    TARDIR=/vol0004/share/ra000001/kanamori/benchkit
-    ;;
-  Miyabi*)
-    TARDIR=/home/q49000/benchkit_appsrc
-    ;;
-  *)
-    ;;
-esac
-echo "soruce location " $TARDIR
+REPO_URL="${LQCD_DW_SOLVER_REPO_URL:-https://github.com/i-kanamori/LQCD-DWF-solver.git}"
+DIR="LQCD_dw_solver"
+BRANCH="${LQCD_DW_SOLVER_BRANCH:-main}"
+SOURCE_COMMIT="${LQCD_DW_SOLVER_SOURCE_COMMIT:-}"
 
-TARBALL=LQCD_dw_solver_20251209_773762.tar.gz
-SRC=`echo $TARBALL|sed -e "s/\.tar\.gz//"`
-DIR=LQCD_dw_solver
 echo "[LQCD_dw_solver] Running on system: $system"
-if [ ! -e $DIR ]; then
-  cp $TARDIR/$TARBALL .
-  tar -zxf $TARBALL
-  ln -s $SRC $DIR
+# run/main_template.yaml などソースツリー内の入力を使うため、
+# build 時に記録した source_info と同じ commit を取得する
+if [ -L "${DIR}" ] || { [ -e "${DIR}" ] && [ ! -d "${DIR}/.git" ]; }; then
+  echo "[LQCD_dw_solver] Removing stale non-git source directory: ${DIR}"
+  rm -rf "${DIR}"
 fi
+bk_fetch_recorded_source "${REPO_URL}" "${DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 
 RESULT=../../results/result
 cp artifacts/bridge*.elf $DIR/run/
@@ -118,6 +109,17 @@ case "$system" in
       bk_run --log run_cuda.log -- mpiexec -np 1 ./bridge_cuda.elf alt_accel
       check run_cuda.log
       get_fom run_cuda.log "target: CUCA" >> $RESULT
+      ;;
+  RIKYU )
+      module load nvhpc-hpcx/26.3
+      # 1 rank = 1 GPU。GPU 割り当ては各 rank の OMPI_COMM_WORLD_LOCAL_RANK で行われる
+      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/$nthreads/" > main.yaml
+      bk_run --log run.log -- mpirun -np 1 --bind-to none ./bridge_openacc.elf alt_accel
+      check run.log
+      get_fom run.log "target: OpenACC " > $RESULT
+      bk_run --log run_cuda.log -- mpirun -np 1 --bind-to none ./bridge_cuda.elf alt_accel
+      check run_cuda.log
+      get_fom run_cuda.log "target: CUDA" >> $RESULT
       ;;
   MiyabiC )
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
