@@ -353,6 +353,13 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
              [[':'+LABEL,'PushPop',0,1,n,2,100] for n in self.names])):
             with (directory/filename).open('w',newline='') as f:
                 writer=csv.writer(f); writer.writerow(header); writer.writerows(rows)
+        generated=json.loads(Path(sbd.davidson_plan(directory)).read_text())
+        for profile in generated['profiles']:
+            meta=directory/'profiles'/f"kernel_{self.names.index(profile['kernel_name'])}"/'profile.metadata.json'
+            data=json.loads(meta.read_text())
+            data.update(profile_name=profile['name'], nsys_discovery_json=json.dumps(profile))
+            data['ncu']['kernel_regex']=profile['kernel_match']['pattern']
+            meta.write_text(json.dumps(data))
         calls=directory/'calls.log'
         command = """
 source scripts/bk_functions.sh
@@ -363,7 +370,9 @@ bk_acquire_ncu() { printf '%s\\n' "$*" >> "$CALLS"; }
 sbd_run_configured_ncu_profiles RIKYU 1 --input unchanged
 """
         environment=dict(os.environ, FIXTURE_PLAN=str(plan_path), CALLS=str(calls),
-            BK_SBD_NCU_PROFILE='true', BK_SBD_DAVIDSON_PROFILE='true', PYTHON_BIN=sys.executable)
+            BK_SBD_NCU_PROFILE='true', BK_SBD_DAVIDSON_PROFILE='true', PYTHON_BIN=sys.executable,
+            BK_RUN_RESULTS_DIR=str(directory), BK_TIMING_OBSERVATIONS_FILE=str(directory/'observations.json'),
+            BK_TIMING_OBSERVATION_ITEMS_FILE=str(directory/'observations.jsonl'))
         subprocess.run(['bash','-eu','-c',command], cwd=ROOT,env=environment,
                        capture_output=True,text=True,check=True)
         observed=calls.read_text().splitlines()
@@ -372,6 +381,11 @@ sbd_run_configured_ncu_profiles RIKYU 1 --input unchanged
         prepared=json.loads((directory/'davidson-plan.json').read_text())
         self.assertEqual({sbd.family(p['kernel_name']) for p in prepared['profiles']},set(sbd.FAMILIES))
         self.assertTrue(all(p['nvtx']['range']==LABEL and not p['section'] for p in prepared['profiles']))
+        manifest=json.loads((directory/'observation-bundle.json').read_text())
+        self.assertEqual(len(manifest['files']), 12)
+        self.assertTrue((directory/'observation-bundle.tgz').is_file())
+        self.assertEqual(json.loads((directory/'observations.json').read_text())['observations'][0]['format'],
+                         'benchkit-observation-bundle/v1')
         calls.unlink()
         run=subprocess.run(['bash','-eu','-c',command.replace('RIKYU 1','RIKYU 2')],
             cwd=ROOT,env=environment,capture_output=True,text=True)

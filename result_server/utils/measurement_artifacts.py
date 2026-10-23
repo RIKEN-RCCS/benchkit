@@ -111,6 +111,8 @@ def result_measurement_artifact_paths(result):
             references.extend(section.get("artifacts") or [])
     for observation in (result.get("timing_observations") or {}).get("observations") or []:
         references.append(observation.get("artifact"))
+        if observation.get("format") == "benchkit-observation-bundle/v1":
+            references.append((observation.get("summary") or {}).get("bundle"))
     references.append((result.get("node_status_snapshot") or {}).get("artifact"))
     return {
         ref["path"] for ref in references

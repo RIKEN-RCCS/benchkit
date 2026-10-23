@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -75,6 +76,58 @@ class PrepareInputsTests(unittest.TestCase):
         filename = Path("results/result0.json")
         filename.write_text(json.dumps(data))
         return filename
+
+    def observation_bundle(self):
+        payload = archive_bytes([('profile_test/discovery.sqlite', b'trace', tarfile.REGTYPE),
+                                 ('profile_test/davidson-plan.json', b'{}', tarfile.REGTYPE)])
+        Path('results/observation-bundle.tgz').write_bytes(payload)
+        reference = dict(type='file_reference', path='results/observation-bundle.tgz',
+                         sha256=hashlib.sha256(payload).hexdigest())
+        manifest = dict(format='benchkit-observation-bundle/v1', summary=dict(bundle=reference),
+                        files={'profile_test/discovery.sqlite': hashlib.sha256(b'trace').hexdigest(),
+                               'profile_test/davidson-plan.json': hashlib.sha256(b'{}').hexdigest()})
+        Path('results/manifest.json').write_text(json.dumps(manifest))
+        result = self.result(paths=())
+        result.write_text(json.dumps(dict(timing_observations=dict(observations=[dict(
+            format=manifest['format'], artifact=dict(type='file_reference', path='results/manifest.json'),
+            summary=manifest['summary'])]))))
+        return result, manifest
+
+    def test_explicit_observation_bundle_restores_local_inputs_without_server(self):
+        result, _ = self.observation_bundle()
+        before = result.read_bytes()
+        prepare.prepare_inputs([result])
+        self.assertEqual(Path('results/profile_test/discovery.sqlite').read_bytes(), b'trace')
+        self.assertEqual(result.read_bytes(), before)
+        self.assertEqual(self.calls, [])
+
+    def test_observation_archive_hash_and_member_hash_are_required(self):
+        result, manifest = self.observation_bundle()
+        Path('results/observation-bundle.tgz').write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+            prepare.prepare_inputs([result])
+        result, manifest = self.observation_bundle()
+        manifest['files']['profile_test/discovery.sqlite'] = '0'*64
+        Path('results/manifest.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, 'hashes'):
+            prepare.prepare_inputs([result])
+        self.assertFalse(Path('results/profile_test').exists())
+
+    def test_observation_conflict_is_checked_before_publishing_any_file(self):
+        result, _ = self.observation_bundle()
+        Path('results/profile_test').mkdir()
+        Path('results/profile_test/discovery.sqlite').write_bytes(b'other observation')
+        with self.assertRaisesRegex(ValueError, 'Conflicting'):
+            prepare.prepare_inputs([result])
+        self.assertFalse(Path('results/profile_test/davidson-plan.json').exists())
+        self.assertEqual(Path('results/profile_test/discovery.sqlite').read_bytes(), b'other observation')
+
+    def test_bundle_cannot_restore_control_data(self):
+        archive = Path('bundle.tgz')
+        archive.write_bytes(archive_bytes([('result0.json', b'{}', tarfile.REGTYPE)]))
+        with self.assertRaisesRegex(ValueError, 'hashes'):
+            prepare.restore_bundle(archive, Path('results'), manifest={'result0.json': hashlib.sha256(b'{}').hexdigest()})
+        self.assertFalse(Path('results/result0.json').exists())
 
     def test_initial_and_reestimate_use_same_preparation_for_different_apps(self):
         for code in ("demo_cpu", "demo_gpu"):

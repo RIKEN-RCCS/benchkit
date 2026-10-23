@@ -233,6 +233,13 @@ sbd_run_configured_ncu_profiles() {
     discovery|auto)
       plan_json=$(sbd_generate_ncu_plan "$n_ranks" "$@") || return 1
       sbd_run_ncu_plan_profiles "$plan_json" "$n_ranks" "$@" || return $?
+      if bk_bool_enabled "${BK_SBD_DAVIDSON_PROFILE:-false}"; then
+        local bundle_manifest
+        bundle_manifest=$("${PYTHON_BIN:-python3}" -B "${BK_BENCHKIT_ROOT}/programs/sbd/estimation/aggregate_davidson.py" \
+          --bundle-inputs "$plan_json" --profiles-dir "${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}") || return 1
+        bk_record_timing_observation --artifact "results/$(basename "$(dirname "$bundle_manifest")")/observation-bundle.json" \
+          --artifact-file "$bundle_manifest" --kind observation-bundle --format benchkit-observation-bundle/v1 || return 1
+      fi
       ;;
     discovery-only|auto-discovery-only)
       sbd_generate_ncu_plan "$n_ranks" "$@" >/dev/null || return $?
