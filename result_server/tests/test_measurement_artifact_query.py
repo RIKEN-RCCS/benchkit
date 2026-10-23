@@ -99,3 +99,15 @@ def test_query_rejects_ambiguous_stored_basename(storage):
     write_result(directories, ["results/profile.tgz", "results/nested/profile.tgz"])
     (directories[1] / f"padata_{TIMESTAMP}_{UUID}_profile.tgz").write_bytes(b"ambiguous")
     assert query(client, "results/profile.tgz").status_code == 409
+
+
+def test_declared_observation_bundle_uses_existing_measurement_endpoint(storage):
+    client, directories = storage
+    filename = write_result(directories, [])
+    data = json.loads(filename.read_text())
+    data['timing_observations'] = dict(observations=[dict(format='benchkit-observation-bundle/v1',
+        summary=dict(bundle=dict(type='file_reference', path='results/observations.tgz')))])
+    filename.write_text(json.dumps(data))
+    (directories[1] / f'padata_{TIMESTAMP}_{UUID}_observations.tgz').write_bytes(b'observation bundle')
+    assert query(client, 'results/observations.tgz').data == b'observation bundle'
+    assert query(client, 'results/observations.tgz', authenticated=False).status_code == 401

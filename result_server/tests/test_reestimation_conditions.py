@@ -176,3 +176,30 @@ fetch_current_fom CPU-A demo case-a
                             env={**os.environ, "RESULT_SERVER": "https://example.test", "BK_ESTIMATION_BASELINE_UUID": uuid, "RESPONSE": json.dumps(response)},
                             capture_output=True)
     assert (result.returncode == 0) == matches
+
+
+def test_sbd_restores_gpu_pair_commit_and_recorded_applied_package(source):
+    source['code'] = 'sbd'
+    source['assumptions'] = ['Residual time unchanged on target']
+    source['future_system']['model'] = dict(projection=dict(
+        method='sbd-davidson-nsys-weighted-v1', source_gpu='GB200', target_gpu='H100',
+        prediction_model=dict(external_commit='a'*40)))
+    source['estimate_metadata']['future_package'] = dict(estimation_package='gpu_kernel_lightgbm_v11')
+    settings, request = conditions.resolve_conditions(source, {}, {})
+    assert settings['BK_GPU_LIGHTGBM_SOURCE_GPU'] == 'GB200'
+    assert settings['BK_GPU_LIGHTGBM_TARGET_GPU'] == 'H100'
+    assert settings['BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT'] == 'a'*40
+    assert settings['BK_ESTIMATION_FUTURE_PACKAGE'] == 'gpu_kernel_lightgbm_v11'
+    assert request['explicit_changes'] == {}
+    _, request = conditions.resolve_conditions(source, {}, {'BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT': 'b'*40})
+    assert request['explicit_changes']['BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT'] == dict(recorded='a'*40, requested='b'*40)
+    del source['future_system']['model']['projection']['target_gpu']
+    with pytest.raises(ValueError, match='TARGET_GPU'):
+        conditions.resolve_conditions(source, {}, {})
+
+
+def test_non_sbd_without_model_keeps_existing_restoration(source):
+    source['future_system']['model'] = None
+    settings, _ = conditions.resolve_conditions(source, {}, {})
+    assert settings['BK_ESTIMATION_FUTURE_PACKAGE'] == 'instrumented_app_sections_dummy'
+    assert not any(name.startswith('BK_GPU_') for name in settings)

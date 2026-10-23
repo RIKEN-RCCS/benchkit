@@ -7,6 +7,7 @@ Python 3.11+; standard library only.
 from __future__ import annotations
 
 import argparse
+import tempfile
 import csv
 import hashlib
 import json
@@ -315,6 +316,29 @@ def prepare_inputs(plan_path, profiles_dir, output, source_gpu, target_gpu):
     (output / 'jobs.json').write_text(json.dumps(jobs, indent=2) + '\n')
 
 
+def bundle_inputs(plan, profiles_dir):
+    # Reuse the same scope/configuration checks as inference preparation.
+    with tempfile.TemporaryDirectory() as temporary:
+        prepare_inputs(plan, profiles_dir, Path(temporary), 'source', 'target')
+        jobs = json.loads((Path(temporary) / 'jobs.json').read_text())
+    files = [plan, plan.with_name('discovery.sqlite')]
+    files += [Path(job[key]) for job in jobs for key in ('archive', 'metadata')]
+    root = profiles_dir.resolve()
+    members = {str(p.resolve().relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+               for p in files}
+    archive = plan.with_name('observation-bundle.tgz')
+    with tarfile.open(archive, 'w:gz') as tar:
+        for path in members:
+            tar.add(root / path, arcname=path, recursive=False)
+    manifest = dict(schema_version=1, format='benchkit-observation-bundle/v1',
+        files=members, summary=dict(bundle=dict(type='file_reference',
+            path='results/' + str(archive.resolve().relative_to(root)),
+            sha256=hashlib.sha256(archive.read_bytes()).hexdigest())))
+    output = plan.with_name('observation-bundle.json')
+    output.write_text(json.dumps(manifest, indent=2) + '\n')
+    return str(output)
+
+
 def combine_predictions(directory):
     results = [json.loads((directory / f'kernel_{i}.json').read_text()) for i in range(5)]
     if any(r['package_applicability']['status'] != 'applicable'
@@ -338,6 +362,7 @@ def combine_predictions(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--bundle-inputs', type=Path)
     parser.add_argument('--prepare-plan', type=Path)
     parser.add_argument('--prepare-inputs', type=Path)
     parser.add_argument('--profiles-dir', type=Path)
@@ -353,6 +378,11 @@ def main():
                         help='Explicit association of NCU samples with this NSYS scope')
     args = parser.parse_args()
     try:
+        if args.bundle_inputs:
+            if not args.profiles_dir:
+                raise ValueError('Require profiles directory')
+            print(bundle_inputs(args.bundle_inputs, args.profiles_dir))
+            return
         if args.prepare_plan:
             print(davidson_plan(args.prepare_plan))
             return

@@ -1,11 +1,12 @@
 """Prepare local or stored inputs for both initial estimation and re-estimation.
 
 Runs on the estimation runner, never on the benchmark compute node. Measurement
-archives stay opaque; preprocessing and scientific applicability belong to the
-selected estimation package.
+archives stay opaque except explicitly declared observation bundles. Scientific
+applicability and preprocessing belong to the selected estimation package.
 """
 
 import json
+import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -66,6 +67,8 @@ def measurement_paths(result):
             references.extend(section.get("artifacts") or [])
     for observation in (result.get("timing_observations") or {}).get("observations") or []:
         references.append(observation.get("artifact"))
+        if observation.get("format") == "benchkit-observation-bundle/v1":
+            references.append((observation.get("summary") or {}).get("bundle"))
     references.append((result.get("node_status_snapshot") or {}).get("artifact"))
     return sorted({
         ref["path"] for ref in references
@@ -86,7 +89,7 @@ def source_uuid(result, result_file):
     return None
 
 
-def restore_bundle(archive, destination, owners=None, uuid=None):
+def restore_bundle(archive, destination, owners=None, uuid=None, manifest=None):
     reject_symlinks(destination)
     # Validate and stage the whole bundle before making any restored file visible.
     with tempfile.TemporaryDirectory(prefix="estimation-bundle-") as staging:
@@ -111,6 +114,26 @@ def restore_bundle(archive, destination, owners=None, uuid=None):
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with bundle.extractfile(member) as source, target.open("xb") as output:
                         shutil.copyfileobj(source, output)
+        if manifest is not None:
+            if not isinstance(manifest, dict) or not manifest:
+                raise ValueError('Invalid observation bundle manifest')
+            files = {str(p.relative_to(staging)): p for p in Path(staging).rglob('*') if p.is_file()}
+            if set(files) != set(manifest) or any(
+                not re.fullmatch(r'profile_[A-Za-z0-9]+/(?:davidson-plan\.json|discovery\.sqlite|profile\.tgz|profile\.metadata\.json)', name)
+                or not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest)
+                or hashlib.sha256(files[name].read_bytes()).hexdigest() != digest
+                for name, digest in manifest.items()
+            ):
+                raise ValueError('Observation bundle files or hashes do not match')
+            if any(p.is_dir() and not any(name.startswith(str(p.relative_to(staging)) + '/') for name in files)
+                   for p in Path(staging).rglob('*')):
+                raise ValueError('Unexpected observation bundle directory')
+            # Check all conflicts before publishing any member; never overwrite.
+            for name, source in files.items():
+                target = destination / name
+                reject_symlinks(target)
+                if target.exists() and (not target.is_file() or target.read_bytes() != source.read_bytes()):
+                    raise ValueError('Conflicting restored observation input')
         for source in Path(staging).rglob("*"):
             target = destination / source.relative_to(staging)
             reject_symlinks(target)
@@ -136,6 +159,13 @@ def prepare_inputs(result_files):
                 raise ValueError("Different Results reference the same missing artifact path")
             owners[path] = uuid
         inputs.append((uuid, destinations))
+
+    observation_bundles = []
+    for result_file in result_files:
+        result = json.loads(result_file.read_text())
+        for observation in (result.get('timing_observations') or {}).get('observations') or []:
+            if observation.get('format') == 'benchkit-observation-bundle/v1':
+                observation_bundles.append(observation)
 
     bundle_destination = Path("results/estimation_artifacts")
     reject_symlinks(bundle_destination)
@@ -170,6 +200,20 @@ def prepare_inputs(result_files):
             if found:
                 restore_bundle(temporary, bundle_destination, bundle_owners, uuid)
                 print("Restored estimation artifacts")
+
+    for observation in observation_bundles:
+        manifest_path = safe_destination(observation['artifact']['path'])
+        reference = observation['summary']['bundle']
+        archive = safe_destination(reference['path'])
+        if (not manifest_path.is_file() or not archive.is_file()
+                or hashlib.sha256(archive.read_bytes()).hexdigest() != reference.get('sha256')):
+            raise ValueError('Observation bundle missing or hash mismatch')
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get('format') != 'benchkit-observation-bundle/v1' or manifest.get('summary', {}).get('bundle') != reference:
+            raise ValueError('Invalid observation bundle manifest')
+        if not isinstance(manifest.get('files'), dict) or not manifest['files']:
+            raise ValueError('Invalid observation bundle manifest')
+        restore_bundle(archive, Path('results'), manifest=manifest['files'])
 
 
 if __name__ == "__main__":

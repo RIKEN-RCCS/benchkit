@@ -8,7 +8,7 @@ import sys
 
 
 FIELDS = {
-    "BK_ESTIMATION_BASELINE_SYSTEM": lambda s: s.get("assumptions", {}).get("baseline_system") or s.get("current_system", {}).get("system"),
+    "BK_ESTIMATION_BASELINE_SYSTEM": lambda s: (s.get("assumptions") if isinstance(s.get("assumptions"), dict) else {}).get("baseline_system") or s.get("current_system", {}).get("system"),
     "BK_ESTIMATION_BASELINE_EXP": lambda s: s.get("estimate_metadata", {}).get("current_source_result", {}).get("exp") or s.get("exp"),
     "BK_ESTIMATION_FUTURE_SYSTEM": lambda s: s.get("future_system", {}).get("system"),
     "BK_ESTIMATION_CURRENT_TARGET_NODES": lambda s: s.get("current_system", {}).get("target_nodes"),
@@ -34,8 +34,13 @@ def resolve_conditions(source, context, environment):
         raise ValueError("Separate future reference restoration is not supported")
     settings = {}
     changes = {}
+    projection = ((source.get('future_system', {}).get('model') or {}).get('projection') or {}) if source.get('code') == 'sbd' else {}
+    sbd_projection = source.get('code') == 'sbd' and projection.get('method') == 'sbd-davidson-nsys-weighted-v1'
     for name, extract in FIELDS.items():
         recorded = extract(source)
+        if recorded is None and sbd_projection and name.endswith('_PACKAGE'):
+            side = 'current' if '_CURRENT_' in name else 'future'
+            recorded = source.get('estimate_metadata', {}).get(side + '_package', {}).get('estimation_package')
         supplied = environment.get(name)
         value = supplied if supplied is not None else recorded
         if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
@@ -50,6 +55,20 @@ def resolve_conditions(source, context, environment):
         settings[name] = value
         if supplied is not None:
             changes[name] = {"recorded": recorded, "requested": value}
+    if sbd_projection:
+        gpu_conditions = {
+            'BK_GPU_LIGHTGBM_SOURCE_GPU': projection.get('source_gpu'),
+            'BK_GPU_LIGHTGBM_TARGET_GPU': projection.get('target_gpu'),
+            'BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT': projection.get('prediction_model', {}).get('external_commit'),
+        }
+        for name, recorded in gpu_conditions.items():
+            value = environment.get(name, recorded)
+            pattern = r'[0-9a-fA-F]{40}' if name.endswith('_COMMIT') else r'[A-Za-z0-9_.-]+'
+            if not isinstance(value, str) or not re.fullmatch(pattern, value):
+                raise ValueError('Missing or invalid re-estimation condition: ' + name)
+            settings[name] = value
+            if name in environment:
+                changes[name] = dict(recorded=recorded, requested=value)
     if policy == "reuse-recorded-baseline":
         uuid = environment.get("BK_ESTIMATION_BASELINE_UUID") or source.get("current_system", {}).get("benchmark", {}).get("uuid")
         if not isinstance(uuid, str) or not re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", uuid):
