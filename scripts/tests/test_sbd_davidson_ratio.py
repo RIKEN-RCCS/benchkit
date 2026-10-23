@@ -270,50 +270,88 @@ CREATE TABLE CUPTI_ACTIVITY_KIND_MEMSET(start INTEGER,end INTEGER,globalPid INTE
         self.assertIn('Set the observed source GPU', run().stderr)
         self.assertFalse(list((folder/'results').glob('estimate*.json')))
 
-    def estimate_inputs(self):
-        folder = Path(self.tmp.name)
-        result = folder/'result.json'
+    def estimate_fixture(self):
+        # Exercise real input preparation/aggregation/writing; mock inference only.
+        import shutil
+        plan, profiles, _ = self.bundle_fixture()
+        work = Path(self.tmp.name)/'work'
+        shutil.copytree(ROOT/'scripts', work/'scripts')
+        shutil.copytree(ROOT/'programs/sbd', work/'programs/sbd')
+        (work/'results').mkdir()
+        (work/'bin').mkdir()
+        (work/'bin/python3').symlink_to(sys.executable)
+        result = work/'results/result0.json'
         result.write_text(json.dumps(dict(code='sbd', Exp='test', system='source',
             FOM='2.0', FOM_unit='s', FOM_version='davidson_internal_s',
-            node_count='1', numproc_node='1', _server_uuid='known-result',
+            node_count='1', numproc_node='1', _server_uuid='11111111-1111-4111-8111-111111111111',
             _server_timestamp='2026-01-01 00:00:00')))
-        self.pred.update(model=dict(name='test model', version='1.1'),
-                         estimation_package='gpu_kernel_lightgbm_v11')
-        pred = folder/'pred.json'; pred.write_text(json.dumps(self.pred))
-        samples = folder/'samples.json'; samples.write_text(json.dumps(self.samples))
-        return result, pred, samples
+        components = work/'components'
+        components.mkdir()
+        manifest = components/'provenance.json'
+        manifest.write_text('{}')
+        for i, row in enumerate(self.pred['metrics']['kernels']):
+            component = dict(package_applicability=dict(status='applicable'),
+                model=dict(version='1.1', provenance=dict(external_commit='a'*40,
+                    manifest=str(manifest), sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())),
+                metrics=dict(kernels=[row]))
+            (components/f'davidson_kernel_{i}.json').write_text(json.dumps(component))
+        adapter = work/'scripts/estimation/section_packages/gpu_kernel_lightgbm_v11.sh'
+        with adapter.open('a') as handle:
+            handle.write("""
+bk_section_package_transform_gpu_kernel_lightgbm_v11() {
+  cat "$FAKE_COMPONENTS/$(jq -r .name <<< "$1").json"
+}
+""")
+        env = {k:v for k,v in os.environ.items()
+               if not k.startswith(('BK_SBD_', 'BK_GPU_', 'BK_ESTIMATION_', 'RESULT_SERVER'))}
+        env.update(BK_SBD_DAVIDSON_PLAN=str(plan), BK_SBD_DAVIDSON_PROFILES_DIR=str(profiles),
+            BK_GPU_LIGHTGBM_SOURCE_GPU='source', BK_GPU_LIGHTGBM_TARGET_GPU='target',
+            BK_ESTIMATION_FUTURE_SYSTEM='target-system', BK_ESTIMATION_PYTHON=sys.executable,
+            FAKE_COMPONENTS=str(components), PATH=str(work/'bin')+os.pathsep+os.environ['PATH'])
+        return work, result, env
 
     def test_normal_estimate_writer_and_ratio_direction(self):
-        result, pred, samples = self.estimate_inputs()
-        run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result),
-            str(self.db), str(pred), str(samples), 'target-system'], cwd=ROOT,
-            env=dict(os.environ, BK_ESTIMATION_PYTHON=sys.executable),
-            capture_output=True, text=True, check=True)
-        data = json.loads(run.stdout)
+        work, _, env = self.estimate_fixture()
+        subprocess.run(['bash', 'scripts/estimation/run.sh', 'sbd'], cwd=work,
+            env=env, capture_output=True, text=True, check=True)
+        outputs = list((work/'results').glob('estimate*.json'))
+        self.assertEqual([p.name for p in outputs], ['estimate_sbd_result0.json'])
+        data = json.loads(outputs[0].read_text())
         self.assertEqual(data['current_system']['fom'], 2)
         self.assertEqual(data['future_system']['fom'], 1.7)
         self.assertEqual(data['performance_ratio'], 1.176)
         self.assertEqual(data['future_system']['model']['projection']['host_wait_added_ns'], 0)
-        self.assertEqual(data['estimate_metadata']['source_result_uuid'], 'known-result')
-        self.assertEqual(data['current_system']['benchmark']['uuid'], 'known-result')
+        self.assertEqual(data['estimate_metadata']['source_result_uuid'], '11111111-1111-4111-8111-111111111111')
+        self.assertEqual(data['current_system']['benchmark']['uuid'], '11111111-1111-4111-8111-111111111111')
         self.assertEqual(data['estimate_metadata']['app_estimation_method']['version'], '1')
         self.assertEqual(len(data['input_artifacts']), 4)
         self.assertEqual(data['estimate_metadata']['estimation_package'], 'gpu_kernel_lightgbm_v11')
         self.assertEqual(data['estimate_metadata']['estimation_package_version'], '1.1')
+        self.assertEqual(data['estimation_timing']['recorded_by'], 'scripts/estimation/run.sh')
 
     def test_estimate_invalid_inputs_emit_no_json(self):
-        result, pred, samples = self.estimate_inputs()
+        work, result, env = self.estimate_fixture()
         original = result.read_bytes()
         for changes in (dict(code='other'), dict(FOM='NaN'), dict(FOM_unit='ns'),
                         dict(FOM_version='other'), dict(numproc_node='2')):
             r = json.loads(original); r.update(changes)
             result.write_text(json.dumps(r))
-            run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result),
-                str(self.db), str(pred), str(samples), 'target'], cwd=ROOT,
-                env=dict(os.environ, BK_ESTIMATION_PYTHON=sys.executable),
-                capture_output=True, text=True)
+            run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result)], cwd=work,
+                env=env, capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
             self.assertEqual(run.stdout, '')
+            self.assertFalse(list((work/'results').glob('estimate*.json')))
+
+    def test_estimate_requires_exactly_one_result_argument(self):
+        work, result, env = self.estimate_fixture()
+        for arguments in ([], [str(result), 'extra'],
+                          [str(result), str(self.db), 'pred.json', 'samples.json', 'target']):
+            run = subprocess.run(['bash', 'programs/sbd/estimate.sh', *arguments], cwd=work,
+                env=env, capture_output=True, text=True)
+            self.assertEqual(run.returncode, 2)
+            self.assertIn('Usage: estimate.sh RESULT', run.stderr)
+            self.assertEqual(run.stdout, '')
+            self.assertFalse(list((work/'results').glob('estimate*.json')))
 
     def bundle_fixture(self):
         directory = Path(self.tmp.name)

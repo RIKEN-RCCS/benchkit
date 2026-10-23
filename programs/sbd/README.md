@@ -219,21 +219,19 @@ other ranks and must not be generalized to overlapping GPU workloads.
 
 ## Local Davidson Estimate
 
-Run the offline projection through the standard Estimate writer with Python
-3.11+ and jq on the estimation host, from the repository root:
+Use the standard estimation wrapper with a saved Result and its corresponding
+NSYS/NCU bundle, as described in [Davidson acquisition and the estimation
+wrapper](#davidson-acquisition-and-the-estimation-wrapper):
 
 ```sh
-BK_ESTIMATION_PYTHON=python3.11 bash programs/sbd/estimate.sh \
-  result.json discovery.sqlite predictions.json samples.json TARGET_SYSTEM \
-  > estimate.json
+bash scripts/estimation/run.sh sbd
 ```
 
-Use the prediction and sample formats described above and supply the
-corresponding Result explicitly. Check input, source, configuration and profiling
-provenance before associating these separate runs. The Result digest is recorded
-as provenance; no additional field in `samples.json` is required.
-The entry point requires an SBD `davidson_internal_s` Result in seconds with one
-node and one MPI rank. It neither fetches inputs nor sends the Estimate.
+The wrapper restores saved inputs when needed and calls
+`programs/sbd/estimate.sh results/result0.json`. The app entrypoint accepts
+exactly one Result path and writes the normal Estimate file; it does not send it.
+Use the same entrypoint for local validation. It requires an SBD
+`davidson_internal_s` Result in seconds with one node and one MPI rank.
 
 The current FOM is the original Result FOM; the future FOM is that value times
 the NSYS-derived Davidson ratio. NSYS wall time is retained separately in
@@ -289,8 +287,7 @@ standard Estimate writer. It writes `results/estimate_sbd_result0.json`;
 component results, sample associations and inference evidence remain under
 `results/estimation_artifacts/`. Precomputed or scoped input/archive overrides
 are rejected in this mode. Missing or mismatched inputs fail without an
-Estimate or identity fallback. Existing offline five-argument usage remains
-available.
+Estimate or identity fallback. The app entrypoint uses the same one-Result interface for CI and local validation.
 
 Supply the bundle for this Result explicitly; matching names or a digest do
 not establish scientific equivalence between separate runs. The one-rank
