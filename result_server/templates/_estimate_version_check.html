@@ -11,6 +11,7 @@
         <span>{{ version_check.unknown_count }} unknown</span>
         {% endif %}
     </summary>
+    <p><a href="{{ url_for('estimated.version_checks') }}">All Version Checks</a></p>
     {% if version_check.commit %}
     <p class="estimate-version-reference">{{ version_check.ref }} &middot;
         <code title="{{ version_check.commit }}">{{ version_check.commit[:12] }}</code>

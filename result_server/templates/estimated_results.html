@@ -15,6 +15,9 @@
 {% block content %}
 {% if authenticated %}
 {% set estimation_page_links = estimation_links | default({}) %}
+{% if not config.get('PUBLIC_PORTAL_MODE') %}
+<p><a href="{{ url_for('estimated.version_checks') }}">Version Checks</a></p>
+{% endif %}
 <section class="page-card table-card">
 {% include "_filter_dropdowns.html" %}
 

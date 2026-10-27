@@ -94,6 +94,10 @@ def build_portal_shell_app(
     def estimated_detail(filename):
         return filename
 
+    @estimated_bp.route("/version-checks")
+    def version_checks():
+        return ""
+
     @estimated_bp.route("/show/<filename>")
     def show_estimated_result(filename):
         return filename
