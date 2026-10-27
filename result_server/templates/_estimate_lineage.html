@@ -1,0 +1,41 @@
+{% if estimate_lineage %}
+<section class="estimate-lineage" aria-labelledby="estimate-lineage-title">
+    <style>
+        .estimate-lineage { margin: 20px 0; }
+        .estimate-lineage h2 { font-size: 20px; }
+        .estimate-lineage .lineage-wrap { overflow-x: auto; }
+        .estimate-lineage table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 680px; }
+        .estimate-lineage th, .estimate-lineage td { padding: 8px; border: 1px solid #d8e3e8; vertical-align: top; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+        .estimate-lineage th { background: #edf6f8; }
+        .estimate-lineage .lineage-selected { background: #e7f6ea; }
+        .estimate-lineage small { display: block; margin-top: 4px; }
+    </style>
+    <h2 id="estimate-lineage-title">Estimation History</h2>
+    {% if estimate_lineage.source_link %}
+    <p><a href="{{ estimate_lineage.source_link }}" title="{{ estimate_lineage.source_uuid }}">Source Result {{ estimate_lineage.source_uuid[:8] }}</a></p>
+    {% elif estimate_lineage.source_unavailable %}
+    <p>Source Result unavailable or ambiguous.</p>
+    {% endif %}
+    {% if estimate_lineage.notice %}<p role="status">{{ estimate_lineage.notice }}</p>{% endif %}
+    {% if estimate_lineage.rows %}
+    <div class="lineage-wrap">
+        <table>
+            <thead><tr><th>Estimate</th><th>Previous Estimate</th><th>Conditions</th><th>Method / Package</th><th>Applicability</th></tr></thead>
+            <tbody>
+                {% for row in estimate_lineage.rows %}
+                <tr{% if row.selected %} class="lineage-selected" aria-current="true"{% endif %}>
+                    <td>{% if row.link %}<a href="{{ row.link }}" title="{{ row.uuid }}">{{ row.uuid[:8] }}</a>{% else %}{{ row.uuid }}{% endif %}<small>{{ row.timestamp }}</small></td>
+                    <td>{% if row.parent_link %}<a href="{{ row.parent_link }}" title="{{ row.parent_uuid }}">{{ row.parent_uuid[:8] }}</a>{% endif %}{% if row.parent_note %}<small>{{ row.parent_note }}</small>{% endif %}</td>
+                    <td>{{ row.conditions }}{% if row.changes %}<small>{{ row.changes }}</small>{% endif %}</td>
+                    <td>Method {{ row.method_version }}<small>{{ row.package }} / {{ row.package_version }}</small></td>
+                    <td>{{ row.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif not estimate_lineage.notice %}
+    <p>No accessible Estimates are stored for this Result.</p>
+    {% endif %}
+</section>
+{% endif %}

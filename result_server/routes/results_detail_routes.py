@@ -40,6 +40,7 @@ from utils.result_records import (
     summarize_result_quality,
 )
 from utils.trigger_display import load_trigger_run_lookup, summarize_execution_trigger
+from utils.estimate_lineage import build_estimate_lineage
 
 
 def register_results_detail_routes(results_bp):
@@ -133,6 +134,7 @@ def register_results_detail_routes(results_bp):
             if is_public_surface
             else url_for("results.result_evidence_packet", filename=filename)
         )
+        detail_context["estimate_lineage"] = build_estimate_lineage(result, filename)
         return render_template("result_detail.html", result=result, quality=quality, **detail_context)
 
     @results_bp.route("/detail/<filename>/evidence-packet.md")
