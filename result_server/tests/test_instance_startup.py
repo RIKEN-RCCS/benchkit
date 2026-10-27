@@ -61,6 +61,42 @@ with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=T
     })
 
 
+def test_execution_history_links_keep_console_prefix_and_public_route_closed(tmp_path):
+    run_isolated(tmp_path, '''
+from unittest.mock import patch
+import fakeredis
+from app import create_instance_app
+from utils.execution_profiles import ExecutionProfileStore
+with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=True)):
+    public = create_instance_app("public")
+    assert public.test_client().get("/dev2/admin/execution-profiles/history/manual/1/results").status_code == 404
+    console = create_instance_app("console")
+    store = ExecutionProfileStore(console.config["EXECUTION_PROFILE_DB_PATH"])
+    record = store.create_execution_request(request_type="gitlab_pipeline", status="submitted",
+        dry_run=False, profile_id="example", payload={
+            "gitlab_project": "gitlab.example.org/group/project",
+            "submit": {"response": {"id": 42}}})
+    client = console.test_client()
+    prefix = "/dev2/console/admin/execution-profiles"
+    assert client.get(prefix + "/history/manual/1/results").status_code == 302
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["user_email"] = "admin@example.test"
+        session["user_affiliations"] = ["admin"]
+    page = client.get(prefix)
+    assert page.status_code == 200
+    assert 'action="' + prefix + '#execution-history"' in page.get_data(as_text=True)
+    response = client.get(prefix + "/history/manual/" + str(record) + "/results")
+    assert response.status_code == 200
+    assert 'href="' + prefix + '#execution-history"' in response.get_data(as_text=True)
+    assert "no-store" in response.headers["Cache-Control"]
+''', {
+        "BASE_PATH": str(tmp_path), "RESULT_SERVER_INSTANCE": "dev2",
+        "FLASK_SECRET_KEY": secrets.token_hex(32),
+        "RESULT_SERVER_KEYS": "fixture:" + secrets.token_hex(32),
+    })
+
+
 def test_invalid_public_site_information_fails_before_storage_creation(tmp_path):
     run_isolated(tmp_path, '''
 import os
