@@ -386,3 +386,84 @@ def test_matching_recorded_input_provenance_has_no_difference_highlight():
     assert context["mixed"] is False
     assert context["comparison_summary"]["input_provenance"]["changed"] is False
     assert context["comparison_summary"]["input_provenance"]["has_unobserved"] is False
+
+
+def test_qws_comparison_keeps_all_resource_metric_and_origin_records():
+    rows = []
+    for index, threads in enumerate((20, 32, 72)):
+        rows.append({'timestamp': str(index), 'data': {
+            'code': 'qws', 'system': 'RIKYU', 'Exp': 'CASE0' if index == 0 else 'ramble-original',
+            'node_count': '1', 'numproc_node': '1', 'nthreads': str(threads),
+            'FOM': 3 - index * 0.5, 'FOM_unit': 's',
+            'FOM_version': 'DDSolverJacobi' if index == 0 else 'Figure of Merit (FOM)',
+            'execution_backend': 'benchkit' if index == 0 else 'benchpark',
+            'ci_project': 'gitlab.example.org/group/' + ('kit' if index == 0 else 'park'),
+            'pipeline_id': 42 + index, 'ci_trigger': 'schedule',
+            'input_info': {'schema_version': 1, 'inputs': [{
+                'kind': 'runtime-parameters', 'dataset_id': 'qws-runtime-parameters',
+                'command': 'main', 'arguments': ['32', '6', '4', str(2 + index)],
+            }]},
+        }})
+    summary = build_result_compare_context(rows)['comparison_summary']
+    assert [row['threads_per_rank'] for row in summary['result_rows']] == ['20', '32', '72']
+    assert [row['backend'] for row in summary['result_rows']] == ['benchkit', 'benchpark', 'benchpark']
+    assert summary['result_rows'][1]['fom_definition'] == 'Figure of Merit (FOM)'
+    assert summary['result_rows'][1]['run_origin'] == 'schedule'
+    assert 'command: main 32 6 4 3' in summary['result_rows'][1]['input_details'][0]
+    assert summary['input_provenance']['changed']
+    assert summary['fom_change']['available']  # no prohibition or scientific equivalence gate
+    labels = {row['label'] for row in summary['diff_rows']}
+    assert {'Nodes', 'MPI Ranks per Node', 'Threads per Rank', 'FOM Definition (recorded)', 'CI Project'} <= labels
+
+
+def test_qws_comparison_does_not_infer_backend_or_metric_for_legacy_data():
+    data = {'code': 'qws', 'FOM': 1}
+    row = build_result_compare_context([{'data': data}])['comparison_summary']['result_rows'][0]
+    assert not row.get('backend')
+    assert row['fom_definition'] == '-'
+    assert row['ci_project'] == '-'
+    assert data == {'code': 'qws', 'FOM': 1}
+
+
+def test_qws_context_is_not_exposed_on_public_compare_surface():
+    from utils.result_compare_view import _project_public_compare_result
+    projected = _project_public_compare_result({'data': {
+        'code': 'qws', 'FOM': 1, 'ci_project': 'private.example.org/group/park',
+        'execution_backend': 'benchpark', 'execution_trigger': {'reason': 'internal'},
+        'input_info': {'inputs': [{'arguments': ['secret-argument']}]},
+    }})
+    summary = build_result_compare_context([projected], include_evidence=False)['comparison_summary']
+    assert 'ci_project' not in summary['result_rows'][0]
+    assert 'private.example.org' not in str(summary)
+    assert 'secret-argument' not in str(summary)
+
+
+def test_compare_run_context_escapes_values_and_stays_off_public_html():
+    from flask import render_template
+    from test_support import build_portal_shell_app
+    from utils.result_compare_view import _project_public_compare_result
+
+    app = build_portal_shell_app(
+        templates_dir=os.path.join(os.path.dirname(__file__), '..', 'templates'))
+    rows = [{'timestamp': '2026-01-01', 'data': {
+        'code': 'qws', 'system': 'ExampleSystem', 'FOM': 1, 'FOM_unit': 's',
+        'node_count': 1, 'numproc_node': 1, 'nthreads': 32,
+        'FOM_version': 'DDSolverJacobi', 'execution_backend': 'benchpark',
+        'ci_project': 'private.example.org/group/park', 'pipeline_id': 42,
+        'execution_trigger': {'type': 'manual_button', 'reason': '<script>origin()</script>'},
+        'input_info': {'inputs': [{'dataset_id': 'params', 'command': 'main',
+                                  'arguments': ['<script>argv()</script>', '32']}]},
+    }}]
+    with app.test_request_context('/compare'):
+        private = render_template('result_compare.html', **build_result_compare_context(rows))
+        public = render_template('result_compare.html', **build_result_compare_context(
+            [_project_public_compare_result(row) for row in rows], include_evidence=False))
+    assert 'comparison-run-table' in private
+    assert 'Pipeline: 42' in private and 'DDSolverJacobi' in private
+    assert '&lt;script&gt;origin()&lt;/script&gt;' in private
+    assert '&lt;script&gt;argv()&lt;/script&gt;' in private
+    assert '<script>origin()</script>' not in private
+    assert '<script>argv()</script>' not in private
+    assert 'class="comparison-diff-table comparison-run-table"' not in public
+    for text in ['private.example.org', 'DDSolverJacobi', 'origin()', 'argv()']:
+        assert text not in public

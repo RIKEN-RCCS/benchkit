@@ -28,6 +28,39 @@
     {% else %}
     <p class="compare-note">Baseline is the oldest selected result; latest is the newest selected result. This view highlights FOM differences and basic run identity; operator evidence is omitted on this surface.</p>
     {% endif %}
+    {% if include_operator_evidence %}
+    <p class="compare-note">Values are shown as recorded. A missing or generic FOM definition does not identify the measured interval. Numeric ratios do not establish equivalent inputs or measurements.</p>
+    <div class="comparison-run-scroll">
+    <table class="comparison-diff-table comparison-run-table">
+        <thead>
+            <tr>
+                <th>Result time</th>
+                <th>Code / System / Exp</th>
+                <th>Nodes / MPI ranks per node / Threads per rank</th>
+                <th>FOM definition / Unit</th>
+                <th>Execution origin</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in comparison_summary.result_rows %}
+        <tr>
+            <td>{{ row.timestamp }}</td>
+            <td>{{ row.code }} / {{ row.system }} / {{ row.exp }}</td>
+            <td>{{ row.nodes }} / {{ row.ranks_per_node }} / {{ row.threads_per_rank }}</td>
+            <td>{{ row.fom_definition }} / {{ row.fom_unit or 'not recorded' }}</td>
+            <td>
+                {{ row.backend or 'not recorded' }}<br>
+                {{ row.ci_project }}<br>
+                Pipeline: {{ row.pipeline_id }}<br>
+                {{ row.run_origin }} / {{ row.trigger_id }}<br>
+                {{ row.trigger_reason }}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
     <div class="comparison-summary-grid">
         <div class="comparison-kpi">
             <span class="comparison-kpi-label">Baseline</span>

@@ -1,3 +1,5 @@
+import shlex
+
 from flask import abort
 
 from utils.benchpark import result_pipeline_backend
@@ -173,8 +175,33 @@ def _summarize_compare_result(row, *, include_evidence=True):
         "profile_display": profile_summary["display"],
         "profile_key": profile_summary["key"],
     })
-    if result_pipeline_backend(data) == "benchpark":
-        summary["backend"] = "benchpark"
+    snapshot = data.get("environment_snapshot") or {}
+    payload = snapshot.get("payload") if isinstance(snapshot, dict) else {}
+    payload = payload if isinstance(payload, dict) else {}
+    ci = payload.get("ci") or {}
+    ci = ci if isinstance(ci, dict) else {}
+    project = data.get("ci_project") or ""
+    if not project and ci.get("server_url") and ci.get("project_path"):
+        project = (str(ci["server_url"]).removeprefix("https://").rstrip("/")
+                   + "/" + str(ci["project_path"]))
+    trigger = data.get("execution_trigger") or {}
+    trigger = trigger if isinstance(trigger, dict) else {}
+    summary.update({
+        "nodes": _display_value(data.get("node_count")),
+        "ranks_per_node": _display_value(data.get("numproc_node")),
+        "threads_per_rank": _display_value(data.get("nthreads")),
+        "fom_definition": _display_value(data.get("FOM_version")),
+        "ci_project": _display_value(project),
+        "pipeline_id": _display_value(data.get("pipeline_id")),
+        "run_origin": _display_value(trigger.get("type") or data.get("ci_trigger")),
+        "trigger_id": _display_value(trigger.get("id")),
+        "trigger_reason": _display_value(trigger.get("reason")),
+    })
+    backend = result_pipeline_backend(data)
+    if backend:
+        summary["backend"] = backend
+    elif isinstance(payload, dict) and isinstance(payload.get("benchkit"), dict):
+        summary["backend"] = "benchkit"
     return summary
 
 
@@ -218,6 +245,16 @@ def _build_diff_rows(baseline, latest):
     ]
     if "source_display" in baseline or "source_display" in latest:
         specs.extend([
+            ("Nodes", "nodes"),
+            ("MPI Ranks per Node", "ranks_per_node"),
+            ("Threads per Rank", "threads_per_rank"),
+            ("FOM Definition (recorded)", "fom_definition"),
+            ("FOM Unit", "fom_unit"),
+            ("CI Project", "ci_project"),
+            ("Pipeline ID", "pipeline_id"),
+            ("Run Origin", "run_origin"),
+            ("Trigger ID", "trigger_id"),
+            ("Trigger Reason", "trigger_reason"),
             ("Source", "source"),
             ("Input", "input"),
             ("Build Cache", "build_cache"),
@@ -320,6 +357,10 @@ def _input_descriptors(data, *, shorten=True):
             parts.append("differs from reference")
         elif item.get("reference_error"):
             parts.append("reference unavailable")
+        arguments = item.get("arguments")
+        if not shorten and isinstance(arguments, list):
+            parts.append("command: " + shlex.join(
+                [str(item.get("command") or "")] + [str(value) for value in arguments]))
         if parts:
             descriptors.append("@".join(parts))
     return descriptors
