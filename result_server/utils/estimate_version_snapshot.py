@@ -22,8 +22,6 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
     """
     if not isinstance(code, str) or not _NAME.fullmatch(code):
         raise ValueError("invalid app name")
-    if not isinstance(ref, str) or not _REF.fullmatch(ref) or ".." in ref:
-        raise ValueError("a full ref or commit SHA is required")
     if isinstance(packages, (str, bytes)) or isinstance(section_packages, (str, bytes)):
         raise ValueError("package names must be collections")
     packages, section_packages = tuple(packages), tuple(section_packages)
@@ -35,24 +33,11 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
 
     snapshot = {"ref": ref, "commit": None, "code": code, "app": None,
                 "packages": {}, "section_packages": {}, "unknowns": []}
-    try:
-        try:
-            partial_clone = _git(repository, "config", "--local", "--get-regexp",
-                                 r"^(extensions\.partialclone|remote\..*\.promisor)$")
-        except subprocess.CalledProcessError as exc:
-            if exc.returncode != 1:
-                raise
-            partial_clone = b""
-        if partial_clone:
-            snapshot["unknowns"].append({"reason": "partial_clone_not_supported"})
-            return snapshot
-        commit = _git(repository, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
-        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
-            raise ValueError("invalid commit response")
-    except (OSError, subprocess.SubprocessError, ValueError):
-        snapshot["unknowns"].append({"reason": "unavailable_ref"})
+    reference = read_estimation_version_reference(repository, ref)
+    snapshot.update(commit=reference["commit"], unknowns=reference["unknowns"])
+    if snapshot["commit"] is None:
         return snapshot
-    snapshot["commit"] = commit
+    commit = snapshot["commit"]
 
     def read(path, name):
         try:
@@ -90,6 +75,32 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
         for name in sorted(set(names)):
             snapshot[group][name] = read(f"scripts/estimation/{group}/{name}.metadata.json", name)
     return snapshot
+
+
+def read_estimation_version_reference(repository, ref):
+    """Resolve the configured local ref once without fetching or executing code."""
+    if not isinstance(ref, str) or not _REF.fullmatch(ref) or ".." in ref:
+        raise ValueError("a full ref or commit SHA is required")
+    reference = {"ref": ref, "commit": None, "unknowns": []}
+    try:
+        try:
+            partial_clone = _git(repository, "config", "--local", "--get-regexp",
+                                 r"^(extensions\.partialclone|remote\..*\.promisor)$")
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode != 1:
+                raise
+            partial_clone = b""
+        if partial_clone:
+            reference["unknowns"].append({"reason": "partial_clone_not_supported"})
+            return reference
+        commit = _git(repository, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+            raise ValueError("invalid commit response")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        reference["unknowns"].append({"reason": "unavailable_ref"})
+        return reference
+    reference["commit"] = commit
+    return reference
 
 
 class _Unknown(ValueError):

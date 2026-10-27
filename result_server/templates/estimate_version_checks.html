@@ -1,0 +1,60 @@
+{% extends "_results_base.html" %}
+{% block title %}Version Checks{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+<style>
+    .version-check-toolbar { display:flex; align-items:end; gap:12px; flex-wrap:wrap; margin:16px 0; }
+    .version-check-toolbar label { display:flex; flex-direction:column; gap:4px; }
+    .version-check-toolbar select { max-width:100%; min-height:38px; }
+    .version-check-toolbar label { max-width:100%; }
+    .version-check-scroll { overflow-x:auto; }
+    .version-check-table { width:100%; min-width:720px; border-collapse:collapse; table-layout:fixed; }
+    .version-check-table th, .version-check-table td { text-align:left; vertical-align:top; padding:8px; border:1px solid #d8e3e8; white-space:normal; overflow-wrap:anywhere; }
+    .version-check-table th { background:#edf6f8; }
+    .version-check-table small { display:block; margin-top:4px; }
+    .version-check-different { color:#934000; }
+    .version-check-unknown { color:#5f6f7b; }
+    .version-check-same { color:#1f6b33; }
+    .version-check-pager { display:flex; flex-wrap:wrap; gap:16px; margin:16px 0; }
+</style>
+<a href="{{ url_for('estimated.estimated_results') }}">Back to Estimated Results</a>
+{% if not enabled %}
+<p>Version Check is not configured.</p>
+{% else %}
+{% if reference.commit %}
+<p>{{ reference.ref }} &middot; <code title="{{ reference.commit }}">{{ reference.commit[:12] }}</code></p>
+{% else %}<p>Reference unavailable</p>{% endif %}
+<form method="get" class="version-check-toolbar">
+    <label>Status<select name="status">
+        {% for value, label in [('different','Version differences'),('unknown','Unknown'),('same','Recorded versions match'),('all','All')] %}
+        <option value="{{ value }}"{% if value == status_filter %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select></label>
+    <label>Code<select name="code"><option value="">All</option>
+        {% for code in codes %}<option value="{{ code }}"{% if code == code_filter %} selected{% endif %}>{{ code }}</option>{% endfor %}
+    </select></label>
+    <label>Rows<select name="per_page">{% for size in [50,100,200] %}<option{% if size == pagination.per_page %} selected{% endif %}>{{ size }}</option>{% endfor %}</select></label>
+    <button type="submit" class="soft-button">Apply</button>
+</form>
+<p>{{ counts.different }} with differences &middot; {{ counts.unknown }} unknown &middot; {{ counts.same }} matching</p>
+{% if notice %}<p role="status">{{ notice }}</p>{% endif %}
+<div class="version-check-scroll">
+<table class="version-check-table">
+    <thead><tr><th>Estimate</th><th>Source Result / History</th><th>Conditions</th><th>Version Check</th></tr></thead>
+    <tbody>{% for row in rows %}
+    <tr>
+        <td><a href="{{ row.detail_url }}" title="{{ row.uuid }}">{{ row.uuid[:8] }}</a><small>{{ row.timestamp }}</small><small>{{ row.code }} / {{ row.exp }}</small></td>
+        <td><span title="{{ row.source_uuid }}">{{ row.source_uuid[:8] }}</span><small><a href="{{ row.history_url }}">Estimation History</a></small></td>
+        <td>{{ row.conditions }}</td>
+        <td class="version-check-{{ row.status }}">{{ {'different':'Version differences','unknown':'Unknown','same':'Recorded versions match'}[row.status] }}<small>{{ row.differences }} difference{{ 's' if row.differences != 1 else '' }} &middot; {{ row.unknowns }} unknown</small><small><a href="{{ row.detail_url }}">Details</a></small></td>
+    </tr>
+    {% else %}<tr><td colspan="4">No accessible Estimates match these filters.</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+<nav class="version-check-pager" aria-label="Version check pages">
+    {% if pagination.page > 1 %}<a href="{{ previous_url }}" rel="prev">Previous</a>{% endif %}
+    <span>{{ pagination.total }} Estimates &middot; Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+    {% if pagination.page < pagination.total_pages %}<a href="{{ next_url }}" rel="next">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -51,6 +51,7 @@ RESTRICTED_VIEWER_ENDPOINTS = frozenset(
         "auth.setup",
         "estimated.estimated_detail",
         "estimated.estimated_results",
+        "estimated.version_checks",
         "estimated.show_estimated_result",
         "results.environment_snapshot_results",
         "results.result_evidence_packet",
