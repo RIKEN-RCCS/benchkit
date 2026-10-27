@@ -2,7 +2,7 @@
 
 from functools import wraps
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import json
 import logging
 import os
@@ -47,8 +47,9 @@ from utils.gitlab_pipeline import (
 )
 from utils.benchpark import parse_benchpark_profile_form, benchpark_manual_errors
 from utils.rate_limit import rate_limited
-from utils.trigger_display import build_trigger_result_links
-from utils.execution_history import list_execution_history, summarize_execution_history
+from utils.execution_history import (
+    execution_result_links, list_execution_history, summarize_execution_history,
+)
 from utils.user_store import get_user_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -333,22 +334,93 @@ def _list_trigger_definitions(db_path):
         return []
 
 
-def _list_trigger_runs(db_path):
+def _history_filters():
+    filters = {
+        key: request.args.get("history_" + key, "").strip() if request.method == "GET" else ""
+        for key in ("profile_id", "trigger_id", "status", "since", "until")
+    }
+    if any(len(value) > 128 for value in filters.values()):
+        abort(400, "History filter is too long")
+    for key in ("since", "until"):
+        value = filters[key]
+        if value:
+            try:
+                valid = date.fromisoformat(value).isoformat() == value
+            except ValueError:
+                valid = False
+            if not valid:
+                abort(400, "History dates must use YYYY-MM-DD")
+    if filters["since"] and filters["until"] and filters["since"] > filters["until"]:
+        abort(400, "History start date must not follow end date")
+    return filters
+
+
+def _history_result_summaries(runs, pipeline_projects=None):
     try:
-        runs = list_execution_history(ExecutionProfileStore(db_path), limit=80)
-    except sqlite3.Error as exc:
-        flash(f"Trigger run history could not be loaded: {exc}")
-        return []
-    result_links = build_trigger_result_links(
-        current_app.config.get("RECEIVED_DIR", ""),
-        runs,
-    )
+        links = execution_result_links(
+            current_app.config.get("RECEIVED_DIR", ""), runs,
+            pipeline_projects=pipeline_projects,
+        )
+        available = True
+    except OSError:
+        links, available = {}, False
     summaries = []
     for run in runs:
         summary = summarize_execution_history(run)
-        summary["result_links"] = result_links.get(int(run.get("id") or 0), [])
+        summary["result_links"] = links.get(run["id"], [])
+        summary["result_count"] = len(summary["result_links"])
+        if run["dry_run"]:
+            summary["receipt_label"] = "Preview only"
+        elif run["status"] != "submitted":
+            summary["receipt_label"] = "Not submitted"
+        elif not available:
+            summary["receipt_label"] = "Result lookup unavailable"
+        elif summary["pipeline_id"] == "-":
+            summary["receipt_label"] = "Result association unknown"
+        elif summary["result_count"]:
+            noun = "Result" if summary["result_count"] == 1 else "Results"
+            summary["receipt_label"] = f"{summary['result_count']} matching {noun}"
+        else:
+            summary["receipt_label"] = "No matching Result"
+        summary["results_url"] = url_for(
+            "admin.execution_history_results", source=summary["source"],
+            record_id=summary["record_id"],
+        )
         summaries.append(summary)
     return summaries
+
+
+def _execution_history_context(db_path):
+    filters = _history_filters()
+    raw_page = request.args.get("history_page", "1") if request.method == "GET" else "1"
+    if not raw_page.isascii() or not raw_page.isdecimal() or len(raw_page) > 6:
+        abort(400, "Invalid history page")
+    page = int(raw_page)
+    if page < 1:
+        abort(400, "Invalid history page")
+    page_size = 40
+    pipeline_projects = {}
+    try:
+        store = ExecutionProfileStore(db_path)
+        runs = list_execution_history(
+            store, limit=page_size + 1,
+            offset=(page - 1) * page_size, **filters,
+        )
+        pipeline_projects = store.execution_pipeline_projects()
+    except sqlite3.Error as exc:
+        flash(f"Trigger run history could not be loaded: {exc}")
+        runs = []
+    query = {"history_" + key: value for key, value in filters.items() if value}
+    def page_url(number):
+        return url_for("admin.execution_profiles", **query, history_page=number,
+                       _anchor="execution-history")
+    return {
+        "trigger_runs": _history_result_summaries(runs[:page_size], pipeline_projects),
+        "history_filters": filters,
+        "history_page": page,
+        "history_previous_url": page_url(page - 1) if page > 1 else "",
+        "history_next_url": page_url(page + 1) if len(runs) > page_size else "",
+    }
 
 
 def _list_trigger_observations(db_path):
@@ -835,7 +907,7 @@ def execution_profiles():
         profile_result=profile_result,
         registered_profiles=registered_profiles,
         trigger_definitions=trigger_definitions,
-        trigger_runs=_list_trigger_runs(db_path),
+        **_execution_history_context(db_path),
         trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
@@ -878,6 +950,19 @@ def _budget_editor(profile):
     except (RegistryError, EncryptedDatabaseError):
         editor["error"] = "Budget selection is unavailable."
     return editor
+
+
+@admin_bp.route("/execution-profiles/history/<source>/<int:record_id>/results", methods=["GET"])
+@admin_required
+def execution_history_results(source, record_id):
+    if source not in {"manual", "runner"} or not 1 <= record_id <= 2**63 - 1:
+        abort(404)
+    store = ExecutionProfileStore(current_app.config["EXECUTION_PROFILE_DB_PATH"])
+    runs = list_execution_history(store, source=source, record_id=record_id, limit=1)
+    if not runs:
+        abort(404)
+    summary = _history_result_summaries(runs, store.execution_pipeline_projects())[0]
+    return render_template("execution_history_results.html", run=summary)
 
 
 @admin_bp.route("/execution-profiles/<profile_id>/budget", methods=["POST"])
@@ -1611,7 +1696,7 @@ def dry_run_execution_profile_submit():
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
         trigger_definitions=_list_trigger_definitions(db_path),
-        trigger_runs=_list_trigger_runs(db_path),
+        **_execution_history_context(db_path),
         trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
@@ -1727,7 +1812,7 @@ def submit_execution_profile_pipeline():
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
         trigger_definitions=_list_trigger_definitions(db_path),
-        trigger_runs=_list_trigger_runs(db_path),
+        **_execution_history_context(db_path),
         trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),

@@ -89,9 +89,12 @@ def find_result_trigger_run(result, lookup):
 def build_trigger_result_links(
     results_dir: str,
     runs: list[dict[str, Any]],
+    *, strict: bool = False, pipeline_only: bool = False, pipeline_projects=None,
 ) -> dict[int, list[dict[str, str]]]:
     """Return result summaries keyed by trigger run id."""
     if not results_dir:
+        if strict:
+            raise OSError("Result directory is not configured")
         return {}
     try:
         filenames = sorted(
@@ -99,11 +102,15 @@ def build_trigger_result_links(
             reverse=True,
         )
     except OSError:
+        if strict:
+            raise
         return {}
 
     by_run_id: dict[int, list[dict[str, str]]] = {}
     indexed_runs = [_index_trigger_run(run) for run in runs]
     projects_by_id = {}
+    for pipeline_id, projects in (pipeline_projects or {}).items():
+        projects_by_id[pipeline_id] = set(projects)
     for run in indexed_runs:
         for pipeline_id in run["pipeline_ids"]:
             projects_by_id.setdefault(pipeline_id, set()).add(run["project"])
@@ -112,9 +119,14 @@ def build_trigger_result_links(
         result = _load_result_json(filename, results_dir)
         if not isinstance(result, dict):
             continue
+        result_pipeline_ids = set(_result_pipeline_ids(result))
+        if pipeline_only and not result_pipeline_ids:
+            continue
         if not result.get("ci_project") and ambiguous_ids.intersection(_result_pipeline_ids(result)):
             continue
         for indexed in indexed_runs:
+            if pipeline_only and not result_pipeline_ids.intersection(indexed["pipeline_ids"]):
+                continue
             if _result_matches_trigger_run(result, indexed):
                 by_run_id.setdefault(indexed["id"], []).append(
                     {

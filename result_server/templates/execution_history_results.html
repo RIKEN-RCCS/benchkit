@@ -1,0 +1,30 @@
+{% extends "_results_base.html" %}
+{% block title %}Execution Results{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+<style>
+    .execution-results-meta dd { overflow-wrap: anywhere; }
+    .execution-results-table { table-layout: fixed; }
+    .execution-results-table th:first-child { width: 78%; }
+    .execution-results-table td { white-space: normal; overflow-wrap: anywhere; }
+</style>
+<a href="{{ url_for('admin.execution_profiles') }}#execution-history">&larr; Trigger Run History</a>
+<h2>{{ run.history_source }} #{{ run.record_id }}</h2>
+<dl class="execution-results-meta">
+    <dt>Submission / Decision</dt><dd>{{ run.decision_label }}{% if run.dry_run %} / preview{% endif %}</dd>
+    <dt>CI</dt><dd>{{ run.ci_status }}{% if run.pipeline_url %} / <a href="{{ run.pipeline_url }}" target="_blank" rel="noopener noreferrer">Pipeline #{{ run.pipeline_id }}</a>{% endif %}</dd>
+    <dt>Stored Results</dt><dd>{{ run.receipt_label }}</dd>
+</dl>
+{% if run.result_links %}
+<div class="table-wrap">
+<table class="execution-results-table">
+    <thead><tr><th>Result</th><th>Pipeline ID</th></tr></thead>
+    <tbody>
+    {% for link in run.result_links %}
+    <tr><td><a href="{{ url_for('results.result_detail', filename=link.filename) }}">{{ link.label }}</a></td><td>{{ link.pipeline_id or '-' }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

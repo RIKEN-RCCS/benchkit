@@ -164,19 +164,21 @@
     }
     .trigger-history-table {
         table-layout: fixed;
-        min-width: 1180px;
+        min-width: 1000px;
     }
     .trigger-history-table td {
         vertical-align: top;
         white-space: normal;
+        overflow-wrap: anywhere;
     }
-    .trigger-history-table th:nth-child(1) { width: 150px; }
-    .trigger-history-table th:nth-child(2) { width: 160px; }
-    .trigger-history-table th:nth-child(3) { width: 120px; }
-    .trigger-history-table th:nth-child(4) { width: 240px; }
-    .trigger-history-table th:nth-child(5) { width: 220px; }
-    .trigger-history-table th:nth-child(6) { width: 150px; }
-    .trigger-history-table th:nth-child(7) { width: 180px; }
+    .trigger-history-table th:nth-child(1) { width: 12%; }
+    .trigger-history-table th:nth-child(2) { width: 15%; }
+    .trigger-history-table th:nth-child(3) { width: 12%; }
+    .trigger-history-table th:nth-child(4) { width: 13%; }
+    .trigger-history-table th:nth-child(5) { width: 16%; }
+    .trigger-history-table th:nth-child(6) { width: 9%; }
+    .trigger-history-table th:nth-child(7) { width: 14%; }
+    .trigger-history-table th:nth-child(8) { width: 9%; }
     .trigger-run-subline {
         display: block;
         margin-top: 2px;
@@ -761,20 +763,45 @@
         </table>
     </div>
 </section>
-<section class="page-card table-card">
+<section class="page-card table-card" id="execution-history">
     <h2 class="section-title">Trigger Run History</h2>
-    <p class="help-text">Recent manual submissions and trigger runner decisions. Submission status records the Portal request; follow the pipeline link for job progress.</p>
+    <style>
+        .history-search { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
+        .history-search label { display: grid; gap: 4px; flex: 1 1 150px; min-width: 0; }
+        .history-search input, .history-search select { width: 100%; min-width: 0; box-sizing: border-box; height: 36px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .history-pages { display: flex; align-items: center; gap: 16px; margin: 12px 0; }
+        .history-page-link { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; }
+    </style>
+    <form method="GET" action="{{ url_for('admin.execution_profiles') }}#execution-history" class="history-search">
+        <label>Profile ID<input name="history_profile_id" value="{{ history_filters.profile_id }}" maxlength="128"></label>
+        <label>Trigger ID<input name="history_trigger_id" value="{{ history_filters.trigger_id }}" maxlength="128"></label>
+        <label>Decision
+            <select name="history_status">
+                <option value="">All</option>
+                {% for status in ['submitted', 'submit_failed', 'submit_blocked', 'not_due', 'unchanged', 'blocked', 'already_submitted', 'runner_locked', 'would_submit', 'would_initialize'] %}
+                <option value="{{ status }}" {% if history_filters.status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+                {% if history_filters.status and history_filters.status not in ['submitted', 'submit_failed', 'submit_blocked', 'not_due', 'unchanged', 'blocked', 'already_submitted', 'runner_locked', 'would_submit', 'would_initialize'] %}
+                <option selected value="{{ history_filters.status }}">{{ history_filters.status }}</option>
+                {% endif %}
+            </select>
+        </label>
+        <label>From (UTC)<input type="date" name="history_since" value="{{ history_filters.since }}"></label>
+        <label>Through (UTC)<input type="date" name="history_until" value="{{ history_filters.until }}"></label>
+        <button type="submit" class="btn btn-secondary">Search</button>
+        <a href="{{ url_for('admin.execution_profiles') }}#execution-history">Clear</a>
+    </form>
     <div class="table-wrap">
         <table class="trigger-history-table">
             <thead>
                 <tr>
                     <th>Time</th>
                     <th>Trigger</th>
-                    <th>Status</th>
+                    <th>Submission / Decision</th>
                     <th>Reason</th>
                     <th>Target</th>
                     <th>Scope</th>
-                    <th>Results</th>
+                    <th>Stored Results</th>
                     <th>Errors</th>
                 </tr>
             </thead>
@@ -788,8 +815,11 @@
                     <td>
                         <span class="profile-mono">{{ run.trigger_id }}</span>
                         <span class="trigger-run-subline">{{ run.history_source }} #{{ run.record_id }} / {{ run.trigger_type }}</span>
+                        {% if run.profile_id %}<span class="trigger-run-subline">Profile {{ run.profile_id }}</span>{% endif %}
                     </td>
-                    <td>{{ run.status }}</td>
+                    <td><span title="{{ run.status }}">{{ run.decision_label }}</span>
+                        {% if run.pipeline_id != '-' %}<span class="trigger-run-subline">CI: {{ run.ci_status }}</span>{% endif %}
+                    </td>
                     <td title="{{ run.reason }}">
                         <span class="trigger-run-reason">{{ run.reason_label or run.reason }}</span>
                     </td>
@@ -806,15 +836,12 @@
                         <span class="trigger-run-subline">{{ run.allocation_project_id }}</span>
                     </td>
                     <td>
+                        <span class="trigger-run-subline">{{ run.receipt_label }}</span>
                         {% if run.result_links %}
                         {% for result_link in run.result_links[:4] %}
                         <a href="{{ url_for('results.result_detail', filename=result_link.filename) }}">{{ result_link.label }}</a>{% if not loop.last %}<br>{% endif %}
                         {% endfor %}
-                        {% if run.result_links|length > 4 %}
-                        <span class="trigger-run-subline">+{{ run.result_links|length - 4 }} more</span>
-                        {% endif %}
-                        {% else %}
-                        -
+                        <a class="trigger-run-subline" href="{{ run.results_url }}">View all {{ run.result_count }} {{ 'Result' if run.result_count == 1 else 'Results' }}</a>
                         {% endif %}
                     </td>
                     <td>
@@ -828,12 +855,17 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="8">No manual submissions or trigger runner decisions have been recorded.</td>
+                    <td colspan="8">No execution records match this page and filters.</td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
+    <nav class="history-pages" aria-label="Execution history pages">
+        {% if history_previous_url %}<a class="history-page-link" href="{{ history_previous_url }}" title="Previous page" aria-label="Previous page">&larr;</a>{% endif %}
+        <span>Page {{ history_page }}</span>
+        {% if history_next_url %}<a class="history-page-link" href="{{ history_next_url }}" title="Next page" aria-label="Next page">&rarr;</a>{% endif %}
+    </nav>
 </section>
 
 <section class="page-card table-card">

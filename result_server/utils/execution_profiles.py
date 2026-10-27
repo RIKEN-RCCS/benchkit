@@ -2144,6 +2144,75 @@ class ExecutionProfileStore:
             )
         return ExecutionProfileResolveResult(profile=matches[0], errors=[])
 
+    def list_execution_history_records(
+        self, *, limit=80, offset=0, profile_id="", trigger_id="", status="",
+        since="", until="", source="", record_id=None,
+    ) -> list[dict[str, Any]]:
+        """Read a stable page across the two existing execution record tables."""
+        self.migrate()
+        conditions = []
+        params = []
+        for column, value in (
+            ("profile_id", profile_id), ("trigger_id", trigger_id),
+            ("status", status), ("history_source", source), ("id", record_id),
+        ):
+            if value not in (None, ""):
+                conditions.append(f"{column} = ?")
+                params.append(value)
+        if since:
+            conditions.append("substr(created_at, 1, 10) >= ?")
+            params.append(since)
+        if until:
+            conditions.append("substr(created_at, 1, 10) <= ?")
+            params.append(until)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        # A runner record has no stored profile ID. Only the current definition
+        # can supply it; deleted definitions remain unattributed, not guessed.
+        query = """
+            SELECT * FROM (
+                SELECT r.id, 'runner' AS history_source,
+                       COALESCE(t.profile_id, '') AS profile_id,
+                       r.trigger_id, r.trigger_type, r.status, r.dry_run,
+                       r.reason, r.payload_json, r.errors_json, r.actor,
+                       r.created_at, '' AS target_ref
+                FROM trigger_runs r
+                LEFT JOIN trigger_definitions t ON t.id = r.trigger_id
+                UNION ALL
+                SELECT id, 'manual' AS history_source, profile_id,
+                       '' AS trigger_id, 'manual_button' AS trigger_type,
+                       status, dry_run, '' AS reason, payload_json, errors_json,
+                       actor, created_at, target_ref
+                FROM execution_requests
+                WHERE request_type = 'gitlab_pipeline' AND dry_run = 0
+            )
+        """ + where + " ORDER BY created_at DESC, id DESC, history_source DESC LIMIT ? OFFSET ?"
+        with self.connect() as conn:
+            return [dict(row) for row in conn.execute(query, (*params, limit, offset))]
+
+    def execution_pipeline_projects(self):
+        """Find project collisions independently of the displayed history page."""
+        projects = {}
+        with self.connect() as conn:
+            rows = conn.execute("""
+                SELECT payload_json FROM trigger_runs WHERE status = 'submitted' AND dry_run = 0
+                UNION ALL
+                SELECT payload_json FROM execution_requests
+                WHERE request_type = 'gitlab_pipeline' AND status = 'submitted' AND dry_run = 0
+            """)
+            for row in rows:
+                try:
+                    payload = json.loads(row[0])
+                    response = payload.get("submit", {}).get("response", {})
+                    project = str(payload.get("gitlab_project") or "").strip().removesuffix(".git")
+                    children = response.get("child_pipeline_ids")
+                    ids = [response.get("id"), *(children if isinstance(children, list) else [])]
+                except (ValueError, TypeError, AttributeError):
+                    continue
+                for pipeline in ids:
+                    if pipeline not in (None, ""):
+                        projects.setdefault(str(pipeline).strip(), set()).add(project)
+        return projects
+
     def list_execution_requests(self, *, limit: int = 50) -> list[dict[str, Any]]:
         """Read persisted manual pipeline submissions, excluding preview requests."""
         self.migrate()

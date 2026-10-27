@@ -59,6 +59,22 @@ The submission status records the Portal request; the pipeline link shows CI job
 progress. Preview requests are excluded, and result links require the recorded
 pipeline identity rather than a reusable manual profile ID.
 
+The administrator's **Trigger Run History** separates the Portal submission or
+decision from matching stored Results. A submitted request is not a completed
+benchmark: CI status is shown as not checked, and no matching Result does not
+by itself mean failure. Result lookup failures are shown as unavailable rather
+than zero Results. The page does not poll GitLab.
+
+History supports exact Profile ID, Trigger ID and decision filters, inclusive
+UTC date bounds, and 40-record pages across manual and runner records. Runner
+Profile ID filtering uses the current trigger definition; a deleted definition
+cannot supply a historical Profile ID. **View all Results** opens an
+administrator-only page for that execution, including Results beyond the four
+shown inline. Results are associated by recorded pipeline identity, qualified
+by project when available; a reusable trigger ID alone is insufficient. Legacy
+Results without a project are not associated when recorded submissions make
+that pipeline ID ambiguous, even outside the current page or filters.
+
 ## Results and compatibility
 
 Benchpark keeps application source_info, FOM/FOM_unit/FOM_version, Exp,
