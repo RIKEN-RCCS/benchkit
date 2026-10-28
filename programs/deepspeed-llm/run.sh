@@ -24,19 +24,20 @@ export PATH="${ARTIFACT_DIR}/venv/bin:${PATH}"
 # SDPA a full causal mask, which doubles the CPU flash kernel's time; it is a no-op otherwise.
 COMMON=(--model 1b --seq 2048 --zero 3 --steps 10 --warmup 3 --attn sdpa_causal)
 
+status=0
 case "${system}" in
   RIKYU)
     module load cuda/13.2.2
     ARGS=("${COMMON[@]}" --dtype bf16 --micro-batch 16 --backend nccl)
     if [[ "${nodes}" -eq 1 ]]; then
       "${ARTIFACT_DIR}/venv/bin/torchrun" --standalone --nproc_per_node="${numproc_node}" \
-        "${ARTIFACT_DIR}/llama_train.py" "${ARGS[@]}" > "${logfile}" 2>&1 || true
+        "${ARTIFACT_DIR}/llama_train.py" "${ARGS[@]}" > "${logfile}" 2>&1 || status=$?
     else
       # One torchrun agent per node; --ntasks pins one task per node in a 4-tasks-per-node allocation.
       MASTER_ADDR=$(scontrol show hostnames "${SLURM_JOB_NODELIST}" | head -n 1)
       srun --ntasks="${nodes}" --ntasks-per-node=1 "${ARTIFACT_DIR}/venv/bin/torchrun" --nnodes="${nodes}" \
         --nproc_per_node="${numproc_node}" --rdzv_backend=c10d --rdzv_endpoint="${MASTER_ADDR}:29500" \
-        "${ARTIFACT_DIR}/llama_train.py" "${ARGS[@]}" > "${logfile}" 2>&1 || true
+        "${ARTIFACT_DIR}/llama_train.py" "${ARGS[@]}" > "${logfile}" 2>&1 || status=$?
     fi
     ;;
   RC_DGXSP)
@@ -44,14 +45,14 @@ case "${system}" in
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     "${ARTIFACT_DIR}/venv/bin/torchrun" --standalone --nproc_per_node="${numproc_node}" \
       "${ARTIFACT_DIR}/llama_train.py" "${COMMON[@]}" --dtype bf16 --micro-batch 8 --backend nccl \
-      > "${logfile}" 2>&1 || true
+      > "${logfile}" 2>&1 || status=$?
     ;;
   RC_GENOA)
     export DS_ACCELERATOR=cpu
     mb=$(( numproc_node >= 4 ? 1 : 4 / numproc_node ))
     "${ARTIFACT_DIR}/venv/bin/torchrun" --standalone --nproc_per_node="${numproc_node}" \
       "${ARTIFACT_DIR}/llama_train.py" "${COMMON[@]}" --dtype fp32 --micro-batch "${mb}" --backend gloo \
-      > "${logfile}" 2>&1 || true
+      > "${logfile}" 2>&1 || status=$?
     ;;
   Fugaku)
     # pytorch-fugaku's launch: pf-setup collects the compute node's Tofu libraries and the
@@ -70,7 +71,7 @@ case "${system}" in
     "${PF_DIR}/pf-setup" "${numproc_node}"
     mpiexec -n "${n_ranks}" bash -c '
       log=/dev/null; [[ ${PMIX_RANK} -eq 0 ]] && log="${logfile}"
-      exec "${PF_DIR}/pf-run" "${SIF}" python /work/artifacts/llama_train.py ${LLM_ARGS} > "${log}" 2>&1' || true
+      exec "${PF_DIR}/pf-run" "${SIF}" python /work/artifacts/llama_train.py ${LLM_ARGS} > "${log}" 2>&1' || status=$?
     ;;
   *)
     echo "Unknown system: ${system}" >&2
@@ -78,8 +79,9 @@ case "${system}" in
     ;;
 esac
 
-# Success: the script's own FOM line, and a final loss that is finite and near ln(vocab) = 11.76
-# (random tokens, random init) -- not the launcher's exit code.
+# Require both a clean launcher exit and the application-level checks (the FOM line, and a final
+# loss that is finite and near ln(vocab) = 11.76 for random tokens/init): a crashed rank can still
+# let the launcher exit 0, so the log content alone is not proof the run succeeded.
 read -r fom <<< "$(python3 - "${logfile}" <<'PY'
 import json, math, sys
 fom, last = None, None
@@ -94,8 +96,8 @@ ok = fom is not None and last is not None and math.isfinite(last) and 10.0 < las
 print(fom["tokens_per_s"] if ok else "-")
 PY
 )"
-if [[ "${fom}" == "-" ]]; then
-  echo "deepspeed-llm: no FOM line or implausible loss" >&2
+if [[ "${status}" -ne 0 || "${fom}" == "-" ]]; then
+  echo "deepspeed-llm: launcher exited ${status}, or no FOM line / implausible loss" >&2
   tail -n 60 "${logfile}" >&2 || true
   exit 1
 fi

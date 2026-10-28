@@ -190,9 +190,13 @@ def main():
             memlog("step", step)
         lt = loss.detach().float().clone()
         dist.all_reduce(lt)
+        # .item() blocks for the device-to-host copy, so it is where returning from a CUDA/NCCL
+        # all_reduce actually waits for completion; reading it before the timer stops (not after)
+        # keeps that wait inside the measured step time, with no extra synchronization added.
+        loss_val = lt.item() / world
         dt = time.perf_counter() - t0
         times.append(dt)
-        log(rank, event="step", step=step, loss=round(lt.item() / world, 6), time_s=round(dt, 3))
+        log(rank, event="step", step=step, loss=round(loss_val, 6), time_s=round(dt, 3))
 
     if prof is not None:
         prof.__exit__(None, None, None)
