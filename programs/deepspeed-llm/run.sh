@@ -56,11 +56,14 @@ case "${system}" in
     # pytorch-fugaku's launch: pf-setup collects the compute node's Tofu libraries and the
     # process-group settings; one pf-run container per rank under Fujitsu mpiexec, collectives
     # over Fujitsu MPI (torch_fugaku's "fjmpi" backend). Rank 0 logs to train.log.
-    SIF="${BK_DEEPSPEED_LLM_SIF:-/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-08033f4.sif}"
+    SIF="${BK_DEEPSPEED_LLM_SIF:-/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-b5879f2.sif}"
     export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF logfile DS_ACCELERATOR=cpu
     export PF_HOSTLIB="${PWD}/.pf-hostlib" PF_BIND="${PWD}:/work:rw"
     export PYTHONPATH=/work/artifacts/pydeps SINGULARITYENV_PREPEND_PATH=/work/artifacts/pydeps/bin
     export TORCH_EXTENSIONS_DIR=/work/artifacts/torch-ext
+    # One rank per CMG: GEMMs on Fujitsu's threaded BLAS (pytorch-fugaku's PF_FJBLAS=1), ~20% per
+    # step at 16 nodes. Ranks spanning two CMGs do not gain from it.
+    if [[ "${numproc_node}" -eq 4 ]]; then export PF_FJBLAS=1; fi
     # 8 GB per rank: activation checkpointing and smaller ZeRO-3 buffers (README: "Fugaku").
     export LLM_ARGS="${COMMON[*]} --dtype fp32 --micro-batch 1 --backend fjmpi --checkpointing --low-mem"
     "${PF_DIR}/pf-setup" "${numproc_node}"

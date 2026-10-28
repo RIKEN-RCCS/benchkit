@@ -29,13 +29,16 @@ no bf16 arithmetic, and the stock PyTorch wheel's fp16 matrix multiply runs at u
 | RIKYU | | 2 nodes | 16 | 699,500 | 349,700 |
 | RIKYU | | 4 nodes | 16 | 1,370,800 | 342,700 |
 | RC_DGXSP | GB10 (121 GB unified), bf16 | 1 GPU | 8 | 4,563 | 4,563 |
-| RC_GENOA | EPYC 9684X (96 cores), fp32, 4 ranks x 24 threads | 1 node | 1 | 294 | 294 |
-| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 582 | 146 |
-| Fugaku | | 32 nodes | 1 | 4,097 | 128 |
-| Fugaku | A64FX, fp32, 4 ranks x 12 threads | 16 nodes | 1 | 2,654 | 166 |
+| RC_GENOA | EPYC 9684X (96 cores), fp32, 16 ranks x 6 threads | 1 node | 1 | 458\* | 458\* |
+| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 609 | 152 |
+| Fugaku | | 32 nodes | 1 | 4,474 | 140 |
+| Fugaku | A64FX, fp32, 4 ranks x 12 threads, Fujitsu BLAS | 16 nodes | 1 | 3,112 | 195 |
 
-Every row is this `run.sh` on 2026-10-28; RIKYU scales at 97% from 1 to 4 nodes. 16 sequences per GPU is the largest batch that fits
-a B200 (32 does not); a GB10 holds 8. On Genoa 1 rank x 96 threads gives the same rate. The
+Every row is this `run.sh` on 2026-10-28 (\*Genoa's 16 x 6: this script launched directly, its
+`run.sh` run pending); RIKYU scales at 97% from 1 to 4 nodes. Genoa runs best with many small
+ranks: 290 tokens/s at 4 x 24, 376 at 8 x 12, 438 at 12 x 8, 458 at 16 x 6, 453 at 24 x 4; SMT
+adds nothing. 16 sequences per GPU is the largest batch that fits
+a B200 (32 does not); a GB10 holds 8. The
 Fugaku rows are partly tuned (below).
 
 ## How each system runs
@@ -61,16 +64,21 @@ share the model: the tied embedding gathered whole and its gradient, the fp32 lo
 softmax and gradient. Activation checkpointing and smaller ZeRO-3 buffers (`--low-mem`:
 1e8 live parameters, 2e7 prefetch, 5e7 reduce bucket) are on. With 2 ranks per node the
 model trains from 4 nodes and scales flat to 32 (93% from 4). With 4 ranks per node it is
-14-30% faster per node (166 tokens/s against 146 at 4 nodes and 128 at 32) but fits only at
-16 nodes: below that the model state does not fit, and
+28-39% faster per node (195 tokens/s against 152 at 4 nodes and 140 at 32; Fujitsu BLAS,
+below, is part of that) but fits only at 16 nodes: below that the model state does not fit, and
 at 32 the node memory outside the processes (it grows with the rank count, likely MPI's
 per-peer resources) leaves too little for the backward pass.
 
 Tuning so far, all in torch_fugaku: a threaded 2-norm for gradient clipping; reduce-scatter
 as an all-to-all and a local sum (Fujitsu MPI's own ran ~10x below its all-gather); and
 `X . W^T` (`nn.Linear`'s forward, slow through NVPL's transposed-B GEMM on A64FX) through a
-transpose and the plain GEMM, 4x on Llama's `down_proj`. At 16 nodes x 4 ranks the step is
-now 47% GEMM, 20% CPU attention and 21% ZeRO-3 communication.
+NEON transpose and the plain GEMM, 4x on Llama's `down_proj`. On the 4-ranks-per-node row
+`run.sh` also sets `PF_FJBLAS=1`, which sends `mm`/`addmm` to Fujitsu's threaded BLAS
+(`libfjlapackexsve`, from the host's compiler mount, never baked into the image) with
+`OMP_PROC_BIND=false`, since any binding pins Fujitsu's OpenMP to one core: 17% on that row.
+The 2-ranks rows stay on NVPL until the same route is checked at 24 threads per rank. At 16
+nodes x 4 ranks the step is now 43% GEMM (73% of fp32 peak), 26% CPU attention and 15%
+ZeRO-3 communication; the whole step runs at about 35% of peak, recompute included.
 
 Normal mode (`-L freq=2000,eco_state=0`) was used for the Fugaku rows. The `FJ` queue
 template has no per-app PJM options, so a site sets it for every app with
@@ -80,16 +88,16 @@ template has no per-app PJM options, so a site sets it for every app with
 
 | | |
 |---|---|
-| file | `/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-08033f4.sif` (override with `BK_DEEPSPEED_LLM_SIF`) |
-| sha256 | `2602e9c06cf8e6359e3e7dc7cac0062f3b2328f29749870a47b84126189c4d7a` (2,983,464,960 bytes) |
-| source | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:ef4b2db729bca57edb47a5279c3c3de4fb0cda25f7dce6fe541800e44faa9995` (commit `08033f4`, built by that repo's CI) |
+| file | `/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-b5879f2.sif` (override with `BK_DEEPSPEED_LLM_SIF`) |
+| sha256 | `2bc3dd0549f96a3ee8a61d975a8a4a979cd47ddb0d0548dc57811b86a73e5003` (2,983,469,056 bytes) |
+| source | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:95bc28f987d963653c8e46e2b5a00d7e4857559292c611d079723ce0de3896db` (commit `b5879f2`, built by that repo's CI) |
 
 To restage on a Fugaku login node (keep Singularity's cache off `$HOME`):
 
 ```bash
 export SINGULARITY_CACHEDIR=/vol0200/data/ra000009/.singularity
-singularity pull --arch arm64 pytorch-fugaku-08033f4.sif \
-  docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:ef4b2db729bca57edb47a5279c3c3de4fb0cda25f7dce6fe541800e44faa9995
+singularity pull --arch arm64 pytorch-fugaku-b5879f2.sif \
+  docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:95bc28f987d963653c8e46e2b5a00d7e4857559292c611d079723ce0de3896db
 ```
 
 ## Reference

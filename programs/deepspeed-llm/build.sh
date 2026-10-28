@@ -42,13 +42,13 @@ case "$system" in
     # The login node is x86 and compute is A64FX. The runtime is the pytorch-fugaku image
     # (README: "Fugaku"), launched with that repo's pf-setup/pf-run at the same commit; the
     # Python stack is aarch64 wheels in artifacts/pydeps, installed by a pinned static uv.
-    SIF="${BK_DEEPSPEED_LLM_SIF:-/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-08033f4.sif}"
+    SIF="${BK_DEEPSPEED_LLM_SIF:-/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-b5879f2.sif}"
     if [[ ! -f "${SIF}" ]]; then
       echo "SIF not found: ${SIF} -- see README.md, \"Fugaku\"" >&2
       exit 1
     fi
     bk_fetch_source "https://github.com/william-dawson/pytorch-fugaku.git" "${ARTIFACT_DIR}/pytorch-fugaku" \
-      main "08033f41dc955431a5a8dd18cab922014157f05d"
+      main "b5879f24d25f6f169403cbdb1c2f0261e9069872"
     UV_VERSION=0.9.5
     curl -sSfL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-musl.tar.gz" \
       | tar xz -C "${ARTIFACT_DIR}"
