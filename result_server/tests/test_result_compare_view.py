@@ -467,3 +467,31 @@ def test_compare_run_context_escapes_values_and_stays_off_public_html():
     assert 'class="comparison-diff-table comparison-run-table"' not in public
     for text in ['private.example.org', 'DDSolverJacobi', 'origin()', 'argv()']:
         assert text not in public
+
+
+def test_related_result_discovery_respects_permissions_and_public_surface(tmp_path, monkeypatch):
+    from werkzeug.exceptions import Forbidden
+    from test_comparison_evidence import record
+    from utils import result_compare_view as view
+    rows = []
+    for filename, exp in [('current.json', 'CASE0'), ('allowed.json', '<old>'), ('private.json', 'hidden')]:
+        row=record(exp)
+        (tmp_path/filename).write_text(json.dumps(row['data']))
+        rows.append(row)
+    def permission(filename, directory):
+        if filename=='private.json':
+            raise Forbidden()
+    monkeypatch.setattr(view, 'check_file_permission', permission)
+    context=view.load_result_compare_context(['current.json'], str(tmp_path))
+    assert context['related_results']['candidate_count']==1
+    assert context['related_results']['candidates'][0]['filename']=='allowed.json'
+    from flask import render_template
+    from test_support import build_portal_shell_app
+    app=build_portal_shell_app(templates_dir=os.path.join(os.path.dirname(__file__), '..', 'templates'))
+    with app.test_request_context('/compare'):
+        html=render_template('result_compare.html', **context)
+    assert '&lt;old&gt;' in html and 'private.json' not in html
+    projected=view._project_public_compare_result({'data': rows[0]['data']})
+    public=view.build_result_compare_context([projected],include_evidence=False)
+    assert public['comparison_summary']['condition_evidence']=={}
+    assert 'related_results' not in public

@@ -18,6 +18,19 @@
     </div>
   </div>
 
+  <p>Multiple registration candidates: {{ profile_usage_overview.summary.ambiguous_result_count|default(0) }}.
+     Insufficient attribution evidence: {{ profile_usage_overview.summary.insufficient_evidence_count|default(0) }}.
+     No matching registration: {{ profile_usage_overview.summary.no_registration_count|default(0) }}.
+     Results with multiple candidates are excluded from per-registration result counts and node-hours. Overall received totals include them once. A unique legacy scope match remains an inferred attribution.</p>
+  {% if profile_usage_overview.unresolved_results %}
+  <details><summary>Unresolved registration attribution (up to 100 newest results shown)</summary>
+    <ul>{% for result in profile_usage_overview.unresolved_results %}
+      <li><a href="{{ url_for('results.result_detail', filename=result.filename) }}">{{ result.timestamp }}</a>:
+        {{ result.status }}{% if result.profile_ids %} — {{ result.profile_ids|join(', ') }}{% endif %}</li>
+    {% endfor %}</ul>
+  </details>
+  {% endif %}
+
   {% if profile_usage_overview.rows %}
   <div class="table-wrap">
     <table class="profile-usage-table">
@@ -62,6 +75,7 @@
           </td>
           <td>
             {{ row.result_count }} results
+            <span class="profile-usage-subline">{{ row.candidate_count|default(0) }} multiple-candidate results (excluded)</span>
             <span class="profile-usage-subline">{{ row.node_hours }} node-hours</span>
             <span class="profile-usage-subline">{{ row.snapshot_count }} snapshots</span>
             <span class="profile-usage-subline">

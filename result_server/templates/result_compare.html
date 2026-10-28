@@ -30,6 +30,31 @@
     {% endif %}
     {% if include_operator_evidence %}
     <p class="compare-note">Values are shown as recorded. A missing or generic FOM definition does not identify the measured interval. Numeric ratios do not establish equivalent inputs or measurements.</p>
+    <div class="comparison-evidence">
+    <h3>Recorded comparison conditions</h3>
+    <p class="compare-note">Matching names or recorded arguments do not prove equivalent workloads or FOM values. Build differences are allowed. No tolerance or pass/fail rule is applied.</p>
+    <ul>
+    {% for condition in comparison_summary.condition_evidence.conditions %}
+        <li>{{ condition.label }}: <strong>{{ condition.status }}</strong> — {{ condition['values']|join(' / ') }}</li>
+    {% endfor %}
+    </ul>
+    {% if related_results is defined %}
+    <h3>Related results with different experiment names</h3>
+    <p>{{ related_results.candidate_count }} recorded-input candidates (up to 20 shown).
+       {{ related_results.insufficient_pairs }} pairs with insufficient evidence;
+       {{ related_results.different_pairs }} pairs with recorded input differences.</p>
+    <ul>{% for candidate in related_results.candidates %}
+      <li><a href="{{ url_for('results.result_compare', files=candidate.selected_filename ~ ',' ~ candidate.filename) }}">{{ candidate.timestamp }} / {{ candidate.exp }}</a>: {{ candidate.status }}</li>
+    {% endfor %}</ul>
+    {% endif %}
+    <h3>Selected result relationships</h3>
+    <p class="compare-note">Candidates use recorded runtime arguments for the same code and system. Missing evidence is not a mismatch. Historical results and experiment names are preserved; candidates are not merged into a series.</p>
+    <ul>
+    {% for relation in comparison_summary.condition_evidence.relationships %}
+        <li>Result {{ relation.left }} ({{ relation.left_exp }}) / Result {{ relation.right }} ({{ relation.right_exp }}): <strong>{{ relation.status }}</strong></li>
+    {% endfor %}
+    </ul>
+    </div>
     <div class="comparison-run-scroll">
     <table class="comparison-diff-table comparison-run-table">
         <thead>
@@ -93,7 +118,7 @@
         <h3>Input Provenance</h3>
         {% if inputs.changed %}<p><strong>Recorded input provenance differs across selected results.</strong></p>{% endif %}
         {% if inputs.has_unobserved %}<p>Input observation is unavailable for one or more selected results.</p>{% endif %}
-        <p>The same experiment name is treated as the same science. Input differences describe provenance and do not determine scientific compatibility or restrict comparison. Matching recorded provenance does not prove identical inputs.</p>
+        <p>Experiment names are labels, not evidence of matching inputs. Input differences describe provenance and do not determine scientific compatibility or restrict comparison. Matching recorded provenance does not prove identical inputs.</p>
         <ul>
         {% for row in inputs.rows %}
             <li>

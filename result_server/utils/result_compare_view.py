@@ -1,8 +1,12 @@
+import os
 import shlex
+
+from werkzeug.exceptions import Forbidden
 
 from flask import abort
 
 from utils.benchpark import result_pipeline_backend
+from utils.comparison_evidence import build_condition_evidence, find_related_candidates
 
 from utils.result_file import check_file_permission, load_public_result_json
 from utils.result_records import (
@@ -11,6 +15,7 @@ from utils.result_records import (
     format_numeric_value,
     format_result_timestamp,
     input_info_items_for_result,
+    load_result_json,
     load_result_json_batch,
     short_identifier,
     summarize_result_quality,
@@ -68,6 +73,7 @@ def build_comparison_summary(results, *, include_evidence=True):
     diff_rows = _build_diff_rows(baseline, latest) if len(result_rows) >= 2 else []
     input_provenance = _build_input_provenance(result_rows) if include_evidence else {}
     return {
+        "condition_evidence": build_condition_evidence(results) if include_evidence else {},
         "include_evidence": include_evidence,
         "baseline": baseline,
         "latest": latest,
@@ -104,7 +110,20 @@ def load_result_compare_context(filenames, directory, *, public_surface=False):
     results = load_result_json_batch(filenames, directory)
     if len(results) != len(filenames):
         abort(404, "Result file not found")
-    return build_result_compare_context(results)
+    context = build_result_compare_context(results)
+    records = []
+    for filename in sorted(os.listdir(directory), reverse=True):
+        if not filename.endswith('.json') or os.path.islink(os.path.join(directory, filename)):
+            continue
+        try:
+            check_file_permission(filename, directory)
+        except Forbidden:
+            continue
+        data = load_result_json(filename, directory)
+        if isinstance(data, dict):
+            records.append({'filename': filename, 'timestamp': format_result_timestamp(filename), 'data': data})
+    context['related_results'] = find_related_candidates(results, records)
+    return context
 
 
 def _load_public_result_json_batch(filenames, directory):
