@@ -143,6 +143,12 @@ jobs:
         run: |
           case "$FULL_TESTS" in true|false) ;; *) exit 1 ;; esac
 
+      - name: Set up Python for estimation test fixtures
+        if: steps.scope.outputs.full == 'true' && matrix.shell-group == 'estimation'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
       - name: Run ${{ matrix.shell-group }} shell tests
         if: steps.scope.outputs.full == 'true'
         run: bash scripts/tests/run_profile_data_shell_tests.sh "${{ matrix.shell-group }}" --jobs 2
