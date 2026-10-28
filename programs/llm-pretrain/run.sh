@@ -76,7 +76,7 @@ esac
 
 # Success: the script's own FOM line, and a final loss that is finite and near ln(vocab) = 11.76
 # (random tokens, random init) -- not the launcher's exit code.
-read -r fom first_step final_loss <<< "$(python3 - "${logfile}" <<'PY'
+read -r fom <<< "$(python3 - "${logfile}" <<'PY'
 import json, math, sys
 fom, last = None, None
 for line in open(sys.argv[1], errors="replace"):
@@ -87,7 +87,7 @@ for line in open(sys.argv[1], errors="replace"):
         elif e["event"] == "step":
             last = e["loss"]
 ok = fom is not None and last is not None and math.isfinite(last) and 10.0 < last < 13.0
-print(f"{fom['tokens_per_s']} {fom['first_step_s']} {last}" if ok else "- - -")
+print(fom["tokens_per_s"] if ok else "-")
 PY
 )"
 if [[ "${fom}" == "-" ]]; then
