@@ -3,7 +3,7 @@ set -euo pipefail
 
 system="$1"
 
-# The benchmark configs ship next to this script.
+# Configs and patches ship next to this script.
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 REPO="https://github.com/ViniciusMikuni/OmniLearned.git"
@@ -34,6 +34,34 @@ case "$system" in
     "${ARTIFACT_DIR}/venv/bin/pip" install --upgrade pip
     "${ARTIFACT_DIR}/venv/bin/pip" install "torch==2.11.0"
     "${ARTIFACT_DIR}/venv/bin/pip" install -e "${SRC_DIR}"
+    ;;
+  Fugaku)
+    # The login node is x86 and compute is A64FX. The runtime is the
+    # pytorch-fugaku image, pre-staged (README: "The Fugaku SIF") and launched
+    # with that repo's pf-setup/pf-run; OmniLearned's dependencies are aarch64
+    # wheels installed beside it, and OmniLearned runs from this source tree.
+    SIF="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
+    if [[ ! -f "${SIF}" ]]; then
+      echo "SIF not found: ${SIF} -- see README.md, \"The Fugaku SIF\"" >&2
+      exit 1
+    fi
+    PF_REPO="https://github.com/william-dawson/pytorch-fugaku.git"
+    PF_COMMIT="c66cdc79d6053c5a48f75000d1fa849c67099056"
+    rm -rf "${ARTIFACT_DIR}/pytorch-fugaku"
+    git clone -q "${PF_REPO}" "${ARTIFACT_DIR}/pytorch-fugaku"
+    git -C "${ARTIFACT_DIR}/pytorch-fugaku" checkout -q "${PF_COMMIT}"
+    # A static uv cross-installs the wheels; the login node's Python is 3.6.
+    UV_VERSION=0.9.5
+    curl -sSfL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-musl.tar.gz" \
+      | tar xz -C "${ARTIFACT_DIR}"
+    rm -rf "${ARTIFACT_DIR}/pydeps"
+    UV_CACHE_DIR="${ARTIFACT_DIR}/uv-cache" "${ARTIFACT_DIR}/uv-x86_64-unknown-linux-musl/uv" pip install \
+      --target "${ARTIFACT_DIR}/pydeps" --python-platform aarch64-manylinux_2_28 --python-version 3.10 \
+      --no-deps --no-build -r "${APP_DIR}/fugaku-requirements.txt"
+    # Not pip-installed, so stub the version file hatch-vcs would generate.
+    if ! grep -q 'version = ' "${SRC_DIR}/src/omnilearned/_version.py" 2>/dev/null; then
+      echo 'version = "0.0.0-benchkit"' > "${SRC_DIR}/src/omnilearned/_version.py"
+    fi
     ;;
   *)
     echo "Unknown system: ${system}" >&2

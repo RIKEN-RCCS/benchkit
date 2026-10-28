@@ -11,6 +11,9 @@ repo's `petsc-gmres` and `ffb`:
 - RC_GH200 / RC_DGXSP / RC_GENOA: `/lvs0/dne1/rccs-nghpcadu/CX_input/omnilearned/top/top/{train,val,test}/`
   (the app resolves `<root>/top/<split>/`; checksummed and identical to
   the RIKYU copy)
+- Fugaku: `/vol0200/share/ra000009/CX_input/omnilearned/top/{train,val,test}/`
+  (single-nested: `BK_OMNILEARNED_DATA` is the parent of `top/`; sizes
+  match the table below)
 
 Note the layout: the OmniLearned dataloader appends the dataset name to
 the root path, so the staged tree is `<root>/top/<split>/*.h5` plus the
