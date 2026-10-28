@@ -20,8 +20,9 @@ export PATH="${ARTIFACT_DIR}/venv/bin:${PATH}"
 
 # Each machine trains at the precision it would use: bf16 on GPUs, fp32 on CPUs (A64FX has no
 # bf16, and the stock wheel's fp16 GEMM runs at <1 GFLOP/s). The micro-batch per rank is the
-# largest that fits; see README.md.
-COMMON=(--model 1b --seq 2048 --zero 3 --steps 10 --warmup 3)
+# largest that fits; see README.md. sdpa_causal: under activation checkpointing transformers hands
+# SDPA a full causal mask, which doubles the CPU flash kernel's time; it is a no-op otherwise.
+COMMON=(--model 1b --seq 2048 --zero 3 --steps 10 --warmup 3 --attn sdpa_causal)
 
 case "${system}" in
   RIKYU)

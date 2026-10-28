@@ -30,11 +30,13 @@ no bf16 arithmetic, and the stock PyTorch wheel's fp16 matrix multiply runs at u
 | RIKYU | | 4 nodes | 16 | 1,370,800 | 342,700 |
 | RC_DGXSP | GB10 (121 GB unified), bf16 | 1 GPU | 8 | 4,563 | 4,563 |
 | RC_GENOA | EPYC 9684X (96 cores), fp32, 16 ranks x 6 threads | 1 node | 1 | 455 | 455 |
-| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 609 | 152 |
-| Fugaku | | 32 nodes | 1 | 4,474 | 140 |
-| Fugaku | A64FX, fp32, 4 ranks x 12 threads, Fujitsu BLAS | 16 nodes | 1 | 3,112 | 195 |
+| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 644 | 161 |
+| Fugaku | | 32 nodes | 1 | 4,572 | 143 |
+| Fugaku | A64FX, fp32, 4 ranks x 12 threads, Fujitsu BLAS | 16 nodes | 1 | 3,297 | 206 |
 
-Every row is this `run.sh` on 2026-10-28; RIKYU scales at 97% from 1 to 4 nodes. Genoa runs best with many small
+Every row is this `run.sh`: Fugaku on 2026-10-29, the others on 2026-10-28, before
+`--attn sdpa_causal` (below), which changes nothing where the model trains without
+checkpointing. RIKYU scales at 97% from 1 to 4 nodes. Genoa runs best with many small
 ranks: 290 tokens/s at 4 x 24, 376 at 8 x 12, 438 at 12 x 8, 458 at 16 x 6, 453 at 24 x 4; SMT
 adds nothing. 16 sequences per GPU is the largest batch that fits
 a B200 (32 does not); a GB10 holds 8. The
@@ -62,8 +64,8 @@ Memory sets which layouts fit. Each A64FX rank has 8 GB (4 ranks per node) or 16
 share the model: the tied embedding gathered whole and its gradient, the fp32 logits, their
 softmax and gradient. Activation checkpointing and smaller ZeRO-3 buffers (`--low-mem`:
 1e8 live parameters, 2e7 prefetch, 5e7 reduce bucket) are on. With 2 ranks per node the
-model trains from 4 nodes and scales flat to 32 (93% from 4). With 4 ranks per node it is
-28-39% faster per node (195 tokens/s against 152 at 4 nodes and 140 at 32; Fujitsu BLAS,
+model trains from 4 nodes and scales to 32 at 89% per node from 4. With 4 ranks per node it is
+28-44% faster per node (206 tokens/s against 161 at 4 nodes and 143 at 32; Fujitsu BLAS,
 below, is part of that) but fits only at 16 nodes: below that the model state does not fit, and
 at 32 the node memory outside the processes (it grows with the rank count, likely MPI's
 per-peer resources) leaves too little for the backward pass.
@@ -75,9 +77,15 @@ NEON transpose and the plain GEMM, 4x on Llama's `down_proj`. On the 4-ranks-per
 `run.sh` also sets `PF_FJBLAS=1`, which sends `mm`/`addmm` to Fujitsu's threaded BLAS
 (`libfjlapackexsve`, from the host's compiler mount, never baked into the image) with
 `OMP_PROC_BIND=false`, since any binding pins Fujitsu's OpenMP to one core: 17% on that row.
-The 2-ranks rows stay on NVPL until the same route is checked at 24 threads per rank. At 16
-nodes x 4 ranks the step is now 43% GEMM (73% of fp32 peak), 26% CPU attention and 15%
-ZeRO-3 communication; the whole step runs at about 35% of peak, recompute included.
+The 2-ranks rows stay on NVPL until the same route is checked at 24 threads per rank.
+
+`--attn sdpa_causal` (every system): under activation checkpointing `transformers` hands SDPA
+the full causal mask instead of `is_causal=True`, and the CPU flash kernel then computes both
+triangles, twice the attention time. The script turns an exactly causal mask back into
+`is_causal`, with identical loss and gradients; without checkpointing (the GPU and Genoa rows)
+the mask never arrives and it changes nothing. On Fugaku it gained 2-6%. Before it, the step at
+16 nodes x 4 ranks was 43% GEMM (73% of fp32 peak), 26% CPU attention and 15% ZeRO-3
+communication.
 
 Normal mode (`-L freq=2000,eco_state=0`) was used for the Fugaku rows. The `FJ` queue
 template has no per-app PJM options, so a site sets it for every app with

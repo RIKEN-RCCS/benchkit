@@ -18,7 +18,9 @@ T_START = time.perf_counter()
 import torch  # noqa: E402
 import torch.distributed as dist  # noqa: E402
 
-# Llama 3.2-1B / 3.2-3B / 3.1-8B shapes; "tiny" is for checking the script.
+# Llama 3.2-1B / 3.2-3B / 3.1-8B shapes; "tiny" is for checking the script. The gpt-* entries
+# are Megatron's GPT (GPT-2 architecture, vocabulary padded to 50304) for the head-to-head
+# against Fugaku-LLM's Megatron-DeepSpeed.
 MODELS = {
     "tiny": dict(hidden_size=256, intermediate_size=1024, num_hidden_layers=2, num_attention_heads=8,
                  num_key_value_heads=4, vocab_size=8192, tie_word_embeddings=True),
@@ -28,6 +30,8 @@ MODELS = {
                num_key_value_heads=8, vocab_size=128256, tie_word_embeddings=True),
     "8b": dict(hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32,
                num_key_value_heads=8, vocab_size=128256, tie_word_embeddings=False),
+    "gpt-125m": dict(arch="gpt2", n_embd=768, n_layer=12, n_head=12, vocab_size=50304),
+    "gpt-1.3b": dict(arch="gpt2", n_embd=2048, n_layer=24, n_head=16, vocab_size=50304),
 }
 
 
@@ -47,6 +51,31 @@ def memlog(phase, step=None):
                       "rss_gb": round(rss, 2), "node_avail_gb": round(avail, 2)}), flush=True)
 
 
+def register_causal_sdpa():
+    """transformers' SDPA, except that a mask equal to the causal triangle becomes is_causal=True.
+    With activation checkpointing transformers passes the full T x T mask, and the CPU flash
+    kernel then computes both triangles: twice the attention time on Fugaku."""
+    from transformers import AttentionInterface, AttentionMaskInterface
+    from transformers.integrations.sdpa_attention import sdpa_attention_forward
+    from transformers.masking_utils import sdpa_mask
+
+    tril = {}
+
+    def causal_sdpa(module, query, key, value, attention_mask, **kw):
+        t = query.shape[-2]
+        m = attention_mask
+        if (m is not None and m.dtype == torch.bool and m.dim() == 4 and m.shape[:2] == (1, 1)
+                and m.shape[-2:] == (t, t) and key.shape[-2] == t):
+            if t not in tril:
+                tril[t] = torch.ones(t, t, dtype=torch.bool, device=m.device).tril()
+            if torch.equal(m[0, 0], tril[t]):
+                attention_mask, kw["is_causal"] = None, True
+        return sdpa_attention_forward(module, query, key, value, attention_mask, **kw)
+
+    AttentionInterface.register("sdpa_causal", causal_sdpa)
+    AttentionMaskInterface.register("sdpa_causal", sdpa_mask)
+
+
 def log(rank, **kw):
     if rank == 0:
         print(json.dumps(kw), flush=True)
@@ -64,17 +93,27 @@ def main():
     p.add_argument("--backend", default="gloo", help="nccl on GPUs, fjmpi on Fugaku")
     p.add_argument("--checkpointing", action="store_true", help="activation checkpointing")
     p.add_argument("--profile", type=int, default=0, help="profile the last N steps on rank 0 (+ comms logger)")
+    p.add_argument("--flush-denormal", action="store_true", help="treat denormal floats as zero (Fugaku-LLM's setting)")
+    p.add_argument("--attn", default="sdpa", choices=["sdpa", "sdpa_causal", "eager"],
+                   help="sdpa_causal: SDPA with is_causal when the mask is exactly causal (see causal_sdpa)")
+    p.add_argument("--dropout", type=float, default=None,
+                   help="gpt-* dropout (transformers' default 0.1, as Megatron); torch's CPU bernoulli_ is scalar on aarch64")
     p.add_argument("--low-mem", action="store_true",
                    help="ZeRO-3 buffers sized for 8 GB per rank (DeepSpeed's defaults keep 1e9 parameters live)")
     a = p.parse_args()
 
+    if a.flush_denormal:
+        torch.set_flush_denormal(True)
     if a.backend == "fjmpi":
         import torch_fugaku
 
         torch_fugaku.register_backend()
     import deepspeed
-    from transformers import LlamaConfig, LlamaForCausalLM
+    from transformers import GPT2Config, GPT2LMHeadModel, LlamaConfig, LlamaForCausalLM
     from transformers.integrations import HfDeepSpeedConfig
+
+    if a.attn == "sdpa_causal":
+        register_causal_sdpa()
 
     t0 = time.perf_counter()
     t_import = t0 - T_START
@@ -103,11 +142,17 @@ def main():
         cfg["comms_logger"] = {"enabled": True, "verbose": False, "prof_all": True}
     t0 = time.perf_counter()
     torch.manual_seed(0)
-    mcfg = LlamaConfig(max_position_embeddings=a.seq, attn_implementation="sdpa", **MODELS[a.model])
+    spec = dict(MODELS[a.model])
+    if spec.pop("arch", "llama") == "gpt2":
+        if a.dropout is not None:
+            spec.update(resid_pdrop=a.dropout, embd_pdrop=a.dropout, attn_pdrop=a.dropout)
+        mcfg, model_cls = GPT2Config(n_positions=a.seq, attn_implementation=a.attn, **spec), GPT2LMHeadModel
+    else:
+        mcfg, model_cls = LlamaConfig(max_position_embeddings=a.seq, attn_implementation=a.attn, **spec), LlamaForCausalLM
     # With ZeRO-3, transformers builds the model partitioned and gathers each parameter for its
     # own initialisation (std 0.02); the object must stay alive until the model exists.
     hf_ds = HfDeepSpeedConfig(cfg) if a.zero == 3 else None  # noqa: F841
-    model = LlamaForCausalLM(mcfg)
+    model = model_cls(mcfg)
     if a.checkpointing:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     nparams = sum(getattr(x, "ds_numel", x.numel()) for x in model.parameters())
