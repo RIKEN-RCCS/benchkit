@@ -27,7 +27,8 @@ cd "${REPO_DIR}"
 # init_alt_Accel.cpp が存在しない DeviceManager_CUDA::init_prempi() を呼んでおり、
 # CUDA 版（Makefile_cuda）がコンパイルできない。init_alt_Accel_prempi() は
 # use_mpi = gpu_aware のときだけ呼ばれ、CUDA 版は use_mpi = yes なので、
-# この呼び出しを削除しても動作は変わらない。上流で修正されたら不要。
+# この呼び出しを削除しても動作は変わらない。上流では 01c803d で修正済みだが、
+# d5a823d を LQCD_DW_SOLVER_SOURCE_COMMIT で指定してビルドする場合のために残している。
 apply_cuda_init_prempi_workaround () {
   local f=src/lib_alt_Accel/init_alt_Accel.cpp
   if grep -q "DeviceManager_CUDA::init_prempi" "$f" && \
