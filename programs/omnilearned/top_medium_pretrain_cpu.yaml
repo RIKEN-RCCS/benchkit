@@ -1,0 +1,23 @@
+# OmniLearned benchmark config, CPU (RC_GENOA): the pretrain recipe of
+# top_medium_pretrain.yaml at 25 iterations instead of 250. At ~18 s/step a
+# full epoch would take 2.5 h; the FOM is a rate over the train pass, so the
+# iteration count does not change what it measures.
+# run.sh substitutes the dataset path.
+path: __OMNILEARNED_DATA__
+size: medium
+mode: pretrain
+num_classes: 2
+interaction: true
+local_interaction: true
+batch: 128
+num_workers: 8
+persistent_workers: true
+check_remote: false
+ema: false
+epoch: 2
+iterations: 25
+val_iterations: 5
+lr: 0.00003
+wd: 0.5
+save_tag: bench
+wandb: false

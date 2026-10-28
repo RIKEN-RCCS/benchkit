@@ -1,0 +1,31 @@
+diff --git a/src/omnilearned/train.py b/src/omnilearned/train.py
+index fb9e992..1dc7830 100644
+--- a/src/omnilearned/train.py
++++ b/src/omnilearned/train.py
+@@ -333,6 +333,7 @@ def run(high_level=False, **c):
+     history = {"train_loss": [], "val_loss": []}
+     for epoch in range(start, c["epoch"]):
+         start_time = time.time()
++        train_pass_start = time.time()
+         train_loader.rank_sampler.set_epoch(epoch)
+         train_logs, n = pass_epoch(
+             model,
+@@ -345,6 +346,7 @@ def run(high_level=False, **c):
+             scaler,
+             ema,
+         )
++        train_pass_wall = time.time() - train_pass_start
+         val_logs, _ = pass_epoch(
+             checkpoint.unwrap(model), val_loader, c, device, high_level
+         )
+@@ -373,6 +375,10 @@ def run(high_level=False, **c):
+                 )
+             history["train_loss"].append(train_logs["loss"])
+             history["val_loss"].append(val_logs["loss"])
++            print(
++                f"Train pass wall: {train_pass_wall:.2f} sec",
++                flush=True,
++            )
+             print(
+                 f"Epoch [{epoch + 1}/{c['epoch']}] "
+                 f"Loss: {train_logs['loss']:.4f}, "
