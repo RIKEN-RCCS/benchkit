@@ -21,26 +21,31 @@ mkdir -p "${RESULTS_DIR}"
 case "${system}" in
   RIKYU) DATA="${BK_OMNILEARNED_DATA:-/data1/rkp00015/CX_input/omnilearned/top}" ;;
   RC_GH200|RC_DGXSP|RC_GENOA) DATA="${BK_OMNILEARNED_DATA:-/lvs0/dne1/rccs-nghpcadu/CX_input/omnilearned/top}" ;;
+  Fugaku) DATA="${BK_OMNILEARNED_DATA:-/vol0200/share/ra000009/CX_input/omnilearned}" ;;
   *) echo "Unknown system: ${system}" >&2; exit 1 ;;
 esac
 
 # Per-system config: DGX Spark's unified memory holds only b64; Genoa runs
-# 25 iterations (18 s/step).
+# 25 iterations (18 s/step); Fugaku runs b8 per rank, one rank per CMG.
 CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain.yaml"
 case "${system}" in
   RC_DGXSP) CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain_b64.yaml"
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True ;;
   RC_GENOA) CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain_cpu.yaml" ;;
+  Fugaku) CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain_fugaku.yaml" ;;
 esac
 CONFIG="${PWD}/omnilearned_bench.yaml"
-sed "s|__OMNILEARNED_DATA__|${DATA}|" "${CONFIG_TEMPLATE}" > "${CONFIG}"
+# Fugaku runs in a container where the dataset is bind-mounted at /cx_input.
+datapath="${DATA}"; [[ "${system}" == "Fugaku" ]] && datapath=/cx_input
+sed "s|__OMNILEARNED_DATA__|${datapath}|" "${CONFIG_TEMPLATE}" > "${CONFIG}"
 
 export OMP_NUM_THREADS="${nthreads}" HDF5_USE_FILE_LOCKING=FALSE TOKENIZERS_PARALLELISM=false
 
 # Cold random HDF5 reads from group storage run to ~8 s/batch; the dataset
-# fits in RAM, so read it once before training. Not on DGX Spark: the cache
-# competes with the GPU for unified memory.
-if [[ "${system}" != "RC_DGXSP" ]]; then
+# fits in RAM, so read it once before training. Not on DGX Spark (the cache
+# competes with the GPU for unified memory); on Fugaku each node's first
+# rank does it (below).
+if [[ "${system}" != "RC_DGXSP" && "${system}" != "Fugaku" ]]; then
   for f in "${DATA}"/*/*.h5; do cat "$f" > /dev/null; done
 fi
 
@@ -63,6 +68,25 @@ case "${system}" in
         --node_rank="${SLURM_NODEID}" --rdzv_backend=c10d --rdzv_endpoint="${MASTER_ADDR}:29500" \
         -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || true
     fi
+    ;;
+  Fugaku)
+    # pytorch-fugaku's launch: pf-setup collects the compute node's Tofu
+    # libraries and the process-group settings, then one pf-run container per
+    # rank under Fujitsu mpiexec. Rank 0 logs to train.log; each node's first
+    # rank reads the dataset into that node's page cache.
+    SIF="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
+    export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF DATA numproc_node
+    export PF_HOSTLIB="${PWD}/.pf-hostlib"
+    export PF_BIND="${PWD}:/work:rw,${DATA}:/cx_input:rw"
+    export PYTHONPATH=/work/artifacts/pydeps:/work/OmniLearned/src PYTHONUNBUFFERED=1
+    "${PF_DIR}/pf-setup" "${numproc_node}"
+    mpiexec -n "${n_ranks}" bash -c '
+      R=${PMIX_RANK}; log=train.rank${R}.log; [[ ${R} -eq 0 ]] && log=train.log
+      if (( R % numproc_node == 0 )); then
+        for f in "${DATA}"/top/*/*.h5; do cat "$f" > /dev/null; done
+      fi
+      exec "${PF_DIR}/pf-run" "${SIF}" \
+        python -m omnilearned.cli train --config /work/omnilearned_bench.yaml > "${log}" 2>&1' || true
     ;;
 esac
 

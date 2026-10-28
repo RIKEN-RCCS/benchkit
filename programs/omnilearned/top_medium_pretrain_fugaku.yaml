@@ -1,0 +1,27 @@
+# OmniLearned benchmark config, Fugaku A64FX: the pretrain recipe of
+# top_medium_pretrain.yaml at batch 8 per rank, run 4 ranks per node (one per
+# 12-core CMG), so global batch is 32 per node. num_workers 0: Fujitsu MPI's
+# RDMA-registered memory is not fork-safe, and DataLoader workers forked
+# after MPI starts segfault; with the dataset in the page cache, loading on
+# the main thread costs less than worker start-up. 25 iterations, epoch 1:
+# no cuBLAS autotune on CPU, so the first epoch is already steady state.
+# run.sh substitutes the dataset path.
+path: __OMNILEARNED_DATA__
+size: medium
+mode: pretrain
+num_classes: 2
+interaction: true
+local_interaction: true
+batch: 8
+num_workers: 0
+persistent_workers: false
+check_remote: false
+ema: false
+epoch: 1
+iterations: 25
+val_iterations: 5
+lr: 0.00003
+wd: 0.5
+save_tag: bench
+wandb: false
+outdir: /work/output
