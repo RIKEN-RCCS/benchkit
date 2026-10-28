@@ -34,7 +34,8 @@
     <h3>Recorded comparison conditions</h3>
     <p class="compare-note">Matching names or recorded arguments do not prove equivalent workloads or FOM values. Build differences are allowed. No tolerance or pass/fail rule is applied.</p>
     <ul>
-    {% for condition in comparison_summary.condition_evidence.conditions %}
+    {% set condition_evidence = comparison_summary.get('condition_evidence', {}) %}
+    {% for condition in condition_evidence.get('conditions', []) %}
         <li>{{ condition.label }}: <strong>{{ condition.status }}</strong> — {{ condition['values']|join(' / ') }}</li>
     {% endfor %}
     </ul>
@@ -50,7 +51,7 @@
     <h3>Selected result relationships</h3>
     <p class="compare-note">Candidates use recorded runtime arguments for the same code and system. Missing evidence is not a mismatch. Historical results and experiment names are preserved; candidates are not merged into a series.</p>
     <ul>
-    {% for relation in comparison_summary.condition_evidence.relationships %}
+    {% for relation in condition_evidence.get('relationships', []) %}
         <li>Result {{ relation.left }} ({{ relation.left_exp }}) / Result {{ relation.right }} ({{ relation.right_exp }}): <strong>{{ relation.status }}</strong></li>
     {% endfor %}
     </ul>
