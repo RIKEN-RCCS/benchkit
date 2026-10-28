@@ -145,6 +145,11 @@ def benchpark_detail_rows(result):
     for label, key in (("Activity", "execution_activity"), ("CI Project", "ci_project")):
         if result.get(key):
             rows.append((label, result[key]))
+    build = result.get("build")
+    harness = build.get("harness") if isinstance(build, dict) else None
+    experiment = harness.get("experiment") if isinstance(harness, dict) else None
+    if isinstance(experiment, str) and experiment.strip():
+        rows.append(("Harness experiment", experiment.strip()))
     return rows
 
 

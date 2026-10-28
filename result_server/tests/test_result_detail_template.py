@@ -686,3 +686,34 @@ class TestResultDetailTemplate:
         assert "top-level source tracked" in html
         assert "Suggested Actions" in html
         assert "Improvement Candidates" in html
+
+
+@pytest.mark.parametrize('public_surface', [False, True])
+def test_harness_experiment_display_is_escaped_and_console_only(app, public_surface):
+    name = 'qws.CASE0.<script>alert(1)</script>'
+    result = {'code': 'qws', 'Exp': 'CASE0', 'execution_backend': 'benchpark',
+              'build': {'harness': {'name': 'benchpark', 'experiment': name}}}
+    with app.test_request_context():
+        html = _render_result_detail(result, {}, public_surface=public_surface)
+    assert name not in html
+    if public_surface:
+        assert 'Harness experiment' not in html
+        assert 'qws.CASE0.' not in html
+    else:
+        assert 'Harness experiment' in html
+        assert 'qws.CASE0.&lt;script&gt;alert(1)&lt;/script&gt;' in html
+
+
+@pytest.mark.parametrize('build', [None, 'invalid', {}, {'harness': None},
+    {'harness': 'invalid'}, {'harness': {}}, {'harness': {'experiment': ['invalid']}}])
+def test_missing_or_malformed_harness_experiment_is_omitted(build):
+    result = {'execution_backend': 'benchpark', 'build': build}
+    from utils.benchpark import benchpark_detail_rows
+    assert not any(label == 'Harness experiment' for label, _ in benchpark_detail_rows(result))
+
+
+def test_benchkit_harness_experiment_does_not_add_benchpark_row():
+    result = {'execution_backend': 'benchkit',
+              'build': {'harness': {'experiment': 'existing-case'}}}
+    rows = build_result_detail_context(result, {})['meta_rows']
+    assert not any(row['label'] == 'Harness experiment' for row in rows)
