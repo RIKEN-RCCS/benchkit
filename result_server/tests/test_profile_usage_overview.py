@@ -190,23 +190,22 @@ def test_profile_usage_overview_does_not_scope_match_triggered_results_to_other_
     overview = build_profile_usage_overview(str(received_dir), str(db_path))
 
     rows = {row["profile_id"]: row for row in overview["rows"]}
-    assert rows["demoapp-demosystem"]["result_count"] == 3
-    assert rows["demoapp-demosystem"]["node_hours"] == 1.75
+    assert rows["demoapp-demosystem"]["result_count"] == 2
+    assert rows["demoapp-demosystem"]["node_hours"] == 1.25
     assert rows["demoapp-demosystem"]["attribution_counts"] == {
-        "trigger_id_match": 1,
-        "manual_profile_match": 1,
-        "legacy_scope_fallback": 1,
+        "trigger_id_match": 1, "manual_profile_match": 1, "legacy_scope_fallback": 0,
     }
     assert rows["demoapp-demosystem"]["latest_result"]["attribution"]["reason"] == "manual_profile_match"
-    assert rows["demoapp-test"]["result_count"] == 1
-    assert rows["demoapp-test"]["node_hours"] == 0.5
-    assert rows["demoapp-test"]["attribution_counts"] == {
-        "trigger_id_match": 0,
-        "manual_profile_match": 0,
-        "legacy_scope_fallback": 1,
-    }
-    assert rows["demoapp-test"]["latest_result"]["timestamp"] == "2026-08-09 17:00:00"
-    assert rows["demoapp-test"]["latest_result"]["attribution"]["reason"] == "legacy_scope_fallback"
+    assert rows["demoapp-test"]["result_count"] == 0
+    assert rows["demoapp-test"]["node_hours"] == 0
+    assert rows["demoapp-test"]["latest_result"] is None
+    assert rows["demoapp-test"]["candidate_count"] == 1
+    assert rows["demoapp-demosystem"]["candidate_count"] == 1
+    assert overview['summary']['ambiguous_result_count'] == 1
+    assert overview['summary']['result_count'] == 3
+    assert overview['summary']['node_hours'] == 1.75
+    assert overview['unresolved_results'][0]['status'] == 'multiple candidates'
+    assert set(overview['unresolved_results'][0]['profile_ids']) == {'demoapp-test', 'demoapp-demosystem'}
 
 
 def test_profile_usage_overview_handles_missing_db(tmp_path):
@@ -246,6 +245,9 @@ def test_backend_attribution_keeps_legacy_kit_and_separates_park(tmp_path):
     assert rows['park']['result_count'] == 3
     assert rows['park']['attribution_counts']['manual_profile_match'] == 1
     assert overview['summary']['result_count'] == len(records)
+    assert overview['summary']['unattributed_result_count'] == 3
+    assert overview['summary']['ambiguous_result_count'] == 0
+    assert all(r['status'] == 'no matching registration' for r in overview['unresolved_results'])
 
 
 def test_malformed_profile_backend_does_not_attribute_results():
@@ -254,3 +256,26 @@ def test_malformed_profile_backend_does_not_attribute_results():
     for metadata in ['invalid', {'pipeline': {'backend': 'other'}}]:
         profile = {'id': 'kit', 'metadata_json': metadata}
         assert not _profile_attribution(result, profile, set())['matched']
+
+
+def test_unresolved_registration_template_distinguishes_candidates_and_missing_evidence():
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    env=Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'templates')),
+                    autoescape=select_autoescape())
+    overview={'available':True, 'summary':{'profile_count':0,'profile_with_results_count':0,
+        'trigger_count':0,'result_count':2,'node_hours':1,'ambiguous_result_count':1,
+        'unattributed_result_count':1}, 'rows':[], 'unresolved_results':[
+            {'filename':'a.json','timestamp':'one','status':'multiple candidates','profile_ids':['<unsafe>','second']},
+            {'filename':'b.json','timestamp':'two','status':'insufficient attribution evidence','profile_ids':[]}]}
+    html=env.get_template('_usage_report_profile_overview_section.html').render(
+        profile_usage_overview=overview,url_for=lambda *args,**kwargs:'/detail')
+    assert 'multiple candidates' in html and 'insufficient attribution evidence' in html
+    assert '&lt;unsafe&gt;' in html and '<unsafe>' not in html
+
+
+def test_missing_attribution_evidence_is_not_a_known_registration_mismatch():
+    from utils.profile_usage_overview import _unresolved_reason
+    result={'code':'demoapp','system':'DemoSystem','Exp':'CASE0'}
+    assert _unresolved_reason(result)=='insufficient attribution evidence'
+    assert _unresolved_reason(dict(result,execution_backend='benchkit'))=='no matching registration'
+    assert _unresolved_reason(dict(result,execution_trigger={'id':'unknown-profile'}))=='no matching registration'

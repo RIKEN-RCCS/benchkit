@@ -42,11 +42,25 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
     triggers_by_profile = _group_by(triggers, "profile_id")
     runs_by_trigger = _latest_runs_by_trigger(trigger_runs)
 
+    resolutions = []
+    for record in result_records:
+        candidates = []
+        for profile in profile_result.profiles:
+            ids = {trigger['id'] for trigger in triggers_by_profile.get(profile['id'], [])}
+            attribution = _profile_attribution(record['data'], profile, ids)
+            if attribution['matched']:
+                candidates.append({'profile_id': profile['id'], 'attribution': attribution})
+        resolutions.append((record, candidates))
+
     rows = []
     for profile in profile_result.profiles:
         profile_triggers = triggers_by_profile.get(profile["id"], [])
-        trigger_ids = {trigger["id"] for trigger in profile_triggers}
-        matched_results = _attributed_result_records(result_records, profile, trigger_ids)
+        matched_results = [dict(record, attribution=candidates[0]['attribution'])
+                           for record, candidates in resolutions
+                           if len(candidates) == 1 and candidates[0]['profile_id'] == profile['id']]
+        candidate_count = sum(len(candidates) > 1 and any(
+            item['profile_id'] == profile['id'] for item in candidates)
+            for _, candidates in resolutions)
         latest_result = matched_results[0] if matched_results else None
         latest_run = _latest_profile_run(profile_triggers, runs_by_trigger)
         node_hours = round(sum(record["node_hours"] for record in matched_results), 2)
@@ -63,6 +77,7 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
                 "enabled_trigger_count": sum(1 for trigger in profile_triggers if trigger.get("enabled")),
                 "trigger_labels": [_trigger_label(trigger) for trigger in profile_triggers[:3]],
                 "result_count": len(matched_results),
+                "candidate_count": candidate_count,
                 "snapshot_count": _environment_snapshot_count(matched_results),
                 "node_hours": node_hours,
                 "attribution_counts": _attribution_counts(matched_results),
@@ -75,15 +90,34 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
         "available": True,
         "path": profile_result.path,
         "rows": rows,
+        "unresolved_results": [
+            {'filename': record['filename'], 'timestamp': record['timestamp_label'],
+             'status': 'multiple candidates' if candidates else _unresolved_reason(record['data']),
+             'profile_ids': [item['profile_id'] for item in candidates]}
+            for record, candidates in resolutions if len(candidates) != 1
+        ][:100],
         "summary": {
             "profile_count": len(rows),
             "profile_with_results_count": sum(1 for row in rows if row["result_count"]),
             "trigger_count": len(triggers),
             "result_count": len(result_records),
+            "ambiguous_result_count": sum(len(c) > 1 for _, c in resolutions),
+            "unattributed_result_count": sum(not c for _, c in resolutions),
+            "insufficient_evidence_count": sum(not c and _unresolved_reason(r['data']) == 'insufficient attribution evidence'
+                                               for r, c in resolutions),
+            "no_registration_count": sum(not c and _unresolved_reason(r['data']) == 'no matching registration'
+                                         for r, c in resolutions),
             "node_hours": round(sum(record["node_hours"] for record in result_records), 2),
         },
         "errors": profile_result.errors,
     }
+
+
+def _unresolved_reason(result):
+    if (not result_pipeline_backend(result) and not extract_execution_trigger(result)['id']
+            or not all(result.get(key) for key in ('code', 'system', 'Exp'))):
+        return 'insufficient attribution evidence'
+    return 'no matching registration'
 
 
 def _empty_summary() -> dict[str, int | float]:
