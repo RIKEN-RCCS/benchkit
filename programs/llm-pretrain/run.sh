@@ -56,7 +56,7 @@ case "${system}" in
     # pytorch-fugaku's launch: pf-setup collects the compute node's Tofu libraries and the
     # process-group settings; one pf-run container per rank under Fujitsu mpiexec, collectives
     # over Fujitsu MPI (torch_fugaku's "fjmpi" backend). Rank 0 logs to train.log.
-    SIF="${BK_LLM_PRETRAIN_SIF:-/vol0200/share/ra000009/CX_input/llm-pretrain/pytorch-fugaku-4bd4b96.sif}"
+    SIF="${BK_LLM_PRETRAIN_SIF:-/vol0200/share/ra000009/CX_input/llm-pretrain/pytorch-fugaku-86dda25.sif}"
     export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF logfile DS_ACCELERATOR=cpu
     export PF_HOSTLIB="${PWD}/.pf-hostlib" PF_BIND="${PWD}:/work:rw"
     export PYTHONPATH=/work/artifacts/pydeps SINGULARITYENV_PREPEND_PATH=/work/artifacts/pydeps/bin
