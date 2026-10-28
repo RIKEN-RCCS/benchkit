@@ -325,10 +325,22 @@ artifacts for one week and unsets `RESULT_SERVER`.
 The SBD estimator accepts exactly one `results/*/davidson-plan.json` when
 `BK_SBD_DAVIDSON_PLAN` is unset; an explicit plan/directory still takes
 precedence. Missing or ambiguous bundles fail instead of choosing a sample.
-For this opt-in, the default pair is GB200 to H100, using LightGBM 1.1 at
-PerfTools commit `7f89b7ae89fae858369dd9cf51f51bf3d5eb5901`. The GPU names,
-target system and full model commit can be explicitly overridden with the
-existing estimation variables. The estimation job fetches that commit through
+Estimation conditions are independent of artifact-only delivery. Supply the
+source GPU, target GPU, target system and model commit explicitly, for example:
+
+```bash
+BK_GPU_LIGHTGBM_SOURCE_GPU=GB200
+BK_GPU_LIGHTGBM_TARGET_GPU=H100
+BK_ESTIMATION_FUTURE_SYSTEM=H100
+BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=7f89b7ae89fae858369dd9cf51f51bf3d5eb5901
+```
+
+The target may also be an existing GPU/system for later comparison with measured
+Results; `FUTURE_SYSTEM` names the prediction target, not a generation ordering.
+Artifact-only mode does not supply missing GPU conditions. Keep the source Result,
+input/execution conditions, model provenance and any GPU-specification assumptions
+when interpreting that comparison. A prediction does not establish its accuracy.
+The estimation job fetches that commit through
 the common resolver; an existing clean commit cache is reused. No model checkout
 is required in the runner image or its mounts. That runner needs Python 3.11+, sqlite3, jq and the existing LightGBM
 inference dependencies. Set `BK_ESTIMATION_PYTHON` and

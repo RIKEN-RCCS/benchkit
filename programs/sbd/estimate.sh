@@ -22,13 +22,6 @@ if [[ -z "${BK_SBD_DAVIDSON_PLAN:-}" ]]; then
   BK_SBD_DAVIDSON_PLAN="${plans[0]}"
 fi
 BK_SBD_DAVIDSON_PROFILES_DIR="${BK_SBD_DAVIDSON_PROFILES_DIR:-results}"
-if [[ "${BK_SBD_RIKYU_ARTIFACT_ONLY:-false}" = true || "${BK_SBD_RIKYU_ARTIFACT_ONLY:-}" = 1 ]]; then
-  jq -e '.system == "RIKYU" and .Exp == "H2O-1em4" and (.nthreads | tostring) == "8"' "$result_file" >/dev/null
-  export BK_GPU_LIGHTGBM_SOURCE_GPU="${BK_GPU_LIGHTGBM_SOURCE_GPU:-GB200}"
-  export BK_GPU_LIGHTGBM_TARGET_GPU="${BK_GPU_LIGHTGBM_TARGET_GPU:-H100}"
-  export BK_ESTIMATION_FUTURE_SYSTEM="${BK_ESTIMATION_FUTURE_SYSTEM:-H100}"
-  export BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT="${BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT:-7f89b7ae89fae858369dd9cf51f51bf3d5eb5901}"
-fi
 : "${BK_GPU_LIGHTGBM_SOURCE_GPU:?Set the observed source GPU}"
 : "${BK_GPU_LIGHTGBM_TARGET_GPU:?Set the model target GPU}"
 : "${BK_ESTIMATION_FUTURE_SYSTEM:?Set the target system}"

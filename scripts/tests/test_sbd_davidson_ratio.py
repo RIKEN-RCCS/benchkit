@@ -329,6 +329,31 @@ bk_section_package_transform_gpu_kernel_lightgbm_v11() {
         self.assertEqual(data['estimate_metadata']['estimation_package_version'], '1.1')
         self.assertEqual(data['estimation_timing']['recorded_by'], 'scripts/estimation/run.sh')
 
+    def test_delivery_flag_does_not_change_explicit_estimation_conditions(self):
+        work, result, env = self.estimate_fixture()
+        outputs = []
+        for flag in ('false', 'true', '1'):
+            subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result)], cwd=work,
+                env=dict(env, BK_SBD_RIKYU_ARTIFACT_ONLY=flag),
+                capture_output=True, text=True, check=True)
+            data = json.loads((work/'results/estimate_sbd_result0.json').read_text())
+            outputs.append({key: data[key] for key in
+                ('current_system', 'future_system', 'input_artifacts', 'estimate_metadata')})
+        self.assertEqual(outputs[0], outputs[1])
+        self.assertEqual(outputs[0], outputs[2])
+
+    def test_delivery_flag_does_not_supply_missing_conditions(self):
+        work, result, env = self.estimate_fixture()
+        for variable in ('BK_GPU_LIGHTGBM_SOURCE_GPU', 'BK_GPU_LIGHTGBM_TARGET_GPU',
+                         'BK_ESTIMATION_FUTURE_SYSTEM'):
+            missing = dict(env, BK_SBD_RIKYU_ARTIFACT_ONLY='true')
+            del missing[variable]
+            run = subprocess.run(['bash', 'programs/sbd/estimate.sh', str(result)],
+                cwd=work, env=missing, capture_output=True, text=True)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(variable, run.stderr)
+            self.assertFalse(list((work/'results').glob('estimate*.json')))
+
     def test_estimate_invalid_inputs_emit_no_json(self):
         work, result, env = self.estimate_fixture()
         original = result.read_bytes()
@@ -477,7 +502,9 @@ bk_section_package_transform_gpu_kernel_lightgbm_v11() {
             FOM=1, FOM_unit='s', FOM_version='davidson_internal_s',
             node_count=1, numproc_node=1, nthreads=8)))
         env = {k:v for k,v in os.environ.items() if not k.startswith(('BK_GPU_', 'BK_PERFTOOLS_', 'BK_SBD_'))}
-        env.update(BK_SBD_RIKYU_ARTIFACT_ONLY='true', BK_SBD_DAVIDSON_PLAN=str(plan),
+        env.update(BK_SBD_RIKYU_ARTIFACT_ONLY='true',
+            BK_GPU_LIGHTGBM_SOURCE_GPU='GH200', BK_GPU_LIGHTGBM_TARGET_GPU='A100',
+            BK_ESTIMATION_FUTURE_SYSTEM='A100', BK_SBD_DAVIDSON_PLAN=str(plan),
             BK_SBD_DAVIDSON_PROFILES_DIR=str(profiles), BK_GPU_LIGHTGBM_PERFTOOLS_REPO=str(model),
             BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT=commit, BK_PERFTOOLS_CACHE_DIR=str(work / 'cache'),
             BK_ESTIMATION_PYTHON=sys.executable, GIT_ALLOW_PROTOCOL='file')
