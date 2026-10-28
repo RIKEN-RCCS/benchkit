@@ -1,9 +1,10 @@
-# llm-pretrain
+# deepspeed-llm
 
-Training throughput of a large language model: a Llama-architecture decoder pretrained with
-DeepSpeed ZeRO-3, the same script on every system. It measures how fast each machine trains
-an LLM, so that machines of different generations (Fugaku, its GPU successors) compare on the
-workload that drives AI-for-science procurement.
+DeepSpeed training throughput: a Llama-architecture LLM trained with DeepSpeed ZeRO-3, the
+same script on every system. It tests how well a machine runs DeepSpeed's sharded data
+parallelism at LLM scale (its compute, its collectives and the memory per rank ZeRO-3 needs),
+so that machines of different generations (Fugaku, its GPU successors) compare on the
+software stack LLM training actually uses.
 
 ## What is measured
 
@@ -24,18 +25,18 @@ no bf16 arithmetic, and the stock PyTorch wheel's fp16 matrix multiply runs at u
 
 | system | hardware | rows | sequences per rank | tokens/s | per node |
 |---|---|---|---:|---:|---:|
-| RIKYU | B200, bf16 | 1 node (4 GPUs) | 16 | 347,000 | 347,000 |
-| RIKYU | | 2 nodes | 16 | 699,000 | 350,000 |
-| RIKYU | | 4 nodes | 16 | 1,363,000 | 341,000 |
-| RC_DGXSP | GB10 (121 GB unified), bf16 | 1 GPU | 8 | 4,552 | 4,552 |
-| RC_GENOA | EPYC 9684X (96 cores), fp32, 4 ranks x 24 threads | 1 node | 1 | 292 | 292 |
-| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 494 | 124 |
-| Fugaku | | 32 nodes | 1 | 3,667 | 115 |
-| Fugaku | A64FX, fp32, 4 ranks x 12 threads | 16 nodes | 1 | 2,218 | 139 |
+| RIKYU | B200, bf16 | 1 node (4 GPUs) | 16 | 351,900 | 351,900 |
+| RIKYU | | 2 nodes | 16 | 699,500 | 349,700 |
+| RIKYU | | 4 nodes | 16 | 1,370,800 | 342,700 |
+| RC_DGXSP | GB10 (121 GB unified), bf16 | 1 GPU | 8 | 4,563 | 4,563 |
+| RC_GENOA | EPYC 9684X (96 cores), fp32, 4 ranks x 24 threads | 1 node | 1 | 294 | 294 |
+| Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 582 | 146 |
+| Fugaku | | 32 nodes | 1 | 4,097 | 128 |
+| Fugaku | A64FX, fp32, 4 ranks x 12 threads | 16 nodes | 1 | 2,654 | 166 |
 
-RIKYU scales at 98% from 1 to 4 nodes. 16 sequences per GPU is the largest batch that fits a
-B200 (32 does not); a GB10 holds 8. On Genoa 1 rank x 96 threads gives the same rate (289).
-The Fugaku rows are untuned (below).
+Every row is this `run.sh` on 2026-10-28; RIKYU scales at 97% from 1 to 4 nodes. 16 sequences per GPU is the largest batch that fits
+a B200 (32 does not); a GB10 holds 8. On Genoa 1 rank x 96 threads gives the same rate. The
+Fugaku rows are partly tuned (below).
 
 ## How each system runs
 
@@ -60,12 +61,16 @@ share the model: the tied embedding gathered whole and its gradient, the fp32 lo
 softmax and gradient. Activation checkpointing and smaller ZeRO-3 buffers (`--low-mem`:
 1e8 live parameters, 2e7 prefetch, 5e7 reduce bucket) are on. With 2 ranks per node the
 model trains from 4 nodes and scales flat to 32 (93% from 4). With 4 ranks per node it is
-24% faster per node but fits only at 16 nodes: below that the model state does not fit, and
+14-30% faster per node (166 tokens/s against 146 at 4 nodes and 128 at 32) but fits only at
+16 nodes: below that the model state does not fit, and
 at 32 the node memory outside the processes (it grows with the rank count, likely MPI's
 per-peer resources) leaves too little for the backward pass.
 
-Not yet tuned: the step is 51-59% GEMM (about 37% of fp32 peak per CMG), 18% CPU attention
-and 12-20% ZeRO-3 communication.
+Tuning so far, all in torch_fugaku: a threaded 2-norm for gradient clipping; reduce-scatter
+as an all-to-all and a local sum (Fujitsu MPI's own ran ~10x below its all-gather); and
+`X . W^T` (`nn.Linear`'s forward, slow through NVPL's transposed-B GEMM on A64FX) through a
+transpose and the plain GEMM, 4x on Llama's `down_proj`. At 16 nodes x 4 ranks the step is
+now 47% GEMM, 20% CPU attention and 21% ZeRO-3 communication.
 
 Normal mode (`-L freq=2000,eco_state=0`) was used for the Fugaku rows. The `FJ` queue
 template has no per-app PJM options, so a site sets it for every app with
@@ -75,16 +80,16 @@ template has no per-app PJM options, so a site sets it for every app with
 
 | | |
 |---|---|
-| file | `/vol0200/share/ra000009/CX_input/llm-pretrain/pytorch-fugaku-86dda25.sif` (override with `BK_LLM_PRETRAIN_SIF`) |
-| sha256 | `68f2039fc56f5b6f5ef03aeb2f515f2f27138ee2f0fcefae7260af32d9120b80` (2,983,428,096 bytes) |
-| source | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:41ea3d8fff24514432b5717e7df1782865ce1fb26cb11b531b6e684b6adfd330` (commit `86dda25`, built by that repo's CI) |
+| file | `/vol0200/share/ra000009/CX_input/deepspeed-llm/pytorch-fugaku-08033f4.sif` (override with `BK_DEEPSPEED_LLM_SIF`) |
+| sha256 | `2602e9c06cf8e6359e3e7dc7cac0062f3b2328f29749870a47b84126189c4d7a` (2,983,464,960 bytes) |
+| source | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:ef4b2db729bca57edb47a5279c3c3de4fb0cda25f7dce6fe541800e44faa9995` (commit `08033f4`, built by that repo's CI) |
 
 To restage on a Fugaku login node (keep Singularity's cache off `$HOME`):
 
 ```bash
 export SINGULARITY_CACHEDIR=/vol0200/data/ra000009/.singularity
-singularity pull --arch arm64 pytorch-fugaku-86dda25.sif \
-  docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:41ea3d8fff24514432b5717e7df1782865ce1fb26cb11b531b6e684b6adfd330
+singularity pull --arch arm64 pytorch-fugaku-08033f4.sif \
+  docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:ef4b2db729bca57edb47a5279c3c3de4fb0cda25f7dce6fe541800e44faa9995
 ```
 
 ## Reference
