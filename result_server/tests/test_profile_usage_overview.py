@@ -214,3 +214,43 @@ def test_profile_usage_overview_handles_missing_db(tmp_path):
 
     assert overview["available"] is False
     assert overview["rows"] == []
+
+
+def test_backend_attribution_keeps_legacy_kit_and_separates_park(tmp_path):
+    db = tmp_path / 'portal.sqlite'
+    received = tmp_path / 'received'
+    received.mkdir()
+    store = ExecutionProfileStore(str(db))
+    store.upsert_profile(_profile(id='kit', exp=['CASE0']), actor='admin@test.com')
+    store.upsert_profile(_profile(id='park', exp=['CASE0'], allocation_project_id='',
+        metadata_json={'pipeline': {'backend': 'benchpark', 'site': 'example-site',
+            'experiment_config': 'config/experiments/qws.yaml', 'gitlab_target': 'park'}}), actor='admin@test.com')
+    records = [
+        {},  # Existing results without producer metadata retain Benchkit fallback.
+        {'execution_backend': 'benchkit'},
+        {'execution_backend': 'benchpark'},
+        {'build': {'harness': {'name': 'benchpark'}}},
+        {'execution_backend': 'other'},
+        # Even an explicit profile id must not override a conflicting backend.
+        {'execution_backend': 'benchpark', 'execution_trigger': {'id': 'kit'}},
+        {'execution_backend': 'benchkit', 'execution_trigger': {'id': 'park'}},
+        {'execution_backend': 'benchpark', 'execution_trigger': {'id': 'park'}},
+    ]
+    for index, record in enumerate(records):
+        (received / f'result_20260810_140{index}00_case.json').write_text(json.dumps({
+            'code': 'demoapp', 'system': 'DemoSystem', 'Exp': 'CASE0',
+            'node_count': 1, 'pipeline_timing': {'run_time': 3600}, **record}))
+    overview = build_profile_usage_overview(str(received), str(db))
+    rows = {r['profile_id']: r for r in overview['rows']}
+    assert rows['kit']['result_count'] == 2
+    assert rows['park']['result_count'] == 3
+    assert rows['park']['attribution_counts']['manual_profile_match'] == 1
+    assert overview['summary']['result_count'] == len(records)
+
+
+def test_malformed_profile_backend_does_not_attribute_results():
+    from utils.profile_usage_overview import _profile_attribution
+    result = {'code': 'demoapp', 'system': 'DemoSystem', 'Exp': 'CASE0'}
+    for metadata in ['invalid', {'pipeline': {'backend': 'other'}}]:
+        profile = {'id': 'kit', 'metadata_json': metadata}
+        assert not _profile_attribution(result, profile, set())['matched']

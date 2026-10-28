@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from typing import Any
 
+from utils.benchpark import profile_pipeline_config, result_pipeline_backend
 from utils.execution_profiles import ExecutionProfileStore, load_execution_profiles
 from utils.node_hours import compute_node_hours, extract_timestamp_from_filename
 from utils.result_records import format_result_timestamp, load_result_json
@@ -174,6 +175,18 @@ def _profile_attribution(
     profile: dict[str, Any],
     trigger_ids: set[str],
 ) -> dict[str, Any]:
+    pipeline, errors = profile_pipeline_config(profile)
+    expected_backend = pipeline.get("backend", "benchkit")
+    recorded_backend = result_pipeline_backend(result)
+    # Preserve the historical Benchkit scope fallback for records predating
+    # producer metadata. Benchpark profiles require recorded Benchpark provenance.
+    if errors or (recorded_backend or "benchkit") != expected_backend:
+        return {
+            "matched": False,
+            "reason": "unmatched_backend",
+            "label": "unmatched backend",
+            "trigger_id": extract_execution_trigger(result)["id"],
+        }
     trigger_id = extract_execution_trigger(result)["id"]
     if trigger_id:
         if trigger_id in trigger_ids:
