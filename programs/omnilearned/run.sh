@@ -17,9 +17,10 @@ mkdir -p "${RESULTS_DIR}"
 
 # The `top` dataset is pre-staged per system (data/README.md); nothing is
 # downloaded at benchmark time. The dataloader appends <dataset>/<split> to
-# the configured path.
+# the configured path, so DATA must be that path's parent, not
+# <dataset>/<split> itself.
 case "${system}" in
-  RIKYU) DATA="${BK_OMNILEARNED_DATA:-/data1/rkp00015/CX_input/omnilearned/top}" ;;
+  RIKYU) DATA="${BK_OMNILEARNED_DATA:-/data1/rkp00015/CX_input/omnilearned}" ;;
   RC_GH200|RC_DGXSP|RC_GENOA) DATA="${BK_OMNILEARNED_DATA:-/lvs0/dne1/rccs-nghpcadu/CX_input/omnilearned/top}" ;;
   Fugaku) DATA="${BK_OMNILEARNED_DATA:-/vol0200/share/ra000009/CX_input/omnilearned}" ;;
   *) echo "Unknown system: ${system}" >&2; exit 1 ;;
@@ -46,12 +47,13 @@ export OMP_NUM_THREADS="${nthreads}" HDF5_USE_FILE_LOCKING=FALSE TOKENIZERS_PARA
 # competes with the GPU for unified memory); on Fugaku each node's first
 # rank does it (below).
 if [[ "${system}" != "RC_DGXSP" && "${system}" != "Fugaku" ]]; then
-  for f in "${DATA}"/*/*.h5; do cat "$f" > /dev/null; done
+  for f in "${DATA}"/top/*/*.h5; do cat "$f" > /dev/null; done
 fi
 
 logfile="train.log"
 touch .run_marker
 
+status=0
 case "${system}" in
   RIKYU|RC_GH200|RC_DGXSP|RC_GENOA)
     # torchrun replaces the repo's srun-based shell/run.sh: ddp_setup() reads
@@ -60,13 +62,13 @@ case "${system}" in
     # allocation launches an agent per task and the rendezvous collapses.
     if [[ "${nodes}" -eq 1 ]]; then
       "${VENV}/bin/torchrun" --standalone --nproc_per_node="${n_ranks}" \
-        -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || true
+        -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || status=$?
     else
       MASTER_ADDR=$(scontrol show hostnames "${SLURM_JOB_NODELIST}" | head -n 1)
       srun --ntasks="${nodes}" --ntasks-per-node=1 \
         "${VENV}/bin/torchrun" --nnodes="${nodes}" --nproc_per_node="${numproc_node}" \
         --node_rank="${SLURM_NODEID}" --rdzv_backend=c10d --rdzv_endpoint="${MASTER_ADDR}:29500" \
-        -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || true
+        -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || status=$?
     fi
     ;;
   Fugaku)
@@ -86,14 +88,16 @@ case "${system}" in
         for f in "${DATA}"/top/*/*.h5; do cat "$f" > /dev/null; done
       fi
       exec "${PF_DIR}/pf-run" "${SIF}" \
-        python -m omnilearned.cli train --config /work/omnilearned_bench.yaml > "${log}" 2>&1' || true
+        python -m omnilearned.cli train --config /work/omnilearned_bench.yaml > "${log}" 2>&1' || status=$?
     ;;
 esac
 
-# Success marker is the app's own completion line, not the launcher's exit
-# code: a crashed rank can still exit cleanly through the launcher.
-if ! grep -q "Training Complete" "${logfile}"; then
-  echo "omnilearned success marker not found" >&2
+# Require both a clean launcher exit and the app's own completion line: a
+# crashed rank can still let the launcher exit 0, and upstream keeps writing
+# to the log (dataset close, process-group teardown) after printing the
+# completion marker, so either check alone can pass on a run that failed.
+if [[ "${status}" -ne 0 ]] || ! grep -q "Training Complete" "${logfile}"; then
+  echo "omnilearned launcher exited ${status} or success marker not found" >&2
   tail -n 80 "${logfile}" >&2 || true
   exit 1
 fi
