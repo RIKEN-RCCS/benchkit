@@ -29,13 +29,12 @@ no bf16 arithmetic, and the stock PyTorch wheel's fp16 matrix multiply runs at u
 | RIKYU | | 2 nodes | 16 | 699,500 | 349,700 |
 | RIKYU | | 4 nodes | 16 | 1,370,800 | 342,700 |
 | RC_DGXSP | GB10 (121 GB unified), bf16 | 1 GPU | 8 | 4,563 | 4,563 |
-| RC_GENOA | EPYC 9684X (96 cores), fp32, 16 ranks x 6 threads | 1 node | 1 | 458\* | 458\* |
+| RC_GENOA | EPYC 9684X (96 cores), fp32, 16 ranks x 6 threads | 1 node | 1 | 455 | 455 |
 | Fugaku | A64FX, fp32, 2 ranks x 24 threads | 4 nodes | 1 | 609 | 152 |
 | Fugaku | | 32 nodes | 1 | 4,474 | 140 |
 | Fugaku | A64FX, fp32, 4 ranks x 12 threads, Fujitsu BLAS | 16 nodes | 1 | 3,112 | 195 |
 
-Every row is this `run.sh` on 2026-10-28 (\*Genoa's 16 x 6: this script launched directly, its
-`run.sh` run pending); RIKYU scales at 97% from 1 to 4 nodes. Genoa runs best with many small
+Every row is this `run.sh` on 2026-10-28; RIKYU scales at 97% from 1 to 4 nodes. Genoa runs best with many small
 ranks: 290 tokens/s at 4 x 24, 376 at 8 x 12, 438 at 12 x 8, 458 at 16 x 6, 453 at 24 x 4; SMT
 adds nothing. 16 sequences per GPU is the largest batch that fits
 a B200 (32 does not); a GB10 holds 8. The
