@@ -106,6 +106,42 @@ singularity pull --arch arm64 pytorch-fugaku-ed93ef4.sif \
 
 ## Dataset
 
+### Runtime provenance
+
+Before training, the launch-side process records the selected SIF's SHA-256
+in the existing run environment snapshot, including `BK_OMNILEARNED_SIF`
+overrides. This identifies the observed file, not publisher verification or
+the complete host environment. Missing, unreadable or changing images are
+not reported as successfully observed. The build/source snapshot remains
+separate; the SIF may differ between build and run. Replacement after the
+observation is not prevented by this record.
+
+The selected `BK_OMNILEARNED_DATA` root's `top/` tree is recorded once through
+`bk_record_input`, before MPI launch and outside the training timer. This
+describes staged inputs (including available index/manifest files), not a
+claim that every split/file was consumed. Newly generated files and later
+changes are not covered by that pre-launch observation. Hashing the staged
+tree adds launch-side I/O; it is not repeated for every rank. Observation
+is skipped on DGX Spark to preserve its deliberate no-warmup policy for
+unified memory; the Result records unavailable content evidence and the
+reason instead of reading the dataset. Each SIF/dataset collection is
+limited to 30 seconds (optional `BK_OMNILEARNED_OBSERVATION_SECONDS`, integer
+1--300), followed by up to two seconds of termination grace. Timed-out or
+interrupted dataset captures are discarded rather than published partially.
+Only complete staged records or explicit unavailable records are merged;
+existing input entries are retained. Metadata publication is separately bounded.
+Cleanup is also limited to two seconds plus two seconds of termination grace.
+Cleanup failure or timeout warns and retains any remaining temporary files;
+it does not turn observation housekeeping into a training failure.
+Observation
+failures do not change scientific acceptance or silently become verified
+inputs. Dataset and host/MPI evidence are separate from the SIF hash.
+
+SIFs are supported runtime artifacts. Recording their actual hashes is
+distinct from checking downloaded artifacts against a trusted publisher
+digest. The existing documented OCI digest and SIF hash are different
+identifiers; this observation does not add acquisition verification.
+
 The `top` dataset (Top Tagging Community benchmark; 1,211,000 train /
 403,000 val / 403,000 test events, ~9.7 GB of HDF5), staged per site; paths
 and checksums in `data/README.md`. Override with `BK_OMNILEARNED_DATA`.

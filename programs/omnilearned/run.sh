@@ -8,6 +8,8 @@ nthreads="$4"
 n_ranks=$((nodes * numproc_node))
 
 source scripts/bk_functions.sh
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${APP_DIR}/record_runtime.sh"
 
 ARTIFACT_DIR="${PWD}/artifacts"
 VENV="${ARTIFACT_DIR}/venv"
@@ -36,6 +38,11 @@ case "${system}" in
   Fugaku) CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain_fugaku.yaml" ;;
 esac
 CONFIG="${PWD}/omnilearned_bench.yaml"
+runtime_sif=""
+if [[ "${system}" == "Fugaku" ]]; then
+  runtime_sif="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
+fi
+record_omnilearned_runtime "${DATA}" "$runtime_sif"
 # Fugaku runs in a container where the dataset is bind-mounted at /cx_input.
 datapath="${DATA}"; [[ "${system}" == "Fugaku" ]] && datapath=/cx_input
 sed "s|__OMNILEARNED_DATA__|${datapath}|" "${CONFIG_TEMPLATE}" > "${CONFIG}"
@@ -76,7 +83,7 @@ case "${system}" in
     # libraries and the process-group settings, then one pf-run container per
     # rank under Fujitsu mpiexec. Rank 0 logs to train.log; each node's first
     # rank reads the dataset into that node's page cache.
-    SIF="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
+    SIF="${runtime_sif}"
     export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF DATA numproc_node
     export PF_HOSTLIB="${PWD}/.pf-hostlib"
     export PF_BIND="${PWD}:/work:rw,${DATA}:/cx_input:rw"
