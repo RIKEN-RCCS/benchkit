@@ -110,7 +110,12 @@ singularity pull --arch arm64 pytorch-fugaku-ed93ef4.sif \
 
 Before training, the launch-side process records the selected SIF's SHA-256
 in the existing run environment snapshot, including `BK_OMNILEARNED_SIF`
-overrides. This identifies the observed file, not publisher verification or
+overrides. Image observation and snapshot publication use the shared
+`scripts/record_runtime_image.py IMAGE SNAPSHOT [UNAVAILABLE_REASON]` helper.
+Other applications can call it with their selected image and run snapshot;
+path selection, collection timing and time limits remain the caller's policy.
+OmniLearned's dataset and DGX policies remain application-specific.
+This identifies the observed file, not publisher verification or
 the complete host environment. Missing, unreadable or changing images are
 not reported as successfully observed. The build/source snapshot remains
 separate; the SIF may differ between build and run. Replacement after the
