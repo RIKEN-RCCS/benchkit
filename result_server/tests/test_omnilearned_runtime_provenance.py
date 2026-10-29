@@ -15,7 +15,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "programs/omnilearned"
-spec = importlib.util.spec_from_file_location("omni_sif", APP / "record_sif.py")
+spec = importlib.util.spec_from_file_location("runtime_image", ROOT / "scripts/record_runtime_image.py")
 sif = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sif)
 
@@ -216,7 +216,8 @@ def test_run_uses_observed_image_and_preserves_exit(tmp_path, exit_code, marker,
 
 
 def test_recording_failure_does_not_block_launcher(tmp_path):
-    env = {"PATH": os.environ["PATH"], "APP_DIR": str(APP), "RESULTS_DIR": str(tmp_path / "absent")}
+    env = {"PATH": os.environ["PATH"], "APP_DIR": str(APP), "RESULTS_DIR": str(tmp_path / "absent"),
+           "BK_BENCHKIT_ROOT": str(ROOT)}
     cmd = 'source "$APP_DIR/record_runtime.sh"; bk_record_input() { return 1; }; record_omnilearned_runtime /not-real /not-real; echo FAKE_LAUNCHER'
     run = subprocess.run(["bash", "-c", cmd], env=env, capture_output=True, text=True, timeout=10)
     assert run.returncode == 0
@@ -238,7 +239,7 @@ def test_observation_timeout_or_interrupt_continues_without_partial_hash(tmp_pat
     snapshot.write_text('{"schema_version":1,"ci":{"job_id":"keep"}}')
     # Only the observation worker is delayed; fallback publication remains real.
     python = tools / "python3"
-    python.write_text('#!/bin/bash\nif [[ "$1" == */record_sif.py && "$#" == 3 && "$MODE" == sif_delay ]]; then sleep 10; fi\nexec "$REAL_PYTHON" "$@"\n')
+    python.write_text('#!/bin/bash\nif [[ "$1" == */record_runtime_image.py && "$#" == 3 && "$MODE" == sif_delay ]]; then sleep 10; fi\nexec "$REAL_PYTHON" "$@"\n')
     python.chmod(0o700)
     sha = tools / "sha256sum"
     sha.write_text('#!/bin/bash\nif [[ "$MODE" == dataset_delay ]]; then sleep 10; fi\nif [[ "$MODE" == dataset_interrupt ]]; then kill -TERM "$PPID"; exit 143; fi\nexec /usr/bin/sha256sum "$@"\n')

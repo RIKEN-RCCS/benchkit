@@ -9,11 +9,11 @@ record_omnilearned_runtime() {
     limit=30
   fi
   if [[ -n "$image" ]]; then
-    timeout --kill-after=2 "$limit" python3 "${APP_DIR}/record_sif.py" "$image" "$snapshot" || status=$?
+    timeout --kill-after=2 "$limit" python3 "${BK_BENCHKIT_ROOT}/scripts/record_runtime_image.py" "$image" "$snapshot" || status=$?
     if (( status != 0 )); then
       reason=unavailable
       [[ "$status" != 124 && "$status" != 137 ]] || reason=timeout
-      timeout --kill-after=2 2 python3 "${APP_DIR}/record_sif.py" "$image" "$snapshot" "$reason" \
+      timeout --kill-after=2 2 python3 "${BK_BENCHKIT_ROOT}/scripts/record_runtime_image.py" "$image" "$snapshot" "$reason" \
         || echo 'OmniLearned: SIF observation unavailable; preserving execution' >&2
     fi
   fi

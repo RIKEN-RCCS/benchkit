@@ -1,4 +1,11 @@
-"""Observe the selected runtime image without asserting publisher verification."""
+"""Observe an image and atomically supplement an existing run snapshot.
+
+Usage: python3 scripts/record_runtime_image.py IMAGE SNAPSHOT [UNAVAILABLE_REASON]
+The caller selects the image, snapshot, timing, and process time limit. An
+explicit unavailable reason skips image reads and clears any previous digest.
+Only toolchain.container is replaced; other snapshot evidence is preserved.
+This records file identity, not publisher verification or container execution.
+"""
 
 import hashlib
 import json
@@ -60,5 +67,5 @@ if __name__ == "__main__":
     try:
         record_image(sys.argv[1], Path(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None)
     except (OSError, ValueError, IndexError):
-        print("OmniLearned: runtime SIF observation could not be stored", file=sys.stderr)
+        print("Benchkit: runtime image observation could not be stored", file=sys.stderr)
         sys.exit(1)
