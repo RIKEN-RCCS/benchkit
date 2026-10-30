@@ -1,0 +1,53 @@
+<section class="page-card">
+    <h2 class="section-title">Registry</h2>
+    <p><strong>Registry database:</strong> <span class="profile-mono">{{ profile_result.path or 'not configured' }}</span></p>
+
+    {% if not profile_result.exists %}
+    <div class="inline-notice">
+        No execution profiles are registered yet. The SQLite registry is created
+        automatically at RESULT_SERVER_DB_PATH, or at cx_portal.sqlite3 under
+        the portal data directory when RESULT_SERVER_DB_PATH is unset.
+    </div>
+    {% endif %}
+
+    {% if profile_result.errors %}
+    <div class="inline-notice">
+        <strong>Profile configuration issues:</strong>
+        <ul>
+            {% for error in profile_result.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+<section class="page-card table-card">
+    <h2 class="section-title">Trigger Observations</h2>
+    <p class="help-text">Latest repo/ref fingerprints recorded by watch-event triggers.</p>
+    <div class="table-wrap">
+        <table class="trigger-observation-table">
+            <thead>
+                <tr>
+                    <th>Trigger</th>
+                    <th>Target</th>
+                    <th>Fingerprint</th>
+                    <th>Observed At</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for observation in trigger_observations %}
+                <tr>
+                    <td><span class="profile-mono">{{ observation.trigger_id }}</span></td>
+                    <td title="{{ observation.target }}">{{ observation.target }}</td>
+                    <td><span class="profile-mono">{{ observation.fingerprint[:12] }}{% if observation.fingerprint|length > 12 %}...{% endif %}</span></td>
+                    <td><span class="profile-mono">{{ observation.observed_at }}</span></td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">No repo/ref observations have been recorded.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

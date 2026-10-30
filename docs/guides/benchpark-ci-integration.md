@@ -59,6 +59,12 @@ The submission status records the Portal request; the pipeline link shows CI job
 progress. Preview requests are excluded, and result links require the recorded
 pipeline identity rather than a reusable manual profile ID.
 
+Under **Execution Profiles**, the **Runs** view opens by default. **Profiles**
+and **Triggers** show their lists before the collapsible creation forms; existing
+edit links open the corresponding form. **Diagnostics** contains registry and
+watch observations. View links preserve history filters and paging. These views
+do not change permissions, submit work on navigation, or monitor CI status.
+
 The administrator's **Trigger Run History** separates the Portal submission or
 decision from matching stored Results. A submitted request is not a completed
 benchmark: CI status is shown as not checked, and no matching Result does not

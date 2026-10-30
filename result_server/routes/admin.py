@@ -1462,7 +1462,7 @@ def upsert_execution_profile_trigger():
             details={"errors": errors},
         )
         flash("Trigger definition was not saved: " + "; ".join(errors))
-        return redirect(url_for("admin.execution_profiles"))
+        return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
     try:
         store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
@@ -1477,7 +1477,7 @@ def upsert_execution_profile_trigger():
             details={"error": str(exc)},
         )
         flash(f"Trigger definition was not saved: {exc}")
-        return redirect(url_for("admin.execution_profiles"))
+        return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
     audit_event(
         "admin_execution_profile_trigger_saved",
@@ -1491,7 +1491,7 @@ def upsert_execution_profile_trigger():
         },
     )
     flash(f"Trigger definition {trigger['id']} saved.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
 
 @admin_bp.route("/execution-profiles/triggers/<trigger_id>/pause", methods=["POST"])
@@ -1514,7 +1514,7 @@ def pause_execution_profile_trigger(trigger_id):
             result="success",
         )
         flash(f"Trigger definition {trigger_id} paused.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
 
 @admin_bp.route("/execution-profiles/triggers/<trigger_id>/resume", methods=["POST"])
@@ -1537,7 +1537,7 @@ def resume_execution_profile_trigger(trigger_id):
             result="success",
         )
         flash(f"Trigger definition {trigger_id} resumed.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
 
 @admin_bp.route("/execution-profiles/triggers/<trigger_id>/delete", methods=["POST"])
@@ -1556,7 +1556,7 @@ def delete_execution_profile_trigger(trigger_id):
             result="success",
         )
         flash(f"Trigger definition {trigger_id} deleted.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="triggers"))
 
 
 @admin_bp.route("/execution-profiles/upsert", methods=["POST"])
@@ -1582,7 +1582,7 @@ def upsert_execution_profile():
         edit_profile_id = raw_profile.get("id", "").strip()
         if edit_profile_id:
             return redirect(url_for("admin.execution_profiles", edit=edit_profile_id))
-        return redirect(url_for("admin.execution_profiles"))
+        return redirect(url_for("admin.execution_profiles", tab="profiles"))
 
     try:
         store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
@@ -1597,7 +1597,7 @@ def upsert_execution_profile():
             details={"error": str(exc)},
         )
         flash(f"Execution profile was not saved: {exc}")
-        return redirect(url_for("admin.execution_profiles"))
+        return redirect(url_for("admin.execution_profiles", tab="profiles"))
 
     audit_event(
         "admin_execution_profile_saved",
@@ -1613,7 +1613,7 @@ def upsert_execution_profile():
         },
     )
     flash(f"Execution profile {profile['id']} saved.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="profiles"))
 
 
 @admin_bp.route("/execution-profiles/<profile_id>/delete", methods=["POST"])
@@ -1632,7 +1632,7 @@ def delete_execution_profile(profile_id):
             result="success",
         )
         flash(f"Execution profile {profile_id} deleted.")
-    return redirect(url_for("admin.execution_profiles"))
+    return redirect(url_for("admin.execution_profiles", tab="profiles"))
 
 
 @admin_bp.route("/execution-profiles/dry-run-submit", methods=["POST"])

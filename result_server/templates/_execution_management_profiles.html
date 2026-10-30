@@ -1,0 +1,204 @@
+    <div class="profile-summary-grid">
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.profiles | length }}</strong>
+            <span>Total profiles</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.approved_count }}</strong>
+            <span>Approved</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.inactive_count }}</strong>
+            <span>Inactive</span>
+        </div>
+        <div class="profile-summary-card">
+            <strong>{{ profile_result.expired_count }}</strong>
+            <span>Expired</span>
+        </div>
+    </div>
+
+<section class="page-card table-card">
+    <h2 class="section-title">Registered Profiles</h2>
+    <div class="profile-filter-row">
+        {% for value, label in profile_filter_options %}
+        <button type="button" class="profile-filter-button{% if profile_filter == value %} profile-filter-active{% endif %}" data-profile-filter="{{ value }}">{{ label }}</button>
+        {% endfor %}
+    </div>
+    <div class="table-wrap">
+        <table class="profile-table">
+            <thead>
+                <tr>
+                    <th class="profile-col-trigger">Trigger</th>
+                    <th class="profile-col-id">ID</th>
+                    <th class="profile-col-scope">Scope / Allocation</th>
+                    <th class="profile-col-governance">Governance</th>
+                    <th>Manage</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for profile in registered_profiles %}
+                <tr data-profile-row
+                    data-status="{{ profile.status or 'draft' }}"
+                    data-inactive="{% if (not profile.enabled) or profile.status in ['paused', 'retired'] %}1{% else %}0{% endif %}"
+                    data-expired="{% if profile.valid_until and profile.valid_until < today %}1{% else %}0{% endif %}">
+                    <td class="profile-col-trigger">
+                        <div class="profile-row-actions">
+                            <form method="POST" action="{{ url_for('admin.submit_execution_profile_pipeline') }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                                {% set row_metadata = profile.metadata_json if profile.metadata_json is mapping else {} %}
+                                {% set row_pipeline = row_metadata.get('pipeline') if row_metadata.get('pipeline') is mapping else {} %}
+                                {% if row_pipeline.get('backend') == 'benchpark' %}
+                                <input class="profile-benchpark-ref" type="text" name="target_ref" required placeholder="CI ref" aria-label="Benchpark CI ref">
+                                {% else %}
+                                <input type="hidden" name="target_ref" value="{{ default_target_ref }}">
+                                {% endif %}
+                                <input type="hidden" name="confirm_submit" value="on">
+                                {% if 'budget_binding' in (profile.metadata_json or {}) %}
+                                <span>Budget</span>
+                                {% elif gitlab_targets %}
+                                {% if gitlab_targets | length > 1 %}
+                                <select name="gitlab_target" aria-label="GitLab target">
+                                    {% for target in gitlab_targets %}
+                                    <option value="{{ target.id }}" {% if row_pipeline.get('backend') == 'benchpark' and row_pipeline.get('gitlab_target') == target.id %}selected{% endif %}>{{ target.id }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% else %}
+                                <input type="hidden" name="gitlab_target" value="{{ gitlab_targets[0].id }}">
+                                {% endif %}
+                                {% else %}
+                                <input type="hidden" name="gitlab_target" value="">
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary profile-icon-button" title="Trigger pipeline on {{ default_target_ref }}" aria-label="Trigger pipeline on {{ default_target_ref }}"><span class="profile-play-icon" aria-hidden="true"></span></button>
+                            </form>
+                        </div>
+                    </td>
+                    <td class="profile-col-id">
+                        <a class="profile-mono profile-id-link" href="{{ url_for('admin.execution_profiles', edit=profile.id) }}" title="{{ profile.id }}">{{ profile.id }}</a>
+                    </td>
+                    <td class="profile-col-scope">
+                        <span class="profile-scope-line">
+                            <span class="profile-mono">{{ profile.code | join(', ') or '*' }}{% if profile.metadata_json is mapping and profile.metadata_json.get('pipeline') is mapping and profile.metadata_json.pipeline.get('backend') == 'benchpark' %}<br>Benchpark: {{ profile.metadata_json.pipeline.site }} / {{ profile.metadata_json.pipeline.experiment_config }}{% endif %}</span>
+                            on
+                            <span class="profile-mono">{{ profile.system | join(', ') or '*' }}</span>
+                            {% if profile.exp %}
+                            / <span class="profile-mono">{{ profile.exp | join(', ') }}</span>
+                            {% endif %}
+                        </span>
+                        / <span class="profile-mono">{{ profile.allocation_project_id or '-' }}</span>
+                    </td>
+                    <td class="profile-col-governance">
+                        {{ profile.activity or '-' }} / {{ profile.approved_by or '-' }} /
+                        {% if profile.valid_from or profile.valid_until %}
+                        {{ profile.valid_from or 'open' }} to {{ profile.valid_until or 'open' }}
+                        {% else %}
+                        open-ended
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="profile-mini-actions">
+                            <form method="POST" action="{{ url_for('admin.delete_execution_profile', profile_id=profile.id) }}" onsubmit="return confirm('Delete profile {{ profile.id }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-danger btn-mini" title="Delete profile">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">No execution profiles are registered.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<details class="execution-editor" id="profile-editor"{% if edit_profile %} open{% endif %}>
+<summary>{% if edit_profile %}Edit Profile{% else %}Create Profile{% endif %}</summary>
+<section class="page-card">
+    <p class="section-intro">
+        Enter the same profile ID to update an existing record. A profile
+        approves code scopes for one system and one allocation project ID.
+    </p>
+    <form method="POST" action="{{ url_for('admin.upsert_execution_profile') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <label>
+            Profile ID
+            <input type="text" name="id" required placeholder="demoapp-demosystem-project00010" value="{{ edit_profile.id if edit_profile else '' }}">
+        </label>
+        <label>
+            Status
+            <select name="status">
+                {% set selected_status = edit_profile.status if edit_profile else 'draft' %}
+                <option value="draft" {% if selected_status == 'draft' %}selected{% endif %}>draft</option>
+                <option value="approved" {% if selected_status == 'approved' %}selected{% endif %}>approved</option>
+                <option value="paused" {% if selected_status == 'paused' %}selected{% endif %}>paused</option>
+                <option value="retired" {% if selected_status == 'retired' %}selected{% endif %}>retired</option>
+            </select>
+        </label>
+        {% include "_benchpark_profile_fields.html" %}
+        <label>
+            Activity
+            <input type="text" name="activity" placeholder="FutureSystem" value="{{ edit_profile.activity if edit_profile else '' }}">
+        </label>
+        <label>
+            Allocation Project ID
+            <input type="text" name="allocation_project_id" placeholder="project00010" value="{{ edit_profile.allocation_project_id if edit_profile else '' }}">
+            <span class="field-help">Optional. When set, this ID belongs to one system. Benchkit enables scheduler-specific account options only where supported.</span>
+        </label>
+        <label>
+            Valid From
+            <input type="date" name="valid_from" value="{{ edit_profile.valid_from if edit_profile else '' }}">
+        </label>
+        <label>
+            Valid Until
+            <input type="date" name="valid_until" value="{{ edit_profile.valid_until if edit_profile else '' }}">
+        </label>
+        <label class="profile-form-wide">
+            Code Scope
+            <textarea name="code" rows="2" placeholder="demoapp, auxapp">{{ edit_profile.code | join(', ') if edit_profile else '' }}</textarea>
+        </label>
+        <label class="profile-form-wide">
+            System
+            <input type="text" name="system" placeholder="DemoSystem" value="{{ edit_profile.system | join(', ') if edit_profile else '' }}">
+            <span class="field-help">Use a single system when Allocation Project ID is set.</span>
+        </label>
+        <label class="profile-form-wide">
+            Exp Scope
+            <textarea name="exp" rows="2" placeholder="case0">{{ edit_profile.exp | join(', ') if edit_profile else '' }}</textarea>
+        </label>
+        <div class="profile-form-actions">
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+            {% if edit_profile %}
+            <a class="btn btn-secondary" href="{{ url_for('admin.execution_profiles', tab='profiles') }}">Cancel Edit</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+
+{% if budget_editor and edit_profile %}
+<section class="section-block" id="profile-budget">
+    <h2 class="section-title">Budget</h2>
+    {% if budget_editor.error %}<p role="status">{{ budget_editor.error }}</p>{% endif %}
+    {% if budget_editor.choices %}
+    <form method="POST" action="{{ url_for('admin.save_execution_profile_budget', profile_id=edit_profile.id) }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <input type="hidden" name="registry_revision" value="{{ budget_editor.revision }}">
+        <input type="hidden" name="profile_fingerprint" value="{{ budget_editor.fingerprint }}">
+        <label class="profile-form-wide">Budget @ Managed system
+            <select name="destination_id" required>
+                <option value="">Select Budget</option>
+                {% for choice in budget_editor.choices %}
+                <option value="{{ choice.id }}" {% if choice.id == budget_editor.selected %}selected{% endif %}>{{ choice.budget_label }} @ {{ choice.managed_system }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="profile-form-actions"><button type="submit" class="btn btn-primary">Save Budget</button></div>
+    </form>
+    {% endif %}
+    {% if budget_editor.submission_paused %}<p role="status">Budget submission paused</p>{% endif %}
+</section>
+{% endif %}
+
+</details>

@@ -1,0 +1,158 @@
+<section class="page-card table-card">
+    <h2 class="section-title">Registered Triggers</h2>
+    <div class="table-wrap">
+        <table class="trigger-definition-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Profile</th>
+                    <th>Condition</th>
+                    <th>Target</th>
+                    <th>State</th>
+                    <th>Manage</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for trigger in trigger_definitions %}
+                <tr>
+                    <td><a class="profile-mono profile-id-link" href="{{ url_for('admin.execution_profiles', edit_trigger=trigger.id) }}" title="{{ trigger.id }}">{{ trigger.id }}</a></td>
+                    <td>{{ trigger.trigger_type }}</td>
+                    <td><span class="profile-mono">{{ trigger.profile_id }}</span></td>
+                    <td class="trigger-condition">
+                        {% if trigger.trigger_type == 'scheduled' %}
+                        <span class="profile-mono">{{ trigger.cron_expr }}</span> / {{ trigger.timezone }}
+                        {% elif trigger.trigger_type == 'watch_event' %}
+                        {{ trigger.watch_kind }} / {{ trigger.match_mode }} / <span class="profile-mono">{{ trigger.watch_targets | join(', ') }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="profile-mono">{{ trigger.gitlab_target or 'default' }}</span>
+                        / <span class="profile-mono">{{ trigger.target_ref or default_target_ref }}</span>
+                        {% if not trigger.target_ref %}
+                        <span class="trigger-target-warning">ref not set</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if trigger.enabled %}enabled{% else %}disabled{% endif %}</td>
+                    <td>
+                        <div class="profile-mini-actions">
+                            {% if trigger.enabled %}
+                            <form method="POST" action="{{ url_for('admin.pause_execution_profile_trigger', trigger_id=trigger.id) }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-secondary btn-mini" title="Pause trigger">Pause</button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('admin.resume_execution_profile_trigger', trigger_id=trigger.id) }}">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-primary btn-mini" title="Resume trigger">Resume</button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('admin.delete_execution_profile_trigger', trigger_id=trigger.id) }}" onsubmit="return confirm('Delete trigger {{ trigger.id }}?');">
+                                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                <button type="submit" class="btn btn-danger btn-mini" title="Delete trigger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7">No trigger definitions are registered.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+<details class="execution-editor" id="trigger-editor"{% if edit_trigger %} open{% endif %}>
+<summary>{% if edit_trigger %}Edit Trigger{% else %}Create Trigger{% endif %}</summary>
+<section class="page-card">
+    <form method="POST" action="{{ url_for('admin.upsert_execution_profile_trigger') }}" class="profile-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        {% set selected_trigger_type = edit_trigger.trigger_type if edit_trigger else 'scheduled' %}
+        {% set selected_trigger_profile = edit_trigger.profile_id if edit_trigger else '' %}
+        {% set selected_trigger_target = edit_trigger.gitlab_target if edit_trigger else '' %}
+        {% set selected_match_mode = edit_trigger.match_mode if edit_trigger else 'any' %}
+        {% set trigger_enabled = edit_trigger.enabled if edit_trigger else true %}
+        <input type="hidden" name="enabled" value="{% if trigger_enabled %}on{% endif %}">
+        <label>
+            Trigger ID
+            <input type="text" name="id" required placeholder="demoapp-demosystem-nightly" value="{{ edit_trigger.id if edit_trigger else '' }}">
+        </label>
+        <label>
+            Type
+            <select name="trigger_type" data-trigger-type-select>
+                <option value="scheduled" {% if selected_trigger_type == 'scheduled' %}selected{% endif %}>scheduled</option>
+                <option value="watch_event" {% if selected_trigger_type == 'watch_event' %}selected{% endif %}>watch_event</option>
+            </select>
+        </label>
+        <label>
+            Profile
+            <select name="profile_id" required data-trigger-profile>
+                <option value="">Select profile</option>
+                {% for profile in registered_profiles %}
+                <option value="{{ profile.id }}" data-budget="{{ 1 if 'budget_binding' in (profile.metadata_json or {}) else 0 }}" {% if selected_trigger_profile == profile.id %}selected{% endif %}>{{ profile.id }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label data-trigger-target>
+            GitLab Target
+            <select name="gitlab_target">
+                {% if gitlab_targets %}
+                {% for target in gitlab_targets %}
+                <option value="{{ target.id }}" {% if selected_trigger_target == target.id %}selected{% endif %}>{{ target.id }}</option>
+                {% endfor %}
+                {% else %}
+                <option value="">default</option>
+                {% endif %}
+            </select>
+        </label>
+        <span data-trigger-budget hidden>Budget</span>
+        <label>
+            Target Ref
+            <input type="text" name="target_ref" placeholder="{{ default_target_ref }}" value="{{ edit_trigger.target_ref if edit_trigger else default_target_ref }}">
+        </label>
+        <div class="trigger-type-fields{% if selected_trigger_type == 'scheduled' %} trigger-type-fields-active{% endif %}" data-trigger-type-fields="scheduled">
+            <label>
+                Cron
+                <input
+                    type="text"
+                    name="cron_expr"
+                    placeholder="0 2 * * *"
+                    value="{{ edit_trigger.cron_expr if edit_trigger else '' }}"
+                    title="Examples: 0 2 * * * = daily 02:00; 0 */6 * * * = every 6 hours; 30 1 * * 1 = Mondays 01:30; 0 9 1 * * = monthly on day 1 09:00; */15 * * * * = every 15 minutes"
+                >
+            </label>
+            <label>
+                Timezone
+                <input type="text" name="timezone" value="{{ edit_trigger.timezone if edit_trigger else 'Asia/Tokyo' }}">
+            </label>
+        </div>
+        <div class="trigger-type-fields{% if selected_trigger_type == 'watch_event' %} trigger-type-fields-active{% endif %}" data-trigger-type-fields="watch_event">
+            <label>
+                Watch Kind
+                <input type="text" name="watch_kind" placeholder="repo_ref" value="{{ edit_trigger.watch_kind if edit_trigger else '' }}">
+            </label>
+            <label>
+                Match Mode
+                <select name="match_mode">
+                    <option value="any" {% if selected_match_mode == 'any' %}selected{% endif %}>any</option>
+                    <option value="all" {% if selected_match_mode == 'all' %}selected{% endif %}>all</option>
+                </select>
+            </label>
+            <label class="profile-form-wide">
+                Watch Targets
+                <textarea name="watch_targets" rows="2" placeholder="https://example.test/demoapp.git@main&#10;https://example.test/demoapp.git@develop">{{ edit_trigger.watch_targets | join('\n') if edit_trigger else '' }}</textarea>
+            </label>
+        </div>
+        <div class="profile-form-actions">
+            <button type="submit" class="btn btn-primary">Save Trigger</button>
+            {% if edit_trigger %}
+            <a class="btn btn-secondary" href="{{ url_for('admin.execution_profiles', tab='triggers') }}">Cancel Edit</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+
+</details>
