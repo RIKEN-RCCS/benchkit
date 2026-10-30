@@ -60,6 +60,17 @@ Fujitsu MPI). `build.sh`, on the login node:
    versions) as aarch64 wheels into `artifacts/pydeps`, with a pinned static
    `uv` (the login node's Python is 3.6).
 
+The build uses uv 0.13.4, which removes the compromised emSign CA trust
+described in [GHSA-hq85-5cpj-mr62](https://github.com/astral-sh/uv/security/advisories/GHSA-hq85-5cpj-mr62).
+Its x86_64 musl archive is downloaded to a unique temporary file and checked
+against the SHA-256 pinned in `build.sh` before extraction or execution.
+The pin comes from the [official 0.13.4 release asset metadata](https://github.com/astral-sh/uv/releases/tag/0.13.4);
+review and update both version and digest together. Download, verification,
+or extraction failure stops the build without running uv; a failed attempt
+may retain the temporary archive for diagnosis. This does not verify the
+SIF or lock the contents of dependency wheels. uv is a build-time tool,
+not part of the training launcher.
+
 `run.sh` launches as pytorch-fugaku describes: `pf-setup` once (it copies
 the compute node's Tofu, PMIx and hwloc libraries for the containers and
 writes the process-group settings), then `mpiexec -n <ranks> pf-run <sif>

@@ -51,9 +51,15 @@ case "$system" in
     git clone -q "${PF_REPO}" "${ARTIFACT_DIR}/pytorch-fugaku"
     git -C "${ARTIFACT_DIR}/pytorch-fugaku" checkout -q "${PF_COMMIT}"
     # A static uv cross-installs the wheels; the login node's Python is 3.6.
-    UV_VERSION=0.9.5
+    UV_VERSION=0.13.4
+    # GitHub release asset digest; update together with UV_VERSION.
+    UV_SHA256=28d4385f9f9d1d1c7654d85b3855e0e2615b2f6cc13136a2edff858bbdc16ff1
+    UV_ARCHIVE=$(mktemp "${ARTIFACT_DIR}/uv-${UV_VERSION}.XXXXXX.tar.gz")
     curl -sSfL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-musl.tar.gz" \
-      | tar xz -C "${ARTIFACT_DIR}"
+      --output "${UV_ARCHIVE}"
+    bk_verify_file_sha256 "${UV_ARCHIVE}" "${UV_SHA256}" "uv ${UV_VERSION}" > /dev/null
+    tar xzf "${UV_ARCHIVE}" -C "${ARTIFACT_DIR}"
+    rm -- "${UV_ARCHIVE}"
     rm -rf "${ARTIFACT_DIR}/pydeps"
     UV_CACHE_DIR="${ARTIFACT_DIR}/uv-cache" "${ARTIFACT_DIR}/uv-x86_64-unknown-linux-musl/uv" pip install \
       --target "${ARTIFACT_DIR}/pydeps" --python-platform aarch64-manylinux_2_28 --python-version 3.10 \
