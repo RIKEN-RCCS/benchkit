@@ -206,6 +206,7 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     _configure_user_store(app)
     _configure_totp_issuer(app, prefix, instance_settings)
     _configure_result_directories(app, base_dir)
+    app.config["RESULT_CATALOG_PATH"] = os.environ.get("RESULT_SERVER_RESULT_CATALOG_PATH", "")
     _configure_upload_limits(app)
     _configure_admin_policy(app)
     _configure_api_auth(app)

@@ -109,6 +109,7 @@ def aggregate_node_hours(
     directory: str,
     fiscal_year: int,
     period_type: str,
+    *, selection=None,
 ) -> dict:
     """
     Aggregate node-hours from all Result JSON files in a directory.
@@ -117,6 +118,7 @@ def aggregate_node_hours(
     this helper, so this function intentionally aggregates every result
     present in the directory.
     """
+    from utils.report_selection import selected_data, selected_filename
     periods = _generate_period_labels(fiscal_year, period_type)
 
     apps_set: Set[str] = set()
@@ -133,6 +135,8 @@ def aggregate_node_hours(
     json_files = [filename for filename in files if filename.endswith(".json")]
 
     for json_file in json_files:
+        if not selected_filename(json_file, selection):
+            continue
         ts = extract_timestamp_from_filename(json_file)
         if ts is None:
             continue
@@ -152,6 +156,9 @@ def aggregate_node_hours(
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
+            continue
+
+        if not selected_data(data, selection):
             continue
 
         app = data.get("code", "")

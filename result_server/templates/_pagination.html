@@ -1,5 +1,6 @@
 <!-- templates/_pagination.html -->
 {% set base_params = "" %}
+{% if explicit_search %}{% set base_params = "&search=1" %}{% endif %}
 {% if current_system %}{% set base_params = base_params ~ "&system=" ~ (current_system | urlencode) %}{% endif %}
 {% if current_code %}{% set base_params = base_params ~ "&code=" ~ (current_code | urlencode) %}{% endif %}
 {% if current_exp %}{% set base_params = base_params ~ "&exp=" ~ (current_exp | urlencode) %}{% endif %}
@@ -28,6 +29,7 @@
     </span>
 
     <form method="get" class="pagination-per-page-form">
+        {% if explicit_search %}<input type="hidden" name="search" value="1">{% endif %}
         <input type="hidden" name="page" value="1">
         {% if current_system %}<input type="hidden" name="system" value="{{ current_system }}">{% endif %}
         {% if current_code %}<input type="hidden" name="code" value="{{ current_code }}">{% endif %}

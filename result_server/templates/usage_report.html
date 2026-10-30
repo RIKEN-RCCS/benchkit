@@ -214,11 +214,17 @@
     }
   </style>
 
-  {% include "_usage_report_evidence_snapshot_section.html" %}
-  {% include "_usage_report_profile_overview_section.html" %}
-  {% include "_usage_report_performance_telemetry_section.html" %}
-  {% include "_usage_report_node_hours_section.html" %}
-  {% include "_usage_report_configuration_checks.html" %}
+  {% include '_usage_query.html' %}
+  {% if report_executed %}
+    {% if report in ['evidence', 'profiles', 'performance'] %}
+    <label>Find in report <input id="usageSearchInput" class="usage-search-box" type="search" oninput="applyUsageSearch()"></label>
+    {% endif %}
+    {% if report == 'evidence' %}{% include '_usage_report_evidence_snapshot_section.html' %}
+    {% elif report == 'profiles' %}{% include '_usage_report_profile_overview_section.html' %}
+    {% elif report == 'performance' %}{% include '_usage_report_performance_telemetry_section.html' %}
+    {% elif report == 'configuration' %}{% include '_usage_report_configuration_checks.html' %}
+    {% else %}{% include '_usage_report_node_hours_section.html' %}{% endif %}
+  {% endif %}
 
   <script>
   function applyUsageSearch() {

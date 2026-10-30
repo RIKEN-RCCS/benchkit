@@ -104,7 +104,7 @@ class TestUsageRoute:
             {"code": "demoapp", "system": "DemoSystem", "Exp": "CASE0", "FOM": 1.0},
         )
         _login_session(client, "admin@example.com", ["admin"])
-        resp = client.get("/results/usage")
+        resp = client.get("/results/usage?run=1&report=evidence&fiscal_year=2026")
         assert resp.status_code == 200
         text = resp.get_data(as_text=True)
         assert "Configuration Checks" in text
@@ -138,7 +138,7 @@ class TestUsageRoute:
         )
 
         _login_session(client, "admin@example.com", ["admin"])
-        resp = client.get("/results/usage")
+        resp = client.get("/results/usage?run=1&report=evidence&fiscal_year=2026")
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
         assert "Provenance" in text
@@ -158,6 +158,7 @@ class TestUsageRoute:
             db_path=None,
             estimated_dir=None,
             benchkit_commit="",
+            *, report=None, selection=None,
         ):
             captured["directory"] = directory
             captured["args"] = args
@@ -208,7 +209,7 @@ class TestUsageRoute:
         monkeypatch.setattr(usage_routes_mod, "build_usage_report_context", fake_build_usage_report_context)
         monkeypatch.setattr(usage_routes_mod, "get_fiscal_year", lambda dt: 2025)
 
-        resp = client.get("/results/usage")
+        resp = client.get("/results/usage?run=1")
         assert resp.status_code == 200
         assert captured["directory"] == app.config["RECEIVED_DIR"]
         assert captured["db_path"] == app.config.get("EXECUTION_PROFILE_DB_PATH")
@@ -219,14 +220,13 @@ class TestUsageRoute:
 
     def test_usage_page_shows_evidence_snapshot_and_csv_link(self, client, tmp_dirs):
         _login_session(client, "admin@example.com", ["admin"])
-        resp = client.get("/results/usage")
+        resp = client.get("/results/usage?run=1&report=evidence")
         text = resp.get_data(as_text=True)
         assert resp.status_code == 200
         assert "Evidence Snapshot" in text
         assert "Maturity Gaps" in text
-        assert "Execution Timing Overview" in text
+        assert 'class="section-title">Execution Timing Overview' not in text
         assert "Evidence Snapshot:</strong> the roll-up and CSV export source" in text
-        assert "reported queue values may not include scheduler-side wait" in text
         assert "Input Status:</strong> None = no input_info" in text
         assert "Public Packet:</strong> current latest result status" in text
         assert "/results/usage/evidence-snapshot.csv" in text
@@ -287,7 +287,7 @@ class TestUsageRoute:
 
     def test_usage_page_shows_no_data_message(self, client):
         _login_session(client, "admin@example.com", ["admin"])
-        resp = client.get("/results/usage")
+        resp = client.get("/results/usage?run=1")
         assert resp.status_code == 200
         assert "No usage data is available for the selected periods." in resp.get_data(as_text=True)
 

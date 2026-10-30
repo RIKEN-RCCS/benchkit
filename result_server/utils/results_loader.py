@@ -111,7 +111,7 @@ def load_results_table(
 
         return rows, columns, pagination_info
 
-    rows = []
+    matches = []
     for filename in json_filenames:
         result_data = load_visible_result_json(
             filename,
@@ -130,17 +130,12 @@ def load_results_table(
             field_map=RESULT_FIELD_MAP,
         ):
             continue
-        rows.append(
-            build_result_table_row(
-                filename,
-                result_data,
-                padata_filenames,
-                trigger_runs_by_pipeline,
-                public_surface=public_surface,
-            )
-        )
+        matches.append((filename, result_data))
 
-    paginated_rows, pagination_info = paginate_list(rows, page, per_page)
+    paginated_records, pagination_info = paginate_list(matches, page, per_page)
+    paginated_rows = [build_result_table_row(
+        filename, data, padata_filenames, trigger_runs_by_pipeline, public_surface=public_surface,
+    ) for filename, data in paginated_records]
     return paginated_rows, columns, pagination_info
 
 

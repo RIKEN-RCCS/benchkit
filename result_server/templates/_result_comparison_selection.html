@@ -1,0 +1,23 @@
+<section id="resultComparison" class="comparison-selection"
+         data-compare-url="{{ url_for('results.result_compare') }}"
+         data-scope="{{ comparison_scope }}" aria-label="Comparison selection">
+  <div class="control-row">
+    <button id="compareBtn" class="tiny-button" type="button" disabled>Compare</button>
+    <span id="compareHint" role="status" aria-live="polite">0 selected</span>
+    <button id="clearComparison" class="tiny-button" type="button" disabled>Clear selection</button>
+  </div>
+  <details id="comparisonDetails">
+    <summary>Selected Results (<span id="comparisonCount">0</span>)</summary>
+    <ul id="comparisonFiles"></ul>
+  </details>
+  <p id="comparisonStorageStatus" role="status" hidden></p>
+</section>
+<style>
+  .comparison-selection { margin: 16px 0; }
+  .comparison-selection summary { cursor: pointer; }
+  #comparisonFiles { padding-left: 20px; }
+  #comparisonFiles li { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+  #comparisonFiles .comparison-filename { overflow-wrap: anywhere; min-width: 0; }
+  #comparisonFiles button { flex: 0 0 32px; width: 32px; height: 32px; }
+</style>
+<script src="{{ url_for('static', filename='js/result_comparison_selection.js') }}" defer></script>
