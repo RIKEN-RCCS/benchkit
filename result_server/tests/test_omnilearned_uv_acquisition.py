@@ -17,7 +17,7 @@ def executable(path, body):
     path.chmod(0o700)
 
 
-@pytest.mark.parametrize("mode", ["success", "mismatch", "hash_failure", "download_failure", "extract_failure", "uv_failure"])
+@pytest.mark.parametrize("mode", ["success", "mismatch", "hash_failure", "download_failure", "extract_failure", "uv_failure", "missing_python"])
 def test_build_checks_archive_before_extraction_and_execution(tmp_path, mode):
     scripts = tmp_path / "scripts"
     scripts.mkdir()
@@ -59,6 +59,12 @@ exit 98
     executable(new_uv, '''
 echo new_uv >> "$CALL_LOG"
 printf '%s\\n' "$@" > "$UV_ARGS"
+[[ "$UV_PYTHON_DOWNLOADS" == never ]]
+[[ "$UV_PYTHON" == "$EXPECTED_PYTHON" ]]
+if [[ "$MODE" == missing_python ]]; then
+  echo 'No suitable Python interpreter found; Python downloads are disabled' >&2
+  exit 2
+fi
 [[ "$MODE" != uv_failure ]] || exit 9
 ''')
     executable(tools / "tar", '''
@@ -81,7 +87,10 @@ chmod 700 "$4/uv-x86_64-unknown-linux-musl/uv"
            "EXPECTED_DIGEST": DIGEST, "UV_ARGS": str(args),
            "ARCHIVE_PATH": str(tmp_path / "downloaded-archive"),
            "EXPECTED_ARTIFACT_DIR": str(tmp_path / "artifacts"), "NEW_UV": str(new_uv),
-           "BK_OMNILEARNED_SIF": str(image)}
+           "BK_OMNILEARNED_SIF": str(image),
+           "UV_PYTHON_DOWNLOADS": "automatic",
+           "UV_PYTHON": str(tmp_path / "existing-python"),
+           "EXPECTED_PYTHON": str(tmp_path / "existing-python")}
     result = subprocess.run(["bash", str(BUILD), "Fugaku"], cwd=tmp_path,
                             env=env, capture_output=True, text=True, timeout=10)
     calls = log.read_text().splitlines()
@@ -100,7 +109,7 @@ chmod 700 "$4/uv-x86_64-unknown-linux-musl/uv"
         assert calls.index("curl") < calls.index("hash") < calls.index("tar") < calls.index("new_uv")
         assert uv.read_bytes() == new_uv.read_bytes()
         assert args.read_text().splitlines() == [
-            "pip", "install", "--target", str(tmp_path / "artifacts/pydeps"),
+            "pip", "install", "--no-python-downloads", "--target", str(tmp_path / "artifacts/pydeps"),
             "--python-platform", "aarch64-manylinux_2_28", "--python-version", "3.10",
             "--no-deps", "--no-build", "-r", str(BUILD.parent / "fugaku-requirements.txt"),
         ]
@@ -108,3 +117,9 @@ chmod 700 "$4/uv-x86_64-unknown-linux-musl/uv"
     assert len(archives) == (1 if mode in ("download_failure", "mismatch", "hash_failure", "extract_failure") else 0)
     if mode == "mismatch":
         assert "sha256 mismatch" in result.stderr
+    if mode in ("uv_failure", "missing_python"):
+        assert result.returncode == (2 if mode == "missing_python" else 9)
+        assert not (tmp_path / "OmniLearned/src/omnilearned/_version.py").exists()
+        assert not list(tmp_path.glob("artifacts/top_medium_pretrain*.yaml"))
+    if mode == "missing_python":
+        assert "Python downloads are disabled" in result.stderr

@@ -71,6 +71,13 @@ may retain the temporary archive for diagnosis. This does not verify the
 SIF or lock the contents of dependency wheels. uv is a build-time tool,
 not part of the training launcher.
 
+Wheel installation requires an existing compatible Python interpreter on the
+login node. If necessary, set `UV_PYTHON` to its executable before running the
+build. Python downloads are disabled with `UV_PYTHON_DOWNLOADS=never` and
+`--no-python-downloads`; if uv cannot find a suitable interpreter, the build
+stops. The wheel target remains aarch64 / Python 3.10, independently of the
+host interpreter (cross-installation was checked with Python 3.12).
+
 `run.sh` launches as pytorch-fugaku describes: `pf-setup` once (it copies
 the compute node's Tofu, PMIx and hwloc libraries for the containers and
 writes the process-group settings), then `mpiexec -n <ranks> pf-run <sif>
