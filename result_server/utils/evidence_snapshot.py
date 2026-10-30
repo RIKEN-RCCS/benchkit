@@ -53,16 +53,21 @@ def build_evidence_snapshot(
     benchkit_commit: str = "",
     generated_at: datetime | str | None = None,
     app_support_rows: list[dict[str, Any]] | None = None,
+    selection=None,
 ) -> dict[str, Any]:
     """Build release-review evidence rows without exposing site-local values."""
     snapshot_time = _format_snapshot_time(generated_at)
     if app_support_rows is None:
         _, app_support_rows = load_app_system_support_matrix()
+    if selection:
+        app_support_rows = [dict(row, systems={name: value for name, value in row['systems'].items()
+            if not selection['system'] or name == selection['system']})
+            for row in app_support_rows if not selection['code'] or row['app'] == selection['code']]
 
     rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     _merge_configured_rows(rows_by_key, app_support_rows, snapshot_time, benchkit_commit)
-    _merge_latest_results(rows_by_key, received_dir, snapshot_time, benchkit_commit)
-    _merge_latest_estimates(rows_by_key, estimated_dir, snapshot_time, benchkit_commit)
+    _merge_latest_results(rows_by_key, received_dir, snapshot_time, benchkit_commit, selection=selection)
+    _merge_latest_estimates(rows_by_key, estimated_dir, snapshot_time, benchkit_commit, selection=selection)
 
     rows = [
         _finalize_missing_reason(row)
@@ -70,6 +75,8 @@ def build_evidence_snapshot(
             rows_by_key.items(),
             key=lambda item: (item[0][0].lower(), item[0][1].lower()),
         )
+        if not selection or ((not selection['code'] or _key[0] == selection['code'])
+                             and (not selection['system'] or _key[1] == selection['system']))
     ]
     return {
         "generated_at": snapshot_time,
@@ -133,8 +140,9 @@ def _merge_latest_results(
     received_dir: str,
     snapshot_time: str,
     benchkit_commit: str,
+    *, selection=None,
 ) -> None:
-    for record in _load_json_records(received_dir, prefix="result_"):
+    for record in _load_json_records(received_dir, prefix="result_", selection=selection):
         data = record["data"]
         if "FOM" not in data or "system" not in data:
             continue
@@ -191,8 +199,9 @@ def _merge_latest_estimates(
     estimated_dir: str,
     snapshot_time: str,
     benchkit_commit: str,
+    *, selection=None,
 ) -> None:
-    for record in _load_json_records(estimated_dir, prefix="estimate_"):
+    for record in _load_json_records(estimated_dir, prefix="estimate_", selection=selection):
         data = record["data"]
         code = _clean(data.get("code")) or "unknown"
         exp = _clean(data.get("exp")) or "-"
@@ -223,7 +232,8 @@ def _merge_latest_estimates(
                 row["latest_result_exp"] = exp
 
 
-def _load_json_records(directory: str, *, prefix: str) -> list[dict[str, Any]]:
+def _load_json_records(directory: str, *, prefix: str, selection=None) -> list[dict[str, Any]]:
+    from utils.report_selection import selected_data, selected_filename
     try:
         filenames = [
             filename
@@ -235,8 +245,12 @@ def _load_json_records(directory: str, *, prefix: str) -> list[dict[str, Any]]:
 
     records = []
     for filename in filenames:
+        if not selected_filename(filename, selection):
+            continue
         data = load_result_json(filename, directory)
         if not isinstance(data, dict):
+            continue
+        if not selected_data(data, selection):
             continue
         sort_key = extract_timestamp_from_filename(filename) or datetime.min
         records.append(

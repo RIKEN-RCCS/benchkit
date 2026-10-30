@@ -9,15 +9,23 @@ install_portal_test_stubs(include_otp=False)
 from utils.estimated_table_rows import APPLICABILITY_STATUS_LEGEND
 
 
-def test_results_template_renders_table_note():
+def _usage_query_context(report):
+    from routes.results_usage_routes import REPORTS
+    return dict(reports=REPORTS, report=report, report_executed=True,
+                selection={'code': '', 'system': ''},
+                filter_options={'codes': [], 'systems': []})
+
+
+def test_results_template_renders_comparison_selection():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
-    with app.test_request_context("/results"):
+    with app.test_request_context("/results/"):
         from flask import render_template
 
         html = render_template(
             "results.html",
+            search_executed=True, explicit_search=True, comparison_scope='fixture',
                 columns=[
                     {"label": "Timestamp", "key": "timestamp", "tooltip": "Date and time when benchmark execution completed and results were automatically submitted to server", "tooltip_class": "tooltip-left"},
                     {"label": "SYSTEM", "key": "system", "tooltip": "Computing system name"},
@@ -82,7 +90,7 @@ def test_results_template_renders_table_note():
             },
         )
 
-    assert "inspect profiler context when a PA archive is available" in html
+    assert "Selected Results" in html
     assert "results-table-wrap" in html
     assert "Compare" in html
     assert "fapp / detailed" in html
@@ -97,11 +105,12 @@ def test_results_template_renders_profile_summary_when_padata_link_is_available(
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
-    with app.test_request_context("/results"):
+    with app.test_request_context("/results/"):
         from flask import render_template
 
         html = render_template(
             "results.html",
+            search_executed=True, explicit_search=True, comparison_scope='fixture',
             columns=[
                 {"label": "Timestamp", "key": "timestamp"},
                 {"label": "Profiler / PA", "key": "profile_summary"},
@@ -159,11 +168,12 @@ def test_results_template_hides_profile_summary_without_padata_link():
     app = build_portal_shell_app(
         templates_dir=os.path.join(os.path.dirname(__file__), "..", "templates"),
     )
-    with app.test_request_context("/results"):
+    with app.test_request_context("/results/"):
         from flask import render_template
 
         html = render_template(
             "results.html",
+            search_executed=True, explicit_search=True, comparison_scope='fixture',
             columns=[
                 {"label": "Timestamp", "key": "timestamp"},
                 {"label": "Profiler / PA", "key": "profile_summary"},
@@ -392,8 +402,8 @@ def test_usage_report_template_renders_search_box():
     with app.test_request_context("/results/usage"):
         from flask import render_template
 
-        html = render_template(
-            "usage_report.html",
+        context = dict(
+            **_usage_query_context('profiles'),
             result={
                 "apps": [],
                 "systems": [],
@@ -419,15 +429,17 @@ def test_usage_report_template_renders_search_box():
             },
             profile_usage_overview={"available": False, "rows": []},
         )
+        html = render_template('usage_report.html', **context)
+        config_html = render_template('usage_report.html', **{**context, **_usage_query_context('configuration')})
 
     assert "Profile Operations Overview" in html
-    assert "Execution Timing Overview" in html
-    assert "Filter evidence and profile tables" in html
+    assert "Execution Timing Overview" not in html
+    assert "Find in report" in html
     assert "applyUsageSearch" in html
-    assert "Application Entry Points" in html
-    assert "auxapp is missing run.sh." in html
-    assert "ffb does not define" in html
-    assert "UNKNOWN_SYSTEM" in html
+    assert "Application Entry Points" in config_html
+    assert "auxapp is missing run.sh." in config_html
+    assert "ffb does not define" in config_html
+    assert "UNKNOWN_SYSTEM" in config_html
 
 
 def test_profile_usage_overview_template_shows_snapshot_count_and_link():
@@ -510,6 +522,7 @@ def test_usage_report_node_hours_table_uses_explicit_column_widths():
 
         html = render_template(
             "usage_report.html",
+            **_usage_query_context('node_hours'),
             result={
                 "apps": ["auxapp"],
                 "systems": ["SourceSystem", "DemoSystem"],
@@ -642,8 +655,8 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
     with app.test_request_context("/results/usage"):
         from flask import render_template
 
-        html = render_template(
-            "usage_report.html",
+        context = dict(
+            **_usage_query_context('evidence'),
             result={
                 "apps": [],
                 "systems": [],
@@ -791,6 +804,12 @@ def test_usage_report_evidence_snapshot_consolidates_coverage_and_quality():
             },
         )
 
+        evidence_html = render_template('usage_report.html', **context)
+        performance_html = render_template('usage_report.html', **{**context, **_usage_query_context('performance')})
+
+    assert 'Execution Timing Overview' not in evidence_html
+    assert '<h2 class="section-title">Evidence Snapshot</h2>' not in performance_html
+    html = evidence_html + performance_html
     assert "Evidence Snapshot" in html
     assert "Execution Timing Overview" in html
     assert "Operator view for choosing trigger scope/frequency and improving CI and build-cache flow" in html

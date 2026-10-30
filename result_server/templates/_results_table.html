@@ -123,7 +123,12 @@
 }
 </style>
 
-<p class="results-table-note">Filter first, inspect profiler context when a PA archive is available, and then select visible rows if you want to open compare.</p>
+{% if explicit_search %}
+<div class="control-row">
+  <button id="selectAllVisibleBtn" class="tiny-button" onclick="selectAllVisible()">All</button>
+  <button id="deselectAllBtn" class="tiny-button" onclick="deselectVisible()">Clear page</button>
+</div>
+{% endif %}
 
 <div class="results-table-wrap">
 <table id="resultsTable" class="results-table">
@@ -141,11 +146,7 @@
            </th>
            {% if column.label == "FOM" %}
            <th class="table-control-cell">
-               <span class="tooltip">
-                   <button id="compareBtn" class="tiny-button" disabled onclick="navigateToCompare()">Compare</button>
-                   <span class="tooltiptext">Select results to compare using checkboxes, then click Compare</span>
-               </span>
-               <span id="compareHint" class="tiny-hint"></span>
+               Compare
            </th>
            {% endif %}
         {% endfor %}
@@ -155,7 +156,7 @@
             </span>
         </th>
     </tr>
-    <tr class="table-filter-row">
+    {% if not explicit_search %}<tr class="table-filter-row">
         {% for column in columns %}
               {% if column.label == "SYSTEM" %}
               <th class="table-filter-cell">
@@ -195,7 +196,7 @@
            {% endif %}
         {% endfor %}
         <th></th>
-    </tr>
+    </tr>{% endif %}
     </thead>
     <tbody>
     {% for row in rows %}
@@ -245,7 +246,7 @@
                 {% endif %}
                 {% if key == "fom" %}
                 <td class="center-cell">
-                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}">
+                    <input type="checkbox" class="compare-checkbox" value="{{ row.filename }}" aria-label="Compare {{ row.filename }}">
                 </td>
                 {% endif %}
             {% endfor %}
@@ -272,20 +273,6 @@
 (function() {
     var config = document.getElementById('resultsConfig');
     var perPage = config.getAttribute('data-per-page');
-    var compareUrl = config.getAttribute('data-compare-url');
-    var compareBtn = document.getElementById('compareBtn');
-    var compareHint = document.getElementById('compareHint');
-
-    function updateCompareButton() {
-        var checked = document.querySelectorAll('.compare-checkbox:checked');
-        if (checked.length >= 2) {
-            compareBtn.disabled = false;
-            compareHint.textContent = checked.length + ' selected';
-        } else {
-            compareBtn.disabled = true;
-            compareHint.textContent = '';
-        }
-    }
 
     window.applyServerFilter = function() {
         var system = document.getElementById('filterSystem').value;
@@ -298,34 +285,5 @@
         window.location.href = url;
     };
 
-    window.selectAllVisible = function() {
-        var allRows = document.querySelectorAll('#resultsTable tbody tr');
-        allRows.forEach(function(r) {
-            if (r.style.display !== 'none') {
-                var cb = r.querySelector('.compare-checkbox');
-                if (cb) cb.checked = true;
-            }
-        });
-        updateCompareButton();
-    };
-
-    window.deselectAll = function() {
-        document.querySelectorAll('.compare-checkbox').forEach(function(cb) {
-            cb.checked = false;
-        });
-        updateCompareButton();
-    };
-
-    window.navigateToCompare = function() {
-        var checked = document.querySelectorAll('.compare-checkbox:checked');
-        if (checked.length < 2) return;
-        var files = [];
-        checked.forEach(function(cb) { files.push(cb.value); });
-        window.location.href = compareUrl + '?files=' + encodeURIComponent(files.join(','));
-    };
-
-    document.querySelectorAll('.compare-checkbox').forEach(function(cb) {
-        cb.addEventListener('change', updateCompareButton);
-    });
 })();
 </script>

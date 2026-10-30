@@ -13,7 +13,7 @@ from utils.result_records import format_result_timestamp, load_result_json
 from utils.trigger_display import extract_execution_trigger, summarize_execution_trigger
 
 
-def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict[str, Any]:
+def build_profile_usage_overview(received_dir: str, db_path: str | None, *, selection=None) -> dict[str, Any]:
     """Summarize profiles with their trigger, result, and node-hour activity."""
     if not db_path or not os.path.exists(db_path):
         return {
@@ -37,7 +37,7 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None) -> dict
     store = ExecutionProfileStore(db_path or "")
     triggers = store.list_trigger_definitions()
     trigger_runs = store.list_trigger_runs(limit=500)
-    result_records = _load_result_records(received_dir)
+    result_records = _load_result_records(received_dir, selection=selection)
 
     triggers_by_profile = _group_by(triggers, "profile_id")
     runs_by_trigger = _latest_runs_by_trigger(trigger_runs)
@@ -158,7 +158,8 @@ def _latest_profile_run(
     return runs[0] if runs else None
 
 
-def _load_result_records(received_dir: str) -> list[dict[str, Any]]:
+def _load_result_records(received_dir: str, *, selection=None) -> list[dict[str, Any]]:
+    from utils.report_selection import selected_data, selected_filename
     try:
         filenames = [name for name in os.listdir(received_dir) if name.endswith(".json")]
     except OSError:
@@ -166,8 +167,12 @@ def _load_result_records(received_dir: str) -> list[dict[str, Any]]:
 
     records = []
     for filename in filenames:
+        if not selected_filename(filename, selection):
+            continue
         data = load_result_json(filename, received_dir)
         if not isinstance(data, dict):
+            continue
+        if not selected_data(data, selection):
             continue
         records.append(
             {

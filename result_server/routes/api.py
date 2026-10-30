@@ -1,6 +1,6 @@
 """Unified ingestion and query API routes for portal data."""
 
-from flask import Blueprint, request, abort, current_app, jsonify, send_file
+from flask import Blueprint, request, abort, current_app, has_app_context, jsonify, send_file
 import os
 import json
 import re
@@ -25,6 +25,7 @@ from utils.measurement_artifacts import (
 )
 from utils.rate_limit import rate_limited
 from utils.result_metadata_index import index_result_metadata
+from utils.result_catalog import ResultCatalog, CatalogUnavailable
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
@@ -115,12 +116,23 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
 
     serialized = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
-    with open(tmp_path, "wb") as f:
-        f.write(serialized)
-        f.flush()
-        os.fsync(f.fileno())
+    def write_json():
+        with open(tmp_path, "wb") as f:
+            f.write(serialized)
+            f.flush()
+            os.fsync(f.fileno())
+        os.rename(tmp_path, path)
 
-    os.rename(tmp_path, path)
+    catalog_path = (current_app.config.get("RESULT_CATALOG_PATH")
+                    if prefix == "result" and has_app_context() else None)
+    if catalog_path:
+        try:
+            ResultCatalog(catalog_path, out_dir).replace(filename, payload, write_json)
+        except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
+            current_app.logger.error("Result catalog publication failed; rebuild required")
+            abort(503, description="Result storage is temporarily unavailable")
+    else:
+        write_json()
     print(f"Saved {prefix}: {path}", flush=True)
 
     return {

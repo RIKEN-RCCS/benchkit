@@ -14,6 +14,7 @@ def build_usage_report_context(
     db_path=None,
     estimated_dir=None,
     benchkit_commit="",
+    *, report=None, selection=None,
 ):
     """Build the Usage report view-model from request args and collected results."""
     params = parse_usage_query_params(args, current_fiscal_year)
@@ -21,27 +22,25 @@ def build_usage_report_context(
     fiscal_year = params["fiscal_year"]
     period_filter = params["period_filter"]
 
-    result = aggregate_node_hours(received_dir, fiscal_year, period_type)
-    period_filter, filtered_periods = select_usage_periods(result["periods"], period_filter)
-
-    _, app_support_rows = load_app_system_support_matrix()
-
-    return {
-        "result": result,
+    context = {
         "period_type": period_type,
         "fiscal_year": fiscal_year,
         "period_filter": period_filter,
-        "filtered_periods": filtered_periods,
-        "site_diagnostics": build_site_diagnostics(),
-        "profile_usage_overview": build_profile_usage_overview(received_dir, db_path),
-        "performance_telemetry": build_performance_telemetry(
-            received_dir,
-            estimated_dir or received_dir,
-        ),
-        "evidence_snapshot": build_evidence_snapshot(
-            received_dir,
-            estimated_dir or received_dir,
-            benchkit_commit=benchkit_commit,
-            app_support_rows=app_support_rows,
-        ),
     }
+    kwargs = {'selection': selection} if selection is not None else {}
+    if report in (None, 'node_hours'):
+        result = aggregate_node_hours(received_dir, fiscal_year, period_type, **kwargs)
+        period_filter, filtered_periods = select_usage_periods(result['periods'], period_filter)
+        context.update(result=result, period_filter=period_filter, filtered_periods=filtered_periods)
+    if report in (None, 'profiles'):
+        context['profile_usage_overview'] = build_profile_usage_overview(received_dir, db_path, **kwargs)
+    if report in (None, 'performance'):
+        context['performance_telemetry'] = build_performance_telemetry(received_dir, estimated_dir or received_dir, **kwargs)
+    if report in (None, 'evidence'):
+        _, app_support_rows = load_app_system_support_matrix()
+        context['evidence_snapshot'] = build_evidence_snapshot(
+            received_dir, estimated_dir or received_dir, benchkit_commit=benchkit_commit,
+            app_support_rows=app_support_rows, **kwargs)
+    if report in (None, 'configuration'):
+        context['site_diagnostics'] = build_site_diagnostics()
+    return context

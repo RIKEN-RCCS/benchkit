@@ -1,0 +1,13 @@
+{% include '_explicit_query_style.html' %}
+<form method="GET" class="control-row explicit-query usage-query">
+  <label>Report<select name="report">{% for value, label in reports.items() %}<option value="{{ value }}"{% if report == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>Fiscal Year<input name="fiscal_year" type="number" min="1" max="9998" value="{{ fiscal_year }}" required></label>
+  <label>Period<select name="period_type">{% for value, label in [('fiscal_year','Fiscal Year'), ('monthly','Monthly'), ('semi_annual','Semi-Annual')] %}<option value="{{ value }}"{% if period_type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>Month / Half<input name="period_filter" value="{{ period_filter }}" placeholder="YYYY-MM / H1 / H2" maxlength="7"></label>
+  <label>Application<input name="code" list="usage-apps" value="{{ selection.code }}" maxlength="128"></label>
+  <datalist id="usage-apps">{% for value in filter_options.codes %}<option value="{{ value }}">{% endfor %}</datalist>
+  <label>System<input name="system" list="usage-systems" value="{{ selection.system }}" maxlength="128"></label>
+  <datalist id="usage-systems">{% for value in filter_options.systems %}<option value="{{ value }}">{% endfor %}</datalist>
+  <button type="submit" name="run" value="1" class="usage-btn">Aggregate</button>
+  <a href="{{ url_for('results.usage_report') }}">Clear</a>
+</form>

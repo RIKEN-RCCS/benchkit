@@ -1,9 +1,15 @@
-from flask import current_app, request
+from flask import current_app, request, session
+import hashlib
+import hmac
+import json
+import secrets
+import sqlite3
 
-from utils.results_loader import RESULT_FIELD_MAP, load_results_table
+from utils.results_loader import load_results_table
+from utils.result_catalog import CatalogUnavailable, ResultCatalog
 from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
-from utils.table_filters import get_filter_options
+from utils.report_selection import definition_options, list_requested
 from utils.table_pagination import DEFAULT_PER_PAGE
 from utils.table_page_utils import (
     build_table_page_context_from_params,
@@ -15,6 +21,10 @@ from utils.table_query_params import parse_table_query_params
 
 def _render_results_list(public_only, template_name, redirect_endpoint):
     params = parse_table_query_params(request.args)
+    for key in ('filter_system', 'filter_code', 'filter_exp'):
+        params[key] = params[key] or None
+    execute = (list_requested(request.args) if request.args.get('candidates') != '1'
+               else request.args.get('search') == '1')
     public_surface = public_only and current_app.config.get("PUBLIC_PORTAL_MODE", False)
 
     received_dir = current_app.config["RECEIVED_DIR"]
@@ -35,7 +45,6 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         execution_profile_db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
         public_surface=public_surface,
     )
-    filter_kwargs = dict(public_only=public_only)
     template_extra = {}
 
     if not public_only:
@@ -51,20 +60,32 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
             authenticated=user_context["authenticated"],
             affiliations=user_context["affiliations"],
         )
-        filter_kwargs.update(
-            authenticated=user_context["authenticated"],
-            affiliations=user_context["affiliations"],
-        )
         template_extra["authenticated"] = user_context["authenticated"]
 
-    rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
-
-    filter_options = get_filter_options(
-        received_dir,
-        field_map=RESULT_FIELD_MAP,
-        filter_code=params["filter_code"],
-        **filter_kwargs,
-    )
+    if execute:
+        rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
+    else:
+        rows, columns = [], []
+        pagination_info = {'page': 1, 'per_page': params['per_page'], 'total': 0, 'total_pages': 1}
+    catalog_data, catalog_unavailable = None, False
+    catalog_path = current_app.config.get("RESULT_CATALOG_PATH")
+    filter_options = ({} if catalog_path else
+                      definition_options(params['filter_code'], params['filter_system'], params['filter_exp']))
+    if catalog_path:
+        try:
+            catalog_data = ResultCatalog(catalog_path, received_dir).candidates(
+                public_only=public_only,
+                authenticated=load_kwargs.get("authenticated", False),
+                affiliations=load_kwargs.get("affiliations", ()),
+                system=params['filter_system'], code=params['filter_code'], exp=params['filter_exp'],
+                page=request.args.get('catalog_page', 1, type=int),
+            )
+            filter_options = {plural: [item['value'] for item in catalog_data['options'][field]]
+                              for field, plural in [('system', 'systems'), ('code', 'codes'), ('exp', 'exps')]}
+        except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
+            # Never infer public visibility or report zero from an incomplete index.
+            catalog_unavailable = True
+            filter_options = {'systems': [], 'codes': [], 'exps': []}
     render_context = build_table_page_context_from_params(
         rows=rows,
         columns=columns,
@@ -74,6 +95,14 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         systems_info=systems_info,
         **template_extra,
     )
+    render_context.update(search_executed=execute, explicit_search=True,
+                          catalog_data=catalog_data, catalog_unavailable=catalog_unavailable)
+    if not session.get('_result_comparison_scope'):
+        session['_result_comparison_scope'] = secrets.token_hex(16)
+    identity = [public_only, bool(session.get('authenticated')), session.get('user_email', ''),
+                sorted(load_kwargs.get('affiliations', ())), session['_result_comparison_scope']]
+    render_context['comparison_scope'] = hmac.new(
+        str(current_app.secret_key).encode(), json.dumps(identity).encode(), hashlib.sha256).hexdigest()
     return render_table_page_response(
         template_name,
         page_context=render_context,

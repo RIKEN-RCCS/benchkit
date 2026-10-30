@@ -13,8 +13,12 @@
 
 {% block content %}
 {% if authenticated %}
+{% include "_result_search.html" %}
+{% include "_result_comparison_selection.html" %}
+{% if search_executed %}
 <section class="page-card table-card">
 {% include "_results_table.html" %}
 </section>
+{% endif %}
 {% endif %}
 {% endblock %}

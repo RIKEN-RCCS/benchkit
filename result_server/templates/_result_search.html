@@ -1,0 +1,57 @@
+{% include '_explicit_query_style.html' %}
+{% macro candidate_field(name, label, dimension, plural, selected) %}
+  <label>{{ label }}
+  {% if catalog_data %}
+    {% set options = catalog_data.options[dimension] %}
+    <select name="{{ name }}">
+      <option value=""{% if not selected %} selected{% endif %}>All</option>
+      {% if selected and selected not in options|map(attribute='value')|list %}
+      <option value="{{ selected }}" selected>{{ selected }}</option>
+      {% endif %}
+      {% for item in options %}
+      <option value="{{ item.value }}"{% if selected == item.value %} selected{% endif %}>{{ item.value }} ({{ item.count }})</option>
+      {% endfor %}
+    </select>
+  {% else %}
+    <input name="{{ name }}" list="result-{{ name }}" value="{{ selected or '' }}" maxlength="128">
+    <datalist id="result-{{ name }}">{% for value in filter_options[plural] %}<option value="{{ value }}">{% endfor %}</datalist>
+  {% endif %}
+  </label>
+{% endmacro %}
+<form method="GET" class="control-row explicit-query result-search">
+  {{ candidate_field('system', 'System', 'system', 'systems', current_system) }}
+  {{ candidate_field('code', 'Application', 'code', 'codes', current_code) }}
+  {{ candidate_field('exp', 'Experiment', 'exp', 'exps', current_exp) }}
+  <label>Rows<select name="per_page">{% for size in [50, 100, 200] %}<option value="{{ size }}"{% if current_per_page == size %} selected{% endif %}>{{ size }}</option>{% endfor %}</select></label>
+  <button type="submit" name="search" value="1" class="soft-button">Search</button>
+  {% if catalog_data %}<button type="submit" name="candidates" value="1" class="soft-button">Update candidates</button>{% endif %}
+  <a href="{{ url_for(request.endpoint) }}">Clear</a>
+</form>
+{% if catalog_unavailable %}<p role="status">Stored-data candidates are unavailable.</p>{% endif %}
+{% if catalog_data %}
+<section aria-labelledby="candidate-heading">
+  <h2 id="candidate-heading">Available Results <small>({{ catalog_data.total }})</small></h2>
+  {% if catalog_data.rows %}
+  <div class="candidate-table-wrap"><table class="candidate-table">
+    <thead><tr><th>System</th><th>Application</th><th>Experiment</th><th>Results</th><th></th></tr></thead>
+    <tbody>{% for item in catalog_data.rows %}<tr>
+      <td>{{ item.system or 'Not recorded' }}</td><td>{{ item.code or 'Not recorded' }}</td><td>{{ item.exp or 'Not recorded' }}</td><td>{{ item.count }}</td>
+      <td>{% if item.system and item.code and item.exp %}<a href="{{ url_for(request.endpoint, search=1, system=item.system, code=item.code, exp=item.exp, per_page=current_per_page) }}">View</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p>No matching candidates.</p>{% endif %}
+  {% if catalog_data.pages > 1 %}
+  <nav aria-label="Candidate pages">
+    {% if catalog_data.page > 1 %}<a href="{{ url_for(request.endpoint, candidates=1, catalog_page=catalog_data.page-1, system=current_system or '', code=current_code or '', exp=current_exp or '') }}">Previous</a>{% endif %}
+    <span>{{ catalog_data.page }} / {{ catalog_data.pages }}</span>
+    {% if catalog_data.page < catalog_data.pages %}<a href="{{ url_for(request.endpoint, candidates=1, catalog_page=catalog_data.page+1, system=current_system or '', code=current_code or '', exp=current_exp or '') }}">Next</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endif %}
+<style>
+  .candidate-table-wrap { width: 100%; overflow-x: auto; }
+  .candidate-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 12px; }
+  .candidate-table th, .candidate-table td { padding: 8px; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid #d8e3e6; }
+  .candidate-table th:nth-last-child(-n+2) { width: 72px; }
+</style>

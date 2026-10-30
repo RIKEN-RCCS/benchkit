@@ -39,7 +39,7 @@
     </div>
     <div class="diagnostic-card">
       <h3>Export</h3>
-      <p><a class="usage-btn" href="{{ url_for('results.usage_evidence_snapshot_csv') }}">Download CSV</a></p>
+      <p><a class="usage-btn" href="{{ evidence_csv_url or url_for('results.usage_evidence_snapshot_csv') }}">Download CSV</a></p>
     </div>
   </div>
 

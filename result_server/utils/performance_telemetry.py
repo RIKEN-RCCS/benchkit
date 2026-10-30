@@ -26,9 +26,9 @@ TIMING_SOURCE_LABELS = {
 }
 
 
-def build_performance_telemetry(received_dir: str, estimated_dir: str | None = None) -> dict[str, Any]:
+def build_performance_telemetry(received_dir: str, estimated_dir: str | None = None, *, selection=None) -> dict[str, Any]:
     """Summarize available timing records for operator usage reports."""
-    records = _load_result_records(received_dir)
+    records = _load_result_records(received_dir) if selection is None else _load_json_records(received_dir, selection=selection)
     rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     totals = _empty_timing_totals()
     regular_run_totals = _empty_scalar_total()
@@ -182,7 +182,7 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 summary["build_cache_store_count"] += 1
 
     if estimated_dir:
-        _merge_estimate_timing(rows_by_key, estimated_dir, summary, estimate_totals)
+        _merge_estimate_timing(rows_by_key, estimated_dir, summary, estimate_totals, selection=selection)
 
     rows = []
     for row in rows_by_key.values():
@@ -223,7 +223,8 @@ def _load_estimate_records(estimated_dir: str) -> list[dict[str, Any]]:
     return _load_json_records(estimated_dir, prefix="estimate_")
 
 
-def _load_json_records(directory: str, *, prefix: str = "") -> list[dict[str, Any]]:
+def _load_json_records(directory: str, *, prefix: str = "", selection=None) -> list[dict[str, Any]]:
+    from utils.report_selection import selected_data, selected_filename
     try:
         filenames = [
             name
@@ -235,8 +236,12 @@ def _load_json_records(directory: str, *, prefix: str = "") -> list[dict[str, An
 
     records = []
     for filename in filenames:
+        if not selected_filename(filename, selection):
+            continue
         data = load_result_json(filename, directory)
         if not isinstance(data, dict):
+            continue
+        if not selected_data(data, selection):
             continue
         timestamp = extract_timestamp_from_filename(filename)
         records.append(
@@ -317,8 +322,11 @@ def _merge_estimate_timing(
     estimated_dir: str,
     summary: dict[str, Any],
     estimate_totals: dict[str, float | int],
+    *, selection=None,
 ) -> None:
-    for record in _load_estimate_records(estimated_dir):
+    records = _load_estimate_records(estimated_dir) if selection is None else _load_json_records(
+        estimated_dir, prefix='estimate_', selection=selection)
+    for record in records:
         data = record["data"]
         if not _is_estimate_record(data):
             continue
