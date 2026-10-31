@@ -442,6 +442,16 @@ internal の result detail page ではこのblockを表示し、cached binaryが
 
 `Repository Policy` は全pull requestと `develop` / `main` へのpushで動きます。`scripts/tests/check_text_integrity.py` を実行し、管理下のtext系fileがUTF-8としてdecodeでき、U+FFFD replacement characterを含まないことを確認します。さらに `scripts/tests/check_commit_messages.py` で、新規に入るcommit messageに既知のClaude session metadata（`Claude-Session:` trailerと `claude.ai/code/session...` URL）が含まれないことを確認します。pull requestでは `scripts/tests/check_pr_base_current.py` により、CI runが最新のbase branch SHAを使っていることも確認します。benchmark app file が変わる場合は `scripts/tests/check_app_contracts.py` が app contract の warning-only diagnostics を出します。対象は必須entrypoint、list.csv上のsystem、build/run supportの見え方、任意のsource/input/profile/estimate hookです。
 
+Input-hook diagnostics also follow statically resolvable app-local helpers referenced
+by `source`, `.`, `bash`, or `sh` from `run.sh`, including nested references. Paths
+can be repository-relative, use `PWD` / `BK_BENCHKIT_ROOT`, or use a directory
+variable assigned with `"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`.
+No shell code is executed. Unreferenced files, references outside
+the app directory (including external symlink targets), and unresolved dynamic
+paths are not scanned. This is a visibility heuristic, not proof that a helper
+is called or input recording succeeds; unresolved hooks remain nonblocking
+notices. Source-hook diagnostics are unchanged.
+
 The periodic review should therefore focus on semantic checks that are hard to encode in CI: stale documentation, implementation/design mismatches, workflow review, unused-code candidates, ownership-boundary drift, and research-snapshot consistency. It should not need to repeat the lightweight executable checks unless a CI result itself looks suspicious.
 
 定期チェックは、CIへ寄せにくい意味的な監査に集中します。例として、古い説明、実装と設計の不一致、workflow review、未使用コード候補、責務境界のずれ、research snapshot整合性などです。CI結果そのものが怪しい場合を除き、軽量な実行可能チェックを定期チェックで再実行する必要はありません。
