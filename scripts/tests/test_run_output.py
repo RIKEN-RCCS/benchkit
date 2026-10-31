@@ -1054,11 +1054,18 @@ done
         launcher = self.root / "bin/mpiexec"
         launcher.write_text('''#!/bin/sh
 printf 'Elapsed time: Spectrum_Domainwall_alt.hadron_2ptFunction: total 12 sec\nsolver performance:\nsolver = 2 sec\ndynamics = 3.5\n' > stdout.17.0
+for iteration in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  printf 'Richardson  nconv a b c d 1e-27\n' >> stdout.17.0
+done
 printf 'launcher warning\n' >&2
 ''')
         launcher.chmod(0o700)
         lqcd = self.root / "LQCD_dw_solver/run"
         lqcd.mkdir(parents=True)
+        (lqcd.parent / ".git").mkdir()
+        git = self.root / "bin/git"
+        git.write_text("#!/bin/sh\nprintf '%040d\\n' 1\n")
+        git.chmod(0o700)
         (lqcd / "main_template.yaml").write_text("xxx_lattice_size_xxx\n")
         (self.root / "artifacts/bridge.elf").touch()
         (lqcd / "stdout.1.0").write_text("old result\n")
@@ -1086,6 +1093,122 @@ printf 'launcher warning\n' >&2
         self.assert_ok(result)
         self.assertNotIn("999", (self.root / "results/log_p8.txt").read_text())
         self.assertIn("dynamics = 3.5", (self.root / "results/log_p8.txt").read_text())
+
+    def prepare_lqcd_validation(self):
+        (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
+        (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
+        tools = self.root / "bin"
+        tools.mkdir()
+        work = self.root / "LQCD_dw_solver/run"
+        work.mkdir(parents=True)
+        (work.parent / ".git").mkdir()
+        (work / "main_template.yaml").write_text("xxx_lattice_size_xxx\n")
+        artifacts = self.root / "artifacts"
+        artifacts.mkdir()
+        for name in ("bridge.elf", "bridge_openacc.elf", "bridge_cuda.elf"):
+            (artifacts / name).touch()
+        commands = {
+            "git": '''case " $* " in
+  *" rev-parse "*) printf '%040d\\n' 1 ;;
+  *" show-ref "*) exit 1 ;;
+  *) echo 'unexpected synthetic git operation' >&2; exit 99 ;;
+esac''',
+            "module": ":",
+            "mpiexec": '''case "$*" in
+  *bridge_cuda.elf*) variant=cuda ;;
+  *) variant=first ;;
+esac
+printf '%s\\n' "$variant" >> "$FIXTURE_ROOT/launches"
+cat "$FIXTURE_ROOT/$variant.log"
+if [ "$variant" = cuda ]; then exit "$CUDA_EXIT"; fi
+exit "$FIRST_EXIT"''',
+        }
+        for name, code in commands.items():
+            path = tools / name
+            path.write_text("#!/bin/sh\n" + code + "\n")
+            path.chmod(0o700)
+        (tools / "mpirun").symlink_to("mpiexec")
+        self.env.update(PATH=str(tools) + os.pathsep + self.env["PATH"],
+                        FIXTURE_ROOT=str(self.root), FIRST_EXIT="0", CUDA_EXIT="0",
+                        LQCD_DW_SOLVER_REPO_URL="https://example.invalid/solver.git")
+        return work
+
+    @staticmethod
+    def lqcd_log(count=12, residual="1e-27"):
+        return (f"Richardson  nconv a b c d {residual}\n" * count
+                + "Elapsed time: Spectrum_Domainwall_alt.hadron_2ptFunction: total 12 sec\n"
+                + "solver performance:\nsolver = 2 sec\n")
+
+    def run_lqcd_validation(self, system, expected):
+        result = self.run_shell(
+            f"bash scripts/run_benchmark.sh programs/LQCD_dw_solver/run.sh {system} 1 1 2"
+        )
+        self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+        execution = json.loads((self.root / "results/execution.json").read_text())
+        self.assertEqual(execution["exit_code"], expected)
+        self.assertEqual(execution["status"], "failed" if expected else "completed")
+        self.assertTrue((self.root / "results/execution.log").is_file())
+        return (self.root / "results/result").read_text()
+
+    def test_lqcd_validation_conditions_control_exit_and_fom(self):
+        work = self.prepare_lqcd_validation()
+        for count, residual, expected in (
+            (12, "1e-27", 0), (12, "1e-26", 0),
+            (11, "1e-27", 1), (13, "1e-27", 1), (0, "1e-27", 1),
+            (12, "1e-25", 2), (12, "0", 4), (11, "0", 5),
+            (11, "1e-25", 3),
+        ):
+            with self.subTest(count=count, residual=residual):
+                log = self.lqcd_log(count, residual)
+                (self.root / "first.log").write_text(log)
+                output = self.run_lqcd_validation("Fugaku", expected)
+                self.assertEqual((work / "run.log").read_text(), log)
+                self.assertRegex((self.root / "results/execution.log").read_text(),
+                                 rf"check result\s+{expected}\b")
+                if expected:
+                    self.assertEqual(output, "")
+                else:
+                    self.assertIn("FOM:12 FOM_unit:s FOM_version:LQCD_dw_solver Exp:total "
+                                  "node_count:1 numproc_node:1 nthreads:2\n", output)
+                    self.assertIn("SECTION:solver time:2\n", output)
+                    self.assertIn("SECTION:other time:10\n", output)
+
+    def test_lqcd_launcher_failure_keeps_status_without_fom(self):
+        work = self.prepare_lqcd_validation()
+        log = self.lqcd_log()
+        (self.root / "first.log").write_text(log)
+        self.env["FIRST_EXIT"] = "23"
+        self.assertEqual(self.run_lqcd_validation("Fugaku", 23), "")
+        self.assertEqual((work / "run.log").read_text(), log)
+        self.assertNotIn("check result", (self.root / "results/execution.log").read_text())
+
+    def test_lqcd_second_validation_failure_retains_first_fom(self):
+        work = self.prepare_lqcd_validation()
+        (self.root / "first.log").write_text(self.lqcd_log())
+        (self.root / "cuda.log").write_text(self.lqcd_log(residual="1e-25"))
+        output = self.run_lqcd_validation("RIKYU", 2)
+        self.assertEqual(output.count("FOM:"), 1)
+        self.assertIn("FOM:12 FOM_unit:s FOM_version:LQCD_dw_solver Exp:total_OpenACC", output)
+        self.assertNotIn("Exp:total_CUDA", output)
+        self.assertEqual((self.root / "launches").read_text().splitlines(), ["first", "cuda"])
+        self.assertEqual((work / "run_cuda.log").read_text(), self.lqcd_log(residual="1e-25"))
+
+    def test_lqcd_first_validation_failure_does_not_launch_second(self):
+        self.prepare_lqcd_validation()
+        (self.root / "first.log").write_text(self.lqcd_log(residual="0"))
+        (self.root / "cuda.log").write_text(self.lqcd_log())
+        self.assertEqual(self.run_lqcd_validation("RIKYU", 4), "")
+        self.assertEqual((self.root / "launches").read_text().splitlines(), ["first"])
+
+    def test_lqcd_valid_variants_keep_both_foms(self):
+        self.prepare_lqcd_validation()
+        for variant in ("first", "cuda"):
+            (self.root / f"{variant}.log").write_text(self.lqcd_log())
+        output = self.run_lqcd_validation("RIKYU", 0)
+        self.assertEqual(output.count("FOM:"), 2)
+        for variant in ("OpenACC", "CUDA"):
+            self.assertIn("FOM:12 FOM_unit:s FOM_version:LQCD_dw_solver "
+                          f"Exp:total_{variant}", output)
 
     def test_qws_flow2_build_and_run_routes(self):
         (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
