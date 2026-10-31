@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -99,8 +101,7 @@ def source_provenance_visible(app: str) -> bool:
     )
 
 
-def input_provenance_visible(app: str) -> bool:
-    run_text = app_script_text(app, "run.sh")
+def input_hook_visible(run_text: str) -> bool:
     return any(
         marker in run_text
         for marker in (
@@ -113,6 +114,67 @@ def input_provenance_visible(app: str) -> bool:
         "bk_run" in run_text
         and any(flag in run_text for flag in ("--input-file", "--parameter-input"))
     )
+
+
+def referenced_app_scripts(path: Path, text: str, app_dir: Path):
+    """Resolve common static helper references without evaluating shell code."""
+    # Recognize a script-directory idiom, not arbitrary shell assignments.
+    directory_values = {
+        '"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+    }
+    bindings = {"PWD": REPO_ROOT, "BK_BENCHKIT_ROOT": REPO_ROOT}
+    assignments = {}
+    for match in re.finditer(r"^\s*([A-Za-z_][A-Za-z_0-9]*)=(.*)$", text, re.MULTILINE):
+        assignments.setdefault(match[1], []).append(match[2].strip())
+    for name, values in assignments.items():
+        bindings.pop(name, None)
+        if len(values) == 1 and values[0] in directory_values:
+            bindings[name] = path.parent
+
+    for match in re.finditer(
+        r'''^\s*(?:source|\.|bash|sh)\s+("[^"\n]*"|'[^'\n]*'|[^\s;#]+)''',
+        text.replace("\\\n", ""), re.MULTILINE,
+    ):
+        raw = match[1]
+        try:
+            operand = shlex.split(raw)[0]
+        except (ValueError, IndexError):
+            continue
+        if not raw.startswith("'"):
+            operand = re.sub(
+                r"\$\{([A-Za-z_][A-Za-z_0-9]*)\}|\$([A-Za-z_][A-Za-z_0-9]*)",
+                lambda m: str(bindings.get(m[1] or m[2], m[0])), operand,
+            )
+        if any(char in operand for char in "$`*?[]"):
+            continue
+        try:
+            candidate = (REPO_ROOT / operand).resolve()
+            if candidate.is_relative_to(app_dir) and candidate.is_file():
+                yield candidate
+        except (OSError, RuntimeError):
+            continue
+
+
+def input_provenance_visible(app: str) -> bool:
+    app_dir = (PROGRAMS_DIR / app).resolve()
+    pending = [app_dir / "run.sh"]
+    visited = set()
+    while pending:
+        try:
+            path = pending.pop().resolve()
+        except (OSError, RuntimeError):
+            continue
+        if path in visited or not path.is_relative_to(app_dir):
+            continue
+        visited.add(path)
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if input_hook_visible(text):
+            return True
+        pending.extend(referenced_app_scripts(path, text, app_dir))
+    return False
 
 
 def profile_contract_visible(app: str) -> bool:
