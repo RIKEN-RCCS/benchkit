@@ -42,10 +42,23 @@ class GitLabPipelineSubmitResult:
     status_code: int
     response: dict[str, Any]
     errors: list[str]
+    request_attempted: bool = True
 
     @property
     def ok(self) -> bool:
         return 200 <= self.status_code < 300 and not self.errors
+
+
+def scheduled_submission_status(result) -> str:
+    """Require a pipeline ID for acceptance; ambiguous transport/server outcomes hold the slot."""
+    code = result.status_code
+    pipeline_id = result.response.get('id') if isinstance(result.response, dict) else None
+    if (result.ok and isinstance(pipeline_id, int) and not isinstance(pipeline_id, bool)
+            and pipeline_id > 0):
+        return 'submitted'
+    if not getattr(result, 'request_attempted', True) or code in (400, 401, 403, 404, 405, 422, 429):
+        return 'submit_failed'
+    return 'submission_unknown'
 
 
 def configured_gitlab_repo(env: dict[str, str] | None = None) -> str:
@@ -288,7 +301,7 @@ def submit_pipeline_plan(
     if not plan.api_url:
         errors.append("GitLab trigger API URL is not configured")
     if errors:
-        return GitLabPipelineSubmitResult(status_code=0, response={}, errors=errors)
+        return GitLabPipelineSubmitResult(status_code=0, response={}, errors=errors, request_attempted=False)
 
     form_fields = _trigger_form_fields(plan.payload, token)
     body = urllib.parse.urlencode(form_fields).encode("utf-8")

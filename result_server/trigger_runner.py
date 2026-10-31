@@ -25,6 +25,7 @@ try:
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
+        scheduled_submission_status,
     )
 except ModuleNotFoundError:  # pragma: no cover - supports python -m result_server.trigger_runner
     from result_server.utils.budget_profile_binding import build_bound_profile_plan, has_budget_binding, require_budget_pipeline_capability
@@ -38,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - supports python -m result_serv
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
+        scheduled_submission_status,
     )
 
 
@@ -61,6 +63,7 @@ ROUTINE_TRIGGER_STATUSES = frozenset(
         "unchanged",
         "already_submitted",
         "runner_locked",
+        "submission_held",
         "would_initialize",
     }
 )
@@ -259,24 +262,32 @@ def evaluate_scheduled_trigger(
         lookback_minutes=schedule_lookback_minutes,
     )
     due_slot = None
+    held_slot = None
     legacy_reason = f"cron:{trigger.get('cron_expr', '')}"
     legacy_since = _utc_iso(now - timedelta(minutes=schedule_lookback_minutes + 1))
     for slot in due_slots:
         candidate_reason = f"cron:{trigger.get('cron_expr', '')}@{_minute_key(slot)}"
+        if (store.has_scheduled_submission_hold(trigger_id=trigger['id'], reason=candidate_reason)
+                or store.has_scheduled_submission_hold(trigger_id=trigger['id'], reason=legacy_reason,
+                                                       created_at_since=legacy_since)):
+            held_slot = slot
+            break
         already_submitted = store.has_trigger_run(
             trigger_id=trigger["id"],
             status="submitted",
+            dry_run=False,
             reason=candidate_reason,
         ) or store.has_trigger_run(
             trigger_id=trigger["id"],
             status="submitted",
+            dry_run=False,
             reason=legacy_reason,
             created_at_since=legacy_since,
         )
         if not already_submitted:
             due_slot = slot
             break
-    reason_slot = due_slot or (due_slots[-1] if due_slots else None)
+    reason_slot = held_slot or due_slot or (due_slots[-1] if due_slots else None)
     reason = (
         f"cron:{trigger.get('cron_expr', '')}@{_minute_key(reason_slot)}"
         if reason_slot
@@ -294,6 +305,14 @@ def evaluate_scheduled_trigger(
     status = "would_submit" if should_fire else "not_due"
     if due_slots and due_slot is None:
         status = "already_submitted"
+    if held_slot is not None:
+        status = "submission_held"
+        should_fire = False
+        payload['submission_hold'] = {
+            'reason': reason,
+            'confirmation_required': True,
+            'note': 'An attempt is in progress or its acceptance is unknown. Confirm the pipeline before resubmitting.',
+        }
     if errors:
         status = "blocked"
     return TriggerEvaluation(
@@ -484,7 +503,8 @@ def run_triggers(
             )
             status = evaluation.status
             errors = list(evaluation.errors)
-            if submit and evaluation.should_fire:
+            attempt_id = None
+            if submit and not dry_run and evaluation.should_fire:
                 plan_payload = evaluation.payload.get("payload", {})
                 plan = SimpleNamespace(
                     api_url=evaluation.payload.get("api_url", ""),
@@ -506,17 +526,45 @@ def run_triggers(
                             raise RegistryError("Budget plan changed before submission")
                         plan, gitlab_target = refreshed.plan, refreshed.target
                         require_budget_pipeline_capability(gitlab_target, plan.payload["ref"])
-                    result = submit_pipeline(plan, token=configured_gitlab_trigger_token(gitlab_target))
+                    if trigger.get('trigger_type') == 'scheduled':
+                        attempt_id = store.claim_scheduled_submission(
+                            trigger_id=trigger['id'], reason=evaluation.reason, payload=evaluation.payload)
+                        if attempt_id is None:
+                            # Another runner won the slot after evaluation. Never send it again.
+                            reported = replace(evaluation, should_fire=False, status='submission_held',
+                                payload=dict(evaluation.payload, submission_hold={
+                                    'confirmation_required': True,
+                                    'note': 'This scheduled slot was claimed by another attempt.'}))
+                            evaluations.append(reported)
+                            continue
+                    try:
+                        result = submit_pipeline(plan, token=configured_gitlab_trigger_token(gitlab_target))
+                    except Exception:
+                        if attempt_id is None:
+                            raise
+                        # Persist uncertainty without exception text, which may include secrets.
+                        result = SimpleNamespace(ok=False, status_code=0, response={},
+                            errors=['Submission interrupted; pipeline acceptance requires confirmation'])
                 except (RegistryError, EncryptedDatabaseError):
                     result = SimpleNamespace(ok=False, status_code=0, response={},
+                                             request_attempted=False,
                                              errors=["Budget selection changed or is unavailable; submission blocked"])
                 errors.extend(result.errors)
-                status = "submitted" if result.ok else "submit_failed"
+                status = (scheduled_submission_status(result) if trigger.get('trigger_type') == 'scheduled'
+                          else "submitted" if result.ok else "submit_failed")
                 evaluation_payload = dict(evaluation.payload)
                 evaluation_payload["submit"] = {
                     "status_code": result.status_code,
                     "response": result.response,
                 }
+                if trigger.get('trigger_type') == 'scheduled':
+                    evaluation_payload['submit']['request_attempted'] = getattr(result, 'request_attempted', True)
+                    evaluation_payload['submit']['acceptance'] = {
+                        'submitted': 'accepted', 'submit_failed': 'rejected',
+                        'submission_unknown': 'unknown',
+                    }[status]
+                    if status == 'submission_unknown':
+                        errors.append('Acceptance is unknown; automatic resubmission of this slot is held')
             else:
                 evaluation_payload = evaluation.payload
             reported = replace(
@@ -537,6 +585,10 @@ def run_triggers(
                         dry_run=dry_run,
                         observed_at=observed_at,
                     )
+            if attempt_id is not None:
+                store.finish_scheduled_submission(attempt_id, status=status,
+                    payload=evaluation_payload, errors=errors)
+                continue
             _record_trigger_run_if_needed(
                 store,
                 evaluation,
