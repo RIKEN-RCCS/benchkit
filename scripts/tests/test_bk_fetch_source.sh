@@ -143,3 +143,4 @@ fi
 popd >/dev/null
 
 echo "bk_fetch_source provenance verification test passed"
+"${PYTHON_BIN:-python3}" "${SCRIPT_DIR}/test_source_bundle.py"

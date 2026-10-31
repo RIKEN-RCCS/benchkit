@@ -448,6 +448,31 @@ if ! source_info_block=$(annotate_public_access_for_source_info "$source_info_bl
   exit 1
 fi
 
+# Optional build/runtime provenance is tied to the compatibility source record.
+if [ -f results/build_provenance.json ]; then
+  source_record_sha=$(sha256sum results/source_info.env | awk '{print $1}')
+  if ! build_provenance=$(jq -ce --arg sha "$source_record_sha" '
+      select(.schema_version == 1 and .source_info_sha256 == $sha)
+      | select((.adjustments | type) == "array" and (.variants | type) == "array")
+      | {schema_version, source_info_sha256,
+          adjustments: [.adjustments[] | {id, file, status, exit_code,
+            before_sha256, after_sha256, source_diff_sha256}],
+          variants: [.variants[] | {"label": .label, binary, binary_sha256, binary_mode, exit_code,
+            source_diff_sha256, configuration: [.configuration[] | {path, sha256}]}]}
+    ' results/build_provenance.json); then
+    echo 'ERROR: build provenance is invalid or belongs to a different source record' >&2
+    exit 1
+  fi
+  # Raw source diffs and config contents remain in build artifacts, not public Results.
+  provenance_sha=$(sha256sum results/build_provenance.json | awk '{print $1}')
+  build_provenance=$(printf '%s' "$build_provenance" | jq -c --arg sha "$provenance_sha" '. + {record_sha256: $sha}') || exit 1
+  if ! source_info_block=$(printf '%s' "$source_info_block" | jq -ce --argjson build "$build_provenance" '
+      if type == "object" then . + {build: $build} else error("missing source record") end
+    '); then
+    exit 1
+  fi
+fi
+
 build_cache_field() {
   local prefix="$1"
   local suffix="$2"

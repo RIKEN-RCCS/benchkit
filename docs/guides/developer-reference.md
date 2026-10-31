@@ -66,6 +66,52 @@ A future "requester" or "applicant" role belongs to the not-yet-implemented requ
 Scaffolding or code generation may be added later as convenience tooling, but it is not required for contributors.
 The supported baseline is that contributors can add apps, sites, and estimation packages by following the guides and existing examples.
 
+## Build-to-Run Source Handoff
+
+Applications can opt into the shared build/runtime handoff in
+`scripts/common/source_bundle.sh`, loaded by the normal build/run helpers.
+Legacy `bk_fetch_source` and `bk_fetch_recorded_source` callers are unchanged.
+
+1. Declare the Git URL/ref and optional override variable names in
+   `programs/<code>/source.env` (data, not sourced shell). Call
+   `bk_build_declared_source` with this file and use the returned `BK_SOURCE_DIR`.
+   Call these helpers in the current shell, not in command substitution.
+   The build cache uses the same reader, so resolved URL/ref/commit overrides
+   participate in its key. New helper files also participate in the build hash.
+2. Keep applicability and scientific settings in the app. Use
+   `bk_source_adjustment <id> <reason> <relative-file> <command...>` to record
+   an adjustment's outcome and before/after hashes. No change is recorded as
+   `unchanged`; command failure is recorded and propagated.
+3. After configuring each binary, call
+   `bk_build_binary <label> <source-binary> <runtime-relative-binary>` followed by
+   `--config <file>` entries and `-- <build-command...>`. The helper records that
+   variant's pre-compilation tracked-source diff, config bytes/hashes and output
+   binary hash. App build functions must propagate failures of their individual
+   commands explicitly. These observations are not a trace of every compiler
+   read or a digest of all possible untracked source files.
+4. Call `bk_publish_runtime <static-source-relative-paths...>` once after successful
+   builds. It preserves input layout alongside binaries in `artifacts/runtime`.
+   Failed or incomplete builds do not publish a partial runtime. Previous build
+   workspaces and superseded payloads are retained in build-local directories;
+   they are not reused as current output or automatically deleted.
+5. Run calls `bk_use_runtime` and uses the returned `BK_RUNTIME_DIR`. It validates
+   and copies the payload to a new directory without Git access, and projects
+   its source/build metadata into `results/`. Generating scientific inputs,
+   launching the app and validating results remain app responsibilities.
+
+The inventory rejects links/special files and covers file names, modes and
+contents. Existing artifact cache integrity checks protect the complete set;
+they do not establish publisher authenticity. No expected scientific dataset
+hash gate is introduced. Results include a hash/status-only summary in
+`source_info.build`; raw diffs/config contents remain in build artifacts.
+Use one build writer per workspace, as with existing `artifacts/` handling.
+No Python or jq is required on the common compute path. Result conversion
+continues to use jq on the sender. No Portal database schema change is needed.
+
+See the [LQCD example](../../programs/LQCD_dw_solver/README.md) and the local
+synthetic tests in `scripts/tests/test_source_bundle.py`. Real toolchain and
+scientific acceptance remain separate from synthetic handoff verification.
+
 ## Result Portal
 
 The experimental [runner observation protocol](../runner-observation-protocol.md)

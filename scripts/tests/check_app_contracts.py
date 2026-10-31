@@ -96,6 +96,7 @@ def source_provenance_visible(app: str) -> bool:
         marker in f"{build_text}\n{run_text}"
         for marker in (
             "bk_fetch_source", "bk_fetch_recorded_source",
+            "bk_build_source", "bk_build_declared_source",
             "results/source_info.env", "BK_SOURCE_",
         )
     )
