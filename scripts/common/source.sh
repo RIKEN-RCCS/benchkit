@@ -433,3 +433,6 @@ bk_fetch_recorded_source() {
 
   bk_fetch_source "$_bk_recorded_src" "$_bk_recorded_dest" "$_bk_recorded_ref" "$_bk_recorded_expected"
 }
+
+# Opt-in build/runtime handoff; legacy source acquisition remains unchanged.
+source "${BASH_SOURCE[0]%/*}/source_bundle.sh"

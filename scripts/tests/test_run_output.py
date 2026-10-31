@@ -13,6 +13,29 @@ import tempfile
 import unittest
 
 
+def lqcd_runtime_fixture(root, repo):
+    """A prebuilt payload for run-only tests; real publication is tested separately."""
+    package = root / "artifacts/runtime"
+    run = package / "payload/run"
+    run.mkdir(parents=True)
+    (run / "main_template.yaml").write_text("xxx_lattice_size_xxx\n")
+    for name in ("bridge.elf", "bridge_openacc.elf", "bridge_cuda.elf"):
+        (run / name).write_text("#!/bin/sh\nexit 0\n")
+        (run / name).chmod(0o755)
+    (package / "source_info.env").write_text(
+        "BK_SOURCE_TYPE=git\nBK_REPO_URL=https://example.invalid/solver.git\n"
+        f"BK_COMMIT_HASH={'1' * 40}\n"
+    )
+    (package / "build.json").write_text(json.dumps({
+        "schema_version": 1,
+        "source_info_sha256": hashlib.sha256((package / "source_info.env").read_bytes()).hexdigest(),
+        "adjustments": [], "variants": [],
+    }))
+    with (package / "inventory").open("w") as output:
+        subprocess.run(["bash", "-c", 'source "$1/scripts/bk_build.sh"; _bk_bundle_inventory "$2"',
+                        "bash", str(repo), str(package)], check=True, stdout=output, timeout=15)
+
+
 class RunOutputTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -1069,10 +1092,12 @@ printf 'launcher warning\n' >&2
         (lqcd / "main_template.yaml").write_text("xxx_lattice_size_xxx\n")
         (self.root / "artifacts/bridge.elf").touch()
         (lqcd / "stdout.1.0").write_text("old result\n")
+        lqcd_runtime_fixture(self.root, self.repo)
         result = self.run_shell('bash programs/LQCD_dw_solver/run.sh Fugaku 1 1 1')
         self.assert_ok(result)
         self.assertIn("FOM:", (self.root / "results/result").read_text())
-        self.assertNotIn("old result", (lqcd / "run.log").read_text())
+        runtime, = self.root.glob(".runtime.*/payload/run")
+        self.assertNotIn("old result", (runtime / "run.log").read_text())
 
         source = self.root / "genesis_benchmark_input"
         work = source / "npt/genesis2.0beta_3.5fs/apoa1"
@@ -1107,6 +1132,7 @@ printf 'launcher warning\n' >&2
         artifacts.mkdir()
         for name in ("bridge.elf", "bridge_openacc.elf", "bridge_cuda.elf"):
             (artifacts / name).touch()
+        lqcd_runtime_fixture(self.root, self.repo)
         commands = {
             "git": '''case " $* " in
   *" rev-parse "*) printf '%040d\\n' 1 ;;
@@ -1140,6 +1166,7 @@ exit "$FIRST_EXIT"''',
                 + "solver performance:\nsolver = 2 sec\n")
 
     def run_lqcd_validation(self, system, expected):
+        previous = set(self.root.glob(".runtime.*"))
         result = self.run_shell(
             f"bash scripts/run_benchmark.sh programs/LQCD_dw_solver/run.sh {system} 1 1 2"
         )
@@ -1148,6 +1175,8 @@ exit "$FIRST_EXIT"''',
         self.assertEqual(execution["exit_code"], expected)
         self.assertEqual(execution["status"], "failed" if expected else "completed")
         self.assertTrue((self.root / "results/execution.log").is_file())
+        runtime, = set(self.root.glob(".runtime.*")) - previous
+        self.lqcd_work = runtime / "payload/run"
         return (self.root / "results/result").read_text()
 
     def test_lqcd_validation_conditions_control_exit_and_fom(self):
@@ -1162,7 +1191,7 @@ exit "$FIRST_EXIT"''',
                 log = self.lqcd_log(count, residual)
                 (self.root / "first.log").write_text(log)
                 output = self.run_lqcd_validation("Fugaku", expected)
-                self.assertEqual((work / "run.log").read_text(), log)
+                self.assertEqual((self.lqcd_work / "run.log").read_text(), log)
                 self.assertRegex((self.root / "results/execution.log").read_text(),
                                  rf"check result\s+{expected}\b")
                 if expected:
@@ -1179,7 +1208,7 @@ exit "$FIRST_EXIT"''',
         (self.root / "first.log").write_text(log)
         self.env["FIRST_EXIT"] = "23"
         self.assertEqual(self.run_lqcd_validation("Fugaku", 23), "")
-        self.assertEqual((work / "run.log").read_text(), log)
+        self.assertEqual((self.lqcd_work / "run.log").read_text(), log)
         self.assertNotIn("check result", (self.root / "results/execution.log").read_text())
 
     def test_lqcd_second_validation_failure_retains_first_fom(self):
@@ -1191,7 +1220,7 @@ exit "$FIRST_EXIT"''',
         self.assertIn("FOM:12 FOM_unit:s FOM_version:LQCD_dw_solver Exp:total_OpenACC", output)
         self.assertNotIn("Exp:total_CUDA", output)
         self.assertEqual((self.root / "launches").read_text().splitlines(), ["first", "cuda"])
-        self.assertEqual((work / "run_cuda.log").read_text(), self.lqcd_log(residual="1e-25"))
+        self.assertEqual((self.lqcd_work / "run_cuda.log").read_text(), self.lqcd_log(residual="1e-25"))
 
     def test_lqcd_first_validation_failure_does_not_launch_second(self):
         self.prepare_lqcd_validation()

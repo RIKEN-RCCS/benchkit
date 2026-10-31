@@ -48,6 +48,8 @@ def test_input_provenance_visible(tmp_path, monkeypatch, script, expected):
 @pytest.mark.parametrize("script, expected", [
     ("bk_fetch_source source checkout main", True),
     ("bk_fetch_recorded_source source checkout main", True),
+    ("bk_build_source source main", True),
+    ("bk_build_declared_source programs/demo/source.env", True),
     ("git clone source checkout", False),
 ])
 def test_source_provenance_visible(tmp_path, monkeypatch, filename, script, expected):

@@ -255,6 +255,8 @@ build_inputs_hash() {
       "scripts/bk_build.sh" \
       "scripts/common/bootstrap.sh" \
       "scripts/common/source.sh" \
+      "scripts/common/source_bundle.sh" \
+      "scripts/json_output.sh" \
       "scripts/common/profile_config.sh" \
       "scripts/common/observation.sh" \
       "scripts/common/build_tools.sh" \
@@ -276,6 +278,8 @@ build_inputs_hash() {
       "scripts/bk_build.sh" \
       "scripts/common/bootstrap.sh" \
       "scripts/common/source.sh" \
+      "scripts/common/source_bundle.sh" \
+      "scripts/json_output.sh" \
       "scripts/common/profile_config.sh" \
       "scripts/common/observation.sh" \
       "scripts/common/build_tools.sh" \
@@ -305,6 +309,15 @@ build_inputs_hash() {
       printf '%s  %s\n' "$(bk_sha256_file "$file")" "$label" >> "$hash_list"
     fi
   done
+
+  # Opt-in source declarations make URL/ref/commit overrides part of the cache key.
+  if [ -f "${program_path}/source.env" ]; then
+    bk_source_request "${program_path}/source.env" || return 1
+    printf 'source-request %s %s %s\n' \
+      "$(bk_base64_encode_value "$BK_SOURCE_REPO")" \
+      "$(bk_base64_encode_value "$BK_SOURCE_REF")" \
+      "$(bk_base64_encode_value "$BK_SOURCE_COMMIT")" >> "$hash_list"
+  fi
 
   bk_sha256_file "$hash_list"
   rm -f "$file_list" "$hash_list"
@@ -514,7 +527,10 @@ validate_cached_source() {
         echo "cached git source metadata is incomplete"
         return 1
       fi
-      if ! current_commit=$(resolve_git_ref_commit "$repo_url" "$ref_name"); then
+      if [ "$(env_file_value "$source_info_file" BK_SOURCE_REF_KIND)" = commit ] &&
+          [ "$ref_name" = "$cached_commit" ] && bk_validate_hex_length "$cached_commit" 40 'cached source commit'; then
+        current_commit="$cached_commit"
+      elif ! current_commit=$(resolve_git_ref_commit "$repo_url" "$ref_name"); then
         echo "cannot verify current git ref for ${repo_url} ${ref_name}"
         return 1
       fi

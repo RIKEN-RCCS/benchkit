@@ -9,24 +9,10 @@ mkdir -p results && : > results/result
 
 source "${PWD}/scripts/bk_functions.sh"
 
-REPO_URL="${LQCD_DW_SOLVER_REPO_URL:-https://github.com/i-kanamori/LQCD-DWF-solver.git}"
-DIR="LQCD_dw_solver"
-BRANCH="${LQCD_DW_SOLVER_BRANCH:-main}"
-SOURCE_COMMIT="${LQCD_DW_SOLVER_SOURCE_COMMIT:-}"
-
 echo "[LQCD_dw_solver] Running on system: $system"
-# run/main_template.yaml などソースツリー内の入力を使うため、
-# build 時に記録した source_info と同じ commit を取得する
-if [ -L "${DIR}" ] || { [ -e "${DIR}" ] && [ ! -d "${DIR}/.git" ]; }; then
-  echo "[LQCD_dw_solver] Removing stale non-git source directory: ${DIR}"
-  rm -rf "${DIR}"
-fi
-bk_fetch_recorded_source "${REPO_URL}" "${DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
-
-RESULT=../../results/result
-cp artifacts/bridge*.elf $DIR/run/
-
-cd $DIR/run
+RESULT="$PWD/results/result"
+bk_use_runtime
+cd "$BK_RUNTIME_DIR/run"
 BIN=./bridge.elf
 
 get_etime_total () {
@@ -82,7 +68,7 @@ case "$system" in
         cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,2,2/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
         export OMP_NUM_THREADS=12
         export FLIB_BARRIER=HARD
-        bk_run --log run.log -- mpiexec -np 4 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
+        bk_run --log run.log --input-file main.yaml -- mpiexec -np 4 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
         check run.log
         get_fom run.log >> $RESULT
         ;;
@@ -90,7 +76,7 @@ case "$system" in
         cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,16,16,24/" -e "s/xxx_grid_size_xxx/2,2,4,3/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
         export OMP_NUM_THREADS=12
         export FLIB_BARRIER=HARD
-        bk_run --log run.log -- mpiexec -np 48 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
+        bk_run --log run.log --input-file main.yaml -- mpiexec -np 48 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
         check run.log
         get_fom run.log >> $RESULT
         ;;
@@ -104,10 +90,10 @@ case "$system" in
   MiyabiG )
       # openacc
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml
-      bk_run --log run.log -- mpiexec -np 1 ./bridge_openacc.elf alt_accel
+      bk_run --log run.log --input-file main.yaml -- mpiexec -np 1 ./bridge_openacc.elf alt_accel
       check run.log
       get_fom run.log "target: OpenACC " > $RESULT
-      bk_run --log run_cuda.log -- mpiexec -np 1 ./bridge_cuda.elf alt_accel
+      bk_run --log run_cuda.log --input-file main.yaml -- mpiexec -np 1 ./bridge_cuda.elf alt_accel
       check run_cuda.log
       get_fom run_cuda.log "target: CUCA" >> $RESULT
       ;;
@@ -115,22 +101,22 @@ case "$system" in
       module load nvhpc-hpcx/26.3
       # 1 rank = 1 GPU。GPU 割り当ては各 rank の OMPI_COMM_WORLD_LOCAL_RANK で行われる
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/$nthreads/" > main.yaml
-      bk_run --log run.log -- mpirun -np 1 --bind-to none ./bridge_openacc.elf alt_accel
+      bk_run --log run.log --input-file main.yaml -- mpirun -np 1 --bind-to none ./bridge_openacc.elf alt_accel
       check run.log
       get_fom run.log "target: OpenACC " > $RESULT
-      bk_run --log run_cuda.log -- mpirun -np 1 --bind-to none ./bridge_cuda.elf alt_accel
+      bk_run --log run_cuda.log --input-file main.yaml -- mpirun -np 1 --bind-to none ./bridge_cuda.elf alt_accel
       check run_cuda.log
       get_fom run_cuda.log "target: CUDA" >> $RESULT
       ;;
   MiyabiC )
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
-      bk_run --log run.log -- mpiexec -np 2 ./bridge.elf alt_simd
+      bk_run --log run.log --input-file main.yaml -- mpiexec -np 2 ./bridge.elf alt_simd
       check run.log
       get_fom run.log >> $RESULT
       ;;
   AVX512 )
       cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/8/" > main.yaml
-      bk_run --log run.log -- mpiexec -np 1 ./bridge.elf alt_simd
+      bk_run --log run.log --input-file main.yaml -- mpiexec -np 1 ./bridge.elf alt_simd
       check run.log
       get_fom run.log >> $RESULT
       ;;
