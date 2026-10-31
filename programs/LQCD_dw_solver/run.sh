@@ -71,6 +71,7 @@ check () {
   #echo "check3: " $check2
   result=$((check1+check2+check3))
   echo "check result " $result
+  return "$result"
 
 }
 
