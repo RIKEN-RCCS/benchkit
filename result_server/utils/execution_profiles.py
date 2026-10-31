@@ -318,6 +318,28 @@ def normalize_trigger_definition(
     return normalized, errors
 
 
+def _scheduled_attempt_blocks(row, *, include_submitted=False):
+    if row['status'] in ('submitting', 'submission_unknown'):
+        return True
+    if row['status'] == 'submitted':
+        return include_submitted
+    if row['status'] != 'submit_failed':
+        return False
+    # Older runners used submit_failed for both rejections and uncertain requests.
+    from .gitlab_pipeline import GitLabPipelineSubmitResult, scheduled_submission_status
+    try:
+        payload = json.loads(row['payload_json'])
+        submission = payload['submit']
+        code = submission['status_code']
+        if not isinstance(code, int) or isinstance(code, bool):
+            return True
+        result = GitLabPipelineSubmitResult(code, submission.get('response', {}),
+            json.loads(row['errors_json']), request_attempted=submission.get('request_attempted', True))
+    except (TypeError, ValueError, KeyError):
+        return True
+    return scheduled_submission_status(result) != 'submit_failed'
+
+
 class ExecutionProfileStore:
     """Persist execution profiles in a small site-local SQLite database."""
 
@@ -1339,6 +1361,56 @@ class ExecutionProfileStore:
             )
             return int(cur.lastrowid)
 
+    def claim_scheduled_submission(self, *, trigger_id: str, reason: str,
+                                   payload: dict[str, Any]) -> int | None:
+        """Persist a single attempt before network I/O, independent of runner leases."""
+        self.migrate()
+        now = _utc_now_iso()
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                "SELECT status, payload_json, errors_json FROM trigger_runs "
+                "WHERE trigger_id=? AND reason=? AND dry_run=0",
+                (trigger_id, reason),
+            ).fetchall()
+            if any(_scheduled_attempt_blocks(row, include_submitted=True) for row in rows):
+                return None
+            cur = conn.execute(
+                "INSERT INTO trigger_runs (trigger_id, trigger_type, status, dry_run, reason, "
+                "payload_json, errors_json, actor, created_at, updated_at) "
+                "VALUES (?, 'scheduled', 'submitting', 0, ?, ?, '[]', 'trigger_runner', ?, ?)",
+                (trigger_id, reason, _json_dump(payload), now, now),
+            )
+            return int(cur.lastrowid)
+
+    def has_scheduled_submission_hold(self, *, trigger_id: str, reason: str,
+                                      created_at_since: str = "") -> bool:
+        """Include ambiguous failures recorded by older runners, not dry-run diagnostics."""
+        self.migrate()
+        query = ("SELECT status, payload_json, errors_json FROM trigger_runs "
+                 "WHERE trigger_id=? AND reason=? AND dry_run=0")
+        params = [trigger_id, reason]
+        if created_at_since:
+            query += " AND created_at >= ?"
+            params.append(created_at_since)
+        with self.connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return any(_scheduled_attempt_blocks(row) for row in rows)
+
+    def finish_scheduled_submission(self, run_id: int, *, status: str,
+                                    payload: dict[str, Any], errors: list[str]) -> None:
+        """Finish the claimed attempt; an interrupted update leaves it non-retryable."""
+        if status not in ('submitted', 'submit_failed', 'submission_unknown'):
+            raise ValueError("Invalid scheduled submission outcome")
+        with self.connect() as conn:
+            cur = conn.execute(
+                "UPDATE trigger_runs SET status=?, payload_json=?, errors_json=?, updated_at=? "
+                "WHERE id=? AND trigger_type='scheduled' AND status='submitting' AND dry_run=0",
+                (status, _json_dump(payload), json.dumps(errors, ensure_ascii=False), _utc_now_iso(), run_id),
+            )
+            if cur.rowcount != 1:
+                raise ValueError("Scheduled submission claim changed; confirmation required")
+
     def list_trigger_runs(
         self,
         trigger_id: str | None = None,
@@ -1400,6 +1472,7 @@ class ExecutionProfileStore:
         status: str,
         reason: str,
         created_at_since: str = "",
+        dry_run: bool | None = None,
     ) -> bool:
         self.migrate()
         params: list[Any] = [trigger_id, status, reason]
@@ -1408,6 +1481,9 @@ class ExecutionProfileStore:
             FROM trigger_runs
             WHERE trigger_id = ? AND status = ? AND reason = ?
         """
+        if dry_run is not None:
+            query += " AND dry_run = ?"
+            params.append(1 if dry_run else 0)
         if created_at_since:
             query += " AND created_at >= ?"
             params.append(created_at_since)

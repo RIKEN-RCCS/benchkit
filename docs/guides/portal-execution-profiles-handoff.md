@@ -205,13 +205,41 @@ twice after a successful submission. It also looks back a short window, default
 minute. Tune this with `--schedule-lookback-minutes` if the timer interval is
 changed.
 
+Before a scheduled request is sent, the runner persists a `submitting` attempt
+for that trigger and due minute. An atomic database claim prevents another
+runner from sending the same slot even if a runner lease expires. A successful
+response must include a positive pipeline ID before the attempt is `submitted`.
+
+A timeout, connection loss, server error or incomplete success response leaves
+`submission_unknown`; an interrupted process may leave `submitting`. Neither
+state is automatically retried for that slot. Subsequent evaluations report
+`submission_held`, independently of the ordinary runner lock. Older non-dry-run
+`submit_failed` records are also held when their recorded response cannot prove
+a rejection. Dry-run history never claims a slot.
+
+Local validation failures and HTTP 400/401/403/404/405/422/429 responses remain
+`submit_failed` and may be evaluated again on the next tick. Other responses,
+including HTTP 408 and 5xx, are treated conservatively as unknown. This concerns
+pipeline acceptance, not CI or scheduler completion. Inspect the recorded
+trigger, target/ref, due-minute reason and GitLab pipeline before deciding any
+manual recovery; do not delete the attempt or automatically retry an unknown
+request. No automatic reconciliation or operator release action is provided.
+A later scheduled minute is a distinct request, not a retry of the held slot.
+
+This claim protects scheduled runners using the same profile database. It does
+not deduplicate manual submissions, independent GitLab schedules, another
+profile database, or older runner versions writing concurrently. Repo/ref watch
+submission behavior is unchanged. No schema migration, new timer or management
+page is required.
+
 The runner uses a short-lived SQLite lock by default so overlapping timer
 invocations do not evaluate or submit the same triggers twice. Tune the lock
 TTL with `--lock-ttl-seconds` when the timer interval is changed.
 
 The admin execution-profile page shows recent trigger runner decisions,
 including `not_due`, `already_submitted`, `unchanged`, `blocked`,
-`submitted`, and `submit_failed`. For `repo_ref` watches it also shows the
+`submitted`, `submit_failed`, `submitting`, `submission_unknown`, and
+`submission_held`. For `repo_ref` watches it also shows the
 latest observed target fingerprint. Results produced by Portal-triggered
 pipelines show a `Run Cause` column in the results table and a matching detail
 row when the Result JSON contains `execution_trigger`.

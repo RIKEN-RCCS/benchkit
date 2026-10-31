@@ -64,6 +64,9 @@ def summarize_execution_history(run):
     summary["source"] = "manual" if request_id else "runner"
     summary["decision_label"] = {
         "submitted": "Submitted", "submit_failed": "Submission failed",
+        "submitting": "Submission in progress; do not resubmit",
+        "submission_unknown": "Acceptance unknown; confirmation required",
+        "submission_held": "Automatic resubmission held",
         "submit_blocked": "Submission blocked", "not_due": "Not due",
         "unchanged": "Unchanged",
     }.get(summary["status"], summary["status"])
