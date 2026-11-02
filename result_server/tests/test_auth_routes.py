@@ -1,9 +1,14 @@
 """Tests for authentication route security headers."""
 
+import base64
+import io
 import os
+import re
 import shutil
 import sys
 import tempfile
+
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -62,5 +67,24 @@ def test_invalid_setup_link_sets_no_store_headers():
         assert resp.status_code == 200
         assert "no-store" in resp.headers.get("Cache-Control", "")
         assert resp.headers.get("Pragma") == "no-cache"
+    finally:
+        _cleanup(temp_dirs)
+
+
+def test_setup_page_renders_real_qr_png():
+    app, temp_dirs = _portal_app()
+    try:
+        with app.test_client() as client:
+            resp = client.get("/auth/setup/token-1")
+
+        assert resp.status_code == 200
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+        assert resp.headers.get("Pragma") == "no-cache"
+        match = re.search(r'data:image/png;base64,([A-Za-z0-9+/=]+)', resp.get_data(as_text=True))
+        assert match is not None
+        png = base64.b64decode(match.group(1), validate=True)
+        with Image.open(io.BytesIO(png)) as image:
+            assert image.format == "PNG"
+            image.verify()
     finally:
         _cleanup(temp_dirs)
