@@ -14,7 +14,7 @@ def build_usage_report_context(
     db_path=None,
     estimated_dir=None,
     benchkit_commit="",
-    *, report=None, selection=None,
+    *, report=None, selection=None, record_source=None,
 ):
     """Build the Usage report view-model from request args and collected results."""
     params = parse_usage_query_params(args, current_fiscal_year)
@@ -28,6 +28,8 @@ def build_usage_report_context(
         "period_filter": period_filter,
     }
     kwargs = {'selection': selection} if selection is not None else {}
+    if record_source is not None:
+        kwargs['record_source'] = record_source
     if report in (None, 'node_hours'):
         result = aggregate_node_hours(received_dir, fiscal_year, period_type, **kwargs)
         period_filter, filtered_periods = select_usage_periods(result['periods'], period_filter)

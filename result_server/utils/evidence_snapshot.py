@@ -54,6 +54,7 @@ def build_evidence_snapshot(
     generated_at: datetime | str | None = None,
     app_support_rows: list[dict[str, Any]] | None = None,
     selection=None,
+    record_source=None,
 ) -> dict[str, Any]:
     """Build release-review evidence rows without exposing site-local values."""
     snapshot_time = _format_snapshot_time(generated_at)
@@ -66,8 +67,8 @@ def build_evidence_snapshot(
 
     rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     _merge_configured_rows(rows_by_key, app_support_rows, snapshot_time, benchkit_commit)
-    _merge_latest_results(rows_by_key, received_dir, snapshot_time, benchkit_commit, selection=selection)
-    _merge_latest_estimates(rows_by_key, estimated_dir, snapshot_time, benchkit_commit, selection=selection)
+    _merge_latest_results(rows_by_key, received_dir, snapshot_time, benchkit_commit, selection=selection, record_source=record_source)
+    _merge_latest_estimates(rows_by_key, estimated_dir, snapshot_time, benchkit_commit, selection=selection, record_source=record_source)
 
     rows = [
         _finalize_missing_reason(row)
@@ -140,9 +141,10 @@ def _merge_latest_results(
     received_dir: str,
     snapshot_time: str,
     benchkit_commit: str,
-    *, selection=None,
+    *, selection=None, record_source=None,
 ) -> None:
-    for record in _load_json_records(received_dir, prefix="result_", selection=selection):
+    records = _evidence_records(record_source, received_dir, 'result_', selection)
+    for record in records:
         data = record["data"]
         if "FOM" not in data or "system" not in data:
             continue
@@ -150,13 +152,11 @@ def _merge_latest_results(
         system = _clean(data.get("system")) or "unknown"
         row = _ensure_row(rows_by_key, code, system, snapshot_time, benchkit_commit)
 
-        public_source_available = has_public_source_info(data.get("source_info"))
-        public_input_available = has_public_input_info(
-            data.get("input_info"),
-            public_source_available,
-            result=data,
-        )
-        public_result_available = not get_file_confidential_tags(record["filename"], received_dir)
+        evidence = record.get('evidence')
+        public_source_available = evidence['public_source'] if evidence else has_public_source_info(data.get('source_info'))
+        public_input_available = evidence['public_input'] if evidence else has_public_input_info(
+            data.get('input_info'), public_source_available, result=data)
+        public_result_available = evidence['public'] if evidence else not get_file_confidential_tags(record['filename'], received_dir)
         if public_result_available and public_source_available and public_input_available:
             packet_sort_key = row.get("_latest_public_packet_sort_key")
             if packet_sort_key is None or packet_sort_key < record["sort_key"]:
@@ -172,8 +172,7 @@ def _merge_latest_results(
         if current_sort_key is not None and current_sort_key >= record["sort_key"]:
             continue
 
-        quality = summarize_result_quality(data)
-        stats = quality["stats"]
+        quality = summarize_result_quality(data) if evidence is None else None
         has_profile_data = _has_profile_data(data)
         row.update(
             {
@@ -183,11 +182,11 @@ def _merge_latest_results(
                 "latest_result_file": record["filename"],
                 "latest_result_time": record["timestamp"],
                 "latest_result_exp": _clean(data.get("Exp")) or "-",
-                "latest_result_status": quality["level"],
+                "latest_result_status": evidence['level'] if evidence else quality['level'],
                 "profiled": "yes" if has_profile_data else "no",
                 "latest_profile_time": record["timestamp"] if has_profile_data else "-",
-                "source_status": "tracked" if stats.get("source_info_complete") else "incomplete",
-                "input_status": stats.get("input_info_label") or "None",
+                "source_status": "tracked" if (evidence['source_complete'] if evidence else quality['stats'].get('source_info_complete')) else "incomplete",
+                "input_status": (evidence['input_label'] if evidence else quality['stats'].get('input_info_label')) or 'None',
                 "build_cache_status": _build_cache_status(data.get("build_cache")),
                 "public_result_available": "yes" if public_result_available else "no",
             }
@@ -199,9 +198,9 @@ def _merge_latest_estimates(
     estimated_dir: str,
     snapshot_time: str,
     benchkit_commit: str,
-    *, selection=None,
+    *, selection=None, record_source=None,
 ) -> None:
-    for record in _load_json_records(estimated_dir, prefix="estimate_", selection=selection):
+    for record in _evidence_records(record_source, estimated_dir, 'estimate_', selection):
         data = record["data"]
         code = _clean(data.get("code")) or "unknown"
         exp = _clean(data.get("exp")) or "-"
@@ -230,6 +229,13 @@ def _merge_latest_estimates(
             )
             if row["latest_result_exp"] == "-":
                 row["latest_result_exp"] = exp
+
+
+def _evidence_records(source, directory, prefix, selection):
+    if source is None:
+        return _load_json_records(directory, prefix=prefix, selection=selection)
+    return (dict(record, timestamp=record['timestamp_label'])
+            for record in source.records(directory, prefix=prefix, selection=selection))
 
 
 def _load_json_records(directory: str, *, prefix: str, selection=None) -> list[dict[str, Any]]:

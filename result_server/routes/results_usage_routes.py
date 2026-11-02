@@ -1,5 +1,7 @@
 import csv
 import io
+import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 
 from flask import abort, current_app, render_template, request, url_for
@@ -10,6 +12,7 @@ from utils.node_hours import get_fiscal_year
 from utils.usage_report_view import build_usage_report_context
 from utils.usage_query_params import parse_usage_query_params
 from utils.report_selection import definition_options, usage_requested, usage_selection
+from utils.result_catalog import CatalogUnavailable, ResultCatalog
 
 REPORTS = {'node_hours': 'Node-Hour Usage', 'profiles': 'Profile Operations',
            'performance': 'Performance Telemetry', 'evidence': 'Evidence Snapshot',
@@ -34,6 +37,21 @@ def _portal_commit():
     return ""
 
 
+@contextmanager
+def _report_source(report):
+    path = current_app.config.get('RESULT_CATALOG_PATH')
+    if not path or report == 'configuration':
+        yield None
+        return
+    try:
+        catalog = ResultCatalog(path, current_app.config['RECEIVED_DIR'],
+                                estimated_directory=current_app.config.get('ESTIMATED_DIR', current_app.config['RECEIVED_DIR']))
+        with catalog.snapshot() as reader:
+            yield reader
+    except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
+        abort(503, description='Report index unavailable; rebuilding may be required')
+
+
 def register_results_usage_routes(results_bp):
     @results_bp.route("/usage", methods=["GET"])
     @admin_required
@@ -45,11 +63,13 @@ def register_results_usage_routes(results_bp):
         execute = usage_requested(request.args)
         context = dict(params)
         if execute:
-            context.update(build_usage_report_context(
-                current_app.config['RECEIVED_DIR'], request.args, params['fiscal_year'],
-                db_path=current_app.config.get('EXECUTION_PROFILE_DB_PATH'),
-                estimated_dir=current_app.config.get('ESTIMATED_DIR'),
-                benchkit_commit=_portal_commit(), report=report, selection=selection))
+            with _report_source(report) as source:
+                kwargs = {'record_source': source} if source is not None else {}
+                context.update(build_usage_report_context(
+                    current_app.config['RECEIVED_DIR'], request.args, params['fiscal_year'],
+                    db_path=current_app.config.get('EXECUTION_PROFILE_DB_PATH'),
+                    estimated_dir=current_app.config.get('ESTIMATED_DIR'),
+                    benchkit_commit=_portal_commit(), report=report, selection=selection, **kwargs))
         csv_args = dict(params, code=selection['code'], system=selection['system'])
         context.update(report=report, reports=REPORTS, report_executed=execute, selection=selection,
                        filter_options=definition_options(selection['code'], selection['system']),
@@ -60,12 +80,12 @@ def register_results_usage_routes(results_bp):
     @admin_required
     def usage_evidence_snapshot_csv():
         _, selection = _selection()
-        snapshot = build_evidence_snapshot(
-            current_app.config["RECEIVED_DIR"],
-            current_app.config.get("ESTIMATED_DIR", current_app.config["RECEIVED_DIR"]),
-            benchkit_commit=_portal_commit(),
-            selection=selection,
-        )
+        with _report_source('evidence') as source:
+            kwargs = {'record_source': source} if source is not None else {}
+            snapshot = build_evidence_snapshot(
+                current_app.config['RECEIVED_DIR'],
+                current_app.config.get('ESTIMATED_DIR', current_app.config['RECEIVED_DIR']),
+                benchkit_commit=_portal_commit(), selection=selection, **kwargs)
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=EVIDENCE_SNAPSHOT_CSV_COLUMNS)
         writer.writeheader()
