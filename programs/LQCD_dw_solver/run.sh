@@ -13,115 +13,79 @@ echo "[LQCD_dw_solver] Running on system: $system"
 RESULT="$PWD/results/result"
 bk_use_runtime
 cd "$BK_RUNTIME_DIR/run"
-BIN=./bridge.elf
 
-get_etime_total () {
-  LOG=$1
-  grep "Elapsed time: Spectrum_Domainwall_alt.hadron_2ptFunction: total" $LOG |sed -e "s/^.*total *//" -e "s/sec.*$//" -e "s/ //g"
-}
-
-get_etime_solver () {
-  LOG=$1
-  grep -A 1 "solver performance:" $LOG |tail -n 1 |sed -e "s/^.*=//" -e "s/sec//" -e "s/ //g"
-}
-
-get_fom () {
-  LOG=$1
-  FOM1=`get_etime_solver $LOG`
-  FOM2=`get_etime_total $LOG`
-  FOM_O=`echo $FOM2 $FOM1 | awk '{print $1-$2}'`
-  if [ $# -eq 1 ]; then
-      bk_emit_result --from-log "$LOG" --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp total --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
-      bk_emit_section solver "$FOM1"
-      bk_emit_section other "$FOM_O"
-  else
-      # 第2引数をExp名として使用
-      # 注意: 暫定的にtarget情報をExpに付け加えます。
-      TARGET=$(echo "$2" | sed 's/target: //' | sed 's/ $//')
-      bk_emit_result --from-log "$LOG" --fom "$FOM2" --fom-unit s --fom-version LQCD_dw_solver --exp "total_${TARGET}" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
-      bk_emit_section solver "$FOM1"
-      bk_emit_section other "$FOM_O"
-  fi
+get_fom() {
+  local log="$1" exp="${2:-total}" solver total other
+  solver=$(grep -A 1 'solver performance:' "$log" | tail -n 1 | sed -e 's/^.*=//' -e 's/sec//' -e 's/ //g')
+  total=$(grep 'Elapsed time: Spectrum_Domainwall_alt.hadron_2ptFunction: total' "$log" | sed -e 's/^.*total *//' -e 's/sec.*$//' -e 's/ //g')
+  other=$(awk -v total="$total" -v solver="$solver" 'BEGIN {print total-solver}')
+  bk_emit_result --from-log "$log" --fom "$total" --fom-unit s --fom-version LQCD_dw_solver --exp "$exp" --nodes "$nodes" --numproc-node "$numproc_node" --nthreads "$nthreads"
+  bk_emit_section solver "$solver"
+  bk_emit_section other "$other"
 }
 
 check () {
-  LOG=$1
-  check=`grep "Richardson  nconv " $LOG | awk 'BEGIN {s=0;i=0;err=0} {s=(s<$7)?$7:s; i+=1; if(0+$7 == 0){err+=1}} END {print i, s, err}'`
+  local LOG="$1" check check1 check2 check3 result
+  check=`grep "Richardson  nconv " "$LOG" | awk 'BEGIN {s=0;i=0;err=0} {s=(s<$7)?$7:s; i+=1; if(0+$7 == 0){err+=1}} END {print i, s, err}'`
   echo "check low prec solver: " $check
   check1=`echo $check |awk '{ if($1 !=12 ){print 1} }'`
   check2=`echo $check |awk '{ if($2 >1e-26 ){print 2} }'`
   check3=`echo $check |awk '{ if($3 > 0 ){print 4} }'`
 
-  #echo "check1: " $check1
-  #echo "check2: " $check2
-  #echo "check3: " $check2
   result=$((check1+check2+check3))
   echo "check result " $result
   return "$result"
 
 }
 
+# Site differences define the scientific input and launcher; execution is shared.
+lattice=32,8,8,12
+grid=1,1,1,1
+input_threads="$nthreads"
+launcher=(mpiexec -np 1)
+binaries=(./bridge.elf)
+logs=(run.log)
+experiments=(total)
+mode=alt_simd
 case "$system" in
   Fugaku|FugakuCN)
     case "$nodes" in
-      1)
-        cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,2,2/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
-        export OMP_NUM_THREADS=12
-        export FLIB_BARRIER=HARD
-        bk_run --log run.log --input-file main.yaml -- mpiexec -np 4 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
-        check run.log
-        get_fom run.log >> $RESULT
-        ;;
-      12)
-        cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,16,16,24/" -e "s/xxx_grid_size_xxx/2,2,4,3/" -e "s/xxx_number_of_thread_xxx/12/" > main.yaml
-        export OMP_NUM_THREADS=12
-        export FLIB_BARRIER=HARD
-        bk_run --log run.log --input-file main.yaml -- mpiexec -np 48 -stdout-proc stdout -stderr-proc stderr $BIN alt_qxs
-        check run.log
-        get_fom run.log >> $RESULT
-        ;;
-      *)
-        echo "Unknown number of nodes: $nodes"
-
-        exit 1
-        ;;
-      esac
-      ;;
-  MiyabiG )
-      # openacc
-      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/2/" > main.yaml
-      bk_run --log run.log --input-file main.yaml -- mpiexec -np 1 ./bridge_openacc.elf alt_accel
-      check run.log
-      get_fom run.log "target: OpenACC " > $RESULT
-      bk_run --log run_cuda.log --input-file main.yaml -- mpiexec -np 1 ./bridge_cuda.elf alt_accel
-      check run_cuda.log
-      get_fom run_cuda.log "target: CUCA" >> $RESULT
-      ;;
-  RIKYU )
-      module load nvhpc-hpcx/26.3
-      # 1 rank = 1 GPU。GPU 割り当ては各 rank の OMPI_COMM_WORLD_LOCAL_RANK で行われる
-      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/$nthreads/" > main.yaml
-      bk_run --log run.log --input-file main.yaml -- mpirun -np 1 --bind-to none ./bridge_openacc.elf alt_accel
-      check run.log
-      get_fom run.log "target: OpenACC " > $RESULT
-      bk_run --log run_cuda.log --input-file main.yaml -- mpirun -np 1 --bind-to none ./bridge_cuda.elf alt_accel
-      check run_cuda.log
-      get_fom run_cuda.log "target: CUDA" >> $RESULT
-      ;;
-  MiyabiC )
-      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,2/" -e "s/xxx_number_of_thread_xxx/56/" > main.yaml
-      bk_run --log run.log --input-file main.yaml -- mpiexec -np 2 ./bridge.elf alt_simd
-      check run.log
-      get_fom run.log >> $RESULT
-      ;;
-  AVX512 )
-      cat main_template.yaml |sed -e "s/xxx_lattice_size_xxx/32,8,8,12/" -e "s/xxx_grid_size_xxx/1,1,1,1/" -e "s/xxx_number_of_thread_xxx/8/" > main.yaml
-      bk_run --log run.log --input-file main.yaml -- mpiexec -np 1 ./bridge.elf alt_simd
-      check run.log
-      get_fom run.log >> $RESULT
-      ;;
-  *)
-    echo "Unknown Running system: $system"
-    exit 1
+      1) grid=1,1,2,2; ranks=4 ;;
+      12) lattice=32,16,16,24; grid=2,2,4,3; ranks=48 ;;
+      *) echo "Unknown number of nodes: $nodes" >&2; exit 1 ;;
+    esac
+    input_threads=12
+    export OMP_NUM_THREADS=12 FLIB_BARRIER=HARD
+    launcher=(mpiexec -np "$ranks" -stdout-proc stdout -stderr-proc stderr)
+    mode=alt_qxs
     ;;
+  MiyabiG|RIKYU)
+    binaries=(./bridge_openacc.elf ./bridge_cuda.elf)
+    logs=(run.log run_cuda.log)
+    experiments=(total_OpenACC total_CUDA)
+    mode=alt_accel
+    if [ "$system" = RIKYU ]; then
+      module load nvhpc-hpcx/26.3
+      # One rank uses one GPU, selected by OMPI_COMM_WORLD_LOCAL_RANK.
+      launcher=(mpirun -np 1 --bind-to none)
+    else
+      input_threads=2
+      # Preserve the existing experiment name used by this site's results.
+      experiments=(total_OpenACC total_CUCA)
+    fi
+    ;;
+  MiyabiC) grid=1,1,1,2; input_threads=56; launcher=(mpiexec -np 2) ;;
+  AVX512) input_threads=8 ;;
+  *) echo "Unknown Running system: $system" >&2; exit 1 ;;
 esac
+
+sed -e "s/xxx_lattice_size_xxx/$lattice/" \
+    -e "s/xxx_grid_size_xxx/$grid/" \
+    -e "s/xxx_number_of_thread_xxx/$input_threads/" main_template.yaml > main.yaml
+
+for index in "${!binaries[@]}"; do
+  log="${logs[$index]}"
+  bk_run --log "$log" --input-file main.yaml -- "${launcher[@]}" "${binaries[$index]}" "$mode"
+  check "$log"
+  get_fom "$log" "${experiments[$index]}" >> "$RESULT"
+done

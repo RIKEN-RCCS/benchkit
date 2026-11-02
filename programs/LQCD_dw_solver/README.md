@@ -34,3 +34,11 @@ signature, a scientific input approval, or proof of reproducible compilation.
 
 Synthetic tests use local Git, fake compilers/launchers and generated logs.
 They do not validate real MPI/CUDA compilation or numerical accuracy.
+
+Site-specific lattice, grid, input thread count and launcher settings are selected
+before the shared run sequence: generate the input, launch each binary, check its
+numerical output and emit the FOM and sections. Numerical checks and timer parsing
+remain app-owned; runtime verification and execution/provenance recording remain
+in the common layer. A failed check stops before that variant emits a FOM and
+before any later variant starts. A successful earlier variant remains recorded.
+Existing experiment names and site-specific OpenMP settings are preserved.

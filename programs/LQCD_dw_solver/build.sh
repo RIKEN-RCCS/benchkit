@@ -43,7 +43,8 @@ case "$system" in
 esac
 
 compile_variant() {
-  if [ "$variant" = cuda ] && [ "${#variants[@]}" -gt 1 ]; then
+  local variant="$1" variant_count="$2"
+  if [ "$variant" = cuda ] && [ "$variant_count" -gt 1 ]; then
     rm -rf build || return $?
     make clean || return $?
     (cd benchmark/domainwall && make clean) || return $?
@@ -61,7 +62,7 @@ for variant in "${variants[@]}"; do
   output=bridge.elf
   if [ "${#variants[@]}" -gt 1 ]; then output="bridge_${variant}.elf"; fi
   bk_build_binary "$variant" benchmark/domainwall/bridge.elf "run/$output" \
-    --config Makefile --config Makefile_target.inc -- compile_variant
+    --config Makefile --config Makefile_target.inc -- compile_variant "$variant" "${#variants[@]}"
 done
 
 # Preserve the upstream relative gauge path used by the run YAML.

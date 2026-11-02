@@ -1145,6 +1145,8 @@ esac''',
   *) variant=first ;;
 esac
 printf '%s\\n' "$variant" >> "$FIXTURE_ROOT/launches"
+printf '%s\\n' "$*" >> "$FIXTURE_ROOT/launcher-args"
+printf '%s\\n' "$OMP_NUM_THREADS" >> "$FIXTURE_ROOT/launcher-threads"
 cat "$FIXTURE_ROOT/$variant.log"
 if [ "$variant" = cuda ]; then exit "$CUDA_EXIT"; fi
 exit "$FIRST_EXIT"''',
@@ -1238,6 +1240,43 @@ exit "$FIRST_EXIT"''',
         for variant in ("OpenACC", "CUDA"):
             self.assertIn("FOM:12 FOM_unit:s FOM_version:LQCD_dw_solver "
                           f"Exp:total_{variant}", output)
+
+    def test_lqcd_site_inputs_launchers_and_experiments(self):
+        self.prepare_lqcd_validation()
+        template = self.root / "artifacts/runtime/payload/run/main_template.yaml"
+        template.write_text("xxx_lattice_size_xxx\nxxx_grid_size_xxx\nxxx_number_of_thread_xxx\n")
+        package = template.parents[2]
+        with (package / "inventory").open("w") as output:
+            subprocess.run(["bash", "-c", 'source "$1/scripts/bk_build.sh"; _bk_bundle_inventory "$2"',
+                            "bash", str(self.repo), str(package)], check=True, stdout=output)
+        for variant in ("first", "cuda"):
+            (self.root / f"{variant}.log").write_text(self.lqcd_log())
+        cases = (
+            ("Fugaku", 1, "32,8,8,12", "1,1,2,2", 12, 12, "-np 4 -stdout-proc stdout -stderr-proc stderr ./bridge.elf alt_qxs", ["total"]),
+            ("Fugaku", 12, "32,16,16,24", "2,2,4,3", 12, 12, "-np 48 -stdout-proc stdout -stderr-proc stderr ./bridge.elf alt_qxs", ["total"]),
+            ("FugakuCN", 1, "32,8,8,12", "1,1,2,2", 12, 12, "-np 4 -stdout-proc stdout -stderr-proc stderr ./bridge.elf alt_qxs", ["total"]),
+            ("FugakuCN", 12, "32,16,16,24", "2,2,4,3", 12, 12, "-np 48 -stdout-proc stdout -stderr-proc stderr ./bridge.elf alt_qxs", ["total"]),
+            ("MiyabiG", 1, "32,8,8,12", "1,1,1,1", 2, 7, "-np 1 ./bridge_openacc.elf alt_accel", ["total_OpenACC", "total_CUCA"]),
+            ("RIKYU", 1, "32,8,8,12", "1,1,1,1", 7, 7, "-np 1 --bind-to none ./bridge_openacc.elf alt_accel", ["total_OpenACC", "total_CUDA"]),
+            ("MiyabiC", 1, "32,8,8,12", "1,1,1,2", 56, 7, "-np 2 ./bridge.elf alt_simd", ["total"]),
+            ("AVX512", 1, "32,8,8,12", "1,1,1,1", 8, 7, "-np 1 ./bridge.elf alt_simd", ["total"]),
+        )
+        for system, nodes, lattice, grid, threads, omp, arguments, experiments in cases:
+            with self.subTest(system=system, nodes=nodes):
+                for name in ("launcher-args", "launcher-threads"):
+                    (self.root / name).unlink(missing_ok=True)
+                previous = set(self.root.glob(".runtime.*"))
+                result = self.run_shell(f"bash scripts/run_benchmark.sh programs/LQCD_dw_solver/run.sh {system} {nodes} 1 7")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                runtime, = set(self.root.glob(".runtime.*")) - previous
+                self.assertEqual((runtime / "payload/run/main.yaml").read_text(), f"{lattice}\n{grid}\n{threads}\n")
+                launches = (self.root / "launcher-args").read_text().splitlines()
+                self.assertEqual(launches, [arguments] + ([arguments.replace("bridge_openacc", "bridge_cuda")] if len(experiments) == 2 else []))
+                self.assertEqual((self.root / "launcher-threads").read_text().splitlines(), [str(omp)] * len(experiments))
+                output = (self.root / "results/result").read_text()
+                self.assertEqual(re.findall(r"Exp:(\S+)", output), experiments)
+                self.assertEqual(output.count("SECTION:solver time:2\n"), len(experiments))
+                self.assertEqual(output.count("SECTION:other time:10\n"), len(experiments))
 
     def test_qws_flow2_build_and_run_routes(self):
         (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
