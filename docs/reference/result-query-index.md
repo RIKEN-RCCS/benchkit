@@ -21,6 +21,14 @@ data, not another authoritative database or encrypted storage.
   boundaries are unchanged. Available fiscal years retain their historical
   period-only scope, independent of System/Application matches. Profile
   attribution uses current definitions, retaining ambiguity and legacy fallback.
+  Profile Results use timestamp descending, then filename descending for ties,
+  on both JSON and indexed paths. Latest-Result selection and the first 100
+  unresolved Results therefore do not depend on directory enumeration order.
+  Performance Telemetry uses the same order for Results and Estimates, including
+  the latest execution and estimation timing shown for each application/system.
+  Evidence Snapshot applies it independently to the latest Result, Estimate and
+  eligible public reuse packet. CSV exports use those same selections without
+  changing publication eligibility or evidence checks.
 
 The catalog stores selected timing, resource, trigger/backend, snapshot summary,
 cache and estimate fields. Evidence quality/public eligibility is derived with

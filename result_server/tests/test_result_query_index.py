@@ -1,8 +1,10 @@
 """Indexed/JSON parity, using generated records and disposable databases only."""
 
 import builtins
+import csv
 from datetime import date
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -337,3 +339,238 @@ def test_profile_scope_cache_uses_the_existing_string_comparison(indexed):
         result = build_profile_usage_overview(str(results),db,record_source=reader)
     rows = {row['profile_id']:row for row in result['rows']}
     assert rows['ordered-0']['result_count'] == rows['ordered-1']['result_count'] == 1
+
+
+@pytest.mark.parametrize('reverse_creation', [False, True])
+@pytest.mark.parametrize('reverse_listing', [False, True])
+def test_profile_report_timestamp_ties_have_stable_latest_and_unresolved_limit(
+        tmp_path, monkeypatch, reverse_creation, reverse_listing):
+    results, estimates, archives, index = [tmp_path / name for name in
+                                            ('results', 'estimates', 'archives', 'index')]
+    for directory in (results, estimates, archives, index):
+        directory.mkdir(mode=0o700)
+    db = str(tmp_path / 'profiles.sqlite3')
+    ExecutionProfileStore(db).upsert_profile(_profile(), actor='test@example.invalid')
+
+    def record(number, stamp, system):
+        name = f'result_{stamp}_{number:08x}-bbbb-cccc-dddd-eeeeeeeeeeee.json'
+        data = dict(code='demoapp', system=system, Exp=f'CASE{number}', node_count=1,
+                    pipeline_timing=dict(run_time=3600))
+        return name, data
+
+    matched = [record(number, '20261102_010101', 'DemoSystem') for number in (1, 2, 3)]
+    matched.append(record(9999, '20261101_010101', 'DemoSystem'))
+    unresolved = [record(number, '20261102_010101', 'UnregisteredSystem')
+                  for number in range(100, 202)]
+    unresolved.extend((record(1, '20261103_010101', 'UnregisteredSystem'),
+                       record(9999, '20261101_010100', 'UnregisteredSystem')))
+    records = matched + unresolved
+    for name, data in reversed(records) if reverse_creation else records:
+        (results / name).write_text(json.dumps(data))
+    catalog = ResultCatalog(index / 'catalog.sqlite3', results,
+                            estimated_directory=estimates, artifact_directory=archives)
+    catalog.initialize()
+    catalog.rebuild()
+
+    original_listdir = os.listdir
+
+    def controlled_listing(path):
+        names = original_listdir(path)
+        return sorted(names, reverse=reverse_listing) if Path(path) == results else names
+
+    monkeypatch.setattr(os, 'listdir', controlled_listing)
+    expected = build_profile_usage_overview(str(results), db)
+    latest = expected['rows'][0]['latest_result']
+    assert latest['filename'] == matched[2][0]
+    assert latest['exp'] == matched[2][1]['Exp']
+    assert [row['filename'] for row in expected['unresolved_results']] == sorted(
+        [name for name, _ in unresolved], reverse=True)[:100]
+    assert expected['rows'][0]['result_count'] == 4
+    assert expected['rows'][0]['node_hours'] == 4.0
+    assert expected['summary']['result_count'] == 108
+    assert expected['summary']['node_hours'] == 108.0
+    assert expected['summary']['unattributed_result_count'] == 104
+    with catalog.snapshot() as reader:
+        actual = build_profile_usage_overview(str(results), db, record_source=reader)
+    assert actual == expected
+
+
+@pytest.mark.parametrize('reverse_creation', [False, True])
+@pytest.mark.parametrize('reverse_listing', [False, True])
+@pytest.mark.parametrize('filtered', [False, True])
+def test_performance_report_timestamp_ties_preserve_latest_and_totals(
+        tmp_path, monkeypatch, reverse_creation, reverse_listing, filtered):
+    from utils import performance_telemetry
+
+    repo = tmp_path / 'repo'
+    (repo / 'programs' / 'demoapp').mkdir(parents=True)
+    monkeypatch.setattr(performance_telemetry, 'REPO_ROOT', repo)
+    results, estimates, archives, index = [tmp_path / name for name in
+                                            ('results', 'estimates', 'archives', 'index')]
+    for directory in (results, estimates, archives, index):
+        directory.mkdir(mode=0o700)
+
+    records = []
+    for number, stamp, run_time in ((1, '20261102_010101', 30),
+                                     (2, '20261102_010101', 90),
+                                     (9, '20261101_010101', 60)):
+        data = dict(code='demoapp', system='DemoSystem', Exp=f'CASE{number}', FOM=number,
+                    pipeline_timing=dict(build_time=10*len(records)+10,
+                                         queue_time=len(records)+1, run_time=run_time),
+                    build_cache=dict(status='miss' if number == 2 else 'hit', stored=number == 2))
+        if number == 2:
+            data['profile_data'] = {'tool': 'ncu'}
+        name = f'result_{stamp}_{number:08x}-bbbb-cccc-dddd-eeeeeeeeeeee.json'
+        records.append((results / name, data))
+    for number, stamp, elapsed in ((101, '20261103_010101', 10),
+                                    (102, '20261103_010101', 50),
+                                    (999, '20261101_010101', 30)):
+        name = f'estimate_{stamp}_{number:08x}-bbbb-cccc-dddd-eeeeeeeeeeee.json'
+        data = dict(code='demoapp', exp=f'ESTIMATE{number}',
+                    current_system=dict(system='DemoSystem'),
+                    estimate_metadata=dict(source_result=dict(system='DemoSystem')),
+                    estimation_timing=dict(elapsed_time=elapsed))
+        records.append((estimates / name, data))
+    for path, data in reversed(records) if reverse_creation else records:
+        path.write_text(json.dumps(data))
+    before = {path: path.read_bytes() for path, _ in records}
+    catalog = ResultCatalog(index / 'catalog.sqlite3', results,
+                            estimated_directory=estimates, artifact_directory=archives)
+    catalog.initialize()
+    catalog.rebuild()
+    original_listdir = os.listdir
+
+    def controlled_listing(path):
+        names = original_listdir(path)
+        return sorted(names, reverse=reverse_listing) if Path(path) in (results, estimates) else names
+
+    monkeypatch.setattr(os, 'listdir', controlled_listing)
+    selection = dict(code='demoapp', system='DemoSystem', since=date(2026,4,1),
+                     until=date(2027,4,1)) if filtered else None
+    expected = build_performance_telemetry(str(results), str(estimates), selection=selection)
+    assert len(expected['rows']) == 1
+    row = expected['rows'][0]
+    assert row['latest_result_file'] == records[1][0].name
+    assert row['latest_exp'] == 'CASE2'
+    assert row['latest_build_time'] == '20s'
+    assert row['latest_queue_time'] == '2s'
+    assert row['latest_run_time'] == '1.5m'
+    assert row['latest_run_kind'] == 'profiled'
+    assert row['latest_build_cache_status'] == 'miss'
+    assert row['latest_estimate_file'] == records[4][0].name
+    assert row['latest_estimate_exp'] == 'ESTIMATE102'
+    assert row['latest_estimate_elapsed_time'] == '50s'
+    summary = expected['summary']
+    assert summary['result_count'] == summary['timing_record_count'] == 3
+    assert summary['estimate_record_count'] == summary['estimate_timing_record_count'] == 3
+    assert summary['total_build_time'] == '1m'
+    assert summary['total_queue_time'] == '6s'
+    assert summary['total_run_time'] == '3m'
+    assert summary['avg_regular_run_time'] == '45s'
+    assert summary['avg_profiled_run_time'] == '1.5m'
+    assert summary['avg_estimate_time'] == '30s'
+    assert summary['build_cache_hit_count'] == 2
+    assert summary['build_cache_miss_count'] == summary['build_cache_store_count'] == 1
+    with catalog.snapshot() as reader:
+        actual = build_performance_telemetry(str(results), str(estimates),
+                                             selection=selection, record_source=reader)
+    assert actual == expected
+    assert {path: path.read_bytes() for path, _ in records} == before
+
+
+@pytest.mark.parametrize('reverse_creation', [False, True])
+@pytest.mark.parametrize('reverse_listing', [False, True])
+@pytest.mark.parametrize('filtered', [False, True])
+def test_evidence_timestamp_ties_preserve_result_estimate_public_packet_and_csv(
+        tmp_path, monkeypatch, app, client, reverse_creation, reverse_listing, filtered):
+    from routes import results_usage_routes
+
+    results, estimates, archives, index = [tmp_path / name for name in
+                                            ('results', 'estimates', 'archives', 'index')]
+    for directory in (results, estimates, archives, index):
+        directory.mkdir(mode=0o700)
+    records = []
+    for number, stamp in ((1, '20261102_010101'), (2, '20261102_010101'),
+                          (3, '20261102_010101'), (999, '20261101_010101')):
+        name = f'result_{stamp}_{number:08x}-bbbb-cccc-dddd-eeeeeeeeeeee.json'
+        data = dict(code='demoapp', system='DemoSystem', Exp=f'CASE{number}', FOM=number,
+                    confidential=['private'] if number == 3 else [],
+                    source_info=dict(source_type='git', repo_url='https://github.com/example/app',
+                        ref_name='main', resolved_commit='a'*40,
+                        public_access_check=dict(confirmed=True,method='github_rest_api_anonymous',host='github.com')),
+                    input_info=dict(inputs=[dict(repo_relative_path='input', source='source_info',
+                        verification_status='covered_by_source_commit')]),
+                    build_cache=dict(status='miss' if number == 3 else 'hit', stored=number == 3))
+        if number == 2:
+            data['profile_data'] = {'tool': 'ncu'}
+        records.append((results / name, data))
+    for number, stamp in ((101, '20261103_010101'), (102, '20261103_010101'),
+                          (999, '20261101_010101')):
+        name = f'estimate_{stamp}_{number:08x}-bbbb-cccc-dddd-eeeeeeeeeeee.json'
+        data = dict(code='demoapp', exp=f'ESTIMATE{number}',
+                    current_system=dict(system='DemoSystem'),
+                    applicability=dict(status='limited' if number == 102 else 'applicable'),
+                    estimate_metadata=dict(estimation_result_timestamp=f'estimate-time-{number}'))
+        records.append((estimates / name, data))
+    for path, data in reversed(records) if reverse_creation else records:
+        path.write_text(json.dumps(data))
+    before = {path:path.read_bytes() for path, _ in records}
+    catalog = ResultCatalog(index / 'catalog.sqlite3', results,
+                            estimated_directory=estimates, artifact_directory=archives)
+    catalog.initialize()
+    catalog.rebuild()
+    original_listdir = os.listdir
+
+    def controlled_listing(path):
+        names = original_listdir(path)
+        return sorted(names, reverse=reverse_listing) if Path(path) in (results, estimates) else names
+
+    monkeypatch.setattr(os, 'listdir', controlled_listing)
+    support = [dict(app='demoapp', systems={'DemoSystem':{'status':'enabled'}})]
+    generated_at = '2026-11-02T00:00:00Z'
+    selection = dict(code='demoapp', system='DemoSystem', since=date(2026,4,1),
+                     until=date(2027,4,1)) if filtered else None
+    kwargs = dict(selection=selection, app_support_rows=support, generated_at=generated_at)
+    expected = build_evidence_snapshot(str(results), str(estimates), **kwargs)
+    assert len(expected['rows']) == 1
+    row = expected['rows'][0]
+    assert row['latest_result_file'] == records[2][0].name
+    assert row['latest_result_exp'] == 'CASE3'
+    assert row['latest_public_packet_file'] == records[1][0].name
+    assert row['latest_estimate_file'] == records[5][0].name
+    assert row['latest_estimate_time'] == 'estimate-time-102'
+    assert row['estimate_applicability'] == 'limited'
+    assert row['public_result_available'] == 'no'
+    assert row['public_packet_status'] == 'not exportable'
+    assert row['build_cache_status'] == 'miss stored'
+    assert expected['summary']['result_count'] == expected['summary']['estimated_count'] == 1
+    assert expected['summary']['public_packet_available_count'] == 1
+    assert expected['summary']['public_packet_eligible_count'] == 0
+    with catalog.snapshot() as reader:
+        actual = build_evidence_snapshot(str(results), str(estimates), record_source=reader, **kwargs)
+    assert actual == expected
+
+    def fixed_snapshot(*args, **route_kwargs):
+        return build_evidence_snapshot(*args, **dict(route_kwargs, generated_at=generated_at,
+                                                     app_support_rows=support))
+
+    monkeypatch.setattr(results_usage_routes, 'build_evidence_snapshot', fixed_snapshot)
+    app.config.update(RECEIVED_DIR=str(results), ESTIMATED_DIR=str(estimates),
+                      RECEIVED_MEASUREMENT_ARTIFACTS_DIR=str(archives))
+    _login_session(client, 'admin@example.com', ['admin'])
+    url = '/results/usage/evidence-snapshot.csv?fiscal_year=2026'
+    if filtered:
+        url += '&code=demoapp&system=DemoSystem'
+    outputs = []
+    for catalog_path in ('', str(catalog.path)):
+        app.config['RESULT_CATALOG_PATH'] = catalog_path
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.mimetype == 'text/csv'
+        assert 'no-store' in response.headers['Cache-Control']
+        parsed = csv.DictReader(io.StringIO(response.get_data(as_text=True)))
+        assert parsed.fieldnames == expected['columns']
+        assert list(parsed) == [{column:row.get(column, '') for column in expected['columns']}]
+        outputs.append(response.data)
+    assert outputs[0] == outputs[1]
+    assert {path:path.read_bytes() for path, _ in records} == before

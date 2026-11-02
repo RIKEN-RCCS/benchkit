@@ -267,7 +267,7 @@ def _load_json_records(directory: str, *, prefix: str, selection=None) -> list[d
                 "timestamp": format_result_timestamp(filename),
             }
         )
-    records.sort(key=lambda record: record["sort_key"], reverse=True)
+    records.sort(key=lambda record: (record["sort_key"], record["filename"]), reverse=True)
     return records
 
 

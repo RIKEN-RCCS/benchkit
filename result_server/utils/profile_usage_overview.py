@@ -207,7 +207,10 @@ def _load_result_records(received_dir: str, *, selection=None) -> list[dict[str,
                 "node_hours": compute_node_hours(data),
             }
         )
-    records.sort(key=lambda record: record["timestamp"] or datetime.min, reverse=True)
+    records.sort(
+        key=lambda record: (record["timestamp"] or datetime.min, record["filename"]),
+        reverse=True,
+    )
     return records
 
 
