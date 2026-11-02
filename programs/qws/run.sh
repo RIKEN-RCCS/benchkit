@@ -242,11 +242,25 @@ case "$system" in
         print_results CASE0 CASE0 ${numproc_node} >> ../results/result
         ;;
     Camphor3)
+        if [[ "$nodes" != 1 || ! "$nthreads" =~ ^[1-9][0-9]*$ ]] || (( nthreads > 56 )); then
+            echo "qws: Camphor3 requires one node and at most 56 threads per MPI rank" >&2
+            exit 1
+        fi
+        case "$numproc_node" in
+            1) qws_exp=CASE0; qws_args=("${qws_case0_args[@]}") ;;
+            2) qws_exp=CASE1; qws_args=("${qws_case1_args[@]}") ;;
+            *)
+                echo "qws: Camphor3 supports one or two MPI ranks per node" >&2
+                exit 1
+                ;;
+        esac
         module switch PrgEnvIntel PrgEnvIntel/2023
         export OMP_NUM_THREADS="${nthreads}"
-        export I_MPI_PIN=1
-        bk_run --log CASE0 --parameter-input --launcher srun -n 1 -c "${nthreads}" -- ./main "${qws_case0_args[@]}"
-        print_results CASE0 CASE0 1 >> ../results/result
+        export OMP_PLACES=cores OMP_PROC_BIND=close
+        export I_MPI_PIN=1 I_MPI_PIN_DOMAIN=socket
+        bk_run --log "$qws_exp" --parameter-input --launcher srun -n "$numproc_node" \
+            --cpu-bind=sockets --distribution=block:block -- ./main "${qws_args[@]}"
+        print_results "$qws_exp" "$qws_exp" "$numproc_node" >> ../results/result
         ;;
     *)
         echo "Unknown Running system: $system"

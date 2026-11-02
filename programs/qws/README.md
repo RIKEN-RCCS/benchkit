@@ -29,6 +29,22 @@ accept `select` with MPI/OpenMP layout and determine CPU/GPU reservations
 without explicit `ncpus` or `ngpus`. Held-job acceptance has been checked, but
 QWS compilation and execution still require validation on the actual nodes.
 
+## Camphor3
+
+The default is one node with two MPI ranks, one per socket, and 56 OpenMP
+threads per rank. Two ranks use the existing `CASE1` process grid and reference;
+a single-rank run uses `CASE0`. Other process grids and thread counts above 56
+are rejected on this route.
+
+Slurm binds ranks to sockets using block CPU distribution. The launcher inherits
+the site's logical CPU count rather than overriding it with the OpenMP thread
+count. Intel MPI uses a socket pinning domain, and OpenMP uses `cores` / `close`.
+See [Intel MPI's OpenMP interoperability reference](https://www.intel.com/content/www/us/en/docs/mpi-library/developer-reference-linux/2021-14/interoperability-with-openmp-api.html).
+
+Single-rank comparisons favor keeping this small workload within one socket.
+The two-rank default has local wrapper validation; its performance has not yet
+been measured on the compute nodes.
+
 ## Estimation Sections
 
 `programs/qws/estimate.sh` is a reference lightweight app wrapper. It declares

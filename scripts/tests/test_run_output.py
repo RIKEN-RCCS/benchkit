@@ -1314,6 +1314,70 @@ printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
                     self.assertFalse((self.root / "mpi.args").exists())
                     self.assertNotIn("FOM:", result_file.read_text())
 
+    def test_qws_camphor_socket_routes(self):
+        (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
+        (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
+        work = self.root / "qws"
+        work.mkdir()
+        (self.root / "artifacts").mkdir()
+        (self.root / "artifacts/main").touch()
+        tools = self.root / "bin"
+        tools.mkdir()
+        commands = {
+            "git": "printf '%040d\\n' 1",
+            "module": 'printf "%s\\n" "$*" >> ../modules.log',
+            "srun": '''printf '%s\\n' "$@" > ../mpi.args
+printf '%s\\n' "$OMP_NUM_THREADS" "$OMP_PLACES" "$OMP_PROC_BIND" "$I_MPI_PIN" "$I_MPI_PIN_DOMAIN" > ../placement.env
+[ "${FAIL_MPI:-0}" != 1 ] || exit 7
+printf 'etime for solver = 2.5\\netime for solver = 1.5\\n'
+''',
+        }
+        for name, code in commands.items():
+            path = tools / name
+            path.write_text("#!/bin/sh\n" + code + "\n")
+            path.chmod(0o700)
+        check = work / "check.sh"
+        check.write_text('''#!/bin/sh
+[ "${FAIL_CHECK:-0}" != 1 ] || exit 8
+[ "$1" = "$EXPECTED_CASE" ] && [ "$2" = "data/$EXPECTED_CASE" ] && grep -q 'etime for solver' "$1"
+''')
+        check.chmod(0o700)
+        self.env.pop("BASH_FUNC_module%%", None)
+        self.env.update(PATH=str(tools) + os.pathsep + self.env["PATH"], QWS_PROFILER_TOOL="none")
+        for ranks, exp, threads in ((1, "CASE0", 3), (2, "CASE1", 56)):
+            with self.subTest(ranks=ranks):
+                self.env["EXPECTED_CASE"] = exp
+                # Exercise parameter forwarding independently of list.csv defaults.
+                self.assert_ok(self.run_shell(f"bash programs/qws/run.sh Camphor3 1 {ranks} {threads}"))
+                args = (self.root / "mpi.args").read_text().splitlines()
+                self.assertEqual(args[:2], ["-n", str(ranks)])
+                self.assertIn("--cpu-bind=sockets", args)
+                self.assertIn("--distribution=block:block", args)
+                self.assertNotIn("-c", args)
+                program = args.index("./main")
+                self.assertEqual(args[program+1:program+5], ["32", "6", "4", "3"])
+                self.assertEqual(args[program+5:program+9], ["1", "1", "1", str(ranks)])
+                self.assertEqual((self.root / "placement.env").read_text().splitlines(),
+                                 [str(threads), "cores", "close", "1", "socket"])
+                result_file = self.root / "results/result"
+                result = result_file.read_text()
+                self.assertIn("FOM:1.5", result)
+                self.assertIn("Exp:" + exp, result)
+                self.assertIn(f"numproc_node:{ranks}", result)
+                self.assertIn(f"nthreads:{threads}", result)
+                for failure in ("FAIL_MPI", "FAIL_CHECK"):
+                    self.env[failure] = "1"
+                    failed = self.run_shell(f"bash programs/qws/run.sh Camphor3 1 {ranks} {threads}")
+                    self.assertNotEqual(failed.returncode, 0)
+                    self.assertNotIn("FOM:", result_file.read_text())
+                    del self.env[failure]
+        for nodes, ranks, threads in ((2, 2, 3), (1, 3, 3), (1, 2, 112), (1, 2, 0)):
+            (self.root / "mpi.args").unlink(missing_ok=True)
+            failed = self.run_shell(f"bash programs/qws/run.sh Camphor3 {nodes} {ranks} {threads}")
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertFalse((self.root / "mpi.args").exists())
+            self.assertNotIn("FOM:", (self.root / "results/result").read_text())
+
     def test_qws_rc_build_and_run_routes(self):
         (self.root / "scripts").symlink_to(self.repo / "scripts", target_is_directory=True)
         (self.root / "programs").symlink_to(self.repo / "programs", target_is_directory=True)
