@@ -2,9 +2,52 @@ import csv
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from utils.app_support_matrix import load_app_system_support_matrix
+from utils.app_support_matrix import _extract_supported_systems, load_app_system_support_matrix
+
+
+@pytest.mark.parametrize("label", [
+    "DemoSystem) variants=(cpu gpu); arch=hopper ;;",
+    "DemoSystem ) echo build ;;",
+    "DemoSystem)echo build;;",
+    "DemoSystem|PeerSystem) echo build ;;",
+    "Demo*) echo build ;;",
+    "DemoSystem) # build follows\n  echo build\n  ;;",
+    "DemoSystem)\n  echo build\n  ;;",
+])
+def test_system_case_labels_allow_inline_commands(label):
+    script = f'case "$system" in\n{label}\nesac\n'
+    assert "DemoSystem" in _extract_supported_systems(script, ["DemoSystem"])
+
+
+@pytest.mark.parametrize("script", [
+    'case "$nodes" in\nDemoSystem) echo build ;;\nesac\n',
+    'case "$system" in\n# DemoSystem) echo build ;;\nesac\n',
+    'case "$system" in\necho "DemoSystem) echo build ;;"\nesac\n',
+    'case "$system" in\nOtherSystem) echo DemoSystem ;;\nesac\n',
+    'DemoSystem) echo build ;;\n',
+    'case "$system" in\nOtherSystem)\ncase "$nodes" in\nDemoSystem) echo build ;;\nesac\n;;\nesac\n',
+])
+def test_inline_commands_do_not_introduce_unrelated_support(script):
+    assert _extract_supported_systems(script, ["DemoSystem"]) == set()
+
+
+def test_inline_system_case_is_enabled_in_support_matrix(tmp_path):
+    app = tmp_path / "programs" / "sample"
+    app.mkdir(parents=True)
+    systems = tmp_path / "system.csv"
+    _write_csv(systems, ["system"], [["DemoSystem"]])
+    _write_csv(app / "list.csv", ["system", "enable"], [["DemoSystem", "yes"]])
+    for name in ("build.sh", "run.sh"):
+        (app / name).write_text(
+            'case "$system" in\nDemoSystem) variants=(cpu gpu); arch=hopper ;;\nesac\n',
+            encoding="utf-8",
+        )
+    _, rows = load_app_system_support_matrix(str(app.parent), str(systems))
+    assert rows[0]["systems"]["DemoSystem"]["status"] == "enabled"
 
 
 def _write_csv(path, header, rows):
