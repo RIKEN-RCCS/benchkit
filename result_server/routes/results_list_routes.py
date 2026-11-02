@@ -1,4 +1,4 @@
-from flask import current_app, request, session
+from flask import abort, current_app, request, session
 import hashlib
 import hmac
 import json
@@ -63,7 +63,16 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         template_extra["authenticated"] = user_context["authenticated"]
 
     if execute:
-        rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
+        catalog_path = current_app.config.get('RESULT_CATALOG_PATH')
+        if catalog_path:
+            try:
+                catalog = ResultCatalog(catalog_path, received_dir, artifact_directory=received_padata_dir)
+                with catalog.snapshot() as reader:
+                    rows, columns, pagination_info = load_results_table(received_dir, query_reader=reader, **load_kwargs)
+            except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
+                abort(503, description='Result index unavailable; rebuilding may be required')
+        else:
+            rows, columns, pagination_info = load_results_table(received_dir, **load_kwargs)
     else:
         rows, columns = [], []
         pagination_info = {'page': 1, 'per_page': params['per_page'], 'total': 0, 'total_pages': 1}

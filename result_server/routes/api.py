@@ -123,11 +123,15 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
             os.fsync(f.fileno())
         os.rename(tmp_path, path)
 
-    catalog_path = (current_app.config.get("RESULT_CATALOG_PATH")
-                    if prefix == "result" and has_app_context() else None)
+    catalog_path = current_app.config.get('RESULT_CATALOG_PATH') if has_app_context() else None
     if catalog_path:
         try:
-            ResultCatalog(catalog_path, out_dir).replace(filename, payload, write_json)
+            catalog = ResultCatalog(catalog_path, current_app.config['RECEIVED_DIR'],
+                                    estimated_directory=current_app.config.get('ESTIMATED_DIR'))
+            if prefix == 'result':
+                catalog.replace(filename, payload, write_json)
+            else:
+                catalog.replace_related('estimates', filename, payload, write_json)
         except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
             current_app.logger.error("Result catalog publication failed; rebuild required")
             abort(503, description="Result storage is temporarily unavailable")
@@ -474,29 +478,37 @@ def ingest_measurement_artifact():
         filename = _safe_basename(
             stored_measurement_artifact_filename(timestamp, uuid_str, artifact_basename)
         )
-        matched_files = (
-            [filename] if os.path.exists(os.path.join(received_dir, filename)) else []
-        )
     else:
         legacy_pattern = re.compile(rf"^padata_\d{{8}}_\d{{6}}_{re.escape(uuid_str)}\.tgz$")
-        matched_files = [
-            f for f in os.listdir(received_dir)
-            if legacy_pattern.fullmatch(f)
-        ]
+        filename = _safe_basename(stored_measurement_artifact_filename(timestamp, uuid_str, None))
+    save_path = os.path.join(received_dir, filename)
+    matched_files = []
 
-    if matched_files:
-        old_file_path = os.path.join(received_dir, _safe_basename(matched_files[0]))
-        backup_path = old_file_path + ".bak"
-        shutil.move(old_file_path, backup_path)
-        save_path = old_file_path
+    def write_archive():
+        nonlocal matched_files, save_path
+        # Resolve replacement under the same guard that publishes the archive/index.
+        if artifact_basename:
+            matched_files = [filename] if os.path.exists(save_path) else []
+        else:
+            matched_files = [name for name in os.listdir(received_dir) if legacy_pattern.fullmatch(name)]
+            if matched_files:
+                save_path = os.path.join(received_dir, _safe_basename(matched_files[0]))
+        if matched_files:
+            shutil.move(save_path, save_path + '.bak')
+        _copy_uploaded_file(uploaded_file, save_path)
+        return os.path.basename(save_path)
+
+    catalog_path = current_app.config.get('RESULT_CATALOG_PATH')
+    if catalog_path:
+        try:
+            catalog = ResultCatalog(catalog_path, current_app.config['RECEIVED_DIR'],
+                                    artifact_directory=received_dir)
+            catalog.replace_related('artifacts', os.path.basename(save_path), None,
+                                    write_archive)
+        except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
+            abort(503, description='Result storage is temporarily unavailable')
     else:
-        if not artifact_basename:
-            filename = _safe_basename(
-                stored_measurement_artifact_filename(timestamp, uuid_str, None)
-            )
-        save_path = os.path.join(received_dir, filename)
-
-    _copy_uploaded_file(uploaded_file, save_path)
+        write_archive()
 
     print(f"Saved: {save_path}", flush=True)
     response = {

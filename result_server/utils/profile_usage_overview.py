@@ -13,7 +13,7 @@ from utils.result_records import format_result_timestamp, load_result_json
 from utils.trigger_display import extract_execution_trigger, summarize_execution_trigger
 
 
-def build_profile_usage_overview(received_dir: str, db_path: str | None, *, selection=None) -> dict[str, Any]:
+def build_profile_usage_overview(received_dir: str, db_path: str | None, *, selection=None, record_source=None) -> dict[str, Any]:
     """Summarize profiles with their trigger, result, and node-hour activity."""
     if not db_path or not os.path.exists(db_path):
         return {
@@ -37,33 +37,68 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None, *, sele
     store = ExecutionProfileStore(db_path or "")
     triggers = store.list_trigger_definitions()
     trigger_runs = store.list_trigger_runs(limit=500)
-    result_records = _load_result_records(received_dir, selection=selection)
+    result_records = _load_result_records(received_dir, selection=selection) if record_source is None else (
+        dict(record, node_hours=compute_node_hours(record['data']))
+        for record in record_source.records(received_dir, selection=selection))
 
     triggers_by_profile = _group_by(triggers, "profile_id")
     runs_by_trigger = _latest_runs_by_trigger(trigger_runs)
 
-    resolutions = []
+    # Keep counters, latest records and distinct snapshots, not every Result document.
+    statistics = {profile['id']: dict(count=0, candidates=0, latest=None, node_hours=0.0,
+        snapshots=set(), attribution=dict(trigger_id_match=0, manual_profile_match=0, legacy_scope_fallback=0))
+        for profile in profile_result.profiles}
+    trigger_ids = {profile['id']: {trigger['id'] for trigger in triggers_by_profile.get(profile['id'], [])}
+                   for profile in profile_result.profiles}
+    matches_by_scope = {}
+    unresolved = []
+    counts = dict(result_count=0, ambiguous_result_count=0, unattributed_result_count=0,
+                  insufficient_evidence_count=0, no_registration_count=0)
+    total_hours = 0.0
     for record in result_records:
-        candidates = []
-        for profile in profile_result.profiles:
-            ids = {trigger['id'] for trigger in triggers_by_profile.get(profile['id'], [])}
-            attribution = _profile_attribution(record['data'], profile, ids)
-            if attribution['matched']:
-                candidates.append({'profile_id': profile['id'], 'attribution': attribution})
-        resolutions.append((record, candidates))
+        data = record['data']
+        key = (result_pipeline_backend(data), extract_execution_trigger(data)['id'],
+               *(str(data.get(field) or '').strip() for field in ('code', 'system', 'Exp')))
+        if key not in matches_by_scope:
+            candidates = []
+            for profile in profile_result.profiles:
+                attribution = _profile_attribution(data, profile, trigger_ids[profile['id']])
+                if attribution['matched']:
+                    candidates.append({'profile_id': profile['id'], 'attribution': attribution})
+            matches_by_scope[key] = candidates
+        candidates = matches_by_scope[key]
+        counts['result_count'] += 1
+        total_hours += record['node_hours']
+        if len(candidates) == 1:
+            candidate = candidates[0]
+            stats = statistics[candidate['profile_id']]
+            stats['count'] += 1
+            stats['node_hours'] += record['node_hours']
+            stats['attribution'][candidate['attribution']['reason']] += 1
+            if stats['latest'] is None:
+                stats['latest'] = dict(record, attribution=candidate['attribution'])
+            snapshot = data.get('environment_snapshot')
+            if isinstance(snapshot, dict) and str(snapshot.get('hash') or '').strip():
+                stats['snapshots'].add(str(snapshot['hash']).strip())
+        else:
+            reason = _unresolved_reason(data)
+            counts['ambiguous_result_count' if candidates else 'unattributed_result_count'] += 1
+            if not candidates:
+                counts['insufficient_evidence_count' if reason == 'insufficient attribution evidence' else 'no_registration_count'] += 1
+            for candidate in candidates:
+                statistics[candidate['profile_id']]['candidates'] += 1
+            if len(unresolved) < 100:
+                unresolved.append(dict(filename=record['filename'], timestamp=record['timestamp_label'],
+                    status='multiple candidates' if candidates else reason,
+                    profile_ids=[item['profile_id'] for item in candidates]))
 
     rows = []
     for profile in profile_result.profiles:
         profile_triggers = triggers_by_profile.get(profile["id"], [])
-        matched_results = [dict(record, attribution=candidates[0]['attribution'])
-                           for record, candidates in resolutions
-                           if len(candidates) == 1 and candidates[0]['profile_id'] == profile['id']]
-        candidate_count = sum(len(candidates) > 1 and any(
-            item['profile_id'] == profile['id'] for item in candidates)
-            for _, candidates in resolutions)
-        latest_result = matched_results[0] if matched_results else None
+        stats = statistics[profile['id']]
+        latest_result = stats['latest']
         latest_run = _latest_profile_run(profile_triggers, runs_by_trigger)
-        node_hours = round(sum(record["node_hours"] for record in matched_results), 2)
+        node_hours = round(stats['node_hours'], 2)
         rows.append(
             {
                 "profile_id": profile["id"],
@@ -76,11 +111,11 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None, *, sele
                 "trigger_count": len(profile_triggers),
                 "enabled_trigger_count": sum(1 for trigger in profile_triggers if trigger.get("enabled")),
                 "trigger_labels": [_trigger_label(trigger) for trigger in profile_triggers[:3]],
-                "result_count": len(matched_results),
-                "candidate_count": candidate_count,
-                "snapshot_count": _environment_snapshot_count(matched_results),
+                "result_count": stats['count'],
+                "candidate_count": stats['candidates'],
+                "snapshot_count": len(stats['snapshots']),
                 "node_hours": node_hours,
-                "attribution_counts": _attribution_counts(matched_results),
+                "attribution_counts": stats['attribution'],
                 "latest_result": _latest_result_context(latest_result),
                 "latest_trigger_run": _latest_run_context(latest_run),
             }
@@ -90,24 +125,13 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None, *, sele
         "available": True,
         "path": profile_result.path,
         "rows": rows,
-        "unresolved_results": [
-            {'filename': record['filename'], 'timestamp': record['timestamp_label'],
-             'status': 'multiple candidates' if candidates else _unresolved_reason(record['data']),
-             'profile_ids': [item['profile_id'] for item in candidates]}
-            for record, candidates in resolutions if len(candidates) != 1
-        ][:100],
+        "unresolved_results": unresolved,
         "summary": {
             "profile_count": len(rows),
             "profile_with_results_count": sum(1 for row in rows if row["result_count"]),
             "trigger_count": len(triggers),
-            "result_count": len(result_records),
-            "ambiguous_result_count": sum(len(c) > 1 for _, c in resolutions),
-            "unattributed_result_count": sum(not c for _, c in resolutions),
-            "insufficient_evidence_count": sum(not c and _unresolved_reason(r['data']) == 'insufficient attribution evidence'
-                                               for r, c in resolutions),
-            "no_registration_count": sum(not c and _unresolved_reason(r['data']) == 'no matching registration'
-                                         for r, c in resolutions),
-            "node_hours": round(sum(record["node_hours"] for record in result_records), 2),
+            **counts,
+            "node_hours": round(total_hours, 2),
         },
         "errors": profile_result.errors,
     }
@@ -269,20 +293,6 @@ def _profile_attribution(
     }
 
 
-def _attribution_counts(records: list[dict[str, Any]]) -> dict[str, int]:
-    counts = {
-        "trigger_id_match": 0,
-        "manual_profile_match": 0,
-        "legacy_scope_fallback": 0,
-    }
-    for record in records:
-        attribution = record.get("attribution") or {}
-        reason = attribution.get("reason")
-        if reason in counts:
-            counts[reason] += 1
-    return counts
-
-
 def _scope_matches(scope: list[str], value: Any) -> bool:
     if not scope:
         return True
@@ -316,18 +326,6 @@ def _latest_result_context(record: dict[str, Any] | None) -> dict[str, Any] | No
         "attribution": record.get("attribution") or {},
         "environment_snapshot": snapshot,
     }
-
-
-def _environment_snapshot_count(records: list[dict[str, Any]]) -> int:
-    hashes = set()
-    for record in records:
-        snapshot = record["data"].get("environment_snapshot")
-        if not isinstance(snapshot, dict):
-            continue
-        snapshot_hash = str(snapshot.get("hash") or "").strip()
-        if snapshot_hash:
-            hashes.add(snapshot_hash)
-    return len(hashes)
 
 
 def _latest_run_context(run: dict[str, Any] | None) -> dict[str, str] | None:

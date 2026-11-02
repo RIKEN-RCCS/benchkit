@@ -34,9 +34,11 @@ definitions and latest trigger observations remain current state, while their
 received Result counts and node-hours use the selected period.
 
 These query controls avoid work on initial navigation. The optional catalog is
-a persistent derived candidate index, not an encrypted authoritative Result
-database or background job. Explicit searches and reports can still scan the
-stored directory. Future query indexing and database
-migration must preserve authorization, update/delete semantics and the ability
-to reconcile stored records. No schema or deployment configuration changes are
-required by these query controls.
+a persistent derived index, not an encrypted authoritative database or background
+job. With a ready v2 [query index](result-query-index.md), explicit searches use
+indexed filenames and reports use indexed facts. Without it, the original
+directory-based path remains. An enabled but unavailable index does not silently
+fall back to that path. The v1-to-v2 derived schema upgrade/rebuild is an explicit
+operator procedure; no authoritative JSON format or Profile/Budget/Runner DB
+schema change is required. Deployment and encrypted authoritative storage remain
+separate operations.

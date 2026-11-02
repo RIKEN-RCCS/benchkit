@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+import stat
 
 from utils.result_file import get_file_confidential_tags
 from utils.estimated_table_rows import build_estimated_table_columns, build_estimated_table_row
@@ -63,10 +65,16 @@ def load_results_table(
     padata_directory=None,
     execution_profile_db_path=None,
     public_surface=False,
+    query_reader=None,
 ):
     per_page = normalize_per_page(per_page)
 
     affiliations = affiliations if affiliations is not None else []
+    if query_reader is not None:
+        return _indexed_results_table(
+            query_reader, directory, public_only, authenticated, affiliations, page, per_page,
+            filter_system, filter_code, filter_exp, padata_directory or directory,
+            execution_profile_db_path, public_surface)
     files = os.listdir(directory)
     json_filenames = sorted([filename for filename in files if filename.endswith(".json")], reverse=True)
     padata_dir = padata_directory or directory
@@ -137,6 +145,27 @@ def load_results_table(
         filename, data, padata_filenames, trigger_runs_by_pipeline, public_surface=public_surface,
     ) for filename, data in paginated_records]
     return paginated_rows, columns, pagination_info
+
+
+def _indexed_results_table(reader, directory, public_only, authenticated, affiliations,
+                           page, per_page, system, code, exp, artifacts, profile_db, public_surface):
+    from utils.result_catalog import CatalogUnavailable
+    names, pagination = reader.result_page(
+        public_only=public_only, authenticated=authenticated, affiliations=affiliations,
+        page=page, per_page=per_page, filter_system=system, filter_code=code, filter_exp=exp)
+    triggers = load_trigger_run_lookup(profile_db)
+    rows = []
+    for filename in names:
+        if not stat.S_ISREG((Path(directory)/filename).lstat().st_mode):
+            raise CatalogUnavailable('Selected Result is not a regular file')
+        data = load_visible_result_json(filename, directory, affiliations, public_only, authenticated)
+        if not isinstance(data, dict) or not matches_table_filters(
+                data, system, code, exp, field_map=RESULT_FIELD_MAP):
+            raise CatalogUnavailable('Selected Result changed; rebuild the index')
+        uuid = extract_result_uuid(filename) or data.get('_server_uuid')
+        archives = reader.archives(artifacts, uuid) if uuid else []
+        rows.append(build_result_table_row(filename, data, archives, triggers, public_surface=public_surface))
+    return rows, PUBLIC_RESULT_TABLE_COLUMNS if public_surface else RESULT_TABLE_COLUMNS, pagination
 
 
 def load_estimated_results_table(

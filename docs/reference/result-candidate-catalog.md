@@ -2,8 +2,10 @@
 
 The optional candidate catalog is a derived index of stored Result JSON files.
 It supplies actual System / Application / Experiment combinations and counts
-before a user requests Result rows. Usage aggregation remains independent.
-No Result, Estimate, Profile, Budget, or Runner database schema is changed.
+before a user requests Result rows. Version 2 also supplies
+[Result search and Usage](result-query-index.md), including root bindings,
+explicit v1 upgrade, report facts and recovery procedures. No authoritative
+JSON format or Profile/Budget/Runner database schema is changed.
 
 ## Identity and Visibility
 
@@ -13,8 +15,8 @@ No Result, Estimate, Profile, Budget, or Runner database schema is changed.
   UUID at different timestamps. These remain separate stored records, not a
   deduplicated count of scientific experiments.
 - Group counts are maintained by System, Application, Experiment, and normalized
-  confidentiality tags. No FOM, credentials, full JSON, or artifact contents are
-  copied into the catalog. Unknown names and missing fields do not reject receipt.
+  confidentiality tags. Version 2 stores small report facts, not complete JSON
+  or artifact contents. Unknown names and missing fields do not reject receipt.
   Missing/non-string dimensions appear as `Not recorded`, without an exact-tuple
   View link. They still contribute to the visible total.
 - Public Results only count public files, even for logged-in administrators.
@@ -28,8 +30,8 @@ No Result, Estimate, Profile, Budget, or Runner database schema is changed.
   selection can be changed without deleting text. A current value absent from
   the candidates remains selected without an invented count. When the catalog
   is disabled or unavailable, text inputs remain available for manual queries.
-  Search and View remain explicit Result queries, using the existing loader and
-  its visibility checks. Counts are a request snapshot, not a search guarantee
+  Search and View remain explicit Result queries, using indexed filenames and
+  existing row/visibility checks. Counts are a request snapshot, not a search guarantee
   against concurrent receipt or removal.
 
 ## Explicit Lifecycle
@@ -48,10 +50,12 @@ rebuilds it, with all writers to that Result directory quiesced:
 
 ```sh
 python -B scripts/result_catalog.py --results /private/results \
+  --estimates /private/estimates --artifacts /private/measurement \
   --catalog /private/catalog/candidates.sqlite3 --initialize
 ```
 
-Rebuild an existing catalog with the same command without `--initialize`.
+Rebuild an existing v2 catalog without `--initialize`. Upgrade v1 explicitly with
+`--upgrade`; see the linked query-index procedure before deploying new readers.
 The command reads source JSON, modifies only the derived catalog and lock, and
 does not display individual records or paths on failure. It neither starts a
 service nor rewrites Results. Creation never replaces an existing catalog.
@@ -74,7 +78,9 @@ already have been atomically saved; do not blindly retry or assume no data was
 stored. Inspect receipt history and rebuild first. Storage unavailable before
 invalidation prevents the JSON write. This is an opt-in storage consistency
 contract, not rejection of changed scientific inputs. Disabled behavior is
-unchanged, and Estimate ingestion does not update this Result-only catalog.
+unchanged. Estimate ingestion updates report facts but not Result candidate
+groups when stored in a separate Estimate root. Archive ingestion indexes names
+for Result table links; payload bytes are not copied into the index.
 
 `ResultCatalog.delete` is an internal callback-based lifecycle hook, not a new
 HTTP deletion endpoint. Participating replacement/deletion writers must use the
@@ -83,7 +89,8 @@ edits, imports, removals, or old receivers that bypass it are **not watched**.
 Quiesce writers and rebuild after such operations, and do not advertise the old
 catalog during them. Mixed old/new writer deployment is unsupported. A GET never
 rebuilds, initializes, scans Result JSON, or silently falls back to hidden totals.
-If unavailable, the page shows that state and keeps manual Search available.
+If unavailable, the candidate page shows that state; enabled indexed Search and
+Usage return 503 rather than scanning source storage.
 
 ## Local Tests
 

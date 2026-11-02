@@ -109,7 +109,7 @@ def aggregate_node_hours(
     directory: str,
     fiscal_year: int,
     period_type: str,
-    *, selection=None,
+    *, selection=None, record_source=None,
 ) -> dict:
     """
     Aggregate node-hours from all Result JSON files in a directory.
@@ -127,14 +127,18 @@ def aggregate_node_hours(
 
     table: Dict[str, Dict[str, Dict[str, float]]] = {}
 
-    try:
-        files = os.listdir(directory)
-    except OSError:
-        files = []
+    if record_source is None:
+        try:
+            files = os.listdir(directory)
+        except OSError:
+            files = []
+        records = ({'filename': name} for name in files if name.endswith('.json'))
+    else:
+        records = record_source.records(directory, selection=selection)
+        all_fiscal_years.update(record_source.fiscal_years(selection))
 
-    json_files = [filename for filename in files if filename.endswith(".json")]
-
-    for json_file in json_files:
+    for record in records:
+        json_file = record['filename']
         if not selected_filename(json_file, selection):
             continue
         ts = extract_timestamp_from_filename(json_file)
@@ -151,12 +155,15 @@ def aggregate_node_hours(
         if period_key not in periods:
             continue
 
-        filepath = os.path.join(directory, json_file)
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+        if record_source is not None:
+            data = record['data']
+        else:
+            filepath = os.path.join(directory, json_file)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
 
         if not selected_data(data, selection):
             continue

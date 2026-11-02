@@ -26,9 +26,12 @@ TIMING_SOURCE_LABELS = {
 }
 
 
-def build_performance_telemetry(received_dir: str, estimated_dir: str | None = None, *, selection=None) -> dict[str, Any]:
+def build_performance_telemetry(received_dir: str, estimated_dir: str | None = None, *, selection=None, record_source=None) -> dict[str, Any]:
     """Summarize available timing records for operator usage reports."""
-    records = _load_result_records(received_dir) if selection is None else _load_json_records(received_dir, selection=selection)
+    if record_source is not None:
+        records = record_source.records(received_dir, selection=selection)
+    else:
+        records = _load_result_records(received_dir) if selection is None else _load_json_records(received_dir, selection=selection)
     rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     totals = _empty_timing_totals()
     regular_run_totals = _empty_scalar_total()
@@ -182,7 +185,8 @@ def build_performance_telemetry(received_dir: str, estimated_dir: str | None = N
                 summary["build_cache_store_count"] += 1
 
     if estimated_dir:
-        _merge_estimate_timing(rows_by_key, estimated_dir, summary, estimate_totals, selection=selection)
+        _merge_estimate_timing(rows_by_key, estimated_dir, summary, estimate_totals, selection=selection,
+                              record_source=record_source)
 
     rows = []
     for row in rows_by_key.values():
@@ -322,10 +326,13 @@ def _merge_estimate_timing(
     estimated_dir: str,
     summary: dict[str, Any],
     estimate_totals: dict[str, float | int],
-    *, selection=None,
+    *, selection=None, record_source=None,
 ) -> None:
-    records = _load_estimate_records(estimated_dir) if selection is None else _load_json_records(
-        estimated_dir, prefix='estimate_', selection=selection)
+    if record_source is not None:
+        records = record_source.records(estimated_dir, prefix='estimate_', selection=selection)
+    else:
+        records = _load_estimate_records(estimated_dir) if selection is None else _load_json_records(
+            estimated_dir, prefix='estimate_', selection=selection)
     for record in records:
         data = record["data"]
         if not _is_estimate_record(data):

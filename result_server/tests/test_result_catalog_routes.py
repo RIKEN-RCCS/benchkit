@@ -17,7 +17,8 @@ from utils.result_catalog import CatalogUnavailable, ResultCatalog
 def index(app, tmp_dirs, tmp_path):
     store = tmp_path / 'catalog'
     store.mkdir(mode=0o700)
-    catalog = ResultCatalog(store / 'index', tmp_dirs[0])
+    catalog = ResultCatalog(store / 'index', tmp_dirs[0], estimated_directory=tmp_dirs[-1],
+                            artifact_directory=tmp_dirs[1])
     catalog.initialize()
     for name, data in [('public.json', dict(system='PublicSystem', code='app', Exp='E')),
                        ('secret.json', dict(system='HiddenSystem', code='secret-app', Exp='Secret', confidential=['team']))]:
