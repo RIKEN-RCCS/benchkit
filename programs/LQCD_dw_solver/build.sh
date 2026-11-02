@@ -45,9 +45,10 @@ esac
 compile_variant() {
   local variant="$1" variant_count="$2"
   if [ "$variant" = cuda ] && [ "$variant_count" -gt 1 ]; then
-    rm -rf build || return $?
-    make clean || return $?
+    # The benchmark Makefile includes build/make.inc even for its clean target.
     (cd benchmark/domainwall && make clean) || return $?
+    make clean || return $?
+    rm -rf build || return $?
   fi
   make -j "$jobs" lib || return $?
   (cd benchmark/domainwall && make -j "$jobs")

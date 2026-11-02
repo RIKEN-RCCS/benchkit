@@ -44,15 +44,23 @@ class SourceBundleTests(unittest.TestCase):
 if [ "${1:-}" = --version ]; then echo 'synthetic make'; exit 0; fi
 printf '%s|%s\\n' "$PWD" "$*" >> "$TEST_TRACE"
 if [ "$(basename "$PWD")" = domainwall ]; then
-  if [ "${1:-}" = clean ]; then rm -f bridge.elf; exit 0; fi
+  # Upstream unconditionally includes this file, including during make clean.
+  [ -f ../../build/make.inc ] || exit 18
+  if [ "${1:-}" = clean ]; then
+    [ "${TEST_BENCHMARK_CLEAN_FAIL:-0}" = 0 ] || exit 19
+    rm -f bridge.elf
+    exit 0
+  fi
   variant=$(awk '$1 == "variant" {print $3}' ../../Makefile)
   printf '#!/bin/bash\\nvariant=%q\\n' "$variant" > bridge.elf
   cat "$TEST_BINARY" >> bridge.elf
   chmod +x bridge.elf
 else
+  if [ "${1:-}" = clean ]; then rm -rf build; exit 0; fi
   variant=$(awk '$1 == "variant" {print $3}' Makefile)
   [ "$variant" != "${TEST_BUILD_FAIL:-}" ] || exit 17
   mkdir -p build
+  printf '%s\\n' "$variant" > build/make.inc
 fi
 ''')
         self.tool("mpirun", '''
@@ -227,6 +235,14 @@ esac
         record = json.loads((self.work / "results/build_provenance.json").read_text())
         self.assertEqual([entry["exit_code"] for entry in record["variants"]], [0, 17])
         self.assertEqual(len(list(self.work.glob(".source-build.*/previous-runtime"))), 1)
+
+    def test_benchmark_clean_failure_stops_before_cuda_build(self):
+        self.env["TEST_BENCHMARK_CLEAN_FAIL"] = "1"
+        self.build(expected=19)
+        record = json.loads((self.work / "results/build_provenance.json").read_text())
+        self.assertEqual([(v["label"], v["exit_code"]) for v in record["variants"]],
+                         [("openacc", 0), ("cuda", 19)])
+        self.assertFalse((self.work / "artifacts/runtime").exists())
 
     def test_callbacks_keep_app_variables_visible(self):
         self.shell('''set -e
