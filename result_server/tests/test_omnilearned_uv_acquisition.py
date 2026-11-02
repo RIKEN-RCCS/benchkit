@@ -24,8 +24,11 @@ def test_build_checks_archive_before_extraction_and_execution(tmp_path, mode):
     # Use the real shared hash verifier; only the hash command is mocked.
     (scripts / "bk_functions.sh").write_text(
         'source "$TEST_ROOT/scripts/common/source.sh"\n'
-        'bk_fetch_source() { mkdir -p OmniLearned/src/omnilearned; '
-        'printf "Train pass wall\\n" > OmniLearned/src/omnilearned/train.py; }\n')
+        'bk_build_declared_source() { BK_SOURCE_DIR="$PWD/fixture-source"; '
+        'mkdir -p "$BK_SOURCE_DIR/src/omnilearned"; '
+        'printf "Train pass wall\\n" > "$BK_SOURCE_DIR/src/omnilearned/train.py"; }\n'
+        'bk_source_adjustment() { :; }\n'
+        'bk_publish_source_runtime() { echo published >> "$CALL_LOG"; }\n')
     tools = tmp_path / "tools"
     log = tmp_path / "calls"
     executable(tools / "git", 'echo git >> "$CALL_LOG"\n')
@@ -119,7 +122,7 @@ chmod 700 "$4/uv-x86_64-unknown-linux-musl/uv"
         assert "sha256 mismatch" in result.stderr
     if mode in ("uv_failure", "missing_python"):
         assert result.returncode == (2 if mode == "missing_python" else 9)
-        assert not (tmp_path / "OmniLearned/src/omnilearned/_version.py").exists()
+        assert not (tmp_path / "fixture-source/src/omnilearned/_version.py").exists()
         assert not list(tmp_path.glob("artifacts/top_medium_pretrain*.yaml"))
     if mode == "missing_python":
         assert "Python downloads are disabled" in result.stderr

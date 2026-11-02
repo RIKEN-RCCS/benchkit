@@ -165,7 +165,7 @@ def test_run_uses_observed_image_and_preserves_exit(tmp_path, exit_code, marker,
         + "exit {}\n".format(exit_code))
     launcher.chmod(0o700)
     (artifact / "venv/bin").mkdir(parents=True)
-    torch = artifact / "venv/bin/torchrun"
+    torch = artifact / "venv/bin/python"
     torch.write_text("#!/bin/bash\nprintf 'Train pass wall: 2.0 sec\\n'\n"
                      + ("echo 'Training Complete'\n" if marker else "")
                      + "exit {}\n".format(exit_code))
@@ -186,6 +186,18 @@ def test_run_uses_observed_image_and_preserves_exit(tmp_path, exit_code, marker,
     (data / "top/train").mkdir()
     (data / "top/train/data.h5").write_bytes(b"fixture")
     (tmp_path / "scripts").symlink_to(ROOT / "scripts", target_is_directory=True)
+    package = artifact / "runtime"
+    source = package / "payload/src/omnilearned"
+    source.mkdir(parents=True)
+    (source / "__init__.py").write_text("# fixture\n")
+    (package / "source_info.env").write_text("BK_SOURCE_TYPE=git\n")
+    (package / "build.json").write_text('{"adjustments":[],"variants":[]}')
+    inventory = subprocess.run(
+        ["bash", "-c", 'source "$1/scripts/bk_functions.sh"; _bk_bundle_inventory "$2"',
+         "_", str(ROOT), str(package)], cwd=tmp_path,
+        capture_output=True, text=True, check=True,
+    )
+    (package / "inventory").write_text(inventory.stdout)
     env = {"PATH": str(tools) + ":/usr/bin:/bin", "HOME": str(tmp_path),
            "BK_OMNILEARNED_DATA": str(data), "BK_OMNILEARNED_SIF": str(image)}
     run = subprocess.run(["bash", str(ROOT / "scripts/run_benchmark.sh"), str(APP / "run.sh"),

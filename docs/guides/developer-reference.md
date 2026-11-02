@@ -94,6 +94,12 @@ Legacy `bk_fetch_source` and `bk_fetch_recorded_source` callers are unchanged.
    Failed or incomplete builds do not publish a partial runtime. Previous build
    workspaces and superseded payloads are retained in build-local directories;
    they are not reused as current output or automatically deleted.
+   Source-only applications can instead call `bk_publish_source_runtime` with
+   optional generated source-relative paths. It publishes Git-tracked source after
+   recorded adjustments, plus explicitly named generated files, without requiring
+   a compiled binary variant. Git metadata and unlisted generated files are not
+   included; the same inventory and file-type checks apply.
+
 5. Run calls `bk_use_runtime` and uses the returned `BK_RUNTIME_DIR`. It validates
    and copies the payload to a new directory without Git access, and projects
    its source/build metadata into `results/`. Generating scientific inputs,
