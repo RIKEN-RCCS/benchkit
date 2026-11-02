@@ -37,6 +37,21 @@ settings and has not been tuned.
 
 ## How each system runs
 
+`source.env` declares the upstream URL and pinned commit. Each build makes a
+fresh private checkout rather than reusing an existing `OmniLearned` directory.
+The timer patch is applied explicitly; its before/after hashes and diff hash
+are recorded with the resolved source commit. An incompatible patch fails the
+build instead of accepting a matching text marker as evidence of application.
+
+Successful builds publish the adjusted tracked source (plus the generated
+`_version.py`, when present) in `artifacts/runtime`, with an inventory of paths,
+modes and SHA-256 values. Runs validate and restore this payload into a private
+directory and select its `src` through `PYTHONPATH`, without fetching Git source
+again. Source and adjustment metadata accompany the Result. This checks the
+build/run handoff, not upstream authenticity, dependency completeness, or the
+integrity of the separately staged SIF and dataset. Existing build dependencies,
+SIF selection and dataset observation policies are unchanged.
+
 **GPUs and Genoa.** `build.sh` makes a venv with `torch==2.11.0` (on
 aarch64 PyPI ships the CUDA wheel) and installs OmniLearned. `run.sh` uses
 `torchrun`, not the repo's `srun`-based `shell/run.sh`:

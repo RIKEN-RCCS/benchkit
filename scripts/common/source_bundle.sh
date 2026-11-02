@@ -218,7 +218,7 @@ bk_build_binary() {
 }
 
 # Static inputs are explicit app-owned paths, preserving their relative layout.
-bk_publish_runtime() (
+_bk_publish_runtime() (
   set -euo pipefail
   local item path rel target files source_root="$BK_SOURCE_DIR"
   [ "$#" -gt 0 ]
@@ -245,7 +245,6 @@ bk_publish_runtime() (
       fi
     done < "$files"
   done
-  [ -s "$_BK_BUNDLE_STATE/variants" ]
   _bk_build_provenance
   local package
   package=$(mktemp -d "$_BK_BUNDLE_ROOT/artifacts/.runtime.XXXXXXXX")
@@ -255,6 +254,25 @@ bk_publish_runtime() (
   _bk_bundle_inventory "$package" > "$package/inventory"
   [ ! -e "$_BK_BUNDLE_ROOT/artifacts/runtime" ]
   mv -- "$package" "$_BK_BUNDLE_ROOT/artifacts/runtime"
+)
+
+bk_publish_runtime() {
+  [ -s "$_BK_BUNDLE_STATE/variants" ] || return 1
+  _bk_publish_runtime "$@"
+}
+
+# Interpreted applications carry tracked, adjusted source, not the Git database.
+# Additional generated runtime files must be explicitly named by the caller.
+bk_publish_source_runtime() (
+  set -euo pipefail
+  local files
+  local paths=()
+  files=$(mktemp)
+  trap 'rm -f "$files"' EXIT
+  git -C "$BK_SOURCE_DIR" ls-files -z > "$files"
+  mapfile -d '' -t paths < "$files"
+  [ "${#paths[@]}" -gt 0 ]
+  _bk_publish_runtime "${paths[@]}" "$@"
 )
 
 # No fetch or checkout is permitted on the run path. Every execution gets a new copy.

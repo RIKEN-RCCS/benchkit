@@ -17,6 +17,10 @@ RESULTS_DIR="${PWD}/results"
 mkdir -p "${RESULTS_DIR}"
 : > "${RESULTS_DIR}/result"
 
+bk_use_runtime
+# Prefer the verified build source over stale editable-install locations.
+export PYTHONPATH="${BK_RUNTIME_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
+
 # The `top` dataset is pre-staged per system (data/README.md); nothing is
 # downloaded at benchmark time. The dataloader appends <dataset>/<split> to
 # the configured path, so DATA must be that path's parent, not
@@ -68,12 +72,12 @@ case "${system}" in
     # inner srun pins --ntasks to the node count, or a 4-tasks-per-node
     # allocation launches an agent per task and the rendezvous collapses.
     if [[ "${nodes}" -eq 1 ]]; then
-      "${VENV}/bin/torchrun" --standalone --nproc_per_node="${n_ranks}" \
+      "${VENV}/bin/python" -m torch.distributed.run --standalone --nproc_per_node="${n_ranks}" \
         -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || status=$?
     else
       MASTER_ADDR=$(scontrol show hostnames "${SLURM_JOB_NODELIST}" | head -n 1)
       srun --ntasks="${nodes}" --ntasks-per-node=1 \
-        "${VENV}/bin/torchrun" --nnodes="${nodes}" --nproc_per_node="${numproc_node}" \
+        "${VENV}/bin/python" -m torch.distributed.run --nnodes="${nodes}" --nproc_per_node="${numproc_node}" \
         --node_rank="${SLURM_NODEID}" --rdzv_backend=c10d --rdzv_endpoint="${MASTER_ADDR}:29500" \
         -m omnilearned.cli train --config "${CONFIG}" > "${logfile}" 2>&1 || status=$?
     fi
@@ -87,7 +91,8 @@ case "${system}" in
     export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF DATA numproc_node
     export PF_HOSTLIB="${PWD}/.pf-hostlib"
     export PF_BIND="${PWD}:/work:rw,${DATA}:/cx_input:rw"
-    export PYTHONPATH=/work/artifacts/pydeps:/work/OmniLearned/src PYTHONUNBUFFERED=1
+    runtime_relative="${BK_RUNTIME_DIR#"${PWD}/"}"
+    export PYTHONPATH="/work/artifacts/pydeps:/work/${runtime_relative}/src" PYTHONUNBUFFERED=1
     "${PF_DIR}/pf-setup" "${numproc_node}"
     mpiexec -n "${n_ranks}" bash -c '
       R=${PMIX_RANK}; log=train.rank${R}.log; [[ ${R} -eq 0 ]] && log=train.log

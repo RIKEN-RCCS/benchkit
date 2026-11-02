@@ -6,25 +6,20 @@ system="$1"
 # Configs and patches ship next to this script.
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-REPO="https://github.com/ViniciusMikuni/OmniLearned.git"
-# main @ merge of PR #21 ("omnilearnedv2"). Upstream needs torch>=2.11,<2.14;
-# 2.11.0 is the version measured here.
-REF="main"
-EXPECTED_COMMIT="29948e7930c45e83eb10b5779e3f7ff83cdae743"
-SRC_DIR="${PWD}/OmniLearned"
 ARTIFACT_DIR="${PWD}/artifacts"
 
 source scripts/bk_functions.sh
 
 mkdir -p "${ARTIFACT_DIR}"
-bk_fetch_source "${REPO}" "OmniLearned" "${REF}" "${EXPECTED_COMMIT}"
+bk_build_declared_source "${APP_DIR}/source.env"
+SRC_DIR="$BK_SOURCE_DIR"
 
 # Prints the train-pass wall time the FOM divides by (the stock epoch timer
 # also covers validation and the checkpoint save).
 cd "${SRC_DIR}"
-if ! grep -q "Train pass wall" src/omnilearned/train.py; then
-  git apply "${APP_DIR}/patches/train_pass_timer.patch"
-fi
+bk_source_adjustment train-pass-timer \
+  'Measure training pass wall time separately from validation and checkpointing' \
+  src/omnilearned/train.py git apply "${APP_DIR}/patches/train_pass_timer.patch"
 cd - > /dev/null
 
 case "$system" in
@@ -77,3 +72,10 @@ case "$system" in
 esac
 
 cp "${APP_DIR}"/top_medium_pretrain*.yaml "${ARTIFACT_DIR}/"
+# Editable installation may generate this version module; Fugaku writes its stub.
+cd "$SRC_DIR"
+if [ -f src/omnilearned/_version.py ]; then
+  bk_publish_source_runtime src/omnilearned/_version.py
+else
+  bk_publish_source_runtime
+fi
