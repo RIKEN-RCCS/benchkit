@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from utils.storage_files import list_names
 from datetime import datetime, timezone
 from typing import Any
 
@@ -243,7 +244,7 @@ def _load_json_records(directory: str, *, prefix: str, selection=None) -> list[d
     try:
         filenames = [
             filename
-            for filename in os.listdir(directory)
+            for filename in list_names(directory)
             if filename.startswith(prefix) and filename.endswith(".json")
         ]
     except OSError:

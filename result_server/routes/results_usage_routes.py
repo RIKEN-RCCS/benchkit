@@ -13,6 +13,7 @@ from utils.usage_report_view import build_usage_report_context
 from utils.usage_query_params import parse_usage_query_params
 from utils.report_selection import definition_options, usage_requested, usage_selection
 from utils.result_catalog import CatalogUnavailable, ResultCatalog
+from utils.cx_persistence import catalog_for
 
 REPORTS = {'node_hours': 'Node-Hour Usage', 'profiles': 'Profile Operations',
            'performance': 'Performance Telemetry', 'evidence': 'Evidence Snapshot',
@@ -44,7 +45,7 @@ def _report_source(report):
         yield None
         return
     try:
-        catalog = ResultCatalog(path, current_app.config['RECEIVED_DIR'],
+        catalog = catalog_for(path, current_app.config['RECEIVED_DIR'],
                                 estimated_directory=current_app.config.get('ESTIMATED_DIR', current_app.config['RECEIVED_DIR']))
         with catalog.snapshot() as reader:
             yield reader

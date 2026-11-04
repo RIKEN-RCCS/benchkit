@@ -89,27 +89,30 @@ class ResultCatalog:
             fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
             os.close(fd)
             with sqlite3.connect(self.path) as conn:
-                conn.executescript("""
-                    CREATE TABLE catalog_state (
-                        id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL,
-                        directory TEXT NOT NULL, ready INTEGER NOT NULL,
-                        rebuilt_at TEXT, updated_at TEXT);
-                    CREATE TABLE candidate_groups (
-                        id INTEGER PRIMARY KEY, system TEXT NOT NULL, code TEXT NOT NULL,
-                        exp TEXT NOT NULL, visibility TEXT NOT NULL,
-                        public INTEGER NOT NULL, count INTEGER NOT NULL CHECK(count>=0),
-                        UNIQUE(system,code,exp,visibility));
-                    CREATE TABLE group_tags (
-                        group_id INTEGER REFERENCES candidate_groups(id) ON DELETE CASCADE,
-                        tag TEXT NOT NULL, PRIMARY KEY(group_id,tag));
-                    CREATE INDEX tags_lookup ON group_tags(tag,group_id);
-                    CREATE TABLE result_entries (
-                        filename TEXT PRIMARY KEY,
-                        group_id INTEGER NOT NULL REFERENCES candidate_groups(id));
-                """)
-                conn.execute("INSERT INTO catalog_state VALUES(1,2,?,0,NULL,NULL)",
-                             (self.directory,))
-                self._create_query_schema(conn)
+                self.initialize_schema(conn)
+
+    def initialize_schema(self, conn):
+        """Create the derived schema on the caller's chosen storage backend."""
+        conn.executescript("""
+            CREATE TABLE catalog_state (
+                id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL,
+                directory TEXT NOT NULL, ready INTEGER NOT NULL,
+                rebuilt_at TEXT, updated_at TEXT);
+            CREATE TABLE candidate_groups (
+                id INTEGER PRIMARY KEY, system TEXT NOT NULL, code TEXT NOT NULL,
+                exp TEXT NOT NULL, visibility TEXT NOT NULL,
+                public INTEGER NOT NULL, count INTEGER NOT NULL CHECK(count>=0),
+                UNIQUE(system,code,exp,visibility));
+            CREATE TABLE group_tags (
+                group_id INTEGER REFERENCES candidate_groups(id) ON DELETE CASCADE,
+                tag TEXT NOT NULL, PRIMARY KEY(group_id,tag));
+            CREATE INDEX tags_lookup ON group_tags(tag,group_id);
+            CREATE TABLE result_entries (
+                filename TEXT PRIMARY KEY,
+                group_id INTEGER NOT NULL REFERENCES candidate_groups(id));
+        """)
+        conn.execute("INSERT INTO catalog_state VALUES(1,2,?,0,NULL,NULL)", (self.directory,))
+        self._create_query_schema(conn)
 
     def _create_query_schema(self, conn):
         conn.executescript('''BEGIN IMMEDIATE;

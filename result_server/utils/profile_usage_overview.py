@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from utils.storage_files import list_names
 from datetime import datetime
 from typing import Any
 
@@ -185,7 +186,7 @@ def _latest_profile_run(
 def _load_result_records(received_dir: str, *, selection=None) -> list[dict[str, Any]]:
     from utils.report_selection import selected_data, selected_filename
     try:
-        filenames = [name for name in os.listdir(received_dir) if name.endswith(".json")]
+        filenames = [name for name in list_names(received_dir) if name.endswith(".json")]
     except OSError:
         filenames = []
 

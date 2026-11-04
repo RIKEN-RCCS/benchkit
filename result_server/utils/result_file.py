@@ -12,6 +12,8 @@ from utils.measurement_artifacts import (
     PUBLIC_PADATA_FILENAME_RE,
 )
 from utils.session_user_context import get_session_user_context
+from utils.storage_files import is_file, read_json, list_names, send_object
+from utils.encrypted_sqlite import EncryptedDatabaseError
 
 
 UUID_PATTERN = re.compile(
@@ -22,22 +24,18 @@ UUID_PATTERN = re.compile(
 
 def load_result_file(filename: str, save_dir: str):
     filepath = resolve_safe_child_path(filename, save_dir)
-    if filepath is None or not os.path.exists(filepath):
+    if filepath is None or not is_file(filepath):
         abort(404)
 
     if filename.endswith(".json"):
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return Response(
-                    json.dumps(data, indent=4, ensure_ascii=False),
-                    mimetype="application/json",
-                )
+            data = read_json(filepath)
+            return Response(json.dumps(data, indent=4, ensure_ascii=False), mimetype="application/json")
         except json.JSONDecodeError:
             abort(400, "Invalid JSON")
 
     abs_dir = os.path.abspath(save_dir)
-    return send_from_directory(abs_dir, os.path.basename(filepath), as_attachment=True)
+    return send_object(filepath)
 
 
 def resolve_safe_child_path(
@@ -186,12 +184,13 @@ def _read_confidential_from_json(json_file: str, save_dir: str):
 
 def _read_json(json_file: str, save_dir: str):
     filepath = resolve_safe_child_path(json_file, save_dir, required_suffix=".json")
-    if filepath is None or not os.path.exists(filepath):
+    if filepath is None or not is_file(filepath):
         return None
 
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
+        return read_json(filepath)
+    except EncryptedDatabaseError:
+        raise
     except Exception:
         return None
 
@@ -202,7 +201,7 @@ def _matching_result_json_for_padata(filename: str, save_dir: str):
         return
 
     uuid = uuid_match.group(0).lower()
-    for json_filename in os.listdir(save_dir):
+    for json_filename in list_names(save_dir):
         if not json_filename.endswith(".json"):
             continue
         data = _read_json(json_filename, save_dir)

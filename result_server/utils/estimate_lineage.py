@@ -9,6 +9,7 @@ from werkzeug.exceptions import Forbidden
 
 from utils.result_file import check_file_permission
 from utils.result_records import load_result_json
+from utils.storage_files import list_names, is_file
 
 
 def _mapping(value):
@@ -47,11 +48,11 @@ def _records(directory):
     if not directory:
         return records, True
     try:
-        paths = sorted(Path(directory).iterdir())
+        paths = [Path(directory) / name for name in sorted(list_names(directory))]
     except OSError:
         return records, True
     for path in paths:
-        if path.suffix != ".json" or path.is_symlink() or not path.is_file():
+        if path.suffix != ".json" or not is_file(path):
             continue
         try:
             check_file_permission(path.name, directory)

@@ -36,7 +36,11 @@ def resolve_instance_settings(env: Mapping[str, str] | None = None) -> InstanceS
     if not Path(data_dir).is_absolute():
         raise ValueError("The instance data directory must be absolute")
 
-    db_path = source.get("RESULT_SERVER_DB_PATH", "").strip() or str(
+    persistence_db = source.get("RESULT_SERVER_PERSISTENCE_DB", "").strip()
+    persistence_key = source.get("RESULT_SERVER_PERSISTENCE_KEY", "").strip()
+    if bool(persistence_db) != bool(persistence_key):
+        raise ValueError("Both encrypted persistence settings are required")
+    db_path = persistence_db or source.get("RESULT_SERVER_DB_PATH", "").strip() or str(
         Path(data_dir) / "cx_portal.sqlite3"
     )
     if not Path(db_path).is_absolute():

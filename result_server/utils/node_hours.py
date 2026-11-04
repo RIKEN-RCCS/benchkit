@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+from utils.storage_files import list_names, read_json
+from utils.encrypted_sqlite import EncryptedDatabaseError
 import re
 from datetime import datetime
 from typing import Dict, List, Optional, Set
@@ -129,7 +131,7 @@ def aggregate_node_hours(
 
     if record_source is None:
         try:
-            files = os.listdir(directory)
+            files = list_names(directory)
         except OSError:
             files = []
         records = ({'filename': name} for name in files if name.endswith('.json'))
@@ -160,8 +162,9 @@ def aggregate_node_hours(
         else:
             filepath = os.path.join(directory, json_file)
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                data = read_json(filepath)
+            except EncryptedDatabaseError:
+                raise
             except Exception:
                 continue
 

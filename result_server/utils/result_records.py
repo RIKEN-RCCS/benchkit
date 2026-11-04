@@ -4,6 +4,8 @@ import re
 from datetime import datetime
 
 from utils.result_file import get_file_confidential_tags, resolve_safe_child_path
+from utils.storage_files import is_file, read_json
+from utils.encrypted_sqlite import EncryptedDatabaseError
 
 
 def select_display_toolchain(toolchain):
@@ -44,12 +46,13 @@ def load_visible_result_json(
 def load_result_json(filename, directory):
     """Load a single JSON file from a result directory."""
     filepath = resolve_safe_child_path(filename, directory, required_suffix=".json")
-    if filepath is None or not os.path.isfile(filepath):
+    if filepath is None or not is_file(filepath):
         return None
 
     try:
-        with open(filepath, "r", encoding="utf-8") as handle:
-            return json.load(handle)
+        return read_json(filepath)
+    except EncryptedDatabaseError:
+        raise
     except Exception:
         return None
 

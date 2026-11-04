@@ -9,14 +9,20 @@ import sqlite3
 
 from .budget_registry import RegistryError
 from .gitlab_pipeline import configured_gitlab_targets
+from .profile_storage import profile_key
+from .encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
 
 
 def read_profiles(database):
     """Avoid ExecutionProfileStore readers, which may migrate their database."""
     try:
         uri = Path(database).resolve().as_uri() + "?mode=ro"
-        with closing(sqlite3.connect(uri, uri=True)) as conn:
-            conn.row_factory = sqlite3.Row
+        key = profile_key(database)
+        connection = (EncryptedSQLite(database, key).connect(readonly=True) if key
+                      else closing(sqlite3.connect(uri, uri=True)))
+        with connection as conn:
+            if not key:
+                conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA query_only=ON")
             conn.execute("BEGIN")
             profiles = [dict(row) for row in conn.execute(
@@ -27,7 +33,7 @@ def read_profiles(database):
                 "WHERE scope_type='system' ORDER BY value"))
             triggers = [dict(row) for row in conn.execute(
                 "SELECT id, profile_id, enabled, gitlab_target FROM trigger_definitions ORDER BY id")]
-    except (OSError, ValueError, sqlite3.Error):
+    except (OSError, ValueError, sqlite3.Error, EncryptedDatabaseError):
         raise RegistryError("Cannot read the profile database; check its path, permissions and schema") from None
     for profile in profiles:
         profile["systems"] = [row["value"] for row in scopes if row["profile_id"] == profile["id"]]

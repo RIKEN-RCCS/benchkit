@@ -16,7 +16,6 @@ Useful Redis checks:
   redis-cli KEYS "*"
   redis-cli SMEMBERS "main:users"
   redis-cli SMEMBERS "dev:users"
-  redis-cli GET "main:user:<email>:totp_secret"
   redis-cli LRANGE "main:user:<email>:affiliations" 0 -1
   redis-cli INFO keyspace
 """
@@ -64,8 +63,11 @@ def main():
     if invalid:
         parser.error(f"Invalid affiliations: {', '.join(sorted(invalid))}.")
 
-    r_conn = redis.from_url(args.redis_url, decode_responses=True)
-    store = UserStore(r_conn, args.prefix)
+    from utils.cx_identity import identity_from_environment
+    store = identity_from_environment()
+    if store is None:
+        r_conn = redis.from_url(args.redis_url, decode_responses=True)
+        store = UserStore(r_conn, args.prefix)
 
     # Reuse an existing account by clearing the current secret and issuing a new invite.
     if store.user_exists(email):

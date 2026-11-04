@@ -9,6 +9,7 @@ Updates prepared for the next public CX Portal release. The release date is not 
 - Follow execution history and Result/Estimate links, and review estimate version differences in the authenticated Console.
 - Support Benchpark-backed execution profiles in the authenticated Console.
 - Add optional site information and clearly separated contact links.
+- Add opt-in encrypted storage for results, estimates, artifacts, execution profiles, submission history and sign-in state, with snapshot migration and verified recovery.
 
 ## v2026.10.15 - Public result browsing updates
 

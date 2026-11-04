@@ -1,4 +1,5 @@
 import os
+from utils.storage_files import list_names
 import shlex
 
 from werkzeug.exceptions import Forbidden
@@ -112,7 +113,7 @@ def load_result_compare_context(filenames, directory, *, public_surface=False):
         abort(404, "Result file not found")
     context = build_result_compare_context(results)
     records = []
-    for filename in sorted(os.listdir(directory), reverse=True):
+    for filename in sorted(list_names(directory), reverse=True):
         if not filename.endswith('.json') or os.path.islink(os.path.join(directory, filename)):
             continue
         try:

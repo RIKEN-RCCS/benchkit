@@ -268,9 +268,8 @@ def _load_result_json(filename: str, results_dir: str) -> dict[str, Any] | None:
 
 
 def _os_listdir(path: str) -> list[str]:
-    import os
-
-    return os.listdir(path)
+    from utils.storage_files import list_names
+    return list_names(path)
 
 
 def _execution_trigger_from_pipeline(

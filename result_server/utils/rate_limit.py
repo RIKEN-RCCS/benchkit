@@ -39,9 +39,13 @@ def enforce_rate_limit(
     limit = _configured_limit(scope, max_per_minute)
 
     try:
-        count = redis_conn.incr(redis_key)
-        if count == 1:
-            redis_conn.expire(redis_key, 60)
+        increment = getattr(redis_conn, 'increment_with_ttl', None)
+        if increment:
+            count = increment(redis_key, 60)
+        else:
+            count = redis_conn.incr(redis_key)
+            if count == 1:
+                redis_conn.expire(redis_key, 60)
         if count > limit:
             audit_event(
                 "rate_limit_exceeded",
@@ -77,7 +81,7 @@ def rate_limited(*, max_per_minute: int, key_fn: RateKeyFunc | None = None, scop
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            redis_conn = current_app.config.get("REDIS_CONN")
+            redis_conn = current_app.config.get("SECURITY_STATE", current_app.config.get("REDIS_CONN"))
             enforce_rate_limit(
                 redis_conn=redis_conn,
                 key_suffix=key_fn(request) if key_fn else (request.remote_addr or "unknown"),
