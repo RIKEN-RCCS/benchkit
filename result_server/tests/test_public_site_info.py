@@ -75,6 +75,27 @@ def test_public_page_does_not_broaden_private_routes():
         assert client.get(path).status_code == 404
 
 
+@pytest.mark.parametrize("contact", [None, INFO["contact"]])
+@pytest.mark.parametrize("prefix", ["", "/preview", "/preview/console"])
+def test_footer_site_links_are_grouped_with_optional_contact_separator(prefix, contact):
+    info = {key: value for key, value in INFO.items() if key != "contact"}
+    if contact:
+        info["contact"] = contact
+    client = make_app(prefix=prefix, info=info).test_client()
+    for path in (prefix + "/", prefix + "/about"):
+        page = client.get(path).get_data(as_text=True)
+        links = page.split('<span class="portal-site-links">', 1)[1].split("</span>", 1)[0]
+        assert f'href="{prefix}/about"' in links
+        assert INFO["title"] in links
+        assert links.count("<a ") == (2 if contact else 1)
+        if contact:
+            assert 'class="portal-contact-link"' in links
+            assert f'href="{contact["url"]}" rel="noreferrer"' in links
+            assert contact["label"] in links
+        else:
+            assert 'class="portal-contact-link"' not in links
+
+
 def test_text_is_escaped_and_links_are_not_embedded():
     text = '<script>alert("example")</script>'
     info = {**INFO, "title": text, "operator": text, "paragraphs": [text],

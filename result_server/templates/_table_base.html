@@ -80,6 +80,22 @@
         min-width: 0;
         overflow-wrap: anywhere;
     }
+    .portal-site-links {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        max-width: 100%;
+    }
+    .portal-site-links a {
+        min-width: 0;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+    .portal-site-links .portal-contact-link {
+        border-inline-start: 1px solid #9aabb8;
+        padding-inline-start: 14px;
+    }
     .portal-version-label,
     .portal-version-commit {
         font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
