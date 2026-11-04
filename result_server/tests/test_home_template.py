@@ -120,3 +120,23 @@ def test_changes_page_renders_release_notes(monkeypatch):
         for change in release["changes"]:
             assert change in html
     assert html.index(releases[0]["version"]) < html.index(releases[1]["version"])
+
+
+@pytest.mark.parametrize("prefix,public", [("", True), ("/console", False)])
+def test_changes_page_renders_unreleased_without_date_and_keeps_history(prefix, public):
+    from utils.portal_version import portal_release_notes
+
+    app = _home_app(prefix)
+    app.config["PUBLIC_PORTAL_MODE"] = public
+    response = app.test_client().get(prefix + "/changes")
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    releases = portal_release_notes()
+    assert releases[0]["version"] == "Unreleased"
+    assert releases[0]["date"] == ""
+    assert '<span class="changes-release-date"></span>' not in text
+    for release in releases:
+        for field in ("version", "date", "title", "summary"):
+            assert release[field] in text
+        assert all(change in text for change in release["changes"])
+    assert text.index(releases[0]["version"]) < text.index(releases[1]["version"])

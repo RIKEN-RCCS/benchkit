@@ -9,6 +9,19 @@ from pathlib import Path
 
 RELEASE_NOTES = [
     {
+        "version": "Unreleased",
+        "date": "",
+        "title": "Result discovery and execution tracking",
+        "summary": "Updates prepared for the next public CX Portal release. The release date is not yet scheduled.",
+        "changes": [
+            "Find available benchmark results by system, application and experiment, and retain comparison selections across searches.",
+            "Improve Result search and authenticated Usage report responsiveness with a rebuildable index.",
+            "Follow execution history and Result/Estimate links, and review estimate version differences in the authenticated Console.",
+            "Support Benchpark-backed execution profiles in the authenticated Console.",
+            "Add optional site information and clearly separated contact links.",
+        ],
+    },
+    {
         "version": "v2026.10.15",
         "date": "2026-10-15",
         "title": "Public result browsing updates",

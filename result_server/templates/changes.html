@@ -62,7 +62,7 @@
             <h2 class="changes-release-title">
                 <span class="changes-version">{{ release.version }}</span>{{ release.title }}
             </h2>
-            <span class="changes-release-date">{{ release.date }}</span>
+            {% if release.date %}<span class="changes-release-date">{{ release.date }}</span>{% endif %}
         </div>
         <p class="changes-summary">{{ release.summary }}</p>
         <ul class="changes-items">
