@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from utils.storage_files import list_names
 import re
 from datetime import datetime
 from pathlib import Path
@@ -232,7 +233,7 @@ def _load_json_records(directory: str, *, prefix: str = "", selection=None) -> l
     try:
         filenames = [
             name
-            for name in os.listdir(directory)
+            for name in list_names(directory)
             if name.endswith(".json") and (not prefix or name.startswith(prefix))
         ]
     except OSError:

@@ -1,5 +1,6 @@
 import json
 import os
+from utils.storage_files import list_names, is_file
 
 from flask import abort, current_app, render_template, request, url_for
 from werkzeug.exceptions import Forbidden, NotFound
@@ -93,7 +94,7 @@ def register_results_detail_routes(results_bp):
             )
             if is_public_surface
             else [
-                name for name in os.listdir(artifact_dir)
+                name for name in list_names(artifact_dir)
                 if is_measurement_artifact_filename(name)
             ]
         )
@@ -156,7 +157,7 @@ def register_results_detail_routes(results_bp):
                 current_app.config["RECEIVED_DIR"],
             ),
         )
-        padata_filenames = [name for name in os.listdir(padata_dir) if name.endswith(".tgz")]
+        padata_filenames = [name for name in list_names(padata_dir) if name.endswith(".tgz")]
         padata_urls = {
             name: url_for("results.show_result", filename=name)
             for name in padata_filenames
@@ -354,7 +355,7 @@ def _list_result_padata_filenames(result, padata_dir):
         if filename in seen:
             continue
         seen.add(filename)
-        if os.path.isfile(os.path.join(padata_dir, filename)):
+        if is_file(os.path.join(padata_dir, filename)):
             filenames.append(filename)
     return filenames
 
@@ -383,7 +384,7 @@ def _list_result_measurement_artifact_filenames(result, artifact_dir, *, include
         if not filename or filename in seen:
             continue
         seen.add(filename)
-        if os.path.isfile(os.path.join(artifact_dir, filename)):
+        if is_file(os.path.join(artifact_dir, filename)):
             filenames.append(filename)
     for artifact_path in _iter_result_node_status_artifact_paths(result):
         filename = stored_measurement_artifact_filename_from_path(
@@ -394,7 +395,7 @@ def _list_result_measurement_artifact_filenames(result, artifact_dir, *, include
         if not filename or filename in seen:
             continue
         seen.add(filename)
-        if os.path.isfile(os.path.join(artifact_dir, filename)):
+        if is_file(os.path.join(artifact_dir, filename)):
             filenames.append(filename)
     return filenames
 

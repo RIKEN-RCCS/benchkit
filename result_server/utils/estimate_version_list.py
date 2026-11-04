@@ -10,6 +10,7 @@ from utils.estimate_version_snapshot import read_estimation_version_reference
 from utils.estimate_version_view import build_estimate_version_check
 from utils.result_file import check_file_permission
 from utils.result_records import load_result_json
+from utils.storage_files import list_names, is_file
 from utils.table_pagination import paginate_list
 
 
@@ -38,13 +39,13 @@ def build_version_check_list(directory, config, *, status="different", code="", 
     context["reference"] = reference
     pinned_config = {**config, "ESTIMATION_VERSION_REF": reference["commit"]}
     try:
-        paths = sorted(Path(directory).iterdir())
+        paths = [Path(directory) / name for name in sorted(list_names(directory))]
     except (TypeError, OSError):
         context["notice"] = "Stored Estimates are unavailable."
         return context
     rows, codes = [], set()
     for path in paths:
-        if path.suffix != ".json" or path.is_symlink() or not path.is_file():
+        if path.suffix != ".json" or not is_file(path):
             continue
         try:
             check_file_permission(path.name, directory)

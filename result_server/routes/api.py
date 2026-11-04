@@ -26,6 +26,9 @@ from utils.measurement_artifacts import (
 from utils.rate_limit import rate_limited
 from utils.result_metadata_index import index_result_metadata
 from utils.result_catalog import ResultCatalog, CatalogUnavailable
+from utils.cx_persistence import catalog_for, configured_store
+from utils.encrypted_sqlite import EncryptedDatabaseError
+from utils.storage_files import list_names, read_json, is_file, is_directory, send_object, stream_download
 
 api_bp = Blueprint("api", __name__)
 _TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
@@ -124,9 +127,18 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
         os.rename(tmp_path, path)
 
     catalog_path = current_app.config.get('RESULT_CATALOG_PATH') if has_app_context() else None
-    if catalog_path:
+    store = configured_store()
+    if store:
         try:
-            catalog = ResultCatalog(catalog_path, current_app.config['RECEIVED_DIR'],
+            role = {'result': 'results', 'estimate': 'estimates'}.get(prefix)
+            if role is None or os.path.abspath(out_dir) != store.roots[role]:
+                raise EncryptedDatabaseError('Document receipt binding mismatch')
+            store.put_document(role, filename, serialized)
+        except (EncryptedDatabaseError, ValueError):
+            abort(503, description="Result storage is temporarily unavailable")
+    elif catalog_path:
+        try:
+            catalog = catalog_for(catalog_path, current_app.config['RECEIVED_DIR'],
                                     estimated_directory=current_app.config.get('ESTIMATED_DIR'))
             if prefix == 'result':
                 catalog.replace(filename, payload, write_json)
@@ -150,6 +162,8 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
 
 def _index_saved_json(record_type, saved):
     """Index saved JSON metadata when a Portal SQLite DB is configured."""
+    if configured_store():
+        return True  # Already committed atomically with the canonical payload.
     try:
         indexed = index_result_metadata(
             db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
@@ -174,6 +188,8 @@ def _index_saved_json(record_type, saved):
 
 def _index_environment_snapshot(saved):
     """Index an embedded environment snapshot when present."""
+    if configured_store():
+        return True
     try:
         indexed = index_environment_snapshot(
             db_path=current_app.config.get("EXECUTION_PROFILE_DB_PATH"),
@@ -246,16 +262,23 @@ def _copy_uploaded_file(uploaded_file, save_path):
 
 def _load_json_by_uuid(directory, field_path, uuid_value):
     """Return the first JSON payload whose target field matches the UUID."""
+    store = configured_store()
+    if store:
+        role = 'results' if os.path.abspath(directory) == store.roots['results'] else 'estimates'
+        if os.path.abspath(directory) != store.roots[role]:
+            raise EncryptedDatabaseError('Document lookup binding mismatch')
+        return store.find_document(role, uuid_value)[1]
     json_files = sorted(
-        [f for f in os.listdir(directory) if f.endswith(".json")],
+        [f for f in list_names(directory) if f.endswith(".json")],
         reverse=True,
     )
 
     for json_file in json_files:
         path = os.path.join(directory, json_file)
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = read_json(path)
+        except EncryptedDatabaseError:
+            raise
         except Exception:
             continue
 
@@ -277,16 +300,23 @@ def _load_json_by_uuid(directory, field_path, uuid_value):
 
 
 def _find_result_file_by_uuid(received_dir, uuid_value):
+    store = configured_store()
+    if store:
+        if os.path.abspath(received_dir) != store.directory:
+            raise EncryptedDatabaseError('Result lookup binding mismatch')
+        name, payload = store.find_document('results', uuid_value)
+        return (name, os.path.join(received_dir, name), payload) if name else (None, None, None)
     json_files = sorted(
-        [f for f in os.listdir(received_dir) if f.endswith(".json")],
+        [f for f in list_names(received_dir) if f.endswith(".json")],
         reverse=True,
     )
 
     for json_file in json_files:
         path = os.path.join(received_dir, json_file)
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = read_json(path)
+        except EncryptedDatabaseError:
+            raise
         except Exception:
             continue
 
@@ -499,9 +529,19 @@ def ingest_measurement_artifact():
         return os.path.basename(save_path)
 
     catalog_path = current_app.config.get('RESULT_CATALOG_PATH')
-    if catalog_path:
+    store = configured_store()
+    if store:
+        if artifact_basename:
+            matched_files = [filename] if store.exists('artifacts', filename) else []
+        else:
+            matched_files = [name for name in store.names('artifacts') if legacy_pattern.fullmatch(name)]
+            if matched_files:
+                save_path = os.path.join(received_dir, matched_files[0])
+        store.put('artifacts', os.path.basename(save_path), uploaded_file.stream,
+                  limit=current_app.config['MAX_CONTENT_LENGTH'])
+    elif catalog_path:
         try:
-            catalog = ResultCatalog(catalog_path, current_app.config['RECEIVED_DIR'],
+            catalog = catalog_for(catalog_path, current_app.config['RECEIVED_DIR'],
                                     artifact_directory=received_dir)
             catalog.replace_related('artifacts', os.path.basename(save_path), None,
                                     write_archive)
@@ -555,16 +595,27 @@ def ingest_estimation_artifacts():
 
     result_stem = os.path.splitext(result_filename)[0]
     artifacts_root = current_app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"]
-    os.makedirs(artifacts_root, exist_ok=True)
     target_dir = os.path.join(artifacts_root, result_stem)
-    temp_dir = tempfile.mkdtemp(prefix=f".{result_stem}.", dir=artifacts_root)
-    try:
-        _safe_extract_tar_bytes(uploaded_file, temp_dir)
-        replaced = _replace_directory_after_success(temp_dir, target_dir)
-    except Exception:
-        if os.path.isdir(temp_dir):
-            shutil.rmtree(temp_dir)
-        raise
+    store = configured_store()
+    if store:
+        try:
+            replaced = store.replace_inputs(result_stem, uploaded_file.stream,
+                upload_limit=current_app.config['MAX_CONTENT_LENGTH'],
+                member_limit=current_app.config['MAX_ARCHIVE_MEMBER_SIZE'],
+                total_limit=current_app.config['MAX_ARCHIVE_TOTAL_EXTRACTED_SIZE'],
+                count_limit=current_app.config['MAX_ARCHIVE_MEMBER_COUNT'])
+        except (ValueError, tarfile.TarError):
+            abort(400, description="Unsafe or oversized archive")
+    else:
+        os.makedirs(artifacts_root, exist_ok=True)
+        temp_dir = tempfile.mkdtemp(prefix=f".{result_stem}.", dir=artifacts_root)
+        try:
+            _safe_extract_tar_bytes(uploaded_file, temp_dir)
+            replaced = _replace_directory_after_success(temp_dir, target_dir)
+        except Exception:
+            if os.path.isdir(temp_dir):
+                shutil.rmtree(temp_dir)
+            raise
 
     print(f"Saved estimation artifacts: {target_dir}", flush=True)
     response = {
@@ -635,14 +686,15 @@ def query_result():
 
     received_dir = current_app.config["RECEIVED_DIR"]
     json_files = sorted(
-        [f for f in os.listdir(received_dir) if f.endswith(".json")],
+        [f for f in list_names(received_dir) if f.endswith(".json")],
         reverse=True,
     )
 
     for json_file in json_files:
         try:
-            with open(os.path.join(received_dir, json_file), "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = read_json(os.path.join(received_dir, json_file))
+        except EncryptedDatabaseError:
+            raise
         except Exception:
             continue
 
@@ -725,12 +777,12 @@ def query_measurement_artifact():
     )
     for candidate in candidates:
         path = os.path.join(storage, candidate)
-        if os.path.isfile(path) and not os.path.islink(path):
+        if is_file(path):
             audit_event(
                 "api_query_accepted", actor=runner_id, result="success",
                 details={"query_type": "measurement_artifact"},
             )
-            response = send_file(path, as_attachment=True, download_name=basename)
+            response = send_object(path, download_name=basename)
             response.headers["Cache-Control"] = "no-store"
             return response
     abort(404, description="Measurement artifact not found")
@@ -757,7 +809,13 @@ def query_estimation_artifacts():
     source_dir = os.path.join(
         current_app.config["RECEIVED_ESTIMATION_ARTIFACTS_DIR"], result_stem
     )
-    if not os.path.isdir(source_dir):
+    store = configured_store()
+    if store:
+        if not store.exists('input_archives', result_stem):
+            abort(404, description="No estimation artifacts found")
+        return stream_download(store.chunks('input_archives', result_stem),
+            f'estimation_artifacts_{result_stem}.tgz', mimetype='application/gzip')
+    if not is_directory(source_dir):
         abort(404, description=f"No estimation artifacts found for uuid={uuid_value}")
 
     audit_event(

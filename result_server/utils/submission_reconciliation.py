@@ -28,6 +28,13 @@ class Reconciliation:
 
 def snapshot(store, run_id):
     """Read an existing database without migrating or creating one."""
+    from utils.profile_storage import profile_key
+    from utils.encrypted_sqlite import EncryptedSQLite
+    key = getattr(store, 'key_file', None) or profile_key(store.db_path)
+    if key:
+        with EncryptedSQLite(store.db_path, key).connect(readonly=True) as conn:
+            row = conn.execute('SELECT * FROM trigger_runs WHERE id=?', (run_id,)).fetchone()
+            return dict(row) if row else None
     conn = sqlite3.connect(Path(store.db_path).resolve().as_uri() + '?mode=ro', uri=True)
     try:
         conn.row_factory = sqlite3.Row

@@ -1,4 +1,5 @@
 import os
+from utils.storage_files import list_names, is_file
 from pathlib import Path
 import stat
 
@@ -75,10 +76,10 @@ def load_results_table(
             query_reader, directory, public_only, authenticated, affiliations, page, per_page,
             filter_system, filter_code, filter_exp, padata_directory or directory,
             execution_profile_db_path, public_surface)
-    files = os.listdir(directory)
+    files = list_names(directory)
     json_filenames = sorted([filename for filename in files if filename.endswith(".json")], reverse=True)
     padata_dir = padata_directory or directory
-    padata_filenames = [filename for filename in os.listdir(padata_dir) if filename.endswith(".tgz")]
+    padata_filenames = [filename for filename in list_names(padata_dir) if filename.endswith(".tgz")]
 
     columns = PUBLIC_RESULT_TABLE_COLUMNS if public_surface else RESULT_TABLE_COLUMNS
     trigger_runs_by_pipeline = load_trigger_run_lookup(execution_profile_db_path)
@@ -156,7 +157,7 @@ def _indexed_results_table(reader, directory, public_only, authenticated, affili
     triggers = load_trigger_run_lookup(profile_db)
     rows = []
     for filename in names:
-        if not stat.S_ISREG((Path(directory)/filename).lstat().st_mode):
+        if not is_file(Path(directory)/filename):
             raise CatalogUnavailable('Selected Result is not a regular file')
         data = load_visible_result_json(filename, directory, affiliations, public_only, authenticated)
         if not isinstance(data, dict) or not matches_table_filters(
@@ -182,7 +183,7 @@ def load_estimated_results_table(
     per_page = normalize_per_page(per_page)
 
     affiliations = affiliations if affiliations is not None else []
-    files = os.listdir(directory)
+    files = list_names(directory)
     json_filenames = sorted([filename for filename in files if filename.endswith(".json")], reverse=True)
     has_filters = filters_are_active(filter_system, filter_code, filter_exp)
 

@@ -7,6 +7,7 @@ import sqlite3
 
 from utils.results_loader import load_results_table
 from utils.result_catalog import CatalogUnavailable, ResultCatalog
+from utils.cx_persistence import catalog_for
 from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
 from utils.report_selection import definition_options, list_requested
@@ -66,7 +67,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
         catalog_path = current_app.config.get('RESULT_CATALOG_PATH')
         if catalog_path:
             try:
-                catalog = ResultCatalog(catalog_path, received_dir, artifact_directory=received_padata_dir)
+                catalog = catalog_for(catalog_path, received_dir, artifact_directory=received_padata_dir)
                 with catalog.snapshot() as reader:
                     rows, columns, pagination_info = load_results_table(received_dir, query_reader=reader, **load_kwargs)
             except (CatalogUnavailable, sqlite3.Error, OSError, ValueError):
@@ -82,7 +83,7 @@ def _render_results_list(public_only, template_name, redirect_endpoint):
                       definition_options(params['filter_code'], params['filter_system'], params['filter_exp']))
     if catalog_path:
         try:
-            catalog_data = ResultCatalog(catalog_path, received_dir).candidates(
+            catalog_data = catalog_for(catalog_path, received_dir).candidates(
                 public_only=public_only,
                 authenticated=load_kwargs.get("authenticated", False),
                 affiliations=load_kwargs.get("affiliations", ()),

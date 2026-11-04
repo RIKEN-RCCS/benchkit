@@ -1,4 +1,5 @@
 import os
+from utils.storage_files import list_names
 
 from utils.result_records import load_visible_result_json
 
@@ -46,7 +47,7 @@ def get_filter_options(
     experiments = set()
 
     try:
-        files = os.listdir(directory)
+        files = list_names(directory)
     except OSError:
         return {"systems": [], "codes": [], "exps": []}
 

@@ -41,6 +41,9 @@ def verify_code(secret: str, code: str) -> bool:
 def check_code_reuse(redis_conn, prefix: str, email: str, code: str) -> bool:
     """Detect replay attempts for recently consumed TOTP codes."""
     key = f"{prefix}totp_used:{email}:{code}"
+    claim = getattr(redis_conn, 'claim_once', None)
+    if claim:
+        return not claim(key, 90)
     if redis_conn.exists(key):
         return True
 
@@ -60,6 +63,9 @@ def get_failed_attempt_count(redis_conn, prefix: str, email: str) -> int:
 def record_failed_attempt(redis_conn, prefix: str, email: str) -> int:
     """Increment and persist the failed-login counter."""
     key = f"{prefix}login_attempts:{email}"
+    increment = getattr(redis_conn, 'increment_with_ttl', None)
+    if increment:
+        return increment(key, FAILED_ATTEMPT_WINDOW_SECONDS, refresh=True)
     pipe = redis_conn.pipeline()
     pipe.incr(key)
     pipe.expire(key, FAILED_ATTEMPT_WINDOW_SECONDS)

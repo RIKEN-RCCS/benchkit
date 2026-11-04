@@ -35,7 +35,6 @@ def _configure_session(app, base_dir):
     session_dir = os.path.join(base_dir, "flask_session")
     app.config.update(
         SESSION_TYPE="cachelib",
-        SESSION_CACHELIB=FileSystemCache(session_dir, threshold=500, mode=0o600),
         SESSION_PERMANENT=True,
         SESSION_USE_SIGNER=True,
         SESSION_COOKIE_SECURE=True,
@@ -43,7 +42,9 @@ def _configure_session(app, base_dir):
         SESSION_COOKIE_SAMESITE="Strict",
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
     )
-    Session(app)
+    if not os.environ.get("RESULT_SERVER_PERSISTENCE_DB"):
+        app.config["SESSION_CACHELIB"] = FileSystemCache(session_dir, threshold=500, mode=0o600)
+        Session(app)
 
 
 def _configure_proxy_fix(app):
@@ -182,6 +183,8 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     """Create a configured Flask application for the main or dev portal."""
     if base_dir is None:
         raise ValueError("base_dir must be specified")
+    from utils.profile_storage import persistence_settings
+    persistence_settings()
 
     ingest_keys = parse_ingest_keys()
     preflight_errors = validate_production_config(os.environ, ingest_keys)
@@ -214,6 +217,8 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     _configure_execution_profiles(app, base_dir)
     if instance_settings:
         app.config["EXECUTION_PROFILE_DB_PATH"] = instance_settings.profile_db_path
+    from utils.cx_persistence import configure_persistence
+    configure_persistence(app)
     if public_portal_mode is not None:
         app.config["PUBLIC_PORTAL_MODE"] = public_portal_mode
     configure_estimate_version_check(app)

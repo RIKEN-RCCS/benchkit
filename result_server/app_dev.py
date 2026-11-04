@@ -155,6 +155,8 @@ class _StubUserStore:
 
 def create_dev_app(base_dir):
     """Create a local Flask app without Redis, OTP, or SMTP dependencies."""
+    if os.environ.get("RESULT_SERVER_PERSISTENCE_DB") or os.environ.get("RESULT_SERVER_PERSISTENCE_KEY"):
+        raise RuntimeError("Use the instance application factory for encrypted persistence, not the stub-auth app")
     # Replace optional runtime modules before importing the application routes.
     sys.modules["redis"] = types.ModuleType("redis")
     sys.modules["utils.totp_manager"] = _create_stub_totp_manager()

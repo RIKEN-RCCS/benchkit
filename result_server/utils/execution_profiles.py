@@ -343,10 +343,16 @@ def _scheduled_attempt_blocks(row, *, include_submitted=False):
 class ExecutionProfileStore:
     """Persist execution profiles in a small site-local SQLite database."""
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, *, key_file=None):
         self.db_path = os.path.normpath(db_path)
+        self.key_file = key_file
 
-    def connect(self) -> sqlite3.Connection:
+    def connect(self):
+        """Return a context-managed connection on the selected backend."""
+        from utils.profile_storage import profile_connection
+        key = self._key()
+        if key:
+            return profile_connection(self.db_path, key)
         parent = os.path.dirname(self.db_path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -355,7 +361,24 @@ class ExecutionProfileStore:
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
+    def _key(self):
+        from utils.profile_storage import profile_key
+        return self.key_file or profile_key(self.db_path)
+
     def migrate(self) -> None:
+        # Receipt metadata may share an outer transaction. Never executescript
+        # (which commits implicitly) inside that transaction.
+        from utils.profile_storage import _transaction
+        active = _transaction.get()
+        if active and active[0] == os.path.abspath(self.db_path):
+            if active[1].execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] != 12:
+                raise RuntimeError("Profile schema requires explicit migration")
+            return
+        if not self.key_file and self._key():
+            with self.connect() as conn:
+                if conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] != 12:
+                    raise RuntimeError("Profile schema requires explicit migration")
+            return
         with self.connect() as conn:
             conn.executescript(
                 """

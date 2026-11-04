@@ -62,7 +62,7 @@ def _redis_ping_ok(redis_conn):
 
 def _get_redis_or_fail():
     """Return Redis for auth tracking, failing closed when configured to require it."""
-    redis_conn = current_app.config.get("REDIS_CONN")
+    redis_conn = current_app.config.get("SECURITY_STATE", current_app.config.get("REDIS_CONN"))
     requires_redis = current_app.config.get("AUTH_REQUIRES_REDIS", False)
 
     if not redis_conn:
@@ -238,8 +238,14 @@ def setup(token):
         return redirect(url_for("auth.setup", token=token))
 
     if verify_code(secret, totp_code):
-        store.create_user(email, secret, affiliations)
-        store.delete_invitation(token)
+        register = getattr(store, 'register_invited_user', None)
+        if register:
+            if not register(token, email, secret, affiliations):
+                flash("This invitation link is invalid or has expired.")
+                return redirect(url_for("auth.login"))
+        else:
+            store.create_user(email, secret, affiliations)
+            store.delete_invitation(token)
         session.pop("_setup_secret", None)
         audit_event("setup_complete", actor=email, result="success")
         flash("TOTP registration complete. You can now log in.")

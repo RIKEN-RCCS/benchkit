@@ -61,6 +61,10 @@ def configured_registry(config=None):
 def current_actor(principal, users=None):
     try:
         if users is None:
+            from .cx_identity import identity_from_environment
+            encrypted_users = identity_from_environment()
+            if encrypted_users is not None:
+                return current_actor(principal, encrypted_users)
             import redis
             from .user_store import UserStore
 
