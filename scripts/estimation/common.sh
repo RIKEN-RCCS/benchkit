@@ -7,6 +7,7 @@ source "${BK_BENCHKIT_ROOT}/scripts/common/observation.sh"
 # shellcheck source=scripts/estimation/declaration_helpers.sh
 source "${BK_BENCHKIT_ROOT}/scripts/estimation/declaration_helpers.sh"
 source "${BASH_SOURCE[0]%/*}/section_artifacts.sh"
+source "${BASH_SOURCE[0]%/*}/workflow.sh"
 # common.sh — Common function library for performance estimation
 #
 # Provides shared variables and functions used by application-specific
@@ -380,7 +381,15 @@ bk_estimation_write_output() {
   local output_file="$1"
 
   mkdir -p "$(dirname "$output_file")"
-  print_json > "$output_file"
+  local temporary
+  temporary=$(mktemp "$(dirname "$output_file")/.estimate-output.XXXXXXXX.json") || return
+  if print_json > "$temporary" &&
+     "${BK_ESTIMATION_PYTHON:-python3}" "$BK_BENCHKIT_ROOT/scripts/estimation/reestimation_conditions.py" --record "$temporary"; then
+    mv -- "$temporary" "$output_file"
+  else
+    rm -f -- "$temporary"
+    return 1
+  fi
   echo "Estimate written to $output_file"
 }
 

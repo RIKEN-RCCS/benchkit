@@ -41,20 +41,20 @@ est_assumptions_json='{"existing":"preserved"}'
 est_future_fom_breakdown='{"sections":[{"name":"pairlist","candidate_estimates":[
  {"estimation_package":"gpu_kernel_lightgbm_v11","metrics":{"source_gpus":["H100"]},
  "artifacts":[{"kind":"gpu_lightgbm_input_csv","path":"source-gpu.csv"}]}]}]}'
-genesis_record_estimation_assumptions assumption-result.json
+bk_estimation_apply_annotation genesis_estimation_assumptions assumption-result.json
 jq -e '.existing == "preserved" and .genesis.pme_real_partition.fractions.pme_real_wait == 0.8
  and .genesis.gpu_specifications[0].specification_mapping == "gh200_using_h100_specifications"' \
  <<< "$est_assumptions_json" >/dev/null
 printf '{"system":"MiyabiG"}\n' > assumption-result.json
 rm source-gpu.csv
-BK_GENESIS_PME_REAL_IDENTITY_FRACTION=0.8 genesis_record_estimation_assumptions assumption-result.json
+BK_GENESIS_PME_REAL_IDENTITY_FRACTION=0.8 bk_estimation_apply_annotation genesis_estimation_assumptions assumption-result.json
 jq -e '.genesis.pme_real_partition.fractions == null
  and .genesis.gpu_specifications[0].observed_profile_gpu_names == []
  and .genesis.gpu_specifications[0].specification_mapping == "unknown"' \
  <<< "$est_assumptions_json" >/dev/null
 printf '{"fom_breakdown":null}\n' > assumption-result.json
 est_future_fom_breakdown=null
-genesis_record_estimation_assumptions assumption-result.json
+bk_estimation_apply_annotation genesis_estimation_assumptions assumption-result.json
 jq -e '.genesis.pme_real_partition.fractions == null and .genesis.gpu_specifications == []' \
  <<< "$est_assumptions_json" >/dev/null
 est_assumptions_json=""

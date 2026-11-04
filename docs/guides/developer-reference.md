@@ -533,3 +533,34 @@ precedence over artifact defaults. Invalid captures are diagnosed and omitted
 without dropping the FOM or valid observations. Existing normalized observations
 remain supported. Application parsers retain ownership of timer interpretation
 and their own runtime dependencies.
+
+
+## 推定実行の責務
+
+`common.sh`から読み込む`workflow.sh`は推論の反復、作業領域、出力と元Resultへの参照を担当します。
+アプリは区間割当、科学的適用条件、集約・据置の判断と仮定を定義します。
+モデル固有の入力bindingと推論はsection packageに置きます。
+
+- `bk_estimation_run_sections RESULT INDEX [ANNOTATION [MISSING_LABEL [CURRENT_BASIS]]]`：宣言済みpackageを実行します。
+  ANNOTATIONはResultとfuture内訳を受け、追加する注記をJSON objectで返す関数です。
+  MISSING_LABELを指定した場合だけ、欠損した区間内訳を総時間identity入力で補い、不足を注記します。
+  CURRENT_BASISは`transformed`（既定）か、記録済み基準FOMを使う`recorded`です。
+- `bk_estimation_run_jobs PACKAGE JOBS_JSON WORK`：JSON arrayの各要求を
+  `bk_section_package_run_job_PACKAGE JOB OUTPUT_DIR`へ渡します。件数やjob内部の項目はアプリ/モデルの定義です。
+  LightGBM 1.1 adapterは`archive`、`metadata`、`item`を結び付けます。共通側はkernel familyを知りません。
+- `bk_estimation_write_projection RESULT PROJECTION_JSON MEASUREMENT_JSON OUTPUT [--assumptions JSON] [KIND:PATH ...]`：
+  同じ資源数を保つ時間比による射影を共通writerへ渡します。射影は`method`、`schema_version`、
+  `time_ratio_predicted_over_source`、`prediction_package`、`prediction_model.version`、
+  `assumptions`、`status`、`limitations`を含みます。数値的な適用条件は呼出側が検証します。
+  入力hash・benchmark参照を共通側で付け、成功したEstimateだけをatomicに公開します。
+
+Estimateの`estimate_metadata.execution_conditions`は、共通側の明示的な許可リストにある条件だけを保存します。
+再推定は明示overrideを優先し、その差を`resolved_request.explicit_changes`へ残します。
+任意の環境変数や認証情報は記録・復元しません。旧記録で手法固有の解釈が必要な場合は、
+信頼するcheckout内の`programs/<code>/estimation/conditions.py`の
+`recorded_conditions(source)`が既知値と追加条件の型（`identifier`/`commit`）を返せます。
+新しい方法のために共通の条件復元処理へアプリ名分岐を追加しません。
+
+`observation_bundle.py`はmanifest付きの観測bundleを梱包します。復元側は専用の科学的ファイル名を仮定せず、
+正規化した相対path、hash、展開量、symlink・control data・上書き衝突を検証します。
+必要な観測内容の妥当性は、その観測を使う手法が検証します。旧bundle形式v1も読み取ります。

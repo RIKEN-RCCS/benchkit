@@ -18,6 +18,11 @@ import sqlite3
 import sys
 import tarfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/estimation'))
+from observation_bundle import write_bundle
+from prediction_batch import combine_predictions as combine_components
+
+
 FAMILIES = ("MultAlphaBeta", "MultUnified<0,1>", "MultUnified<1,1>",
             "MultUnified<1,0>", "MultUnified<0,0>")
 
@@ -323,41 +328,12 @@ def bundle_inputs(plan, profiles_dir):
         jobs = json.loads((Path(temporary) / 'jobs.json').read_text())
     files = [plan, plan.with_name('discovery.sqlite')]
     files += [Path(job[key]) for job in jobs for key in ('archive', 'metadata')]
-    root = profiles_dir.resolve()
-    members = {str(p.resolve().relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-               for p in files}
-    archive = plan.with_name('observation-bundle.tgz')
-    with tarfile.open(archive, 'w:gz') as tar:
-        for path in members:
-            tar.add(root / path, arcname=path, recursive=False)
-    manifest = dict(schema_version=1, format='benchkit-observation-bundle/v1',
-        files=members, summary=dict(bundle=dict(type='file_reference',
-            path='results/' + str(archive.resolve().relative_to(root)),
-            sha256=hashlib.sha256(archive.read_bytes()).hexdigest())))
-    output = plan.with_name('observation-bundle.json')
-    output.write_text(json.dumps(manifest, indent=2) + '\n')
-    return str(output)
+    return write_bundle(files, profiles_dir, plan.with_name('observation-bundle.tgz'))
 
 
 def combine_predictions(directory):
-    results = [json.loads((directory / f'kernel_{i}.json').read_text()) for i in range(5)]
-    if any(r['package_applicability']['status'] != 'applicable'
-           or r['model']['version'] != '1.1' or len(r['metrics']['kernels']) != 1 for r in results):
-        raise ValueError('Require five applicable LightGBM 1.1 predictions')
-    commits = {r['model']['provenance']['external_commit'] for r in results}
-    if len(commits) != 1 or not re.fullmatch(r'[0-9a-f]{40}', next(iter(commits))):
-        raise ValueError('Require one resolved PerfTools commit across all five predictions')
-    for r in results:
-        provenance = r['model']['provenance']
-        if hashlib.sha256(Path(provenance['manifest']).read_bytes()).hexdigest() != provenance['sha256']:
-            raise ValueError('Prediction provenance manifest changed')
-    return dict(estimation_package='gpu_kernel_lightgbm_v11',
-        model=dict(name='PerfTools LightGBM_model/1.1', version='1.1', external_commit=next(iter(commits)),
-                   component_provenance=[r['model']['provenance'] for r in results]),
-        component_results=[dict(path=str(directory / f'kernel_{i}.json'),
-            sha256=hashlib.sha256((directory / f'kernel_{i}.json').read_bytes()).hexdigest())
-            for i in range(5)],
-        metrics=dict(kernels=[r['metrics']['kernels'][0] for r in results]))
+    return combine_components(directory, len(FAMILIES), 'gpu_kernel_lightgbm_v11',
+                              '1.1', 'PerfTools LightGBM_model/1.1')
 
 
 def main():

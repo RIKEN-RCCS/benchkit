@@ -30,3 +30,18 @@ bk_section_package_transform_gpu_kernel_lightgbm_v11() {
   fi
   printf '%s\n' "$result"
 }
+
+# Model-specific job binding, shared by any application with scoped NCU inputs.
+bk_section_package_run_job_gpu_kernel_lightgbm_v11() {
+  local job="$1" output="$2" variable
+  while IFS= read -r variable; do
+    case "$variable" in
+      BK_GPU_LIGHTGBM_INPUT_CSV*|BK_GPU_LIGHTGBM_PREDICTION_CSV*|BK_GPU_LIGHTGBM_NCU_ARCHIVE*|BK_GPU_LIGHTGBM_METADATA_JSON*)
+        [[ -z "${!variable}" ]] || { echo "Conflicting bundle override: $variable" >&2; return 2; } ;;
+    esac
+  done < <(compgen -A variable BK_GPU_LIGHTGBM_)
+  BK_GPU_LIGHTGBM_NCU_ARCHIVE=$(jq -er .archive <<< "$job") \
+  BK_GPU_LIGHTGBM_METADATA_JSON=$(jq -er .metadata <<< "$job") \
+  BK_GPU_LIGHTGBM_OUTPUT_DIR="$output" \
+    bk_section_package_transform_gpu_kernel_lightgbm_v11 "$(jq -c .item <<< "$job")" 1 1 1 section
+}

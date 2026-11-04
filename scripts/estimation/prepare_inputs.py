@@ -19,6 +19,10 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from observation_bundle import valid_member
+
+
 API_HELPER = Path(__file__).resolve().parents[1] / "result_server" / "api.sh"
 MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 4096
@@ -119,7 +123,7 @@ def restore_bundle(archive, destination, owners=None, uuid=None, manifest=None):
                 raise ValueError('Invalid observation bundle manifest')
             files = {str(p.relative_to(staging)): p for p in Path(staging).rglob('*') if p.is_file()}
             if set(files) != set(manifest) or any(
-                not re.fullmatch(r'profile_[A-Za-z0-9]+/(?:davidson-plan\.json|discovery\.sqlite|profile\.tgz|profile\.metadata\.json)', name)
+                not valid_member(name)
                 or not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest)
                 or hashlib.sha256(files[name].read_bytes()).hexdigest() != digest
                 for name, digest in manifest.items()

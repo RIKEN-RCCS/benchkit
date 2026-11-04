@@ -93,6 +93,19 @@ class PrepareInputsTests(unittest.TestCase):
             summary=manifest['summary'])]))))
         return result, manifest
 
+    def test_generic_bundle_preserves_unknown_method_files(self):
+        from observation_bundle import write_bundle
+        root = Path('local')
+        (root / 'third_method').mkdir(parents=True)
+        files = [root / 'third_method/trace.bin', root / 'third_method/selection.txt']
+        for i, path in enumerate(files):
+            path.write_bytes(bytes([i]))
+        output = Path(write_bundle(files, root, root / 'bundle.tgz'))
+        manifest = json.loads(output.read_text())
+        prepare.restore_bundle(root / 'bundle.tgz', Path('results'), manifest=manifest['files'])
+        for i, path in enumerate(files):
+            self.assertEqual((Path('results') / path.relative_to(root)).read_bytes(), bytes([i]))
+
     def test_explicit_observation_bundle_restores_local_inputs_without_server(self):
         result, _ = self.observation_bundle()
         before = result.read_bytes()

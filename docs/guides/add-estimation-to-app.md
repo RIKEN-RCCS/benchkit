@@ -12,7 +12,7 @@
 `programs/genesis/parse_timing.sh`、`programs/genesis/estimate.sh` の分担を見ると、
 `run.sh` / `build.sh` から profile / estimation 固有処理を分離する方向を追いやすいです。
 
-GENESISの`section.sh`は観測版、区間時間の取得方法、追加profileの定義を持ち、推定なしでも利用できます。`estimate.sh`は推定版と区間への手法割当を持ち、観測定義を参照します。宣言の読込みだけで推定やprofile採取は始まりません。必要profileは推定宣言の任意の第4列で参照でき、再推定は保存済みデータを使います。
+GENESISの`section.sh`は観測版、区間時間の取得方法、追加profileの定義を持ち、推定なしでも利用できます。`estimate.sh`は推定版と区間への手法割当を持ちます。宣言の読込みだけで推定やprofile採取は始まりません。必要profileは推定宣言の任意の第4列で参照でき、再推定は保存済みデータを使います。
 
 Resultの`observation_definition.version`は実測時の版です。Estimateはこれを`estimate_metadata.source_result.observation_definition`へ保持し、使用した推定版を`estimate_metadata.app_estimation_method.version`へ記録します。古いResultに観測版がない場合は未記録のままにし、現在の版で補いません。
 
@@ -107,6 +107,30 @@ bk_estimation_write_output "results/estimate_${est_code}_0.json"
 このとき app 側で最初に決めるべきなのは、どの section / overlap にどの推定 package を使うかです。
 
 ---
+
+### 共通の実行手順を使う
+
+区間を組み合わせる推定では、GENESISのように区間への手法割当と仮定を定義し、
+`bk_estimation_run_sections`へResultを渡します。仮定の関数はResultと将来側の内訳を
+受け取り、追加する注記をJSONで返します。推論順序、一時入力、出力処理は共通側が担当します。
+第4引数を指定した場合、区間欠損時は総時間をidentityとして残します。
+第5引数の`recorded`はcurrent側に記録済み基準FOMを使う指定です。省略時は変換後の値を使います。
+
+```bash
+myapp_declare_estimation_layout
+bk_estimation_run_sections "$1" 0 myapp_assumptions MyApp recorded
+```
+
+SBDのように観測から独自の射影を計算する場合は、適用条件と計算をアプリに置き、
+結果を`bk_estimation_write_projection`へ渡します。共通側が元Resultへの参照・入力hash・
+Estimateを組み立てるため、アプリから`est_*`を並べて設定する必要はありません。
+推論対象が複数ある場合の反復は`bk_estimation_run_jobs`、モデルへの入力の結び付けは
+選んだpackageが担当します。独自の集約式を汎用の式へ置き換える必要はありません。
+
+初回推定と再推定の入口はどちらも`bash scripts/estimation/run.sh <code>`です。
+GPU条件等の明示設定はEstimateへ記録され、再推定時に復元されます。
+アプリごとに初回用と再推定用の実行手順を作る必要はありません。
+基盤やモデルadapterを拡張する場合は[開発者リファレンス](developer-reference.md#推定実行の責務)を参照してください。
 
 ## 4. `estimate.sh` に書くこと
 
