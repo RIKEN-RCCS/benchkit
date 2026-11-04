@@ -203,3 +203,32 @@ def test_non_sbd_without_model_keeps_existing_restoration(source):
     settings, _ = conditions.resolve_conditions(source, {}, {})
     assert settings['BK_ESTIMATION_FUTURE_PACKAGE'] == 'instrumented_app_sections_dummy'
     assert not any(name.startswith('BK_GPU_') for name in settings)
+
+
+def test_new_record_round_trip_is_app_independent_and_filters_environment(source, tmp_path, monkeypatch):
+    source['code'] = 'third'
+    path = tmp_path / 'estimate.json'
+    path.write_text(json.dumps(source))
+    monkeypatch.setenv('BK_GPU_LIGHTGBM_SOURCE_GPU', 'GPU-A')
+    monkeypatch.setenv('BK_GPU_LIGHTGBM_TARGET_GPU', 'GPU-B')
+    monkeypatch.setenv('RESULT_SERVER_TOKEN', 'must-not-be-recorded')
+    monkeypatch.setenv('BK_UNRELATED_SECRET', 'must-not-be-recorded')
+    conditions.record_execution_conditions(path)
+    recorded = json.loads(path.read_text())
+    assert 'must-not-be-recorded' not in path.read_text()
+    settings, request = conditions.resolve_conditions(recorded, {}, {})
+    assert settings['BK_GPU_LIGHTGBM_SOURCE_GPU'] == 'GPU-A'
+    assert settings['BK_GPU_LIGHTGBM_TARGET_GPU'] == 'GPU-B'
+    assert request['explicit_changes'] == {}
+    settings, request = conditions.resolve_conditions(recorded, {}, {'BK_GPU_LIGHTGBM_TARGET_GPU': 'GPU-C'})
+    assert settings['BK_GPU_LIGHTGBM_TARGET_GPU'] == 'GPU-C'
+    assert request['explicit_changes']['BK_GPU_LIGHTGBM_TARGET_GPU'] == dict(recorded='GPU-B', requested='GPU-C')
+
+
+def test_invalid_recorded_conditions_do_not_become_environment(source):
+    source['estimate_metadata']['execution_conditions'] = {'RESULT_SERVER_TOKEN': 'untrusted'}
+    settings, _ = conditions.resolve_conditions(source, {}, {})
+    assert 'RESULT_SERVER_TOKEN' not in settings
+    source['estimate_metadata']['execution_conditions']['BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT'] = 'main'
+    with pytest.raises(ValueError, match='PERFTOOLS_COMMIT'):
+        conditions.resolve_conditions(source, {}, {})

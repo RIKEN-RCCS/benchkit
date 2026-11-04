@@ -1,6 +1,7 @@
 """Restore explicit re-estimation settings before invoking an app estimator."""
 
 import json
+import importlib.util
 import os
 from pathlib import Path
 import re
@@ -16,6 +17,47 @@ FIELDS = {
     "BK_ESTIMATION_CURRENT_PACKAGE": lambda s: s.get("estimate_metadata", {}).get("current_package", {}).get("requested_estimation_package"),
     "BK_ESTIMATION_FUTURE_PACKAGE": lambda s: s.get("estimate_metadata", {}).get("future_package", {}).get("requested_estimation_package"),
 }
+
+
+# Explicit model settings only; never snapshot arbitrary environment variables.
+MODEL_CONDITIONS = {
+    'BK_GPU_' + model + '_' + field: ('commit' if field == 'PERFTOOLS_COMMIT' else 'identifier')
+    for model in ('LIGHTGBM', 'MLP')
+    for field in ('SOURCE_GPU', 'TARGET_GPU', 'PERFTOOLS_COMMIT')
+}
+
+
+def record_execution_conditions(path):
+    source = json.loads(path.read_text())
+    method_values, _ = method_conditions(source)
+    recorded = {key: extract(source) for key, extract in FIELDS.items()}
+    for key, value in method_values.items():
+        if recorded.get(key) is None:
+            recorded[key] = value
+    for key in MODEL_CONDITIONS:
+        if os.environ.get(key):
+            recorded[key] = os.environ[key]
+    source.setdefault('estimate_metadata', {})['execution_conditions'] = {
+        key: value for key, value in recorded.items() if value is not None}
+    temporary = path.with_suffix('.conditions.tmp')
+    temporary.write_text(json.dumps(source, indent=2, allow_nan=False) + '\n')
+    temporary.replace(path)
+
+
+def method_conditions(source):
+    code = source.get('code')
+    if not isinstance(code, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', code):
+        return {}, {}
+    root = Path(__file__).resolve().parents[2]
+    path = root / 'programs' / code / 'estimation/conditions.py'
+    if not path.is_file():
+        return {}, {}
+    if path.is_symlink() or root not in path.resolve().parents:
+        raise ValueError('Unsafe method conditions adapter')
+    spec = importlib.util.spec_from_file_location('_estimation_method_conditions', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.recorded_conditions(source)
 
 
 def resolve_conditions(source, context, environment):
@@ -34,13 +76,15 @@ def resolve_conditions(source, context, environment):
         raise ValueError("Separate future reference restoration is not supported")
     settings = {}
     changes = {}
-    projection = ((source.get('future_system', {}).get('model') or {}).get('projection') or {}) if source.get('code') == 'sbd' else {}
-    sbd_projection = source.get('code') == 'sbd' and projection.get('method') == 'sbd-davidson-nsys-weighted-v1'
+    method_values, method_types = method_conditions(source)
+    saved = source.get('estimate_metadata', {}).get('execution_conditions', {})
+    if not isinstance(saved, dict):
+        raise ValueError('Invalid recorded execution conditions')
     for name, extract in FIELDS.items():
         recorded = extract(source)
-        if recorded is None and sbd_projection and name.endswith('_PACKAGE'):
-            side = 'current' if '_CURRENT_' in name else 'future'
-            recorded = source.get('estimate_metadata', {}).get(side + '_package', {}).get('estimation_package')
+        recorded = saved.get(name, recorded)
+        if recorded is None:
+            recorded = method_values.get(name)
         supplied = environment.get(name)
         value = supplied if supplied is not None else recorded
         if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
@@ -55,20 +99,18 @@ def resolve_conditions(source, context, environment):
         settings[name] = value
         if supplied is not None:
             changes[name] = {"recorded": recorded, "requested": value}
-    if sbd_projection:
-        gpu_conditions = {
-            'BK_GPU_LIGHTGBM_SOURCE_GPU': projection.get('source_gpu'),
-            'BK_GPU_LIGHTGBM_TARGET_GPU': projection.get('target_gpu'),
-            'BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT': projection.get('prediction_model', {}).get('external_commit'),
-        }
-        for name, recorded in gpu_conditions.items():
-            value = environment.get(name, recorded)
-            pattern = r'[0-9a-fA-F]{40}' if name.endswith('_COMMIT') else r'[A-Za-z0-9_.-]+'
-            if not isinstance(value, str) or not re.fullmatch(pattern, value):
-                raise ValueError('Missing or invalid re-estimation condition: ' + name)
-            settings[name] = value
-            if name in environment:
-                changes[name] = dict(recorded=recorded, requested=value)
+    model_types = {key: kind for key, kind in MODEL_CONDITIONS.items() if key in saved}
+    for name, kind in {**model_types, **method_types}.items():
+        if name in FIELDS or not re.fullmatch(r'BK_[A-Z0-9_]+', name) or kind not in ('commit', 'identifier'):
+            raise ValueError('Invalid method condition declaration')
+        recorded = saved.get(name, method_values.get(name))
+        value = environment.get(name, recorded)
+        pattern = r'[0-9a-fA-F]{40}' if kind == 'commit' else r'[A-Za-z0-9_.-]+'
+        if not isinstance(value, str) or not re.fullmatch(pattern, value):
+            raise ValueError('Missing or invalid re-estimation condition: ' + name)
+        settings[name] = value
+        if name in environment:
+            changes[name] = dict(recorded=recorded, requested=value)
     if policy == "reuse-recorded-baseline":
         uuid = environment.get("BK_ESTIMATION_BASELINE_UUID") or source.get("current_system", {}).get("benchmark", {}).get("uuid")
         if not isinstance(uuid, str) or not re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", uuid):
@@ -87,6 +129,9 @@ def resolve_conditions(source, context, environment):
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--record":
+        record_execution_conditions(Path(sys.argv[2]))
+        return
     context_path = Path("results/reestimation_context.json")
     environment = dict(os.environ)
     if context_path.exists():
