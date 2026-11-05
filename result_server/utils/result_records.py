@@ -3,9 +3,9 @@ import os
 import re
 from datetime import datetime
 
-from utils.result_file import get_file_confidential_tags, resolve_safe_child_path
-from utils.storage_files import is_file, read_json
-from utils.encrypted_sqlite import EncryptedDatabaseError
+from .result_file import get_file_confidential_tags, resolve_safe_child_path
+from .storage_files import is_file, read_json
+from .encrypted_sqlite import EncryptedDatabaseError
 
 
 def select_display_toolchain(toolchain):

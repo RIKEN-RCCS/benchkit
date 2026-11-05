@@ -11,10 +11,10 @@ import tarfile
 import uuid
 import posixpath
 
-from utils.encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
-from utils.result_catalog import ResultCatalog, CatalogUnavailable
-from utils.profile_storage import _transaction, configured_store, persistence_settings
-from utils.cx_artifact_store import CxArtifactStore, ChunkWriter
+from .encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
+from .result_catalog import ResultCatalog, CatalogUnavailable
+from .profile_storage import _transaction, configured_store, persistence_settings
+from .cx_artifact_store import CxArtifactStore, ChunkWriter
 
 
 SCHEMA_VERSION = 1
@@ -97,7 +97,7 @@ class CxPersistence(ResultCatalog):
             conn.execute("INSERT INTO cx_state VALUES(1,?,?,?)",
                          (SCHEMA_VERSION, json.dumps(self.roots, sort_keys=True), instance_id))
             conn.commit()
-        from utils.execution_profiles import ExecutionProfileStore
+        from .execution_profiles import ExecutionProfileStore
         ExecutionProfileStore(self.path, key_file=self.storage.key_file).migrate()
         with self.storage.connect() as conn:
             conn.execute('UPDATE catalog_state SET ready=1')
@@ -201,8 +201,8 @@ class CxPersistence(ResultCatalog):
                 self._put(conn, name, payload)
             else:
                 self._put_report(conn, self.roots[role], name, payload)
-            from utils.result_metadata_index import index_result_metadata
-            from utils.environment_snapshots import index_environment_snapshot
+            from .result_metadata_index import index_result_metadata
+            from .environment_snapshots import index_environment_snapshot
             if update_metadata:
                 index_result_metadata(db_path=str(self.path), record_type="result" if role == "results" else "estimate",
                                       payload=payload, json_file=name)
@@ -213,7 +213,7 @@ class CxPersistence(ResultCatalog):
 
     @staticmethod
     def _document_identifiers(role, name, payload):
-        from utils.result_file import UUID_PATTERN
+        from .result_file import UUID_PATTERN
         identities = {match.group() for match in UUID_PATTERN.finditer(name)}
         metadata = payload.get('estimate_metadata')
         declared = payload.get('_server_uuid') if role == 'results' else (
@@ -405,7 +405,7 @@ class CxPersistence(ResultCatalog):
                 raise EncryptedDatabaseError("Canonical results and candidate entries disagree")
             for role, name in objects:
                 if role in ("results", "estimates"):
-                    from utils.result_query_records import report_facts
+                    from .result_query_records import report_facts
                     payload = json.loads(b''.join(self.chunks(role, name, conn=conn)))
                     expected = report_facts(payload)
                     identities = {row[0] for row in conn.execute('SELECT identifier FROM cx_identities WHERE role=? AND name=?', (role, name))}
@@ -417,7 +417,7 @@ class CxPersistence(ResultCatalog):
                     if actual != tuple(json.dumps(value, sort_keys=True) for value in expected):
                         raise EncryptedDatabaseError("Stored report facts disagree with the canonical document")
                     if role == 'results':
-                        from utils.result_file import _extract_confidential_tags
+                        from .result_file import _extract_confidential_tags
                         tags = sorted(set(_extract_confidential_tags(payload)))
                         row = conn.execute('''SELECT g.system,g.code,g.exp,g.visibility,g.public,g.id
                             FROM candidate_groups g JOIN result_entries e ON g.id=e.group_id WHERE e.filename=?''', (name,)).fetchone()
@@ -495,13 +495,13 @@ def configure_persistence(app):
             raise EncryptedDatabaseError("Profile schema needs explicit migration")
     app.extensions["cx_persistence"] = store
     app.config.update(EXECUTION_PROFILE_DB_PATH=str(store.path), RESULT_CATALOG_PATH=str(store.path))
-    from utils.cx_identity import EncryptedUserStore, EncryptedSessionCache, EncryptedSessionInterface
+    from .cx_identity import EncryptedUserStore, EncryptedSessionCache, EncryptedSessionInterface
     app.config["USER_STORE"] = EncryptedUserStore(store)
-    from utils.cx_security_state import EncryptedSecurityState
+    from .cx_security_state import EncryptedSecurityState
     app.config["SECURITY_STATE"] = EncryptedSecurityState(store)
     app.config["AUTH_REQUIRES_REDIS"] = True  # Preserve the existing fail-closed policy.
     app.session_interface = EncryptedSessionInterface(app, client=EncryptedSessionCache(store), use_signer=True)
-    from utils.cx_upload import configure_encrypted_uploads
+    from .cx_upload import configure_encrypted_uploads
     configure_encrypted_uploads(app, store)
 
     @app.before_request

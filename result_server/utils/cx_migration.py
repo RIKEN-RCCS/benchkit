@@ -17,9 +17,9 @@ import struct
 import time
 import math
 
-from utils.cx_persistence import CxPersistence
-from utils.encrypted_sqlite import EncryptedDatabaseError
-from utils.execution_profiles import ExecutionProfileStore
+from .cx_persistence import CxPersistence
+from .encrypted_sqlite import EncryptedDatabaseError
+from .execution_profiles import ExecutionProfileStore
 
 
 def _identifier(name):
@@ -125,7 +125,7 @@ def import_snapshot(destination, *, profile_copy, source_roots, identity=None, s
         conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("BEGIN IMMEDIATE")
         # The same context used by receipt also keeps metadata updates atomic.
-        from utils.cx_persistence import _transaction
+        from .cx_persistence import _transaction
         token = _transaction.set((str(destination.path), conn, destination.storage.key_file))
         try:
             _copy_profile(profile_source, conn)
@@ -228,7 +228,7 @@ def read_session_snapshot(directory):
     root = Path(directory).absolute()
     if root.resolve() != root or not root.is_dir() or root.stat().st_mode & 0o077:
         raise ValueError("Unsafe session snapshot directory")
-    from utils.cx_identity import legacy_session_keys
+    from .cx_identity import legacy_session_keys
     management = legacy_session_keys('__wz_cache_count')
     result = {}
     for path in sorted(root.iterdir()):

@@ -5,7 +5,7 @@ from contextvars import ContextVar
 import os
 from pathlib import Path
 
-from utils.encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
+from .encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
 
 
 _transaction = ContextVar('cx_persistence_transaction', default=None)

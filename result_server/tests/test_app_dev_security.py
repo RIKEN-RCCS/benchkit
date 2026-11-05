@@ -1,6 +1,8 @@
 """Tests for local-development launcher safety guards."""
 
 import os
+from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -44,12 +46,27 @@ def test_validate_dev_runtime_rejects_production_env(monkeypatch):
         app_dev.validate_dev_runtime("127.0.0.1")
 
 
-def test_create_dev_app_configures_execution_profile_db(tmp_path, monkeypatch):
-    monkeypatch.delenv("RESULT_SERVER_DB_PATH", raising=False)
-    app_dev.setup_dev_environment(str(tmp_path))
-
-    app = app_dev.create_dev_app(str(tmp_path))
-
-    assert app.config["EXECUTION_PROFILE_DB_PATH"] == str(tmp_path / "cx_portal.sqlite3")
-    assert app.config["SESSION_TYPE"] == "cachelib"
-    assert app.config["SESSION_CACHELIB"]._path == str(tmp_path / "main" / "flask_session")
+def test_create_dev_app_configures_execution_profile_db(tmp_path):
+    # The dev factory intentionally installs process-wide authentication stubs.
+    # Keep that process separate from tests exercising real authentication.
+    names = ("redis", "utils.totp_manager", "routes.auth")
+    before = {name: sys.modules.get(name) for name in names}
+    script = '''
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[1])
+import app_dev
+root = Path(sys.argv[2])
+app_dev.setup_dev_environment(str(root))
+app = app_dev.create_dev_app(str(root))
+assert app.config['EXECUTION_PROFILE_DB_PATH'] == str(root / 'cx_portal.sqlite3')
+assert app.config['SESSION_TYPE'] == 'cachelib'
+assert app.config['SESSION_CACHELIB']._path == str(root / 'main' / 'flask_session')
+'''
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith("RESULT_SERVER_") and key not in ("PYTHONPATH", "FLASK_SECRET_KEY")}
+    result = subprocess.run([sys.executable, "-I", "-B", "-c", script,
+                             str(Path(__file__).resolve().parents[1]), str(tmp_path)],
+                            env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert {name: sys.modules.get(name) for name in names} == before

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from utils.storage_files import list_names, read_json
-from utils.encrypted_sqlite import EncryptedDatabaseError
+from .storage_files import list_names, read_json
+from .encrypted_sqlite import EncryptedDatabaseError
 import re
 from datetime import datetime
 from typing import Dict, List, Optional, Set

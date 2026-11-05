@@ -87,6 +87,9 @@ python -B result_server/cx_storage.py migrate-copy --plan /example/private/plan.
 python -B result_server/cx_storage.py check --plan /example/private/plan.json
 ```
 
+From the repository root, `python -B -m result_server.cx_storage` supports the
+same arguments. Neither invocation requires a `PYTHONPATH` override.
+
 Use `initialize` only for new empty instances. `rebuild-copy` rebuilds derived
 facts from encrypted documents, not old JSON. Interrupted imports are not ready
 for use and must not be overwritten or selected as application storage.

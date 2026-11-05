@@ -349,7 +349,7 @@ class ExecutionProfileStore:
 
     def connect(self):
         """Return a context-managed connection on the selected backend."""
-        from utils.profile_storage import profile_connection
+        from .profile_storage import profile_connection
         key = self._key()
         if key:
             return profile_connection(self.db_path, key)
@@ -362,13 +362,13 @@ class ExecutionProfileStore:
         return conn
 
     def _key(self):
-        from utils.profile_storage import profile_key
+        from .profile_storage import profile_key
         return self.key_file or profile_key(self.db_path)
 
     def migrate(self) -> None:
         # Receipt metadata may share an outer transaction. Never executescript
         # (which commits implicitly) inside that transaction.
-        from utils.profile_storage import _transaction
+        from .profile_storage import _transaction
         active = _transaction.get()
         if active and active[0] == os.path.abspath(self.db_path):
             if active[1].execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] != 12:

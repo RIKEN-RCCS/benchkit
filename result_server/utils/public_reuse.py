@@ -9,8 +9,8 @@ from ipaddress import ip_address
 from typing import Any
 from urllib.parse import urlsplit
 
-from utils.measurement_artifacts import profile_archive_filename_candidates
-from utils.result_records import (
+from .measurement_artifacts import profile_archive_filename_candidates
+from .result_records import (
     format_numeric_value,
     format_result_timestamp,
     input_info_items_for_result,

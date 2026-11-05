@@ -8,7 +8,7 @@ from contextlib import contextmanager, nullcontext
 import hashlib
 import uuid
 
-from utils.encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
+from .encrypted_sqlite import EncryptedSQLite, EncryptedDatabaseError
 
 
 CHUNK_SIZE = 1024 * 1024

@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -186,11 +187,14 @@ def test_encrypted_preview_is_authorized_and_read_only(tmp_path, profile_db, mon
     assert "existing_target_unavailable" not in result["rows"][0]["reasons"]
     command = [sys.executable, "-m", "result_server.budget_profile_preview", "--database", str(registry.storage.path),
                "--key-file", str(key), "--profile-database", str(profile_db)]
-    completed = subprocess.run(command, cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True)
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    completed = subprocess.run(command, cwd=Path(__file__).resolve().parents[2], env=env,
+                               capture_output=True, text=True, timeout=30)
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == result
     failed = subprocess.run(command[:-1] + [str(tmp_path / "DO_NOT_EXPORT")],
-                            cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True)
+                            cwd=Path(__file__).resolve().parents[2], env=env,
+                            capture_output=True, text=True, timeout=30)
     assert failed.returncode == 1
     assert "DO_NOT_EXPORT" not in failed.stdout + failed.stderr
     assert registry.catalog(ADMIN) == before

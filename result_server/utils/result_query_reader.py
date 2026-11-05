@@ -3,10 +3,10 @@
 import json
 from datetime import datetime
 
-from utils.result_catalog import CatalogUnavailable
-from utils.result_records import format_result_timestamp
-from utils.result_file import UUID_PATTERN
-from utils.table_pagination import normalize_per_page
+from .result_catalog import CatalogUnavailable
+from .result_records import format_result_timestamp
+from .result_file import UUID_PATTERN
+from .table_pagination import normalize_per_page
 
 
 class ResultQueryReader:

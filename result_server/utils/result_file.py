@@ -7,13 +7,13 @@ from typing import Optional
 
 from flask import Response, abort, send_from_directory, session
 
-from utils.measurement_artifacts import (
+from .measurement_artifacts import (
     MEASUREMENT_ARTIFACT_FILENAME_RE,
     PUBLIC_PADATA_FILENAME_RE,
 )
-from utils.session_user_context import get_session_user_context
-from utils.storage_files import is_file, read_json, list_names, send_object
-from utils.encrypted_sqlite import EncryptedDatabaseError
+from .session_user_context import get_session_user_context
+from .storage_files import is_file, read_json, list_names, send_object
+from .encrypted_sqlite import EncryptedDatabaseError
 
 
 UUID_PATTERN = re.compile(

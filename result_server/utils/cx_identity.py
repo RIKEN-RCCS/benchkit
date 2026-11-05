@@ -7,9 +7,9 @@ import hashlib
 
 from flask.json.tag import TaggedJSONSerializer
 from flask_session.cachelib import CacheLibSessionInterface
-from utils.encrypted_sqlite import EncryptedDatabaseError
+from .encrypted_sqlite import EncryptedDatabaseError
 
-from utils.user_store import INVITATION_TTL
+from .user_store import INVITATION_TTL
 
 
 def legacy_session_keys(key):
@@ -19,11 +19,11 @@ def legacy_session_keys(key):
 
 def identity_from_environment():
     """CLI/trigger identity binding, with no Redis or legacy fallback when enabled."""
-    from utils.cx_persistence import CxPersistence
-    from utils.profile_storage import persistence_settings
+    from .profile_storage import persistence_settings
     database, key, artifacts = persistence_settings()
     if not database and not key:
         return None
+    from .cx_persistence import CxPersistence
     store = CxPersistence.open_existing(database, key, artifact_path=artifacts)
     with store._connect(readonly=True) as conn:
         if not conn.execute('SELECT ready FROM catalog_state').fetchone()[0]:

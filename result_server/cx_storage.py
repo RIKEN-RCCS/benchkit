@@ -5,9 +5,14 @@ import json
 import os
 from pathlib import Path
 
-from utils.cx_migration import import_snapshot, recover_copy
-from utils.cx_persistence import CxPersistence
-from utils.encrypted_sqlite import _check_file, _private_parent
+if __package__:
+    from .utils.cx_migration import import_snapshot, recover_copy
+    from .utils.cx_persistence import CxPersistence
+    from .utils.encrypted_sqlite import _check_file, _private_parent
+else:
+    from utils.cx_migration import import_snapshot, recover_copy
+    from utils.cx_persistence import CxPersistence
+    from utils.encrypted_sqlite import _check_file, _private_parent
 
 
 def _private_json(path, limit):
