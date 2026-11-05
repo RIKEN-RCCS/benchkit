@@ -26,5 +26,23 @@
     "metrics",
     "model",
     "package_applicability"
-  ]
+  ],
+  "neural_release": {
+    "key": "pinn325",
+    "family": "PINN",
+    "entry": "pinn.py",
+    "release": "v3.25",
+    "core": "pinn_core.py",
+    "label": "PINN",
+    "seeds": 3,
+    "spec_sheet": "data/v4/gpu_microarch_specs.csv",
+    "input_generator": "examples/kernel_inputs/prepare_data.py",
+    "trust_anchor": true,
+    "environment_prefixes": [
+      "BK_GPU_PINN_V325",
+      "BK_GPU_PINN",
+      "BK_GPU_NEURAL",
+      "BK_GPU_MLP"
+    ]
+  }
 }

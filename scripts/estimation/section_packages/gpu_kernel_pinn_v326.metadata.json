@@ -1,0 +1,48 @@
+{
+  "name": "gpu_kernel_pinn_v326",
+  "version": "0.1",
+  "fallback_target": "identity",
+  "item_kind_scope": [
+    "section"
+  ],
+  "required_result_fields": [
+    "name",
+    "app-side GPU section time as time or bench_time"
+  ],
+  "required_artifact_kinds": [
+    "wide per-launch NCU CSV or padata archive with profile_raw.csv"
+  ],
+  "acquisition_mode": "external",
+  "models": {
+    "section": {
+      "type": "cross_gpu_kernel_prediction_model",
+      "name": "PerfTools PINN",
+      "version": "v3.26"
+    }
+  },
+  "output_fields": [
+    "time",
+    "bench_time",
+    "metrics",
+    "model",
+    "package_applicability"
+  ],
+  "neural_release": {
+    "key": "pinn326",
+    "family": "PINN",
+    "entry": "pinn.py",
+    "release": "v3.26",
+    "core": "pinn_core.py",
+    "label": "PINN",
+    "seeds": 5,
+    "spec_sheet": "data/v4/gpu_microarch_specs.csv",
+    "input_generator": "examples/kernel_inputs/prepare_data.py",
+    "trust_anchor": true,
+    "environment_prefixes": [
+      "BK_GPU_PINN_V326",
+      "BK_GPU_PINN",
+      "BK_GPU_NEURAL",
+      "BK_GPU_MLP"
+    ]
+  }
+}

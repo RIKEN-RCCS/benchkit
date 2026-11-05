@@ -35,6 +35,7 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "${TMP_DIR}/scripts/estimation" "${TMP_DIR}/scripts/result_server"
+cp "${REPO_DIR}/scripts/estimation/neural_models.py" "${TMP_DIR}/scripts/estimation/neural_models.py"
 cp "${REPO_DIR}/scripts/estimation/declaration_helpers.sh" "${TMP_DIR}/scripts/estimation/declaration_helpers.sh"
 cp "${REPO_DIR}/scripts/estimation/common.sh" "${TMP_DIR}/scripts/estimation/common.sh"
 cp "${REPO_DIR}/scripts/estimation/workflow.sh" "${TMP_DIR}/scripts/estimation/workflow.sh"

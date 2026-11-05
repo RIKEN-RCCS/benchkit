@@ -8,6 +8,10 @@ import re
 import sys
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from neural_models import MODELS as NEURAL_MODELS
+
+
 FIELDS = {
     "BK_ESTIMATION_BASELINE_SYSTEM": lambda s: (s.get("assumptions") if isinstance(s.get("assumptions"), dict) else {}).get("baseline_system") or s.get("current_system", {}).get("system"),
     "BK_ESTIMATION_BASELINE_EXP": lambda s: s.get("estimate_metadata", {}).get("current_source_result", {}).get("exp") or s.get("exp"),
@@ -21,10 +25,72 @@ FIELDS = {
 
 # Explicit model settings only; never snapshot arbitrary environment variables.
 MODEL_CONDITIONS = {
-    'BK_GPU_' + model + '_' + field: ('commit' if field == 'PERFTOOLS_COMMIT' else 'identifier')
-    for model in ('LIGHTGBM', 'MLP')
+    prefix + '_' + field: ('commit' if field == 'PERFTOOLS_COMMIT' else 'identifier')
+    for prefix in ({'BK_GPU_LIGHTGBM', 'BK_GPU_MLP'} |
+                   {p for model in NEURAL_MODELS.values() for p in model.environment_prefixes})
     for field in ('SOURCE_GPU', 'TARGET_GPU', 'PERFTOOLS_COMMIT')
 }
+MODEL_CONDITIONS['BK_GPU_KERNEL_ENSEMBLE_PACKAGES'] = 'package_list'
+
+
+def validate_model_condition(value, kind, name):
+    if kind == 'package_list':
+        if not isinstance(value, str):
+            raise ValueError('Invalid model candidate list: ' + name)
+        candidates = [p.strip() for p in value.split(',')]
+        if not candidates or any(not re.fullmatch(r'[A-Za-z0-9_]+', p) for p in candidates):
+            raise ValueError('Invalid model candidate list: ' + name)
+        return ','.join(candidates)
+    pattern = r'[0-9a-fA-F]{40}' if kind == 'commit' else r'[A-Za-z0-9_.-]+'
+    if not isinstance(value, str) or not re.fullmatch(pattern, value):
+        raise ValueError('Missing or invalid re-estimation condition: ' + name)
+    return value
+
+
+
+
+def observed_neural_conditions(source):
+    """Use applied future candidates, never old parent records or arbitrary env."""
+    by_package = {model.package: model for model in NEURAL_MODELS.values()}
+    values, candidate_lists = {}, set()
+
+    def remember(name, value):
+        value = validate_model_condition(value, MODEL_CONDITIONS[name], name)
+        if name in values and values[name] != value:
+            raise ValueError('Conflicting applied neural conditions: ' + name)
+        values[name] = value
+
+    def visit(node):
+        if isinstance(node, list):
+            for item in node:
+                visit(item)
+        elif isinstance(node, dict):
+            candidates = node.get('candidate_estimates')
+            if isinstance(candidates, list) and candidates:
+                packages = [item.get('requested_estimation_package') or item.get('estimation_package')
+                            for item in candidates if isinstance(item, dict)]
+                if len(packages) == len(candidates) and all(isinstance(p, str) for p in packages):
+                    candidate_lists.add(validate_model_condition(','.join(packages), 'package_list', 'candidates'))
+            model = by_package.get(node.get('estimation_package'))
+            if model:
+                declaration = node.get('model') or {}
+                commit = (declaration.get('provenance') or {}).get('external_commit')
+                if commit:
+                    if declaration.get('version') != model.release:
+                        raise ValueError('Applied neural release disagrees with its package')
+                    prefix = model.environment_prefixes[0]
+                    remember(prefix + '_PERFTOOLS_COMMIT', commit)
+                    for side in ('source', 'target'):
+                        gpus = (node.get('metrics') or {}).get(side + '_gpus')
+                        if isinstance(gpus, list) and len(gpus) == 1:
+                            remember(prefix + '_' + side.upper() + '_GPU', gpus[0])
+            for value in node.values():
+                visit(value)
+
+    visit(source.get('future_system') or {})
+    if len(candidate_lists) == 1:
+        values['BK_GPU_KERNEL_ENSEMBLE_PACKAGES'] = candidate_lists.pop()
+    return values
 
 
 def record_execution_conditions(path):
@@ -36,7 +102,14 @@ def record_execution_conditions(path):
             recorded[key] = value
     for key in MODEL_CONDITIONS:
         if os.environ.get(key):
-            recorded[key] = os.environ[key]
+            recorded[key] = validate_model_condition(os.environ[key], MODEL_CONDITIONS[key], key)
+    for key, value in observed_neural_conditions(source).items():
+        if key in recorded and recorded[key] is not None and recorded[key] != value:
+            # Per-section candidate declarations take precedence over the global list.
+            if key == 'BK_GPU_KERNEL_ENSEMBLE_PACKAGES':
+                continue
+            raise ValueError('Requested and applied neural conditions differ: ' + key)
+        recorded[key] = value
     source.setdefault('estimate_metadata', {})['execution_conditions'] = {
         key: value for key, value in recorded.items() if value is not None}
     temporary = path.with_suffix('.conditions.tmp')
@@ -99,15 +172,13 @@ def resolve_conditions(source, context, environment):
         settings[name] = value
         if supplied is not None:
             changes[name] = {"recorded": recorded, "requested": value}
-    model_types = {key: kind for key, kind in MODEL_CONDITIONS.items() if key in saved}
+    model_types = {key: kind for key, kind in MODEL_CONDITIONS.items() if key in saved or key in environment}
     for name, kind in {**model_types, **method_types}.items():
-        if name in FIELDS or not re.fullmatch(r'BK_[A-Z0-9_]+', name) or kind not in ('commit', 'identifier'):
+        if name in FIELDS or not re.fullmatch(r'BK_[A-Z0-9_]+', name) or kind not in ('commit', 'identifier', 'package_list'):
             raise ValueError('Invalid method condition declaration')
         recorded = saved.get(name, method_values.get(name))
         value = environment.get(name, recorded)
-        pattern = r'[0-9a-fA-F]{40}' if kind == 'commit' else r'[A-Za-z0-9_.-]+'
-        if not isinstance(value, str) or not re.fullmatch(pattern, value):
-            raise ValueError('Missing or invalid re-estimation condition: ' + name)
+        value = validate_model_condition(value, kind, name)
         settings[name] = value
         if name in environment:
             changes[name] = dict(recorded=recorded, requested=value)

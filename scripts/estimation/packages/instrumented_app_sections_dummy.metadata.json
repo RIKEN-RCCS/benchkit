@@ -4,8 +4,16 @@
   "method_class": "detailed",
   "detail_level": "intermediate",
   "required_inputs": {
-    "mandatory": ["result_json", "fom", "fom_breakdown", "target_nodes_current", "target_nodes_future"],
-    "optional": ["section_artifacts"],
+    "mandatory": [
+      "result_json",
+      "fom",
+      "fom_breakdown",
+      "target_nodes_current",
+      "target_nodes_future"
+    ],
+    "optional": [
+      "section_artifacts"
+    ],
     "external": []
   },
   "required_result_fields": [
@@ -30,7 +38,8 @@
     "gpu_kernel_mlp_v41",
     "gpu_kernel_mlp_v455",
     "gpu_kernel_pinn_v325",
-    "logp"
+    "logp",
+    "gpu_kernel_pinn_v326"
   ],
   "supported_overlap_packages": [
     "identity",
@@ -82,7 +91,7 @@
     },
     "confidence": {
       "level": "experimental",
-      "score": 0.20
+      "score": 0.2
     },
     "notes": {
       "summary": "Reference implementation for application-defined section timing based estimation in Benchkit."

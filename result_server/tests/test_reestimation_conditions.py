@@ -232,3 +232,79 @@ def test_invalid_recorded_conditions_do_not_become_environment(source):
     source['estimate_metadata']['execution_conditions']['BK_GPU_LIGHTGBM_PERFTOOLS_COMMIT'] = 'main'
     with pytest.raises(ValueError, match='PERFTOOLS_COMMIT'):
         conditions.resolve_conditions(source, {}, {})
+
+
+def test_candidate_selection_and_independent_neural_pins_round_trip(source, tmp_path, monkeypatch):
+    source['code'] = 'third'
+    env = {'BK_GPU_KERNEL_ENSEMBLE_PACKAGES': 'gpu_kernel_mlp_v455, gpu_kernel_pinn_v326',
+           'BK_GPU_MLP_V455_PERFTOOLS_COMMIT': 'a'*40,
+           'BK_GPU_PINN_V326_PERFTOOLS_COMMIT': 'b'*40,
+           'BK_GPU_PINN_V326_SOURCE_GPU': 'H100', 'BK_GPU_PINN_V326_TARGET_GPU': 'GB200',
+           'BK_GPU_PINN_V326_TOKEN': 'not-a-credential-fixture'}
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    path = tmp_path/'estimate.json'
+    path.write_text(json.dumps(source))
+    conditions.record_execution_conditions(path)
+    recorded = json.loads(path.read_text())
+    settings, request = conditions.resolve_conditions(recorded, {}, {})
+    assert settings['BK_GPU_KERNEL_ENSEMBLE_PACKAGES'] == 'gpu_kernel_mlp_v455,gpu_kernel_pinn_v326'
+    assert settings['BK_GPU_MLP_V455_PERFTOOLS_COMMIT'] == 'a'*40
+    assert settings['BK_GPU_PINN_V326_PERFTOOLS_COMMIT'] == 'b'*40
+    assert 'BK_GPU_PINN_V326_TOKEN' not in settings
+    assert request['explicit_changes'] == {}
+    settings, request = conditions.resolve_conditions(recorded, {}, {'BK_GPU_PINN_V326_PERFTOOLS_COMMIT':'c'*40})
+    assert settings['BK_GPU_MLP_V455_PERFTOOLS_COMMIT'] == 'a'*40
+    assert request['explicit_changes'] == {'BK_GPU_PINN_V326_PERFTOOLS_COMMIT':{'recorded':'b'*40,'requested':'c'*40}}
+
+
+def test_new_candidate_override_is_recorded_when_old_estimate_lacks_it(source):
+    settings, request = conditions.resolve_conditions(source, {}, {
+        'BK_GPU_PINN_V326_PERFTOOLS_COMMIT':'b'*40,
+        'BK_GPU_KERNEL_ENSEMBLE_PACKAGES':'gpu_kernel_pinn_v326'})
+    assert settings['BK_GPU_PINN_V326_PERFTOOLS_COMMIT'] == 'b'*40
+    assert request['explicit_changes']['BK_GPU_PINN_V326_PERFTOOLS_COMMIT']['recorded'] is None
+
+
+@pytest.mark.parametrize('value', ['', 'gpu_kernel_pinn_v326,', 'valid,$(command)', '../package'])
+def test_invalid_candidate_list_is_rejected(source, value):
+    with pytest.raises(ValueError):
+        conditions.resolve_conditions(source, {}, {'BK_GPU_KERNEL_ENSEMBLE_PACKAGES':value})
+
+
+def test_actual_candidate_pin_is_recorded_without_guessing_parent_or_unknown_fields(source, tmp_path):
+    def candidate(pin):
+        return {'estimation_package':'gpu_kernel_pinn_v326',
+                'model':{'version':'v3.26','provenance':{'external_commit':pin}},
+                'metrics':{'source_gpus':['H100'],'target_gpus':['GB200']}}
+    source['future_system']['fom_breakdown'] = {'sections':[{'candidate_estimates':[candidate('a'*40)]}]}
+    # A historical parent may have another model; only the current future is used.
+    source['reestimation'] = {'old':candidate('b'*40)}
+    path = tmp_path/'estimate.json';path.write_text(json.dumps(source))
+    conditions.record_execution_conditions(path)
+    saved = json.loads(path.read_text())['estimate_metadata']['execution_conditions']
+    assert saved['BK_GPU_PINN_V326_PERFTOOLS_COMMIT'] == 'a'*40
+    assert saved['BK_GPU_PINN_V326_SOURCE_GPU'] == 'H100'
+    assert saved['BK_GPU_KERNEL_ENSEMBLE_PACKAGES'] == 'gpu_kernel_pinn_v326'
+    source['future_system']['fom_breakdown']['sections'].append({'candidate_estimates':[candidate('b'*40)]})
+    path.write_text(json.dumps(source))
+    with pytest.raises(ValueError, match='Conflicting applied'):
+        conditions.record_execution_conditions(path)
+
+
+def test_fresh_entry_restores_candidates_and_model_pins_without_caller_settings(source, tmp_path):
+    source['future_system']['fom_breakdown'] = {'sections':[{'candidate_estimates':[
+        {'estimation_package':'gpu_kernel_mlp_v455','model':{'version':'v4.55','provenance':{'external_commit':'a'*40}},
+         'metrics':{'source_gpus':['H100'],'target_gpus':['GB200']}},
+        {'estimation_package':'gpu_kernel_pinn_v326','model':{'version':'v3.26','provenance':{'external_commit':'b'*40}},
+         'metrics':{'source_gpus':['H100'],'target_gpus':['GB200']}}]}]}
+    results = tmp_path/'results';results.mkdir()
+    path = results/'source_estimate.json';path.write_text(json.dumps(source))
+    conditions.record_execution_conditions(path)
+    (results/'reestimation_context.json').write_text(json.dumps({'scope':'both'}))
+    script = tmp_path/'estimate.sh'
+    script.write_text('printf "%s\\n%s\\n%s\\n" "$BK_GPU_KERNEL_ENSEMBLE_PACKAGES" "$BK_GPU_MLP_V455_PERFTOOLS_COMMIT" "$BK_GPU_PINN_V326_PERFTOOLS_COMMIT" > restored.txt\n')
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('BK_', 'reestimation_'))}
+    subprocess.run([sys.executable,str(spec.origin),str(script)],cwd=tmp_path,env=env,check=True)
+    assert (tmp_path/'restored.txt').read_text().splitlines()==['gpu_kernel_mlp_v455,gpu_kernel_pinn_v326','a'*40,'b'*40]
+    assert json.loads((results/'reestimation_context.json').read_text())['resolved_request']['explicit_changes']=={}
