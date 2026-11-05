@@ -813,10 +813,27 @@ def query_estimation_artifacts():
     if store:
         if not store.exists('input_archives', result_stem):
             abort(404, description="No estimation artifacts found")
-        return stream_download(store.chunks('input_archives', result_stem),
+        response = stream_download(store.chunks('input_archives', result_stem),
             f'estimation_artifacts_{result_stem}.tgz', mimetype='application/gzip')
-    if not is_directory(source_dir):
-        abort(404, description=f"No estimation artifacts found for uuid={uuid_value}")
+    else:
+        if not is_directory(source_dir):
+            abort(404, description=f"No estimation artifacts found for uuid={uuid_value}")
+
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+            for entry in sorted(os.listdir(source_dir)):
+                tar.add(
+                    os.path.join(source_dir, entry),
+                    arcname=entry,
+                )
+        buffer.seek(0)
+
+        response = send_file(
+            buffer,
+            mimetype="application/gzip",
+            as_attachment=True,
+            download_name=f"estimation_artifacts_{result_stem}.tgz",
+        )
 
     audit_event(
         "api_query_accepted",
@@ -825,21 +842,7 @@ def query_estimation_artifacts():
         details={"query_type": "estimation_artifacts"},
     )
 
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-        for entry in sorted(os.listdir(source_dir)):
-            tar.add(
-                os.path.join(source_dir, entry),
-                arcname=entry,
-            )
-    buffer.seek(0)
-
-    return send_file(
-        buffer,
-        mimetype="application/gzip",
-        as_attachment=True,
-        download_name=f"estimation_artifacts_{result_stem}.tgz",
-    )
+    return response
 
 
 @api_bp.route("/api/query/estimate", methods=["GET"])
