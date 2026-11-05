@@ -64,6 +64,13 @@ destination databases must not exist. Profile schema 11/12 snapshots are accepte
 up to 256 MiB, with no WAL/SHM/rollback-journal sidecars. They are opened read-only
 and immutable; schema conversion uses memory and does not repair the input.
 
+Profile columns are matched by name, not physical position. Earlier column-addition
+orders are supported when named types, nullability, defaults and primary keys
+match; missing, extra or incompatible columns remain errors. Row verification
+uses explicit named columns and preserves duplicate rows and ID sequences.
+`utils.cx_migration.verify_profile_rows` compares stable, same-version Profile
+connections without modifying either database or including row values in errors.
+
 The CLI accepts a private JSON plan. A migration plan has these fields:
 
 | Field | Value |

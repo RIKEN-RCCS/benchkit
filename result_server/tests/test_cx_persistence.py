@@ -1,12 +1,14 @@
 """Offline SQLCipher acceptance using generated data only."""
 
 import hashlib
+from contextlib import closing
 import io
 import json
 from pathlib import Path
 import tarfile
 import os
 import sys
+import sqlite3
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -296,6 +298,151 @@ def test_snapshot_migration_and_recovery(tmp_path, source_version, monkeypatch):
     with restored._connect(readonly=True) as conn:
         assert conn.execute('SELECT enabled FROM execution_profiles WHERE id=?', ('sample',)).fetchone()[0] == 0
         assert conn.execute('SELECT status FROM trigger_runs WHERE id=?', (run_id,)).fetchone()[0] == 'submission_unknown'
+
+
+@pytest.mark.parametrize('source_version', [11, 12])
+def test_historical_column_addition_order_preserves_all_profile_rows(tmp_path, monkeypatch, source_version):
+    from utils.cx_migration import import_snapshot, recover_copy, verify_profile_rows
+    from utils import execution_profiles
+    from utils.execution_profiles import ExecutionProfileStore, normalize_profile
+
+    monkeypatch.setattr(execution_profiles, '_utc_now_iso', lambda: '2026-01-03T00:00:00Z')
+    for name in ('source', 'target', 'keys', 'recovered'):
+        (tmp_path / name).mkdir(mode=0o700)
+    roots = {}
+    for role in ('results', 'estimates', 'artifacts', 'inputs'):
+        directory = tmp_path / 'source' / role
+        directory.mkdir(mode=0o700)
+        roots[role] = str(directory)
+    profile = tmp_path / 'source/profile.sqlite3'
+    first = ExecutionProfileStore._apply_v1
+    tenth = ExecutionProfileStore._apply_v10
+
+    class HistoricalCreate:
+        def __init__(self, connection, declaration):
+            self.connection = connection
+            self.declaration = declaration
+
+        def executescript(self, statement):
+            # These exact declarations were absent from the original CREATEs.
+            assert statement.count(self.declaration) == 1
+            return self.connection.executescript(statement.replace(self.declaration, '', 1))
+
+        def execute(self, *args):
+            return self.connection.execute(*args)
+
+    def original_first(self, conn):
+        first(self, HistoricalCreate(conn, "                allocation_project_id TEXT NOT NULL DEFAULT '',\n"))
+
+    def original_tenth(self, conn):
+        tenth(self, HistoricalCreate(conn, ",\n                requester_hidden_at TEXT NOT NULL DEFAULT ''"))
+
+    with monkeypatch.context() as history:
+        history.setattr(ExecutionProfileStore, '_apply_v1', original_first)
+        history.setattr(ExecutionProfileStore, '_apply_v10', original_tenth)
+        if source_version == 11:
+            history.setattr(ExecutionProfileStore, '_apply_v12', lambda self, conn: None)
+        profiles = ExecutionProfileStore(profile)
+        profiles.migrate()
+        value, errors = normalize_profile(dict(id='historical', display_name='Historical fixture',
+            code='demo', system=['A'], exp=['case'], activity='synthetic-activity', owner='synthetic-owner',
+            allocation_project_id='synthetic-project', status='approved', visibility='public-results'))
+        assert not errors
+        profiles.upsert_profile(value, actor='synthetic')
+        run_id = profiles.create_trigger_run(trigger_id='historical', trigger_type='scheduled',
+            status='submission_unknown', dry_run=True, reason='preserved', payload={'keep': True})
+        with profiles.connect() as conn:
+            conn.execute("INSERT INTO execution_profile_requests(id,profile_id,status,request_type,created_at,updated_at) "
+                         "VALUES(27,'historical','submitted','new_profile','2026-01-01','2026-01-02')")
+            conn.execute("INSERT INTO execution_profile_request_events(request_id,event_type,created_at) "
+                         "VALUES(27,'submitted','2026-01-01')")
+            # Deleted high IDs must not be reused after migration/recovery.
+            conn.execute("INSERT INTO execution_profile_request_events(id,request_id,event_type,created_at) "
+                         "VALUES(99,27,'synthetic-deleted','2026-01-01')")
+            conn.execute('DELETE FROM execution_profile_request_events WHERE id=99')
+            conn.commit()
+    before = hashlib.sha256(profile.read_bytes()).hexdigest()
+    key = tmp_path / 'keys/key'
+    generate_key(key)
+    store = CxPersistence(tmp_path / 'target/cx.db', key, roots=roots)
+    import_snapshot(store, profile_copy=profile, source_roots=roots)
+    restored = recover_copy(store, tmp_path / 'recovered/cx.db')
+    with closing(sqlite3.connect(profile.as_uri() + '?mode=ro&immutable=1', uri=True)) as source, \
+            closing(sqlite3.connect(':memory:')) as expected:
+        expected.row_factory = sqlite3.Row
+        source.backup(expected)
+
+        class MemoryProfile(ExecutionProfileStore):
+            def connect(self):
+                return expected
+
+        MemoryProfile(':memory:').migrate()
+        for current in (store, restored):
+            with current._connect(readonly=True) as destination:
+                for table in ('execution_profiles', 'execution_profile_requests'):
+                    old_order = [row[1] for row in expected.execute('PRAGMA table_info(' + table + ')')]
+                    new_order = [row[1] for row in destination.execute('PRAGMA table_info(' + table + ')')]
+                    assert old_order != new_order
+                counts = verify_profile_rows(expected, destination)
+                assert counts['tables'] >= 14 and counts['rows'] > 0
+                assert destination.execute("SELECT allocation_project_id FROM execution_profiles WHERE id='historical'").fetchone()[0] == 'synthetic-project'
+                assert destination.execute('SELECT status FROM trigger_runs WHERE id=?', (run_id,)).fetchone()[0] == 'submission_unknown'
+                assert destination.execute("SELECT seq FROM sqlite_sequence WHERE name='execution_profile_request_events'").fetchone()[0] == 99
+    assert hashlib.sha256(profile.read_bytes()).hexdigest() == before
+
+
+@pytest.mark.parametrize('definition', [
+    'id INTEGER',                              # missing column
+    'id INTEGER, value INTEGER',               # changed type
+    'id INTEGER, value TEXT, extra TEXT',       # unexpected column
+    'id INTEGER, value TEXT NOT NULL',          # changed nullability
+    "id INTEGER, value TEXT DEFAULT 'changed'", # changed default
+    'id INTEGER PRIMARY KEY, value TEXT',      # changed key
+])
+def test_named_profile_verification_rejects_incompatible_definitions(definition):
+    from utils.cx_migration import _matching_profile_columns, verify_profile_rows
+    with closing(sqlite3.connect(':memory:')) as source, closing(sqlite3.connect(':memory:')) as destination:
+        source.execute('CREATE TABLE fixture(id INTEGER, value TEXT)')
+        destination.execute('CREATE TABLE fixture(' + definition + ')')
+        with pytest.raises(ValueError, match='Unsupported Profile snapshot table or columns'):
+            _matching_profile_columns(source, destination, 'fixture')
+        with pytest.raises(ValueError, match='Unsupported Profile snapshot table or columns'):
+            verify_profile_rows(source, destination)
+
+
+def test_named_profile_verification_keeps_duplicates_values_and_quoted_names():
+    from utils.cx_migration import verify_profile_rows
+    with closing(sqlite3.connect(':memory:')) as source, closing(sqlite3.connect(':memory:')) as destination:
+        source.execute('CREATE TABLE "quoted table"("a" INTEGER, "b" BLOB)')
+        destination.execute('CREATE TABLE "quoted table"("b" BLOB, "a" INTEGER)')
+        for conn in (source, destination):
+            conn.executemany('INSERT INTO "quoted table"(a,b) VALUES(?,?)', [(1, b'opaque'), (1, b'opaque'), (2, None)])
+        statements = []
+        destination.set_trace_callback(statements.append)
+        assert verify_profile_rows(source, destination) == {'tables': 1, 'rows': 3}
+        assert not any('SELECT *' in statement.upper() for statement in statements)
+        destination.execute('DELETE FROM "quoted table" WHERE rowid=1')
+        with pytest.raises(ValueError, match='Profile snapshot rows differ'):
+            verify_profile_rows(source, destination)
+        destination.execute('INSERT INTO "quoted table"(a,b) VALUES(?,?)', (1, b'changed'))
+        with pytest.raises(ValueError, match='Profile snapshot rows differ'):
+            verify_profile_rows(source, destination)
+
+
+def test_named_profile_verification_detects_changed_sequences_and_missing_tables():
+    from utils.cx_migration import verify_profile_rows
+    with closing(sqlite3.connect(':memory:')) as source, closing(sqlite3.connect(':memory:')) as destination:
+        source.execute('CREATE TABLE fixture(id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT)')
+        with pytest.raises(ValueError, match='Unsupported Profile snapshot table or columns'):
+            verify_profile_rows(source, destination)
+        destination.execute('CREATE TABLE fixture(value TEXT, id INTEGER PRIMARY KEY AUTOINCREMENT)')
+        for conn in (source, destination):
+            conn.execute("INSERT INTO fixture(id,value) VALUES(99,'synthetic')")
+            conn.execute('DELETE FROM fixture')
+        assert verify_profile_rows(source, destination) == {'tables': 1, 'rows': 0}
+        destination.execute("UPDATE sqlite_sequence SET seq=98 WHERE name='fixture'")
+        with pytest.raises(ValueError, match='Profile snapshot sequences differ'):
+            verify_profile_rows(source, destination)
 
 
 def test_legacy_session_copy_continues_and_cannot_revive_after_logout(storage, tmp_path):
