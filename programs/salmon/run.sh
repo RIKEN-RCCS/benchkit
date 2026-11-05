@@ -295,8 +295,10 @@ if uses_prestaged_restart "${system}"; then
     # Production runs do very many steps, so the RT loop is what matters.
     local rt_s
     rt_s=$(awk '/^rt iterations/ {print $(NF-3); exit}' "${logfile}")
-    if [[ -z "${rt_s}" ]]; then
-      echo "could not read 'rt iterations' from ${logfile}" >&2
+    if ! awk -v value="$rt_s" 'BEGIN {
+      exit (value ~ /^[+]?[0-9]+([.][0-9]*)?([eE][+-]?[0-9]+)?$/ && value + 0 > 0 && value + 0 < 1e308) ? 0 : 1
+    }'; then
+      echo "Invalid or missing 'rt iterations' time in ${logfile}" >&2
       exit 1
     fi
     bk_emit_result \
