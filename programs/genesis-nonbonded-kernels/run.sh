@@ -19,6 +19,12 @@ artifactsdir="${PWD}/artifacts"
 launcher=()
 
 case "$system" in
+    RIKYU)
+        [[ "$nodes" = 1 && "$numproc_node" = 1 ]] || { echo "RIKYU kernels require one node and one process" >&2; exit 1; }
+        [[ "$nthreads" =~ ^[1-9][0-9]*$ ]] || { echo "RIKYU kernels require positive nthreads" >&2; exit 1; }
+        export OMP_PLACES=cores OMP_PROC_BIND=close
+        launcher=(srun --ntasks=1 --cpus-per-task="$nthreads" --cpu-bind=cores)
+        ;;
     Flow2_Type2)
         [[ "$nodes" = 1 && "$numproc_node" = 1 ]] || { echo "Flow2 kernels require one node and one process" >&2; exit 1; }
         module purge

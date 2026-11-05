@@ -61,7 +61,7 @@ done
     bindir = tmp_path / 'bin'
     bindir.mkdir()
     launch = bindir / 'srun'
-    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$LAUNCH_LOG"\nshift 2\nexec "$@"\n')
+    launch.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$LAUNCH_LOG"\nwhile [[ $1 == --* ]]; do shift; done\nexec "$@"\n')
     launch.chmod(0o755)
     envfile = tmp_path / 'bash-env'
     envfile.write_text('module() { :; }\n')
@@ -77,7 +77,7 @@ def run(app, system='Camphor3', **values):
                           env=dict(env, **values), capture_output=True, text=True)
 
 
-@pytest.mark.parametrize('system', ['Camphor3', 'Fugaku'])
+@pytest.mark.parametrize('system', ['Camphor3', 'Fugaku', 'RIKYU'])
 def test_all_kernels_use_recorded_input_and_validate_results(app, system):
     directory, repo, reference, _ = app
     result = run(app, system=system)
@@ -91,15 +91,57 @@ def test_all_kernels_use_recorded_input_and_validate_results(app, system):
     assert output.count('FOM:1.25') == 3
     if system == 'Camphor3':
         assert (directory / 'launch.log').read_text().count('--ntasks=1 --cpus-per-task=6 ./kernel') == 3
+    elif system == 'RIKYU':
+        assert (directory / 'launch.log').read_text().count('--ntasks=1 --cpus-per-task=6 --cpu-bind=cores ./kernel') == 3
     else:
         assert not (directory / 'launch.log').exists()
 
 
+@pytest.mark.parametrize('system', ['Camphor3', 'RIKYU'])
 @pytest.mark.parametrize('values', [dict(CASE='wrong'), dict(CASE='missing'),
                                     dict(CASE='exit'), dict(FOM='0'),
                                     dict(FOM='NaN'), dict(FOM='1oops')])
-def test_invalid_kernel_results_are_not_emitted(app, values):
+def test_invalid_kernel_results_are_not_emitted(app, values, system):
     directory, _, _, _ = app
-    result = run(app, **values)
+    result = run(app, system=system, **values)
     assert result.returncode != 0
     assert not (directory / 'results/result').exists()
+
+
+@pytest.mark.parametrize('nodes,processes,threads', [('2', '1', '6'), ('1', '2', '6'), ('1', '1', '0')])
+def test_rikyu_rejects_unsupported_layout_before_launch(app, nodes, processes, threads):
+    directory, _, _, env = app
+    result = subprocess.run(['bash', str(ROOT / 'programs/genesis-nonbonded-kernels/run.sh'),
+                             'RIKYU', nodes, processes, threads], cwd=directory,
+                            env=env, capture_output=True, text=True)
+    assert result.returncode != 0
+    assert not (directory / 'launch.log').exists()
+    assert not (directory / 'results/result').exists()
+
+
+def test_rikyu_build_discards_old_objects_and_selects_arm_target(app):
+    directory, _, _, env = app
+    make = directory / 'bin/make'
+    make.write_text('''#!/bin/bash
+printf '%s:%s\\n' "${PWD##*/}" "$*" >> "$BUILD_LOG"
+if [[ $1 == clean ]]; then exit 0; fi
+mkdir -p normal_gfortran_omp_dir
+printf '#!/bin/bash\\nexit 0\\n' > normal_gfortran_omp_dir/kernel
+chmod +x normal_gfortran_omp_dir/kernel
+''')
+    make.chmod(0o755)
+    compiler = directory / 'bin/gfortran'
+    compiler.write_text('#!/bin/bash\necho fixture-compiler\n')
+    compiler.chmod(0o755)
+    log = directory / 'build.log'
+    result = subprocess.run(['bash', str(ROOT / 'programs/genesis-nonbonded-kernels/build.sh'),
+                             'RIKYU'], cwd=directory, env=dict(env, BUILD_LOG=str(log)),
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    commands = log.read_text().splitlines()
+    assert len(commands) == 6
+    for index, case in enumerate(['Generic', 'Oct', 'Oct_mod1']):
+        assert commands[index * 2].endswith(':clean')
+        assert f'KIND={case} MARCH=armv9-a+sve2' in commands[index * 2 + 1]
+        assert f'FC=gfortran OMP=omp SIMD=dir' in commands[index * 2 + 1]
+        assert (directory / 'artifacts' / ('kernel_' + case)).is_file()
