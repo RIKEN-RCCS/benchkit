@@ -44,7 +44,7 @@ esac
 CONFIG="${PWD}/omnilearned_bench.yaml"
 runtime_sif=""
 if [[ "${system}" == "Fugaku" ]]; then
-  runtime_sif="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
+  runtime_sif="${BK_OMNILEARNED_SIF:-${ARTIFACT_DIR}/pytorch-fugaku-d7fb755.sif}"
 fi
 record_omnilearned_runtime "${DATA}" "$runtime_sif"
 # Fugaku runs in a container where the dataset is bind-mounted at /cx_input.
