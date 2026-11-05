@@ -203,6 +203,103 @@ def test_encrypted_api_ingest_query_and_artifacts(encrypted_app, storage):
             assert conn.execute('SELECT COUNT(*) FROM result_metadata_index').fetchone()[0] == 2
 
 
+@pytest.fixture(params=['filesystem', 'encrypted'])
+def artifact_query_app(request, storage, encrypted_app):
+    if request.param == 'encrypted':
+        return encrypted_app, request.param
+    from test_support import build_api_route_app
+    app = build_api_route_app(
+        received_dir=storage.roots['results'],
+        received_padata_dir=storage.roots['artifacts'],
+        received_estimation_artifacts_dir=storage.roots['inputs'],
+        estimated_dir=storage.roots['estimates'])
+    app.config['INGEST_KEYS'] = {'synthetic-key': 'synthetic-runner'}
+    return app, request.param
+
+
+@pytest.mark.parametrize('route', ['estimation-artifacts', 'estimation-inputs'])
+@pytest.mark.parametrize('outcome', [
+    'success', 'unauthenticated', 'invalid_uuid', 'missing_result',
+    'missing_archive', 'response_failure', 'storage_failure',
+])
+def test_artifact_query_acceptance_audit(
+        artifact_query_app, route, outcome, monkeypatch, caplog):
+    import logging
+    import routes.api as api
+    app, backend = artifact_query_app
+    with app.app_context():
+        assert (api.configured_store() is not None) == (backend == 'encrypted')
+    client = app.test_client()
+    headers = {'X-API-Key': 'synthetic-key'}
+    saved = client.post('/api/ingest/result', headers=headers,
+                        json={'code': 'demo', 'system': 'A', 'FOM': 1}).get_json()
+    payload = archive_bytes([('input.json', b'{"synthetic":true}')])
+    if outcome != 'missing_archive':
+        response = client.post('/api/ingest/estimation-artifacts', headers=headers,
+            data={'id': saved['id'], 'file': (io.BytesIO(payload), 'inputs.tgz')})
+        assert response.status_code == 200
+
+    uuid_value = saved['id']
+    expected_status = 200
+    if outcome == 'unauthenticated':
+        headers = {'X-API-Key': 'synthetic-invalid-key'}
+        expected_status = 401
+    elif outcome == 'invalid_uuid':
+        uuid_value = 'invalid'
+        expected_status = 400
+    elif outcome == 'missing_result':
+        uuid_value = '12345678-1234-1234-1234-123456789abc'
+        expected_status = 404
+    elif outcome == 'missing_archive':
+        expected_status = 404
+
+    def fail(*args, **kwargs):
+        raise OSError('synthetic preparation failure')
+
+    if outcome == 'response_failure':
+        monkeypatch.setattr(api, 'stream_download' if backend == 'encrypted' else 'send_file', fail)
+    elif outcome == 'storage_failure':
+        if backend == 'encrypted':
+            monkeypatch.setattr(CxPersistence, 'exists', fail)
+        else:
+            monkeypatch.setattr(api.tarfile, 'open', fail)
+
+    caplog.set_level(logging.INFO, logger='benchkit.audit')
+    caplog.clear()
+    if outcome.endswith('_failure'):
+        with pytest.raises(OSError, match='synthetic preparation failure'):
+            client.get(f'/api/query/{route}', headers=headers,
+                       query_string={'uuid': uuid_value})
+    else:
+        response = client.get(f'/api/query/{route}', headers=headers,
+                              query_string={'uuid': uuid_value})
+        assert response.status_code == expected_status
+        if outcome == 'success':
+            assert response.mimetype == 'application/gzip'
+            assert response.headers['Content-Disposition'].startswith('attachment;')
+            with tarfile.open(fileobj=io.BytesIO(response.data), mode='r:gz') as archive:
+                assert archive.getnames() == ['input.json']
+                assert archive.extractfile('input.json').read() == b'{"synthetic":true}'
+        response.close()
+
+    accepted = [record for record in caplog.records
+                if getattr(record, 'audit_event_type', None) == 'api_query_accepted']
+    assert len(accepted) == (1 if outcome == 'success' else 0)
+    authenticated = [record for record in caplog.records
+                     if getattr(record, 'audit_event_type', None) == 'api_auth_success']
+    assert len(authenticated) == (0 if outcome == 'unauthenticated' else 1)
+    if accepted:
+        fields = accepted[0].audit_fields
+        assert fields['actor'] == 'synthetic-runner'
+        assert fields['result'] == 'success'
+        assert fields['details'] == {'query_type': 'estimation_artifacts'}
+        assert fields['endpoint'] == f'/api/query/{route}'
+    serialized = repr([getattr(record, 'audit_fields', {}) for record in caplog.records])
+    assert 'synthetic-key' not in serialized
+    assert 'synthetic-invalid-key' not in serialized
+    assert '{"synthetic":true}' not in serialized
+
+
 def test_encrypted_browser_readers_and_sessions(encrypted_app, storage):
     app = encrypted_app
     from utils.cx_identity import EncryptedUserStore
