@@ -117,24 +117,33 @@ The table gives the default-mode rows; normal mode is listed below.
 
 All six Fugaku rows were measured on 2026-10-28 through this `run.sh`; best
 losses (9.40150, 9.56419, 9.37519 at 1, 4, 12 nodes) are identical across
-modes. Repeated rows vary by up to ~5%.
+modes. Repeated rows vary by up to ~5%. On the current image (`d7fb755`, below), downloaded
+and checked by `build.sh`, the normal-mode rows ran 16.6 and 60.4 events/s at 1 and 4 nodes on
+2026-11-05, with best losses 9.40150 and 9.56420.
 
 ## The Fugaku SIF
 
-`build.sh` expects the image already staged (override with `BK_OMNILEARNED_SIF`):
+`build.sh` downloads the pytorch-fugaku image (commit `d7fb755`, built by that
+repo's CI) into `artifacts/` and checks its SHA-256. The download is HTTPS
+from a public registry, needs no credentials, and is pinned by digest.
+`BK_OMNILEARNED_SIF` selects a pre-staged file instead (not checked).
 
 | | |
 |---|---|
-| file | `/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif` |
-| sha256 | `ba657626dafd515cbbd54c51e4962dcb8a21a242069c46553a122aa4a4d441b0` (2,983,251,968 bytes) |
-| source | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:26d5947a434b241c9ed2a1ab2ae10219da9f756060bc05911e12c644f7d76498` (tag `sha-ed93ef4`, built by that repo's CI) |
+| file | `pytorch-fugaku-d7fb755.sif`, 3,044,311,040 bytes |
+| sha256 | `267d5a25ca5bbbfe10860c09529697e54af57c6012b53c2c7701fdfb1f96fd08` |
+| also | `singularity pull oras://ghcr.io/william-dawson/pytorch-fugaku@sha256:ae940a522a26945571de0eea9c8b6962392102cddca69d9ca75c3eb6f0f9f245` (tag `sif-d7fb755`), on an arm64 host: Singularity rejects the file on the x86 login node |
+| image | `docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:ac92e7ace93cfea2ccd5f4f92e14f2d19aa0c65fe3ea83bf57f2ddf35d8c218e` |
 
-To restage, on a Fugaku login node (keep Singularity's cache off `$HOME`):
+The SIF is published as a file by that repo's CI, not converted at each site, because converting
+the same image twice gives files with different SHA-256s. `build.sh` fetches it as a registry blob
+addressed by its SHA-256, the same as:
 
 ```bash
-export SINGULARITY_CACHEDIR=/vol0200/data/ra000009/.singularity
-singularity pull --arch arm64 pytorch-fugaku-ed93ef4.sif \
-  docker://ghcr.io/william-dawson/pytorch-fugaku@sha256:26d5947a434b241c9ed2a1ab2ae10219da9f756060bc05911e12c644f7d76498
+T=$(curl -s "https://ghcr.io/token?scope=repository:william-dawson/pytorch-fugaku:pull" | sed 's/.*"token":"\([^"]*\)".*/\1/')
+curl -L -H "Authorization: Bearer $T" -o pytorch-fugaku-d7fb755.sif \
+  https://ghcr.io/v2/william-dawson/pytorch-fugaku/blobs/sha256:267d5a25ca5bbbfe10860c09529697e54af57c6012b53c2c7701fdfb1f96fd08
+sha256sum pytorch-fugaku-d7fb755.sif
 ```
 
 ## Dataset

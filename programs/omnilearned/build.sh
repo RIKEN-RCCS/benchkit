@@ -32,16 +32,31 @@ case "$system" in
     ;;
   Fugaku)
     # The login node is x86 and compute is A64FX. The runtime is the
-    # pytorch-fugaku image, pre-staged (README: "The Fugaku SIF") and launched
-    # with that repo's pf-setup/pf-run; OmniLearned's dependencies are aarch64
-    # wheels installed beside it, and OmniLearned runs from this source tree.
-    SIF="${BK_OMNILEARNED_SIF:-/vol0200/share/ra000009/CX_input/omnilearned/pytorch-fugaku-ed93ef4.sif}"
-    if [[ ! -f "${SIF}" ]]; then
+    # pytorch-fugaku image (README: "The Fugaku SIF"), launched with that
+    # repo's pf-setup/pf-run at the image's commit; OmniLearned's dependencies
+    # are aarch64 wheels installed beside it, and OmniLearned runs from this
+    # source tree. The SIF is pulled over HTTPS without credentials, pinned by
+    # digest, and checked against its SHA-256; BK_OMNILEARNED_SIF selects a
+    # pre-staged file instead.
+    SIF="${BK_OMNILEARNED_SIF:-${ARTIFACT_DIR}/pytorch-fugaku-d7fb755.sif}"
+    if [[ -z "${BK_OMNILEARNED_SIF:-}" ]]; then
+      # The SIF that pytorch-fugaku's CI published for this commit, fetched as a registry blob:
+      # its address is the file's SHA-256 (README: "The Fugaku SIF").
+      SIF_SHA256=267d5a25ca5bbbfe10860c09529697e54af57c6012b53c2c7701fdfb1f96fd08
+      if [[ ! -f "${SIF}" ]]; then
+        REG=https://ghcr.io/v2/william-dawson/pytorch-fugaku
+        TOKEN=$(curl -sSf "https://ghcr.io/token?scope=repository:william-dawson/pytorch-fugaku:pull" |
+          sed 's/.*"token":"\([^"]*\)".*/\1/')
+        curl -sSfL -H "Authorization: Bearer ${TOKEN}" -o "${SIF}.part" "${REG}/blobs/sha256:${SIF_SHA256}"
+        mv -- "${SIF}.part" "${SIF}"
+      fi
+      bk_verify_file_sha256 "${SIF}" "${SIF_SHA256}" "pytorch-fugaku SIF" > /dev/null
+    elif [[ ! -f "${SIF}" ]]; then
       echo "SIF not found: ${SIF} -- see README.md, \"The Fugaku SIF\"" >&2
       exit 1
     fi
     PF_REPO="https://github.com/william-dawson/pytorch-fugaku.git"
-    PF_COMMIT="c66cdc79d6053c5a48f75000d1fa849c67099056"
+    PF_COMMIT="d7fb7556870ad34e543239ee739aa3bebccc795e"
     rm -rf "${ARTIFACT_DIR}/pytorch-fugaku"
     git clone -q "${PF_REPO}" "${ARTIFACT_DIR}/pytorch-fugaku"
     git -C "${ARTIFACT_DIR}/pytorch-fugaku" checkout -q "${PF_COMMIT}"
