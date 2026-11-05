@@ -28,14 +28,17 @@ def list_names(directory):
         return os.listdir(directory)
     store, role, prefix = bound
     prefix = prefix + "/" if prefix else ""
-    return sorted({name[len(prefix):].split("/", 1)[0] for name in store.names(role, prefix)})
+    from .document_snapshot import current_snapshot
+    reader = current_snapshot(store) or store
+    return sorted({name[len(prefix):].split("/", 1)[0] for name in reader.names(role, prefix)})
 
 
 def is_file(path):
     bound = binding(path)
     if bound:
         store, role, name = bound
-        return bool(name) and store.exists(role, name)
+        from .document_snapshot import current_snapshot
+        return bool(name) and (current_snapshot(store) or store).exists(role, name)
     return os.path.isfile(path) and not os.path.islink(path)
 
 
@@ -43,7 +46,8 @@ def is_directory(path):
     bound = binding(path)
     if bound:
         store, role, name = bound
-        return not name or bool(store.names(role, name + "/"))
+        from .document_snapshot import current_snapshot
+        return not name or bool((current_snapshot(store) or store).names(role, name + "/"))
     return os.path.isdir(path)
 
 
@@ -51,6 +55,10 @@ def read_json(path):
     bound = binding(path)
     if bound:
         store, role, name = bound
+        from .document_snapshot import current_snapshot
+        reader = current_snapshot(store)
+        if reader is not None:
+            return reader.read_json(role, name)
         return json.loads(store.read(role, name))
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)

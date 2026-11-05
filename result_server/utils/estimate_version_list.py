@@ -12,6 +12,7 @@ from utils.result_file import check_file_permission
 from utils.result_records import load_result_json
 from utils.storage_files import list_names, is_file
 from utils.table_pagination import paginate_list
+from utils.document_snapshot import snapshot_reads
 
 
 def _text(value):
@@ -22,6 +23,7 @@ def _mapping(value):
     return value if isinstance(value, dict) else {}
 
 
+@snapshot_reads
 def build_version_check_list(directory, config, *, status="different", code="", page=1, per_page=50):
     reference = {"ref": None, "commit": None}
     context = {"enabled": False, "reference": reference, "rows": [], "codes": [],

@@ -10,6 +10,8 @@ from werkzeug.exceptions import Forbidden
 from utils.result_file import check_file_permission
 from utils.result_records import load_result_json
 from utils.storage_files import list_names, is_file
+from utils.document_snapshot import snapshot_reads, current_snapshot
+from utils.profile_storage import configured_store
 
 
 def _mapping(value):
@@ -42,13 +44,20 @@ def _identity(payload, filename, *, estimate=False):
     return _uuid(declared) if declared else _uuid(Path(filename).stem.rsplit("_", 1)[-1])
 
 
-def _records(directory):
+def _records(directory, *, source_uuid=None):
     records = []
     unavailable = False
     if not directory:
         return records, True
     try:
-        paths = [Path(directory) / name for name in sorted(list_names(directory))]
+        store = configured_store()
+        reader = current_snapshot(store)
+        if (source_uuid and reader is not None
+                and Path(directory).absolute() == Path(store.roots['results'])):
+            names = reader.source_names(source_uuid)
+        else:
+            names = sorted(list_names(directory))
+        paths = [Path(directory) / name for name in names]
     except OSError:
         return records, True
     for path in paths:
@@ -92,6 +101,11 @@ def build_estimate_lineage(result, filename, *, estimate=False):
     """Build permission-filtered links without changing files, indexes, or schemas."""
     if current_app.config.get("PUBLIC_PORTAL_MODE") or not session.get("authenticated"):
         return None
+    return _build_estimate_lineage(result, filename, estimate=estimate)
+
+
+@snapshot_reads
+def _build_estimate_lineage(result, filename, *, estimate=False):
     selected = _estimate_record(filename, result) if estimate else None
     source = selected["source"] if selected else _identity(result, filename)
     if not source:
@@ -160,7 +174,7 @@ def build_estimate_lineage(result, filename, *, estimate=False):
 
     source_link = ""
     if estimate:
-        results, source_unavailable = _records(current_app.config.get("RECEIVED_DIR"))
+        results, source_unavailable = _records(current_app.config.get("RECEIVED_DIR"), source_uuid=source)
         matches = [name for name, payload in results if _identity(payload, name) == source]
         if len(matches) == 1:
             source_link = url_for("results.result_detail", filename=matches[0])

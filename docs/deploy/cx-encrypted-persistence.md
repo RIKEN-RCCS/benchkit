@@ -57,6 +57,31 @@ does not initialize, migrate or rebuild storage. Missing keys/drivers, incomplet
 migration or an incompatible pair fail closed, without plaintext/Redis fallback.
 Existing sessions require compatible cookie, signing-key and namespace settings.
 
+## Consistent Document Queries
+
+Result pages, Estimate lists, Version Check lists and Estimate lineage use an
+operation-scoped metadata read snapshot in encrypted mode. An enclosing
+`CxPersistence.snapshot()` shares its connection with document existence,
+permission, payload and affiliation reads. Nested readers reuse that snapshot;
+connections and verified document bytes are released when the outer operation exits,
+including on errors. Returned documents are independent copies. No permission
+decisions or decrypted documents are cached between operations or users.
+
+Lineage source lookup uses the existing UUID index to obtain all candidates,
+then checks declared identity, document integrity and current-user visibility.
+It does not select just the latest duplicate. Existing parent/conflict/cycle
+rules and the different list/detail access rules remain unchanged.
+
+Historical indexes retain unnormalized UUIDs. A declaration-only SQL projection
+once per snapshot finds compatibility exceptions; noncanonical declarations,
+multi-chunk documents and malformed records use the verified document reader.
+This projection still scales with Result bytes/count and is not a constant-time
+lookup guarantee. Estimates are read once per snapshot and remain filtered by
+the requesting user's permissions. This change requires neither schema changes
+nor index rebuilding. Filesystem mode retains its existing behavior and is not
+a transactional filesystem snapshot. Indexed navigation is not a replacement
+for the full integrity check described below.
+
 ## Offline Copy Migration
 
 Use a consistent snapshot with no concurrent writers, not live directories. The
@@ -134,6 +159,7 @@ protect application memory, OS logs, bootstrap settings or separately held keys.
 
 ```sh
 python -B -m pytest -q result_server/tests/test_cx_persistence.py
+python -B -m pytest -q result_server/tests/test_document_snapshot.py
 python -B result_server/tests/measure_cx_persistence.py --records 1000 --artifact-mib 32
 ```
 

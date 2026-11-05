@@ -7,6 +7,7 @@ from utils.result_file import (
 from utils.estimated_detail_view import build_estimated_detail_context
 from utils.estimate_version_view import build_estimate_version_check
 from utils.estimate_lineage import build_estimate_lineage
+from utils.document_snapshot import snapshot_reads
 
 
 def register_estimated_detail_routes(estimated_bp):
@@ -19,6 +20,7 @@ def register_estimated_detail_routes(estimated_bp):
         )
 
     @estimated_bp.route("/detail/<filename>")
+    @snapshot_reads
     def estimated_detail(filename):
         result = load_authenticated_result_json(
             filename,
