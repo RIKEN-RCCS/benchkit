@@ -21,6 +21,12 @@ cd ${REPO_DIR} || {
 }
 
 case "$system" in
+    RIKYU)
+        comp=gfortran
+        dir="normal_${comp}_omp_dir"
+        version="--version"
+        archopt="MARCH=armv9-a+sve2"
+        ;;
     Flow2_Type2)
     module purge
     comp=gfortran
@@ -85,6 +91,8 @@ for i in "${!name_list[@]}"; do
 	index=$((i + 1))
 	echo "Looping over name='$name', dir='$dir_path'"
 	cd "$dir_path" || { echo "cd failed to '$dir_path'"; exit 1; }
+    # An existing checkout may contain objects built with a different target.
+    if [[ "$system" == RIKYU ]]; then make clean; fi
     make FC="${comp}" OMP=omp SIMD=dir KIND="${name}" ${archopt}
     cp "$dir/kernel" "../../artifacts/kernel_${name}"
 	cd - > /dev/null
