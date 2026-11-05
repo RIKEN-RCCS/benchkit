@@ -6,6 +6,7 @@ system="$1"
 REPO_URL="https://github.com/SALMON-TDDFT/SALMON2"
 REPO_DIR="SALMON2"
 VERSION_TAG="v.2.2.2"
+SOURCE_COMMIT="${SALMON_SOURCE_COMMIT:-}"
 BUILD_DIR="build-benchkit"
 
 # v.2.2.2 is over a year stale and predates the OpenACC tuning, Ewald
@@ -24,7 +25,7 @@ source scripts/bk_build.sh
 
 mkdir -p "${ARTIFACT_DIR}"
 mkdir -p "${BUILD_LOG_DIR}"
-bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${VERSION_TAG}"
+bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${VERSION_TAG}" "${SOURCE_COMMIT}"
 
 cd "${REPO_DIR}"
 # Only Fugaku compiles the Fujitsu MPI path.
