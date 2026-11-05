@@ -51,9 +51,9 @@ EOF
 )"
 
 genesis_estimation_assumptions() {
-  "${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}" - "$1" "$2" "$BK_BENCHKIT_ROOT/scripts/estimation" <<'PYNOTES'
+  "${BK_GPU_LIGHTGBM_PYTHON:-${BK_GPU_MLP_PYTHON:-python3}}" - "$1" "$BK_BENCHKIT_ROOT/scripts/estimation" 3<<< "${2:-null}" <<'PYNOTES'
 import json, math, sys
-sys.path.insert(0, sys.argv[3])
+sys.path.insert(0, sys.argv[2])
 from gpu_profile_identity import profile_identity
 result = json.load(open(sys.argv[1]))
 sections = {s['name']: s for s in (result.get('fom_breakdown') or {}).get('sections', [])}
@@ -63,7 +63,7 @@ valid = all(isinstance(v, (int, float)) and not isinstance(v, bool)
             and math.isfinite(v) and v >= 0 for v in values)
 fractions = dict(zip(keys, [v / sum(values) for v in values])) if valid and sum(values) > 0 else None
 models = []
-for section in (json.loads(sys.argv[2] or '{}') or {}).get('sections', []):
+for section in (json.load(open(3)) or {}).get('sections', []):
     for candidate in section.get('candidate_estimates', []):
         identity = profile_identity(candidate)
         if identity is not None:
