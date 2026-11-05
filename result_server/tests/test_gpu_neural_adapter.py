@@ -264,7 +264,7 @@ bk_top_level_dispatch_bound_item '{"name":"gpu","time":8,"estimation_package":"g
     assert 'model' not in item
 
 
-def test_seed_count_and_release_location_are_checked_before_model_execution(adapter, tmp_path):
+def test_seed_count_and_release_location_are_checked_before_model_execution(adapter, tmp_path, monkeypatch):
     from argparse import Namespace
     model = adapter.MODELS['pinn326']
     tool = tmp_path / 'tool'
@@ -274,9 +274,17 @@ def test_seed_count_and_release_location_are_checked_before_model_execution(adap
         p.write_text('opaque fixture')
     last = tool / 'PINN/v3.26/model_seed4.pt'
     last.unlink()
-    # Only root/model are needed: validation precedes all profile reads and invocations.
-    with pytest.raises(ValueError, match='model_seed4.pt'):
-        adapter.run(Namespace(model='pinn326', root=str(tool)), {})
+    # Missing model files must be reported even without inference dependencies.
+    import builtins
+    original_import = builtins.__import__
+    def without_inference_dependencies(name, *args, **kwargs):
+        if name.split('.')[0] in ('pandas', 'numpy', 'torch'):
+            raise ModuleNotFoundError(name)
+        return original_import(name, *args, **kwargs)
+    with monkeypatch.context() as context:
+        context.setattr(builtins, '__import__', without_inference_dependencies)
+        with pytest.raises(ValueError, match='model_seed4.pt'):
+            adapter.run(Namespace(model='pinn326', root=str(tool)), {})
     last.write_text('opaque fixture')
     model.validate(tool)
     old = adapter.MODELS['pinn325']

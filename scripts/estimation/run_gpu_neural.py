@@ -144,12 +144,12 @@ def invoke(argv, root, env, log):
 
 
 def run(args, item):
-    import pandas as pd
-    from run_gpu_lightgbm_v11 import select_process
     model = MODELS[args.model]
     family, entry, release, package, label = model.family, model.entry, model.release, model.package, model.label
     root = Path(args.root).resolve()
     model.validate(root)
+    import pandas as pd
+    from run_gpu_lightgbm_v11 import select_process
     section_time = positive(item.get("time", item.get("bench_time")), "source section time")
     base = Path(args.output_dir).resolve()
     base.mkdir(parents=True, exist_ok=True)
