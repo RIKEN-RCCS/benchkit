@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def binding(path):
-    from utils.profile_storage import configured_store
+    from .profile_storage import configured_store
     store = configured_store()
     if store is None:
         return None
@@ -18,7 +18,7 @@ def binding(path):
         except ValueError:
             continue
         return store, role, "" if name == "." else name
-    from utils.encrypted_sqlite import EncryptedDatabaseError
+    from .encrypted_sqlite import EncryptedDatabaseError
     raise EncryptedDatabaseError('Document access is outside the encrypted instance bindings')
 
 

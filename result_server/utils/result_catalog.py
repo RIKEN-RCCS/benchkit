@@ -8,9 +8,9 @@ from pathlib import Path
 import sqlite3
 import stat
 
-from utils.result_file import _extract_confidential_tags, UUID_PATTERN
-from utils.node_hours import extract_timestamp_from_filename
-from utils.result_query_records import report_facts
+from .result_file import _extract_confidential_tags, UUID_PATTERN
+from .node_hours import extract_timestamp_from_filename
+from .result_query_records import report_facts
 
 
 class CatalogUnavailable(RuntimeError):
@@ -334,7 +334,7 @@ class ResultCatalog:
 
     @contextmanager
     def snapshot(self):
-        from utils.result_query_reader import ResultQueryReader
+        from .result_query_reader import ResultQueryReader
         with self._connect(readonly=True) as conn:
             conn.execute('BEGIN')
             if not conn.execute('SELECT ready FROM catalog_state').fetchone()[0]:

@@ -689,7 +689,8 @@ def test_common_dot_prefixed_tar_paths_are_preserved(storage):
         assert archive.extractfile('nested/input.json').read() == b'{}'
 
 
-def test_headless_profile_commands_keep_their_standard_library_backend(tmp_path):
+@pytest.mark.parametrize('package', ['utils', 'result_server.utils'])
+def test_headless_profile_commands_keep_their_standard_library_backend(tmp_path, package):
     import subprocess
     script = '''
 import importlib.abc, sys
@@ -698,17 +699,69 @@ class NoFlask(importlib.abc.MetaPathFinder):
         if fullname == 'flask' or fullname.startswith('flask.'):
             raise ModuleNotFoundError('Flask deliberately unavailable in headless fixture')
 sys.meta_path.insert(0, NoFlask())
-from utils.execution_profiles import ExecutionProfileStore
+from importlib import import_module
+ExecutionProfileStore = import_module(sys.argv[2] + '.execution_profiles').ExecutionProfileStore
 store = ExecutionProfileStore(sys.argv[1])
 store.migrate()
 with store.connect() as conn:
     assert conn.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0] == 12
 '''
     env = {key: value for key, value in os.environ.items() if not key.startswith('RESULT_SERVER_PERSISTENCE_')}
-    env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
-    result = subprocess.run([sys.executable, '-B', '-c', script, str(tmp_path / 'headless.db')],
-                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+    if package == 'utils':
+        env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
+    else:
+        env.pop('PYTHONPATH', None)
+    result = subprocess.run([sys.executable, '-B', '-c', script, str(tmp_path / 'headless.db'), package],
+                            cwd=Path(__file__).resolve().parents[2], env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
     assert result.returncode == 0, result.stderr.decode()
+
+
+@pytest.mark.parametrize('entry', ['module', 'script'])
+def test_copy_cli_runs_without_pythonpath(storage, entry):
+    import subprocess
+    root = Path(__file__).resolve().parents[2]
+    plan = storage.path.parent / 'cli-plan.json'
+    plan.write_text(json.dumps(dict(database=str(storage.path), key_file=str(storage.storage.key_file))))
+    plan.chmod(0o600)
+    command = (['-m', 'result_server.cx_storage'] if entry == 'module'
+               else ['result_server/cx_storage.py'])
+    env = {key: value for key, value in os.environ.items() if key != 'PYTHONPATH'}
+    result = subprocess.run([sys.executable, '-B', *command, 'check', '--plan', str(plan)],
+                            cwd=root, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['status'] == 'success'
+    assert str(storage.path) not in result.stdout + result.stderr
+
+
+def test_package_profile_identity_and_receipt_share_the_same_transaction(storage):
+    import subprocess
+    script = '''
+import sys
+from result_server.utils.cx_persistence import CxPersistence, _transaction
+from result_server.utils.profile_storage import _transaction as profile_transaction
+from result_server.utils.execution_profiles import ExecutionProfileStore
+from result_server.utils.cx_identity import identity_from_environment
+assert _transaction is profile_transaction
+users = identity_from_environment()
+users.create_user('fixture@example.invalid', 'synthetic', ['team'])
+assert users.get_affiliations('fixture@example.invalid') == ['team']
+profiles = ExecutionProfileStore(sys.argv[1])
+profiles.migrate()
+with users.storage.transaction() as connection:
+    with profiles.connect() as same:
+        assert same is connection
+assert 'utils.profile_storage' not in sys.modules
+users.storage.check()
+'''
+    env = {key: value for key, value in os.environ.items()
+           if key != 'PYTHONPATH' and not key.startswith('RESULT_SERVER_PERSISTENCE_')}
+    env.update(RESULT_SERVER_PERSISTENCE_DB=str(storage.path),
+               RESULT_SERVER_PERSISTENCE_KEY=str(storage.storage.key_file))
+    result = subprocess.run([sys.executable, '-B', '-c', script, str(storage.path)],
+                            cwd=Path(__file__).resolve().parents[2], env=env,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
 
 
 def test_artifact_disk_full_keeps_the_previous_pointer(storage):

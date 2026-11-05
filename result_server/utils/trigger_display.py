@@ -24,7 +24,7 @@ def load_trigger_run_lookup(db_path: str | None, *, limit: int = 500) -> dict[st
         return {}
     try:
         try:
-            from utils.execution_profiles import ExecutionProfileStore
+            from .execution_profiles import ExecutionProfileStore
         except ModuleNotFoundError:  # pragma: no cover - package import fallback
             from result_server.utils.execution_profiles import ExecutionProfileStore
 
@@ -72,7 +72,7 @@ def _run_backend(run):
 
 def iter_result_trigger_runs(result, lookup):
     """Yield matching child/parent runs, keeping recorded project/producer boundaries."""
-    from utils.benchpark import result_pipeline_backend
+    from .benchpark import result_pipeline_backend
 
     project = str(result.get("ci_project") or "").strip().removesuffix(".git")
     backend = result_pipeline_backend(result)
@@ -183,7 +183,7 @@ def summarize_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
     plan_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
     variables = plan_payload.get("variables") if isinstance(plan_payload.get("variables"), dict) else {}
     errors = run.get("errors") if isinstance(run.get("errors"), list) else []
-    from utils.benchpark import benchpark_run_context
+    from .benchpark import benchpark_run_context
     benchpark_context = benchpark_run_context(variables)
     return {
         "id": run.get("id"),
@@ -222,7 +222,7 @@ def _index_trigger_run(run: dict[str, Any]) -> dict[str, Any]:
 
 
 def _result_matches_trigger_run(result: dict[str, Any], run: dict[str, Any]) -> bool:
-    from utils.benchpark import result_pipeline_backend
+    from .benchpark import result_pipeline_backend
 
     project = str(result.get("ci_project") or "").strip().removesuffix(".git")
     if project and project != run.get("project", ""):
@@ -247,7 +247,7 @@ def _result_matches_trigger_run(result: dict[str, Any], run: dict[str, Any]) -> 
 
 def _format_result_link_label(filename: str, result: dict[str, Any]) -> str:
     try:
-        from utils.result_records import format_result_timestamp
+        from .result_records import format_result_timestamp
     except ModuleNotFoundError:  # pragma: no cover - package import fallback
         from result_server.utils.result_records import format_result_timestamp
 
@@ -260,7 +260,7 @@ def _format_result_link_label(filename: str, result: dict[str, Any]) -> str:
 
 def _load_result_json(filename: str, results_dir: str) -> dict[str, Any] | None:
     try:
-        from utils.result_records import load_result_json
+        from .result_records import load_result_json
     except ModuleNotFoundError:  # pragma: no cover - package import fallback
         from result_server.utils.result_records import load_result_json
 
@@ -268,7 +268,7 @@ def _load_result_json(filename: str, results_dir: str) -> dict[str, Any] | None:
 
 
 def _os_listdir(path: str) -> list[str]:
-    from utils.storage_files import list_names
+    from .storage_files import list_names
     return list_names(path)
 
 

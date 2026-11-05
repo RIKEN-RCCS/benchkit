@@ -7,7 +7,7 @@ import tempfile
 from flask import Request
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from utils.encrypted_sqlite import EncryptedSQLite, generate_key
+from .encrypted_sqlite import EncryptedSQLite, generate_key
 
 
 PAGE_SIZE = 1024 * 1024

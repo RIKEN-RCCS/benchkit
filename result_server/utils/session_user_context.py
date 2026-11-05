@@ -1,6 +1,6 @@
 from flask import session
 
-from utils.user_store import get_user_store
+from .user_store import get_user_store
 
 
 def get_session_user_context():

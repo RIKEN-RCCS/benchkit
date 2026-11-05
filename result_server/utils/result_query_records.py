@@ -1,10 +1,10 @@
 """Small, versioned report facts; never a second copy of the Result document."""
 
-from utils.benchpark import result_pipeline_backend
-from utils.public_reuse import has_public_input_info, has_public_source_info
-from utils.result_file import _extract_confidential_tags
-from utils.result_records import summarize_result_quality
-from utils.trigger_display import extract_execution_trigger
+from .benchpark import result_pipeline_backend
+from .public_reuse import has_public_input_info, has_public_source_info
+from .result_file import _extract_confidential_tags
+from .result_records import summarize_result_quality
+from .trigger_display import extract_execution_trigger
 
 
 def _fields(value, names):

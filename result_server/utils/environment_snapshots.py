@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from utils.execution_profiles import ExecutionProfileStore
+from .execution_profiles import ExecutionProfileStore
 
 
 def _utc_now_iso() -> str:
