@@ -4,6 +4,7 @@ No Redis discovery, service control, key generation or source mutation lives her
 The caller must freeze writers and prepare independently verified source copies.
 """
 
+from collections import Counter
 from contextlib import closing
 import hashlib
 import io
@@ -24,6 +25,47 @@ from .execution_profiles import ExecutionProfileStore
 
 def _identifier(name):
     return '"' + name.replace('"', '""') + '"'
+
+
+def _matching_profile_columns(source, destination, table):
+    quoted = _identifier(table)
+    before = source.execute(f"PRAGMA table_info({quoted})").fetchall()
+    after = destination.execute(f"PRAGMA table_info({quoted})").fetchall()
+    # cid is physical position, not part of a named column's definition.
+    source_definition = {row[1]: tuple(row[2:]) for row in before}
+    destination_definition = {row[1]: tuple(row[2:]) for row in after}
+    if not before or source_definition != destination_definition:
+        raise ValueError("Unsupported Profile snapshot table or columns")
+    return tuple(row[1] for row in before)
+
+
+def verify_profile_rows(source, destination):
+    """Compare same-version Profile schemas/rows by name using existing connections.
+
+    Extra destination tables belong to persistence and are not Profile data.
+    Connections must be stable snapshots; this function performs only reads and
+    never exposes row values in exceptions or its count-only result.
+    """
+    tables = [row[0] for row in source.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+    total = 0
+    for table in tables:
+        columns = _matching_profile_columns(source, destination, table)
+        selected = ','.join(_identifier(column) for column in columns)
+        statement = f"SELECT {selected} FROM {_identifier(table)}"
+        expected = Counter(tuple(row) for row in source.execute(statement))
+        observed = Counter(tuple(row) for row in destination.execute(statement))
+        if expected != observed:
+            raise ValueError("Profile snapshot rows differ")
+        total += sum(expected.values())
+    if source.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone():
+        if not destination.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone():
+            raise ValueError("Profile snapshot sequences differ")
+        expected = dict(source.execute('SELECT name,seq FROM sqlite_sequence'))
+        observed = dict(destination.execute('SELECT name,seq FROM sqlite_sequence'))
+        if any(expected.get(table) != observed.get(table) for table in tables):
+            raise ValueError("Profile snapshot sequences differ")
+    return {'tables': len(tables), 'rows': total}
 
 
 def _regular(path):
@@ -76,13 +118,10 @@ def _copy_profile(source, conn):
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
         for table in names:
             quoted = _identifier(table)
-            before = memory.execute(f"PRAGMA table_info({quoted})").fetchall()
-            after = conn.execute(f"PRAGMA table_info({quoted})").fetchall()
-            if [(r[1], r[2]) for r in before] != [(r[1], r[2]) for r in after]:
-                raise ValueError("Unsupported Profile snapshot table or columns")
+            matched = _matching_profile_columns(memory, conn, table)
             conn.execute(f"DELETE FROM {quoted}")
-            columns = ",".join(_identifier(row[1]) for row in before)
-            marks = ",".join("?" for _ in before)
+            columns = ",".join(_identifier(column) for column in matched)
+            marks = ",".join("?" for _ in matched)
             conn.executemany(f"INSERT INTO {quoted}({columns}) VALUES({marks})",
                              memory.execute(f"SELECT {columns} FROM {quoted}"))
         if memory.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone():
