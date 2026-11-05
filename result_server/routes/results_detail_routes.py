@@ -42,6 +42,7 @@ from utils.result_records import (
 )
 from utils.trigger_display import load_trigger_run_lookup, summarize_execution_trigger
 from utils.estimate_lineage import build_estimate_lineage
+from utils.document_snapshot import snapshot_reads
 
 
 def register_results_detail_routes(results_bp):
@@ -64,6 +65,7 @@ def register_results_detail_routes(results_bp):
         return render_template("result_compare.html", **compare_context)
 
     @results_bp.route("/detail/<filename>")
+    @snapshot_reads
     def result_detail(filename):
         is_public_surface = public_surface()
         if is_public_surface:

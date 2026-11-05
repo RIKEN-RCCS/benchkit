@@ -1,6 +1,7 @@
 import os
 from utils.storage_files import list_names, is_file
 from pathlib import Path
+from utils.document_snapshot import snapshot_reads
 import stat
 
 from utils.result_file import get_file_confidential_tags
@@ -53,6 +54,7 @@ PUBLIC_RESULT_TABLE_COLUMNS = [
 ]
 
 
+@snapshot_reads
 def load_results_table(
     directory,
     public_only=True,
@@ -169,6 +171,7 @@ def _indexed_results_table(reader, directory, public_only, authenticated, affili
     return rows, PUBLIC_RESULT_TABLE_COLUMNS if public_surface else RESULT_TABLE_COLUMNS, pagination
 
 
+@snapshot_reads
 def load_estimated_results_table(
     directory,
     public_only=True,

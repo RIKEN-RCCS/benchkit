@@ -238,6 +238,17 @@ class CxPersistence(ResultCatalog):
                 return None, None
             return row[0], json.loads(b''.join(self.chunks(role, row[0], conn=conn)))
 
+    @contextmanager
+    def snapshot(self):
+        from .document_snapshot import document_snapshot
+        from .result_query_reader import ResultQueryReader
+        from .result_catalog import CatalogUnavailable
+        with document_snapshot(self) as snapshot:
+            if not snapshot.conn.execute('SELECT ready FROM catalog_state').fetchone()[0]:
+                raise CatalogUnavailable('Catalog needs rebuilding')
+            self._require_sources(snapshot.conn)
+            yield ResultQueryReader(snapshot.conn, self.sources)
+
     def names(self, role, prefix=""):
         if role not in {*self.roots, "input_archives"}:
             raise ValueError("Unknown persistence role")
@@ -368,7 +379,9 @@ class CxPersistence(ResultCatalog):
     upgrade = replace
 
     def value_get(self, namespace, key):
-        with self._connect(readonly=True) as conn:
+        from .document_snapshot import current_snapshot
+        snapshot = current_snapshot(self)
+        with (nullcontext(snapshot.conn) if snapshot else self._connect(readonly=True)) as conn:
             row = conn.execute("SELECT value FROM cx_values WHERE namespace=? AND key=? AND (expires IS NULL OR expires>?)",
                                (namespace, key, time.time())).fetchone()
             return json.loads(row[0]) if row else None
