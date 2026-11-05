@@ -23,10 +23,8 @@ import tempfile
 
 from perftools_provenance import digest, make_manifest
 
-MODELS = {
-    "mlp455": ("MLP_NN", "mlp-nn.py", "v4.55", "gpu_kernel_mlp_v455", "MLP-NN"),
-    "pinn325": ("PINN", "pinn.py", "v3.25", "gpu_kernel_pinn_v325", "PINN"),
-}
+from neural_models import MODELS
+
 RATIO_BASIS = "predicted_target_over_predicted_source"
 METRICS = ["Memory Throughput [%]", "Achieved Occupancy", "brk_memory",
            "brk_pipeline_contention", "brk_sync", "brk_scheduling_overhead",
@@ -148,8 +146,10 @@ def invoke(argv, root, env, log):
 def run(args, item):
     import pandas as pd
     from run_gpu_lightgbm_v11 import select_process
-    family, entry, release, package, label = MODELS[args.model]
+    model = MODELS[args.model]
+    family, entry, release, package, label = model.family, model.entry, model.release, model.package, model.label
     root = Path(args.root).resolve()
+    model.validate(root)
     section_time = positive(item.get("time", item.get("bench_time")), "source section time")
     base = Path(args.output_dir).resolve()
     base.mkdir(parents=True, exist_ok=True)
@@ -172,7 +172,7 @@ def run(args, item):
     sampling.update({"selected_rows": len(selected), "scope": "representative_process_sample",
                      "launch_weighting": "observed_sample_count", "representativeness_verified": False})
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
-               GPU_SPEC_SHEET=str(root / "data/v4/gpu_microarch_specs.csv"))
+               GPU_SPEC_SHEET=str(root / model.spec_sheet))
     # Both invocations use the same model release and its runtime inputs.
     rows, files = [], []
     for ordinal, (_, row) in enumerate(selected.iterrows()):
@@ -180,7 +180,7 @@ def run(args, item):
         launch.mkdir()
         wide, prepared, prediction = [launch / n for n in ("observed.csv", "input.csv", "prediction.csv")]
         pd.DataFrame([row]).to_csv(wide, index=False)
-        invoke([root / "examples/kernel_inputs/prepare_data.py", "--ncu", wide,
+        invoke([root / model.input_generator, "--ncu", wide,
                 "--src", args.source_gpu, "--tgt", ",".join(dict.fromkeys([args.target_gpu, args.source_gpu])),
                 "--model-dir", root / family, "--weights-dir", root / family / release,
                 "--out", prepared], root, env, log)

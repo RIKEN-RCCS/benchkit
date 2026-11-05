@@ -329,7 +329,7 @@ inference alone does not establish either.
 ### Current MLP-NN and PINN section adapters
 
 `gpu_kernel_mlp_v455` uses PerfTools MLP-NN v4.55; `gpu_kernel_pinn_v325`
-uses PINN v3.25. Both require Python 3.11+ with NumPy, pandas and PyTorch on the
+uses PINN v3.25, and the opt-in `gpu_kernel_pinn_v326` uses v3.26. They require Python 3.11+ with NumPy, pandas and PyTorch on the
 estimation runner. Select a commit containing the current upstream entrypoints
 and release weights, and explicitly identify the source and target GPU:
 
@@ -345,6 +345,31 @@ Use `BK_GPU_NEURAL_PERFTOOLS_COMMIT` to pin a full, reviewed upstream SHA.
 Repository/ref/commit also accept the shared `BK_PERFTOOLS_*` settings. Neural settings
 take precedence over the corresponding `BK_GPU_MLP_*` compatibility settings.
 An unavailable or changed pinned checkout fails instead of switching models.
+
+Select candidates explicitly to use the newer PINN without changing the default
+ensemble. Pin each candidate independently when their release code differs:
+
+```bash
+export BK_GPU_KERNEL_ENSEMBLE_PACKAGES=gpu_kernel_lightgbm_v11,gpu_kernel_mlp_v455,gpu_kernel_pinn_v326
+export BK_GPU_MLP_V455_PERFTOOLS_COMMIT=FULL_MLP_COMMIT_SHA
+export BK_GPU_PINN_V326_PERFTOOLS_COMMIT=FULL_PINN_COMMIT_SHA
+```
+
+The package-specific prefixes `BK_GPU_MLP_V455`, `BK_GPU_PINN_V325`, and
+`BK_GPU_PINN_V326` accept the same repository/ref/commit, GPU and profile selector
+settings. PINN also accepts `BK_GPU_PINN_*` family settings. Package settings take
+precedence; shared neural and MLP compatibility settings retain their earlier order.
+A v3.25 request requires its original release layout and three seeds; v3.26 requires
+five seeds. Moving old weights under newer inference code does not reproduce an
+old release. Use the corresponding full commit instead.
+
+Candidate selection and allowlisted GPU/commit settings are recorded for
+re-estimation. Applied neural commits and GPU pairs are recorded per package;
+conflicting commits for the same package cannot be represented as one fixed run.
+Re-estimation restores these values, and explicit overrides are recorded separately.
+Credentials, repository URLs and unrelated environment variables are not saved as
+execution conditions. Release layout and dependency lists are declared once in
+section package metadata and shared by validation, inference and provenance.
 
 Input is a section's padata archive containing `profile_raw.csv`, or a wide
 per-launch NCU CSV selected with `BK_GPU_NEURAL_INPUT_CSV`. Override an archive

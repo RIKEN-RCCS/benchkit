@@ -93,6 +93,7 @@ def test_explicit_process_and_configurations_are_preserved(adapter):
 @pytest.mark.parametrize('model,family,release,entry,seeds', [
     ('mlp455', 'MLP_NN', 'v4.55', 'mlp-nn.py', 5),
     ('pinn325', 'PINN', 'v3.25', 'pinn.py', 3),
+    ('pinn326', 'PINN', 'v3.26', 'pinn.py', 5),
 ])
 def test_current_release_manifest_hashes_all_model_files(adapter, tmp_path, monkeypatch, model, family, release, entry, seeds):
     monkeypatch.chdir(ROOT)
@@ -102,8 +103,8 @@ def test_current_release_manifest_hashes_all_model_files(adapter, tmp_path, monk
              f'{family}/{release}/meta.pkl', f'{family}/{release}/runtime_inputs_training.csv',
              'examples/kernel_inputs/prepare_data.py', 'data/v4/gpu_microarch_specs.csv']
     names += [f'{family}/{release}/model_seed{i}.pt' for i in range(seeds)]
-    if model == 'pinn325':
-        names.append('PINN/v3.25/trust_anchor.json')
+    if model.startswith('pinn'):
+        names.append(f'PINN/{release}/trust_anchor.json')
     for name in names:
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,20 +119,21 @@ def test_current_release_manifest_hashes_all_model_files(adapter, tmp_path, monk
         adapter.make_manifest(str(root), model, entry, 'wide_ncu_csv', '', '', 'ref', '')
 
 
-@pytest.mark.parametrize('model', ['mlp455', 'pinn325'])
+@pytest.mark.parametrize('model', ['mlp455', 'pinn325', 'pinn326'])
 def test_launch_preparation_projection_and_provenance(adapter, tmp_path, monkeypatch, model):
     pd = pytest.importorskip('pandas')
     from argparse import Namespace
     monkeypatch.chdir(ROOT)
-    family, entry, release, package, _ = adapter.MODELS[model]
+    spec = adapter.MODELS[model]
+    family, entry, release, package = spec.family, spec.entry, spec.release, spec.package
     tool = tmp_path / 'tool'
     names = [f'{family}/{entry}', f'{family}/network.py', f'{family}/data_pipeline_v2.py',
              f'{family}/' + ('mlpnn_core.py' if model == 'mlp455' else 'pinn_core.py'),
              f'{family}/{release}/meta.pkl', f'{family}/{release}/runtime_inputs_training.csv',
              'examples/kernel_inputs/prepare_data.py', 'data/v4/gpu_microarch_specs.csv']
-    names += [f'{family}/{release}/model_seed{i}.pt' for i in range(5 if model == 'mlp455' else 3)]
-    if model == 'pinn325':
-        names.append('PINN/v3.25/trust_anchor.json')
+    names += [f'{family}/{release}/model_seed{i}.pt' for i in range(3 if model == 'pinn325' else 5)]
+    if model.startswith('pinn'):
+        names.append(f'PINN/{release}/trust_anchor.json')
     for name in names:
         path = tool / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -190,7 +192,7 @@ def test_launch_preparation_projection_and_provenance(adapter, tmp_path, monkeyp
 def test_current_package_registration_and_legacy_availability():
     package_dir = SCRIPTS / 'section_packages'
     supported = json.loads((SCRIPTS / 'packages/instrumented_app_sections_dummy.metadata.json').read_text())
-    for name in ['gpu_kernel_mlp_v455', 'gpu_kernel_pinn_v325', 'gpu_kernel_mlp_v15']:
+    for name in ['gpu_kernel_mlp_v455', 'gpu_kernel_pinn_v325', 'gpu_kernel_pinn_v326', 'gpu_kernel_mlp_v15']:
         assert name in supported['supported_section_packages']
         metadata = json.loads((package_dir / f'{name}.metadata.json').read_text())
         assert metadata['version']
@@ -215,7 +217,7 @@ def test_configuration_means_reconstruct_identical_weighted_totals(adapter):
         assert sum(g[key] * g['sample_count'] for g in groups) == adapter.aggregate(rows)[total]
 
 
-@pytest.mark.parametrize('package', ['gpu_kernel_mlp_v455', 'gpu_kernel_pinn_v325'])
+@pytest.mark.parametrize('package', ['gpu_kernel_mlp_v455', 'gpu_kernel_pinn_v325', 'gpu_kernel_pinn_v326'])
 def test_pinned_neural_checkout_failure_is_not_identity(adapter, tmp_path, package):
     import os
     repo = tmp_path / 'tool'
@@ -260,3 +262,83 @@ bk_top_level_dispatch_bound_item '{"name":"gpu","time":8,"estimation_package":"g
     assert item['estimation_package_version'] == item['requested_estimation_package_version'] == '0.1'
     assert item['package_applicability']['status'] == 'fallback'
     assert 'model' not in item
+
+
+def test_seed_count_and_release_location_are_checked_before_model_execution(adapter, tmp_path):
+    from argparse import Namespace
+    model = adapter.MODELS['pinn326']
+    tool = tmp_path / 'tool'
+    for name in model.dependencies():
+        p = tool / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('opaque fixture')
+    last = tool / 'PINN/v3.26/model_seed4.pt'
+    last.unlink()
+    # Only root/model are needed: validation precedes all profile reads and invocations.
+    with pytest.raises(ValueError, match='model_seed4.pt'):
+        adapter.run(Namespace(model='pinn326', root=str(tool)), {})
+    last.write_text('opaque fixture')
+    model.validate(tool)
+    old = adapter.MODELS['pinn325']
+    for name in old.dependencies():
+        p = tool / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('opaque fixture')
+    (tool / 'PINN/v3.25/model_seed3.pt').write_text('unexpected seed')
+    with pytest.raises(ValueError, match='Unexpected model seed'):
+        old.validate(tool)
+    (tool / 'PINN/v3.25/model_seed3.pt').unlink()
+    (tool / 'PINN/v3.25').rename(tool / 'PINN/obsolete')
+    with pytest.raises(ValueError, match='dependencies are missing'):
+        old.validate(tool)  # Never substitute old weights under a new inference layout.
+
+
+def test_neural_candidate_commits_are_independent_and_legacy_prefixes_remain(adapter, tmp_path):
+    import os
+    pins = {}
+    for model in ('mlp455', 'pinn326'):
+        root = tmp_path / model
+        root.mkdir()
+        for name in adapter.MODELS[model].dependencies():
+            p = root / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text('opaque fixture ' + name)
+        subprocess.run(['git', 'init', '-q', str(root)], check=True)
+        subprocess.run(['git', '-C', str(root), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(root), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'fixture'], check=True)
+        pins[model] = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+    python = tmp_path / 'python-probe'
+    python.write_text('#!/bin/sh\nif [ "$1" = "-c" ]; then exit 0; fi\nexec ' + sys.executable + ' "$@"\n')
+    python.chmod(0o755)
+    observed = tmp_path / 'input.csv'
+    observed.write_text('no inference; existence check only')
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('BK_GPU_', 'BK_PERFTOOLS_'))}
+    env.update(BK_GPU_NEURAL_PYTHON=str(python), BK_GPU_NEURAL_INPUT_CSV=str(observed),
+               BK_GPU_NEURAL_SOURCE_GPU='S', BK_GPU_NEURAL_TARGET_GPU='T',
+               BK_GPU_NEURAL_PERFTOOLS_COMMIT='0'*40, BK_PERFTOOLS_CACHE_DIR=str(tmp_path/'cache'),
+               BK_GPU_MLP_V455_PERFTOOLS_REPO=str(tmp_path/'mlp455'), BK_GPU_MLP_V455_PERFTOOLS_COMMIT=pins['mlp455'],
+               BK_GPU_PINN_V326_PERFTOOLS_REPO=str(tmp_path/'pinn326'), BK_GPU_PINN_V326_PERFTOOLS_COMMIT=pins['pinn326'],
+               GIT_ALLOW_PROTOCOL='file')
+    script = '''
+set -euo pipefail
+source scripts/estimation/section_packages/gpu_kernel_neural_common.sh
+_bk_gpu_neural_check '{"name":"gpu","time":1}' section mlp455
+_bk_gpu_neural_check '{"name":"gpu","time":1}' section pinn326
+'''
+    result = subprocess.run(['bash', '-c', script], cwd=ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert [json.loads(line)['status'] for line in result.stdout.splitlines()] == ['applicable', 'applicable']
+    assert all((tmp_path/'cache'/pin).is_dir() for pin in pins.values())
+
+
+def test_release_metadata_cannot_silently_change_package_version(adapter, tmp_path, monkeypatch):
+    import neural_models
+    directory = tmp_path/'metadata';directory.mkdir()
+    path = SCRIPTS/'section_packages/gpu_kernel_pinn_v326.metadata.json'
+    data = json.loads(path.read_text())
+    data['models']['section']['version'] = 'v3.25'
+    (directory/path.name).write_text(json.dumps(data))
+    monkeypatch.setattr(neural_models,'PACKAGE_DIR',directory)
+    with pytest.raises(ValueError,match='versions disagree'):
+        neural_models.releases()
