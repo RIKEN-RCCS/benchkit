@@ -191,7 +191,8 @@ class CxPersistence(ResultCatalog):
         if role not in ("results", "estimates"):
             raise ValueError("Expected a document role")
         self._name(name)
-        payload = json.loads(raw)
+        from .document_json import load_document_json
+        payload = load_document_json(raw)
         if not isinstance(payload, dict):
             raise ValueError("Expected a JSON object")
         with (self.transaction() if conn is None else nullcontext(conn)) as conn:

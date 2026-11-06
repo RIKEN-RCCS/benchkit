@@ -60,6 +60,24 @@ def client(app):
 # ============================================================
 
 class TestIngestResult:
+    @pytest.mark.parametrize("endpoint", ["result", "estimate"])
+    @pytest.mark.parametrize("raw", [b'{"FOM":1,"FOM":1}', b'{"nested":{"x":1,"x":2}}'])
+    def test_duplicate_members_rejected_without_publication(self, client, tmp_dirs, endpoint, raw):
+        response = client.post("/api/ingest/" + endpoint, data=raw,
+            headers={"X-API-Key": API_KEY, "Content-Type": "application/json"})
+        assert response.status_code == 400
+        assert all(not os.listdir(directory) for directory in tmp_dirs)
+
+    def test_estimate_without_uuid_gets_server_identity(self, client, tmp_dirs):
+        response = client.post("/api/ingest/estimate", data=b'{"code":"demo"}',
+            headers={"X-API-Key": API_KEY, "Content-Type": "application/json"})
+        assert response.status_code == 200
+        saved = response.get_json()
+        assert saved["id"] and saved["id"] in saved["json_file"]
+        assert saved["json_file"] != "estimate_.json"
+        with open(os.path.join(tmp_dirs[3], saved["json_file"]), encoding="utf-8") as source:
+            assert json.load(source)["estimate_metadata"]["estimation_result_uuid"] == saved["id"]
+
     def test_post_valid_json(self, client, tmp_dirs):
         """Test case."""
         data = {"code": "test", "FOM": 42.0}

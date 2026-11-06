@@ -58,6 +58,17 @@ def test_failed_publication_rolls_back_payload_and_facts(storage):
     assert storage.candidates()["rows"][0]["system"] == "old"
 
 
+@pytest.mark.parametrize("role", ["results", "estimates"])
+def test_duplicate_document_rejected_before_replacement(storage, role):
+    name = "record.json"
+    original = b'{"system":"old","FOM":1.25}'
+    storage.put_document(role, name, original)
+    with pytest.raises(ValueError, match="Duplicate JSON object member"):
+        storage.put_document(role, name, b'{"system":"new","system":"new"}')
+    assert storage.read(role, name) == original
+    storage.check()
+
+
 def test_chunk_limit_and_replacement(storage):
     payload = b"x" * (CHUNK_SIZE * 2 + 19)
     storage.put("artifacts", "archive.tgz", io.BytesIO(payload), limit=len(payload))
