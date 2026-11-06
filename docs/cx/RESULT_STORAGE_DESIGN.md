@@ -66,6 +66,23 @@ By contrast, the following should remain design or implementation choices:
 
 ## 3. 現状整理 / Current State
 
+### JSONの一意性 / Unambiguous JSON Members
+
+Result/Estimateの新規受信と暗号化保存は、同じobject内のキー重複を値が同一でも拒否する。
+ネストしたobjectも対象とし、同名キーが別objectにある場合は許可する。
+受信APIは保存前に400を返し、既存文書・索引を上書きしない。
+共通JSON object生成器も、重複キーや不正な引数を出力前に検出する。
+Estimateの識別子が送信側にない場合は、受信側がUUIDとtimestampを付与する。
+この検査は過去データの自動修復や、過去文書への識別子補完を行うものではない。
+
+New Result/Estimate receipt and encrypted document writes reject duplicate object
+members, including equal values and nested duplicates. The same member name in
+different objects is allowed. The API returns 400 before publication; existing
+documents and indexes are not replaced. The shared object writer rejects repeated
+keys and invalid arguments before emitting bytes. When an Estimate has no
+sender-supplied identifier, receipt assigns its UUID and timestamp. These checks
+do not automatically repair historical documents or invent historical identities.
+
 現状では、result および estimate は主としてファイルベースで扱われている。
 
 - Result JSON は `results/result*.json` として生成される

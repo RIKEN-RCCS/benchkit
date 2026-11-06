@@ -16,6 +16,7 @@ from datetime import datetime
 from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
 from utils.environment_snapshots import index_environment_snapshot
+from utils.document_json import load_document_json
 from utils.measurement_artifacts import (
     is_profile_archive_basename,
     normalize_measurement_artifact_basename,
@@ -97,7 +98,7 @@ def save_json_file(data, prefix, out_dir, given_uuid=None):
     tmp_path = path + ".tmp"
 
     try:
-        payload = json.loads(data.decode("utf-8"))
+        payload = load_document_json(data.decode("utf-8"))
     except Exception:
         abort(400, description="Invalid JSON payload")
 

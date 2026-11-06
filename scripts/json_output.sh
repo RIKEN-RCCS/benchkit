@@ -15,8 +15,19 @@ bk_json_quote() {
 }
 
 bk_json_object() {
-  local separator="" kind key value
+  local separator="" kind key value existing
+  local -a keys=() fields=("$@")
+  local index
   [ $(( $# % 3 )) -eq 0 ] || return 2
+  # Validate before emitting any bytes; callers must not receive a partial object.
+  for ((index = 0; index < $#; index += 3)); do
+    case "${fields[index]}" in string|json) ;; *) return 2 ;; esac
+    key=${fields[index+1]}
+    for existing in "${keys[@]}"; do
+      [ "$existing" != "$key" ] || return 2
+    done
+    keys+=("$key")
+  done
   printf '{'
   while [ "$#" -gt 0 ]; do
     kind="$1" key="$2" value="$3"
