@@ -268,6 +268,50 @@ check_app_variables
         self.assertEqual(record["adjustments"][0]["status"], "unchanged")
         self.assertEqual(record["variants"][0]["exit_code"], 0)
 
+    def test_source_handoff_through_symlinked_workspace(self):
+        alias = self.root / "workspace alias"
+        alias.symlink_to(self.work, target_is_directory=True)
+        self.shell(f'''set -e
+cd -L "{alias}"
+source scripts/bk_build.sh
+bk_build_source "$LQCD_DW_SOLVER_REPO_URL" main
+case "$BK_SOURCE_DIR" in "$PWD"/*) ;; *) exit 90 ;; esac
+cd "$BK_SOURCE_DIR"
+bk_source_adjustment demo reason Makefile_target.inc bash -c 'echo updated >> Makefile_target.inc'
+bk_publish_source_runtime
+''')
+        payload = self.work / "artifacts/runtime/payload"
+        self.assertTrue((payload / "Makefile_target.inc").read_text().endswith("updated\n"))
+        record = self.provenance()
+        self.assertEqual(record["adjustments"][0]["status"], "applied")
+        self.shell('''set -e
+source scripts/bk_build.sh
+bk_use_runtime
+cmp "$BK_RUNTIME_DIR/Makefile_target.inc" artifacts/runtime/payload/Makefile_target.inc
+''')
+
+    def test_symlinked_source_root_still_rejects_external_files(self):
+        source = self.root / "real source"
+        source.mkdir()
+        (source / "inside").write_text("inside\n")
+        outside = self.root / "outside"
+        outside.write_text("outside\n")
+        (source / "escape").symlink_to(outside)
+        alias = self.root / "source alias"
+        alias.symlink_to(source, target_is_directory=True)
+        for path, expected in (("inside", 0), ("escape", 1), ("../outside", 1)):
+            with self.subTest(path=path):
+                self.shell(f'''source scripts/common/source_bundle.sh
+BK_SOURCE_DIR="{alias}"
+_bk_source_path "{path}"
+''', expected)
+        self.shell(f'''set -e
+source scripts/common/source_bundle.sh
+BK_SOURCE_DIR="{alias}"
+_BK_BUNDLE_FAILED=0
+_bk_publish_runtime escape
+''', 1)
+
     def test_failed_adjustment_is_recorded_without_publication(self):
         self.shell('''set -e
 source scripts/bk_build.sh

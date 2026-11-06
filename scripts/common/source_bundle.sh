@@ -48,7 +48,10 @@ _bk_bundle_path() {
 
 _bk_source_path() {
   _bk_bundle_path "$1" || return 1
-  case "$(realpath -m "$BK_SOURCE_DIR/$1")" in "$BK_SOURCE_DIR"/*) ;; *) return 1 ;; esac
+  local source_root source_path
+  source_root=$(realpath -m -- "$BK_SOURCE_DIR") || return 1
+  source_path=$(realpath -m -- "$BK_SOURCE_DIR/$1") || return 1
+  case "$source_path" in "$source_root"/*) ;; *) return 1 ;; esac
 }
 
 # The inventory covers names, modes and bytes, and rejects links and special files.
@@ -220,7 +223,8 @@ bk_build_binary() {
 # Static inputs are explicit app-owned paths, preserving their relative layout.
 _bk_publish_runtime() (
   set -euo pipefail
-  local item path rel target files source_root="$BK_SOURCE_DIR"
+  local item path rel target files source_root
+  source_root=$(realpath -- "$BK_SOURCE_DIR") || exit 1
   [ "$#" -gt 0 ]
   [ "$_BK_BUNDLE_FAILED" -eq 0 ]
   files=$(mktemp)
