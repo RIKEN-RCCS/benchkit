@@ -2,6 +2,9 @@
 # shellcheck disable=SC2155
 set -e
 system="$1"
+if [[ "$system" == RIKYU ]]; then
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/run-rikyu.sh" "$@"
+fi
 nodes="$2"
 elapse_scale=""
 elapse_letkf=""

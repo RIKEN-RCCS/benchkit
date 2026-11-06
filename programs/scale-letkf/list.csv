@@ -1,4 +1,5 @@
 system,enable,nodes,numproc_node,nthreads,elapse
+RIKYU,yes,1,1,32,0:20:00
 Fugaku,yes,3,4,12,1:00:00
 Fugaku,yes,75,4,12,1:00:00
 RC_GH200,no,1,4,1,1:00:00
