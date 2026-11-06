@@ -43,12 +43,15 @@ def main(argv=None):
     try:
         plan = _private_json(args.plan, 65536)
         required = {"database", "key_file"}
-        extra = {"roots", "profile_copy", "source_roots", "snapshot_export", "destination", "session_copy", "artifact_database"}
+        extra = {"roots", "profile_copy", "source_roots", "snapshot_export", "destination", "session_copy", "artifact_database", "preserve_legacy_files"}
         if not isinstance(plan, dict) or not required <= set(plan) or set(plan) - required - extra:
             raise ValueError("Invalid plan")
         for name in required:
             if not Path(plan[name]).is_absolute():
                 raise ValueError("Absolute paths are required")
+        if 'preserve_legacy_files' in plan and (args.operation != 'migrate-copy'
+                or type(plan['preserve_legacy_files']) is not bool):
+            raise ValueError('Legacy preservation applies only to explicit copy migration')
         if args.operation == 'initialize':
             store = CxPersistence(plan['database'], plan['key_file'], roots=plan['roots'], artifact_path=plan.get('artifact_database'))
             store.initialize()
@@ -62,7 +65,8 @@ def main(argv=None):
                     raise ValueError("Invalid snapshot export")
             report = import_snapshot(store, profile_copy=plan["profile_copy"], source_roots=plan["source_roots"],
                                      identity=exported.get("identity"), sessions=exported.get("sessions"),
-                                     session_copy=plan.get("session_copy"))
+                                     session_copy=plan.get("session_copy"),
+                                     preserve_legacy_files=plan.get('preserve_legacy_files', False))
         else:
             store = CxPersistence.open_existing(plan["database"], plan["key_file"], artifact_path=plan.get('artifact_database'))
             if args.operation == "check":
