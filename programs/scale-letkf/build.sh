@@ -9,6 +9,10 @@ REPO_DIR="scale-letkf-FugakuNEXT"
 BRANCH="${SCALE_LETKF_BRANCH:-master}"
 SOURCE_COMMIT="${SCALE_LETKF_SOURCE_COMMIT:-}"
 
+if [[ "$system" == RIKYU ]]; then
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/build-rikyu.sh"
+fi
+
 source scripts/bk_build.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 cd "${REPO_DIR}"
