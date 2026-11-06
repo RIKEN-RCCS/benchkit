@@ -107,6 +107,27 @@ The CLI accepts a private JSON plan. A migration plan has these fields:
 | `source_roots` | Snapshot directories with the same roles as `roots` |
 | `session_copy` | Optional private legacy session snapshot directory |
 | `snapshot_export` | Optional private JSON export containing `identity` and/or `sessions` |
+| `preserve_legacy_files` | Optional boolean, migration only; default `false` |
+
+With explicit `preserve_legacy_files: true`, files in the Result/Estimate
+snapshot directories whose names do not declare a canonical timestamp and UUID
+are retained byte-for-byte as encrypted artifacts under the internal
+`legacy_files` role. Names retain their original directory role and filename.
+No UUID, document, query fact, candidate count or public download binding is
+created for these files. Archives are not extracted and unidentified JSON is
+not interpreted as an Estimate. Canonically named documents still undergo the
+normal strict JSON, identity and permission checks. Source safety, size limits
+and snapshot-change checks apply to retained files as well.
+
+Unsupported reference strings remain in the original documents. Preservation
+does not make them usable, follow unsafe paths or guess relationships. Keep
+backup verification reports that distinguish existing unresolved references
+from copy damage. Retained files survive `rebuild-copy`, paired backup and
+recovery; verification must include their names and payload hashes, not just
+Result/Estimate counts. The logical role uses the existing artifact tables,
+but older code may reject it: use a retention-capable build for checking or
+recovering such stores. Do not assume an older build is a rollback target.
+Remove the migration-only field when preparing a plan for other operations.
 
 Identity exports can be prepared with `utils.cx_migration.export_identity` using
 an explicitly supplied frozen legacy user store. The export contains secrets;

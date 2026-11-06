@@ -19,6 +19,7 @@ from .cx_artifact_store import CxArtifactStore, ChunkWriter
 
 SCHEMA_VERSION = 1
 CHUNK_SIZE = 1024 * 1024
+LEGACY_FILES_ROLE = 'legacy_files'
 
 
 def catalog_for(path, directory, **kwargs):
@@ -42,6 +43,8 @@ class CxPersistence(ResultCatalog):
     encrypted mode never materializes documents or artifacts in those directories.
     Shared Budget/Runner databases remain separately owned stores.
     """
+
+    LEGACY_FILES_ROLE = LEGACY_FILES_ROLE
 
     def __init__(self, path, key_file, *, roots, artifact_path=None):
         self.storage = EncryptedSQLite(path, key_file)
@@ -136,13 +139,16 @@ class CxPersistence(ResultCatalog):
 
     @staticmethod
     def _object_name(role, name):
-        if role not in {"results", "estimates", "artifacts", "inputs", "legacy_inputs", "input_archives"}:
+        if role not in {"results", "estimates", "artifacts", "inputs", "legacy_inputs", "input_archives", LEGACY_FILES_ROLE}:
             raise ValueError("Unknown persistence role")
         parts = PurePosixPath(name).parts if isinstance(name, str) else ()
         if (not parts or not name or "\\" in name or "\x00" in name
                 or PurePosixPath(name).is_absolute() or any(p in ("", ".", "..") for p in name.split("/"))
-                or (role not in ("inputs", "legacy_inputs") and len(parts) != 1)):
+                or (role not in ("inputs", "legacy_inputs", LEGACY_FILES_ROLE) and len(parts) != 1)):
             raise ValueError("Unsafe storage identity")
+        if role == LEGACY_FILES_ROLE and (len(parts) != 2 or parts[0] not in ('results', 'estimates')
+                or any(ord(char) < 32 for char in name)):
+            raise ValueError('Unsafe retained file identity')
         return name
 
     def put(self, role, name, stream, *, limit, conn=None):
@@ -251,7 +257,7 @@ class CxPersistence(ResultCatalog):
             yield ResultQueryReader(snapshot.conn, self.sources)
 
     def names(self, role, prefix=""):
-        if role not in {*self.roots, "input_archives"}:
+        if role not in {*self.roots, "input_archives", LEGACY_FILES_ROLE}:
             raise ValueError("Unknown persistence role")
         with self._connect(readonly=True) as conn:
             # No LIKE wildcard interpretation of caller-controlled filenames.

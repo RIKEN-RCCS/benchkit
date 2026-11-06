@@ -131,13 +131,16 @@ def _copy_profile(source, conn):
 
 
 def import_snapshot(destination, *, profile_copy, source_roots, identity=None, sessions=None,
-                    session_copy=None, max_file_bytes=1024 ** 3, max_total_bytes=10 * 1024 ** 3):
+                    session_copy=None, max_file_bytes=1024 ** 3, max_total_bytes=10 * 1024 ** 3,
+                    preserve_legacy_files=False):
     """Import into a NEW destination, publish readiness only after complete checks.
 
     Identity and sessions are explicit in-memory exports, never a command that
     silently contacts Redis or deserializes arbitrary filesystem pickle files.
     ``sessions`` entries carry original absolute expiry and tagged JSON text.
     """
+    if type(preserve_legacy_files) is not bool:
+        raise ValueError('Explicit legacy preservation flag is required')
     if destination.path.exists():
         raise FileExistsError("Migration destination must not exist")
     roots = {role: Path(path).absolute() for role, path in source_roots.items()}
@@ -159,6 +162,7 @@ def import_snapshot(destination, *, profile_copy, source_roots, identity=None, s
         conn.execute("UPDATE catalog_state SET ready=0")
         conn.commit()
     counts = {role: 0 for role in roots}
+    retained = 0
     total = profile_before.st_size
     with destination._connect() as conn:
         conn.execute("PRAGMA foreign_keys=OFF")
@@ -182,6 +186,12 @@ def import_snapshot(destination, *, profile_copy, source_roots, identity=None, s
                         raise ValueError("Snapshot exceeds configured total limit")
                     with path.open("rb") as source:
                         if role in ("results", "estimates"):
+                            from .legacy_files import document_file_identity
+                            if preserve_legacy_files and document_file_identity(role, name) is None:
+                                destination.put(destination.LEGACY_FILES_ROLE, role + '/' + name,
+                                                source, limit=max_file_bytes, conn=conn)
+                                retained += 1
+                                continue
                             if path.suffix != ".json":
                                 raise ValueError("Unexpected non-JSON document in snapshot")
                             destination.put_document(role, name, source.read(), conn=conn, update_metadata=False)
@@ -240,7 +250,7 @@ def import_snapshot(destination, *, profile_copy, source_roots, identity=None, s
         finally:
             _transaction.reset(token)
     destination.check()
-    return {"objects": counts, "bytes": total, "source_modified": False,
+    return {"objects": counts, "legacy_files_preserved": retained, "bytes": total, "source_modified": False,
             "source_is_snapshot": True, "cross_store_atomic": False}
 
 
