@@ -14,10 +14,7 @@ if [[ "$system" == RIKYU ]]; then
   module load "${SCALE_LETKF_MODULE:-nvhpc-hpcx/26.3}"
   nc="${SCALE_LETKF_NC_CONFIG:-nc-config}"
   nf="${SCALE_LETKF_NF_CONFIG:-nf-config}"
-  command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || {
-      echo 'Set SCALE_LETKF_NC_CONFIG and SCALE_LETKF_NF_CONFIG to compatible NetCDF installations' >&2
-      exit 1
-  }
+  command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || exit 1
   export SCALE_SYS=Linux64-nvidia SCALE_ENABLE_OPENMP=F SCALE_ENABLE_OPENACC=T
   export SCALE_ENABLE_MATHLIB=T
   SCALE_NETCDF_INCLUDE="$("$nc" --cflags) $("$nf" --fflags)"
@@ -29,8 +26,7 @@ if [[ "$system" == RIKYU ]]; then
   source scripts/bk_functions.sh
   jobs="${SCALE_LETKF_BUILD_JOBS:-4}"
   [[ "$jobs" =~ ^[1-9][0-9]?$ ]] || exit 2
-  bk_build_source https://github.com/SCALE-LETKF-RIKEN/scale-letkf-FugakuNEXT \
-      "${SCALE_LETKF_BRANCH:-master}" "${SCALE_LETKF_SOURCE_COMMIT:-}"
+  bk_build_source "$REPO_URL" "$BRANCH" "$SOURCE_COMMIT"
   cd "$BK_SOURCE_DIR"
   # NVIDIA HPC SDK bug 6861191: compile mod_mkinit at O1.
   bk_source_adjustment nvhpc-mkinit-o1 'Compile mod_mkinit at O1 for NVIDIA HPC SDK bug 6861191' \
