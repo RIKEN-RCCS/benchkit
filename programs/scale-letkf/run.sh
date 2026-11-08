@@ -7,7 +7,9 @@ source scripts/bk_functions.sh
 RESULTS="$PWD/results"
 mkdir -p "$RESULTS"
 : > "$RESULTS/result"
-bk_use_runtime
+bk_use_runtime --allow-artifacts
+bin_dir=$(bk_runtime_path scale/scale-letkf/scale/ensmodel bin)
+letkf_bin=$(bk_runtime_path scale/scale-letkf/scale/letkf/letkf bin/letkf)
 
 benchmark=benchmark.RC_GH200_128x128
 pp_ranks=4
@@ -100,9 +102,9 @@ else
     tar zxf "$SCALE_TESTDATA"
 fi
 for exe in scale-rm_pp_ens scale-rm_init_ens scale-rm_ens; do
-    ln -s "$BK_RUNTIME_DIR/scale/scale-letkf/scale/ensmodel/$exe" "bin/$exe"
+    ln -s "$bin_dir/$exe" "bin/$exe"
 done
-ln -s "$BK_RUNTIME_DIR/scale/scale-letkf/scale/letkf/letkf" bin/letkf
+ln -s "$letkf_bin" bin/letkf
 
 if "$use_mps"; then
     # Use the allocated GPU UUID to avoid MPS index remapping.
@@ -140,10 +142,11 @@ for stage in pp init scale letkf; do
     bk_run --input-file "$conf" --log "$RESULTS/$stage.log" "${elapsed[@]}" -- \
         mpiexec -n "$count" "${mpi_options[@]}" "${output[@]}" "bin/$exe" "$conf"
 done
-fom=$(awk -v s="$elapse_scale" -v l="$elapse_letkf" 'BEGIN { if (s+0 <= 0 || l+0 <= 0) exit 1; printf "%.3f", s+l }')
+[[ -n "$elapse_scale" && -n "$elapse_letkf" ]]
+fom=$(awk -v s="$elapse_scale" -v l="$elapse_letkf" 'BEGIN { if (s+0 < 0 || l+0 < 0) exit 1; printf "%.3f", s+l }')
 bk_record_input --dataset-id "scale-letkf-sc23-${benchmark##*_}-${system,,}-config" \
     --result-exp "$exp" --path "$BK_RUNTIME_DIR/test/$benchmark" \
-    --recipe 'Benchmark configuration from the source runtime.'
+    --recipe 'Build-provided benchmark configuration.'
 if [[ -n "$input_root" ]]; then
     bk_record_input --dataset-id scale-letkf-sc23-rikyu --type dataset --version 20240410 --result-exp "$exp" \
         --recipe 'Expanded SC23 boundary and radar inputs read directly; generated fields remain local.'

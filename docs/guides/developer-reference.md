@@ -104,6 +104,12 @@ Legacy `bk_fetch_source` and `bk_fetch_recorded_source` callers are unchanged.
    and copies the payload to a new directory without Git access, and projects
    its source/build metadata into `results/`. Generating scientific inputs,
    launching the app and validating results remain app responsibilities.
+   `bk_use_runtime --allow-artifacts` also accepts an existing `artifacts/`
+   directory when no runtime package is present. Use
+   `bk_runtime_path <runtime-relative-path> [artifacts-relative-path]` to resolve
+   application paths across these layouts. This does not claim inventory
+   validation or synthesize build metadata for plain artifacts. A present but
+   invalid runtime remains an error; it never falls back to plain artifacts.
 
 The inventory rejects links/special files and covers file names, modes and
 contents. Existing artifact cache integrity checks protect the complete set;

@@ -279,9 +279,23 @@ bk_publish_source_runtime() (
   _bk_publish_runtime "${paths[@]}" "$@"
 )
 
-# No fetch or checkout is permitted on the run path. Every execution gets a new copy.
+# No fetch or checkout on the run path. Runtime payloads are copied; plain artifacts stay in place.
 bk_use_runtime() {
   local package="$PWD/artifacts/runtime" inventory work
+  local allow_artifacts=0
+  case "$#:${1:-}" in
+    0:) ;;
+    1:--allow-artifacts) allow_artifacts=1 ;;
+    *) return 2 ;;
+  esac
+  unset BK_RUNTIME_DIR
+  _BK_RUNTIME_LAYOUT=""
+  if [ "$allow_artifacts" -eq 1 ] && [ ! -e "$package" ] && [ ! -L "$package" ]; then
+    [ -d "$PWD/artifacts" ] || return 1
+    BK_RUNTIME_DIR="$PWD/artifacts"
+    _BK_RUNTIME_LAYOUT=artifacts
+    return 0
+  fi
   [ -d "$package" ] && [ ! -L "$package" ] && [ -f "$package/inventory" ] && [ ! -L "$package/inventory" ] || return 1
   inventory=$(mktemp) || return 1
   if ! _bk_bundle_inventory "$package" > "$inventory" || ! cmp -s "$inventory" "$package/inventory"; then
@@ -307,4 +321,15 @@ bk_use_runtime() {
   # Returned to the app for its normal cwd/input handling.
   # shellcheck disable=SC2034
   BK_RUNTIME_DIR="$work/payload"
+  _BK_RUNTIME_LAYOUT=runtime
+}
+
+# Applications declare their source path and, where needed, its artifacts location.
+bk_runtime_path() {
+  [ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ -n "${BK_RUNTIME_DIR:-}" ] || return 2
+  local path="$1"
+  if [ "${_BK_RUNTIME_LAYOUT:-}" = artifacts ] && [ "$#" -eq 2 ]; then path="$2"; fi
+  _bk_bundle_path "$path" || return 2
+  [ -e "$BK_RUNTIME_DIR/$path" ] || return 1
+  printf '%s\n' "$BK_RUNTIME_DIR/$path"
 }
