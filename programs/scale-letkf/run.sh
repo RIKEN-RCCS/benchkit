@@ -3,7 +3,113 @@
 set -e
 system="$1"
 if [[ "$system" == RIKYU ]]; then
-  exec bash "$(dirname "${BASH_SOURCE[0]}")/run-rikyu.sh" "$@"
+  set -euo pipefail
+  [[ "$1" == RIKYU && "$2" == 1 && "$3" == 1 && "$4" =~ ^[0-9]+$ && "$4" -ge 12 ]] || {
+      echo 'RIKYU SCALE requires one node, one launch task and at least 12 allocated CPUs' >&2; exit 2;
+  }
+  module load "${SCALE_LETKF_MODULE:-nvhpc-hpcx/26.3}"
+  nc="${SCALE_LETKF_NC_CONFIG:-nc-config}"
+  nf="${SCALE_LETKF_NF_CONFIG:-nf-config}"
+  command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || {
+      echo 'Set SCALE_LETKF_NC_CONFIG and SCALE_LETKF_NF_CONFIG to compatible NetCDF installations' >&2
+      exit 1
+  }
+  LD_LIBRARY_PATH="$("$nf" --prefix)/lib:$("$nc" --prefix)/lib:${LD_LIBRARY_PATH:-}"
+  export LD_LIBRARY_PATH
+  source scripts/bk_functions.sh
+  bk_use_runtime
+  ROOT=$PWD
+  RESULTS="$ROOT/results"
+  mkdir -p "$RESULTS"
+  : > "$RESULTS/result"
+  shared="${SCALE_LETKF_INPUT_ROOT:-/data1/rkp00015/CX_input/SCALE-LETKF}"
+  work=$(mktemp -d "$PWD/scale-rikyu.XXXXXXXX")
+  cp -a "$BK_RUNTIME_DIR/test/benchmark.RC_GH200_128x128/." "$work/"
+  cd "$work"
+  mps_started=0
+  finish_run() {
+      local status=$?
+      trap - EXIT
+      if [[ -d conf ]]; then cp -a conf "$RESULTS/configuration" || status=1; fi
+      if [[ -d log ]]; then cp -a log "$RESULTS/application-logs" || status=1; fi
+      if [[ "$mps_started" == 1 ]]; then
+          if printf 'quit\n' | nvidia-cuda-mps-control; then
+              printf 'stopped\n' >> "$RESULTS/mps-lifecycle.log"
+              rm -rf -- "$CUDA_MPS_PIPE_DIRECTORY"
+          else
+              echo 'SCALE MPS shutdown failed; diagnostic directories retained' >&2
+              status=1
+          fi
+      fi
+      exit "$status"
+  }
+  trap finish_run EXIT
+  bash prep.sh
+  # Only external read-only fields may point at the pre-staged dataset.
+  [[ -d "$shared/scale_database" && -r "$shared/result/SC23/obs_radar/radar_20210730060030.dat" ]]
+  for member in mean 0001 0002; do
+      compgen -G "$shared/result/SC23/20210730060000/bdyorg/$member/bdyorg*.nc" >/dev/null
+  done
+  while IFS= read -r -d '' conf; do
+      awk -v work="$work/" -v shared="$shared/" '
+          match($0, /^[ \t]*[A-Za-z0-9_]+[ \t]*=[ \t]*["\047]/) {
+              key = toupper(substr($0, 1, RLENGTH - 1))
+              gsub(/[ \t=]/, "", key)
+              start = RLENGTH + 1
+              quote = substr($0, RLENGTH, 1)
+              length_value = index(substr($0, start), quote) - 1
+              if (length_value < 0) exit 2
+              value = substr($0, start, length_value)
+              readonly = key ~ /^(BASENAME_ORG|OBS_IN_NAME|GTOPO30_IN_DIR|DEM50M_IN_DIR|GLCCV2_IN_DIR|LU100M_IN_DIR)$/
+              if (readonly && index(value, work) == 1) {
+                  relative = substr(value, length(work) + 1)
+                  if (relative ~ /^(result\/SC23\/|scale_database\/)/) {
+                      value = shared relative
+                      $0 = substr($0, 1, start - 1) value substr($0, start + length_value)
+                  }
+              }
+              if (index(value, shared) == 1 && !readonly) exit 2
+          }
+          { print }
+      ' "$conf" > "$conf.tmp"
+      mv "$conf.tmp" "$conf"
+  done < <(find conf -name '*.conf' -type f -print0)
+  for exe in scale-rm_pp_ens scale-rm_init_ens scale-rm_ens; do
+      ln -s "$BK_RUNTIME_DIR/scale/scale-letkf/scale/ensmodel/$exe" "bin/$exe"
+  done
+  ln -s "$BK_RUNTIME_DIR/scale/scale-letkf/scale/letkf/letkf" bin/letkf
+  # The allocation is a CPU budget; the benchmark uses up to 12 single-threaded ranks.
+  export OMP_NUM_THREADS=1 OMP_WAIT_POLICY=active
+  ulimit -s unlimited
+  # Use only the scheduler-assigned GPU, as a UUID to avoid MPS index remapping.
+  device="${CUDA_VISIBLE_DEVICES:?A single allocated GPU is required}"
+  [[ "$device" != *,* ]] || exit 2
+  if [[ "$device" != GPU-* ]]; then
+      device=$(nvidia-smi -i "$device" --query-gpu=uuid --format=csv,noheader)
+  fi
+  [[ "$device" == GPU-* && "$device" != *$'\n'* ]] || exit 2
+  export CUDA_VISIBLE_DEVICES="$device"
+  CUDA_MPS_PIPE_DIRECTORY=$(mktemp -d "${TMPDIR:-/tmp}/scale-mps.XXXXXXXX")
+  CUDA_MPS_LOG_DIRECTORY="$RESULTS/mps"
+  export CUDA_MPS_PIPE_DIRECTORY CUDA_MPS_LOG_DIRECTORY
+  mkdir -p "$CUDA_MPS_LOG_DIRECTORY"
+  mps_started=1
+  nvidia-cuda-mps-control -d
+  printf 'started\n' > "$RESULTS/mps-lifecycle.log"
+  bk_run --input-file "conf/scale-rm_pp_ens_20210730060000.conf" --log "$RESULTS/pp.log" -- mpiexec -n 4 --oversubscribe bin/scale-rm_pp_ens conf/scale-rm_pp_ens_20210730060000.conf
+  bk_run --input-file "conf/scale-rm_init_ens_20210730060000.conf" --log "$RESULTS/init.log" -- mpiexec -n 12 --oversubscribe bin/scale-rm_init_ens conf/scale-rm_init_ens_20210730060000.conf
+  elapse_scale=""
+  elapse_letkf=""
+  bk_run --input-file "conf/scale-rm_ens_20210730060000.conf" --log "$RESULTS/scale.log" --elapsed elapse_scale -- mpiexec -n 12 --oversubscribe bin/scale-rm_ens conf/scale-rm_ens_20210730060000.conf
+  bk_run --input-file "conf/letkf_20210730060030.conf" --log "$RESULTS/letkf.log" --elapsed elapse_letkf -- mpiexec -n 12 --oversubscribe bin/letkf conf/letkf_20210730060030.conf
+  fom=$(awk -v s="$elapse_scale" -v l="$elapse_letkf" 'BEGIN { if (s+0 <= 0 || l+0 <= 0) exit 1; printf "%.3f", s+l }')
+  bk_record_input --dataset-id scale-letkf-sc23-rikyu --type dataset --version 20240410 --result-exp SC23_128x128 \
+      --recipe 'Expanded SC23 boundary and radar inputs read directly; generated fields remain local.'
+  bk_emit_result --from-log "$RESULTS/scale.log" --from-log "$RESULTS/letkf.log" \
+      --fom "$fom" --fom-unit s --fom-version SCALE-LETKF --exp SC23_128x128 \
+      --nodes 1 --numproc-node 12 --nthreads 1 >> "$RESULTS/result"
+
+  exit 0
 fi
 nodes="$2"
 elapse_scale=""
