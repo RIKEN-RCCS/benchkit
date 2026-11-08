@@ -4,22 +4,18 @@ set -e
 system="$1"
 if [[ "$system" == RIKYU ]]; then
   set -euo pipefail
-  [[ "$1" == RIKYU && "$2" == 1 && "$3" == 1 && "$4" =~ ^[0-9]+$ && "$4" -ge 12 ]] || {
+  [[ "$2" == 1 && "$3" == 1 && "$4" =~ ^[0-9]+$ && "$4" -ge 12 ]] || {
       echo 'RIKYU SCALE requires one node, one launch task and at least 12 allocated CPUs' >&2; exit 2;
   }
   module load "${SCALE_LETKF_MODULE:-nvhpc-hpcx/26.3}"
   nc="${SCALE_LETKF_NC_CONFIG:-nc-config}"
   nf="${SCALE_LETKF_NF_CONFIG:-nf-config}"
-  command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || {
-      echo 'Set SCALE_LETKF_NC_CONFIG and SCALE_LETKF_NF_CONFIG to compatible NetCDF installations' >&2
-      exit 1
-  }
+  command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || exit 1
   LD_LIBRARY_PATH="$("$nf" --prefix)/lib:$("$nc" --prefix)/lib:${LD_LIBRARY_PATH:-}"
   export LD_LIBRARY_PATH
   source scripts/bk_functions.sh
   bk_use_runtime
-  ROOT=$PWD
-  RESULTS="$ROOT/results"
+  RESULTS="$PWD/results"
   mkdir -p "$RESULTS"
   : > "$RESULTS/result"
   shared="${SCALE_LETKF_INPUT_ROOT:-/data1/rkp00015/CX_input/SCALE-LETKF}"
@@ -44,36 +40,19 @@ if [[ "$system" == RIKYU ]]; then
       exit "$status"
   }
   trap finish_run EXIT
+  # Change only read-only input fields in the templates; prep.sh sets local outputs.
+  readonly_fields='BASENAME_ORG|OBS_IN_NAME|GTOPO30_IN_DIR|DEM50M_IN_DIR|GLCCV2_IN_DIR|LU100M_IN_DIR'
+  shared_sed=$(printf '%s' "$shared" | sed 's/[\\&#]/\\&/g')
+  sed -E -i "/^[[:space:]]*($readonly_fields)[[:space:]]*=/I s#<--WKDIR-->#$shared_sed#g" template/*.conf
   bash prep.sh
-  # Only external read-only fields may point at the pre-staged dataset.
   [[ -d "$shared/scale_database" && -r "$shared/result/SC23/obs_radar/radar_20210730060030.dat" ]]
   for member in mean 0001 0002; do
       compgen -G "$shared/result/SC23/20210730060000/bdyorg/$member/bdyorg*.nc" >/dev/null
   done
-  while IFS= read -r -d '' conf; do
-      awk -v work="$work/" -v shared="$shared/" '
-          match($0, /^[ \t]*[A-Za-z0-9_]+[ \t]*=[ \t]*["\047]/) {
-              key = toupper(substr($0, 1, RLENGTH - 1))
-              gsub(/[ \t=]/, "", key)
-              start = RLENGTH + 1
-              quote = substr($0, RLENGTH, 1)
-              length_value = index(substr($0, start), quote) - 1
-              if (length_value < 0) exit 2
-              value = substr($0, start, length_value)
-              readonly = key ~ /^(BASENAME_ORG|OBS_IN_NAME|GTOPO30_IN_DIR|DEM50M_IN_DIR|GLCCV2_IN_DIR|LU100M_IN_DIR)$/
-              if (readonly && index(value, work) == 1) {
-                  relative = substr(value, length(work) + 1)
-                  if (relative ~ /^(result\/SC23\/|scale_database\/)/) {
-                      value = shared relative
-                      $0 = substr($0, 1, start - 1) value substr($0, start + length_value)
-                  }
-              }
-              if (index(value, shared) == 1 && !readonly) exit 2
-          }
-          { print }
-      ' "$conf" > "$conf.tmp"
-      mv "$conf.tmp" "$conf"
-  done < <(find conf -name '*.conf' -type f -print0)
+  find conf -name '*.conf' -type f -exec awk -F '["\047]' \
+      -v shared="$shared/" -v fields="$readonly_fields" '
+          index($2, shared) == 1 && toupper($1) !~ "^[[:space:]]*(" fields ")[[:space:]]*=" { exit 2 }
+      ' {} +
   for exe in scale-rm_pp_ens scale-rm_init_ens scale-rm_ens; do
       ln -s "$BK_RUNTIME_DIR/scale/scale-letkf/scale/ensmodel/$exe" "bin/$exe"
   done
