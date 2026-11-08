@@ -135,6 +135,40 @@ _bk_clock_sample() {
   printf '%s|%s\n' "$uptime" "$utc"
 }
 
+# Run a command with an owned MPS instance on one allocated GPU.
+# The subshell keeps CUDA/MPS environment changes local to the command.
+bk_with_mps() (
+  [ "$#" -gt 0 ] || exit 2
+  local _bk_mps_device="${CUDA_VISIBLE_DEVICES:?A single allocated GPU is required}"
+  local _bk_mps_pipe _bk_mps_results="${BK_RUN_RESULTS_DIR:-$_BK_DEFAULT_RESULTS_DIR}"
+  [[ "$_bk_mps_device" != *,* ]] || exit 2
+  if [[ "$_bk_mps_device" != GPU-* ]]; then
+    _bk_mps_device=$(nvidia-smi -i "$_bk_mps_device" --query-gpu=uuid --format=csv,noheader) || exit 1
+  fi
+  [[ "$_bk_mps_device" == GPU-* && "$_bk_mps_device" != *$'\n'* ]] || exit 2
+  export CUDA_VISIBLE_DEVICES="$_bk_mps_device"
+  export CUDA_MPS_LOG_DIRECTORY="$_bk_mps_results/mps"
+  mkdir -p "$CUDA_MPS_LOG_DIRECTORY" || exit 1
+  _bk_mps_pipe=$(mktemp -d "${TMPDIR:-/tmp}/benchkit-mps.XXXXXXXX") || exit 1
+  export CUDA_MPS_PIPE_DIRECTORY="$_bk_mps_pipe"
+  _bk_finish_mps() {
+    local _bk_mps_status=$?
+    trap - EXIT
+    if printf 'quit\n' | CUDA_MPS_PIPE_DIRECTORY="$_bk_mps_pipe" nvidia-cuda-mps-control; then
+      printf 'stopped\n' >> "$_bk_mps_results/mps-lifecycle.log" || _bk_mps_status=1
+      rm -rf -- "$_bk_mps_pipe" || _bk_mps_status=1
+    else
+      echo 'Benchkit MPS shutdown failed; diagnostic directories retained' >&2
+      [ "$_bk_mps_status" -ne 0 ] || _bk_mps_status=1
+    fi
+    exit "$_bk_mps_status"
+  }
+  trap _bk_finish_mps EXIT
+  nvidia-cuda-mps-control -d || exit "$?"
+  printf 'started\n' > "$_bk_mps_results/mps-lifecycle.log" || exit 1
+  "$@"
+)
+
 bk_run() {
   local _bk_log="" _bk_elapsed="" _bk_seconds="" _bk_state="" _bk_status=0
   local _BK_EXECUTION_OUTPUT="" _BK_EXECUTION_RECORD="" _BK_EXECUTION_LAUNCHED=0

@@ -62,21 +62,11 @@ exp="SC23_${benchmark##*_}"
 work=$(mktemp -d "$PWD/scale-run.XXXXXXXX")
 cp -a "$BK_RUNTIME_DIR/test/$benchmark/." "$work/"
 cd "$work"
-mps_started=0
 finish_run() {
     local status=$?
     trap - EXIT
     if [[ -d conf ]]; then cp -a conf "$RESULTS/configuration" || status=1; fi
     if [[ -d log ]]; then cp -a log "$RESULTS/application-logs" || status=1; fi
-    if [[ "$mps_started" == 1 ]]; then
-        if printf 'quit\n' | nvidia-cuda-mps-control; then
-            printf 'stopped\n' >> "$RESULTS/mps-lifecycle.log"
-            rm -rf -- "$CUDA_MPS_PIPE_DIRECTORY"
-        else
-            echo 'SCALE MPS shutdown failed; diagnostic directories retained' >&2
-            status=1
-        fi
-    fi
     exit "$status"
 }
 trap finish_run EXIT
@@ -106,56 +96,46 @@ for exe in scale-rm_pp_ens scale-rm_init_ens scale-rm_ens; do
 done
 ln -s "$letkf_bin" bin/letkf
 
-if "$use_mps"; then
-    # Use the allocated GPU UUID to avoid MPS index remapping.
-    device="${CUDA_VISIBLE_DEVICES:?A single allocated GPU is required}"
-    [[ "$device" != *,* ]] || exit 2
-    if [[ "$device" != GPU-* ]]; then
-        device=$(nvidia-smi -i "$device" --query-gpu=uuid --format=csv,noheader)
+run_benchmark() {
+    local stage count date exe conf fom elapse_scale="" elapse_letkf=""
+    local -a elapsed output
+    for stage in pp init scale letkf; do
+        count="$ranks"
+        date=20210730060000
+        elapsed=()
+        case "$stage" in
+            pp) exe=scale-rm_pp_ens; count="$pp_ranks" ;;
+            init) exe=scale-rm_init_ens ;;
+            scale) exe=scale-rm_ens; elapsed=(--elapsed elapse_scale) ;;
+            letkf) exe=letkf; date=20210730060030; elapsed=(--elapsed elapse_letkf) ;;
+        esac
+        conf="conf/${exe}_${date}.conf"
+        output=()
+        if [[ -n "$mpi_output" ]]; then output=(-std-proc "$mpi_output$exe"); fi
+        bk_run --input-file "$conf" --log "$RESULTS/$stage.log" "${elapsed[@]}" -- \
+            mpiexec -n "$count" "${mpi_options[@]}" "${output[@]}" "bin/$exe" "$conf" || return
+    done
+    [[ -n "$elapse_scale" && -n "$elapse_letkf" ]] || return 1
+    fom=$(awk -v s="$elapse_scale" -v l="$elapse_letkf" 'BEGIN { if (s+0 < 0 || l+0 < 0) exit 1; printf "%.3f", s+l }') || return
+    bk_record_input --dataset-id "scale-letkf-sc23-${benchmark##*_}-${system,,}-config" \
+        --result-exp "$exp" --path "$BK_RUNTIME_DIR/test/$benchmark" \
+        --recipe 'Build-provided benchmark configuration.' || return
+    if [[ -n "$input_root" ]]; then
+        bk_record_input --dataset-id scale-letkf-sc23-rikyu --type dataset --version 20240410 --result-exp "$exp" \
+            --recipe 'Expanded SC23 boundary and radar inputs read directly; generated fields remain local.' || return
+    else
+        bk_record_input --dataset-id scale-letkf-scale-database --type archive --result-exp "$exp" \
+            --recipe 'SCALE database archive expanded before the benchmark run.' || return
+        bk_record_input --dataset-id scale-letkf-sc23-part1-20240410 --type archive --version 20240410 --result-exp "$exp" \
+            --recipe 'SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run.' || return
     fi
-    [[ "$device" == GPU-* && "$device" != *$'\n'* ]] || exit 2
-    export CUDA_VISIBLE_DEVICES="$device"
-    CUDA_MPS_PIPE_DIRECTORY=$(mktemp -d "${TMPDIR:-/tmp}/scale-mps.XXXXXXXX")
-    CUDA_MPS_LOG_DIRECTORY="$RESULTS/mps"
-    export CUDA_MPS_PIPE_DIRECTORY CUDA_MPS_LOG_DIRECTORY
-    mkdir -p "$CUDA_MPS_LOG_DIRECTORY"
-    mps_started=1
-    nvidia-cuda-mps-control -d
-    printf 'started\n' > "$RESULTS/mps-lifecycle.log"
-fi
+    bk_emit_result --from-log "$RESULTS/scale.log" --from-log "$RESULTS/letkf.log" \
+        --fom "$fom" --fom-unit s --fom-version SCALE-LETKF --exp "$exp" \
+        --nodes "$nodes" --numproc-node "$((ranks / nodes))" --nthreads "$threads" >> "$RESULTS/result"
+}
 
-elapse_scale=""
-elapse_letkf=""
-for stage in pp init scale letkf; do
-    count="$ranks"
-    date=20210730060000
-    elapsed=()
-    case "$stage" in
-        pp) exe=scale-rm_pp_ens; count="$pp_ranks" ;;
-        init) exe=scale-rm_init_ens ;;
-        scale) exe=scale-rm_ens; elapsed=(--elapsed elapse_scale) ;;
-        letkf) exe=letkf; date=20210730060030; elapsed=(--elapsed elapse_letkf) ;;
-    esac
-    conf="conf/${exe}_${date}.conf"
-    output=()
-    if [[ -n "$mpi_output" ]]; then output=(-std-proc "$mpi_output$exe"); fi
-    bk_run --input-file "$conf" --log "$RESULTS/$stage.log" "${elapsed[@]}" -- \
-        mpiexec -n "$count" "${mpi_options[@]}" "${output[@]}" "bin/$exe" "$conf"
-done
-[[ -n "$elapse_scale" && -n "$elapse_letkf" ]]
-fom=$(awk -v s="$elapse_scale" -v l="$elapse_letkf" 'BEGIN { if (s+0 < 0 || l+0 < 0) exit 1; printf "%.3f", s+l }')
-bk_record_input --dataset-id "scale-letkf-sc23-${benchmark##*_}-${system,,}-config" \
-    --result-exp "$exp" --path "$BK_RUNTIME_DIR/test/$benchmark" \
-    --recipe 'Build-provided benchmark configuration.'
-if [[ -n "$input_root" ]]; then
-    bk_record_input --dataset-id scale-letkf-sc23-rikyu --type dataset --version 20240410 --result-exp "$exp" \
-        --recipe 'Expanded SC23 boundary and radar inputs read directly; generated fields remain local.'
+if "$use_mps"; then
+    bk_with_mps run_benchmark
 else
-    bk_record_input --dataset-id scale-letkf-scale-database --type archive --result-exp "$exp" \
-        --recipe 'SCALE database archive expanded before the benchmark run.'
-    bk_record_input --dataset-id scale-letkf-sc23-part1-20240410 --type archive --version 20240410 --result-exp "$exp" \
-        --recipe 'SC23 SCALE-LETKF benchmark dataset archive expanded before the benchmark run.'
+    run_benchmark
 fi
-bk_emit_result --from-log "$RESULTS/scale.log" --from-log "$RESULTS/letkf.log" \
-    --fom "$fom" --fom-unit s --fom-version SCALE-LETKF --exp "$exp" \
-    --nodes "$nodes" --numproc-node "$((ranks / nodes))" --nthreads "$threads" >> "$RESULTS/result"

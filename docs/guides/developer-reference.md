@@ -66,6 +66,15 @@ A future "requester" or "applicant" role belongs to the not-yet-implemented requ
 Scaffolding or code generation may be added later as convenience tooling, but it is not required for contributors.
 The supported baseline is that contributors can add apps, sites, and estimation packages by following the guides and existing examples.
 
+## Optional Single-GPU MPS
+
+`bk_with_mps <command-or-function> [args...]` runs a command with a private,
+node-local CUDA MPS instance for the single GPU in `CUDA_VISIBLE_DEVICES`.
+It restores the caller's environment, stops only its own instance on exit,
+and retains diagnostics under the normal results directory. It does not map
+MPI ranks to GPUs or coordinate MPS instances across nodes; those execution
+choices remain with the application.
+
 ## Build-to-Run Source Handoff
 
 Applications can opt into the shared build/runtime handoff in
