@@ -2,6 +2,7 @@
 # shellcheck disable=SC2155
 set -e
 system="$1"
+source scripts/bk_functions.sh
 if [[ "$system" == RIKYU ]]; then
   set -euo pipefail
   [[ "$2" == 1 && "$3" == 1 && "$4" =~ ^[0-9]+$ && "$4" -ge 12 ]] || {
@@ -13,7 +14,6 @@ if [[ "$system" == RIKYU ]]; then
   command -v "$nc" >/dev/null && command -v "$nf" >/dev/null || exit 1
   LD_LIBRARY_PATH="$("$nf" --prefix)/lib:$("$nc" --prefix)/lib:${LD_LIBRARY_PATH:-}"
   export LD_LIBRARY_PATH
-  source scripts/bk_functions.sh
   bk_use_runtime
   RESULTS="$PWD/results"
   mkdir -p "$RESULTS"
@@ -94,8 +94,6 @@ nodes="$2"
 elapse_scale=""
 elapse_letkf=""
 mkdir -p results && : > results/result
-
-source "${PWD}/scripts/bk_functions.sh"
 
 case "$system" in
   Fugaku|FugakuCN)

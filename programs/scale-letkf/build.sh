@@ -9,6 +9,8 @@ REPO_DIR="scale-letkf-FugakuNEXT"
 BRANCH="${SCALE_LETKF_BRANCH:-master}"
 SOURCE_COMMIT="${SCALE_LETKF_SOURCE_COMMIT:-}"
 
+source scripts/bk_build.sh
+
 if [[ "$system" == RIKYU ]]; then
   set -euo pipefail
   module load "${SCALE_LETKF_MODULE:-nvhpc-hpcx/26.3}"
@@ -23,7 +25,6 @@ if [[ "$system" == RIKYU ]]; then
   export SCALE_NETCDF_INCLUDE SCALE_NETCDF_LIBS SCALE_MATHLIB_LIBS
   LD_LIBRARY_PATH="$("$nf" --prefix)/lib:$("$nc" --prefix)/lib:${LD_LIBRARY_PATH:-}"
   export LD_LIBRARY_PATH
-  source scripts/bk_functions.sh
   jobs="${SCALE_LETKF_BUILD_JOBS:-4}"
   [[ "$jobs" =~ ^[1-9][0-9]?$ ]] || exit 2
   bk_build_source "$REPO_URL" "$BRANCH" "$SOURCE_COMMIT"
@@ -53,7 +54,6 @@ MAKEFILE
   exit 0
 fi
 
-source scripts/bk_build.sh
 bk_fetch_source "${REPO_URL}" "${REPO_DIR}" "${BRANCH}" "${SOURCE_COMMIT}"
 cd "${REPO_DIR}"
 
