@@ -71,6 +71,12 @@ benchmark: CI status is shown as not checked, and no matching Result does not
 by itself mean failure. Result lookup failures are shown as unavailable rather
 than zero Results. The page does not poll GitLab.
 
+History rows are available before stored Results are checked. The Runs view
+loads receipt links separately; **Check stored Results** works without
+JavaScript and can retry an unavailable lookup. Editing a Profile or returning a
+dry-run response does not wait for Result matching. **Results not checked** is
+different from **No matching Result**.
+
 History supports exact Profile ID, Trigger ID and decision filters, inclusive
 UTC date bounds, and 40-record pages across manual and runner records. Runner
 Profile ID filtering uses the current trigger definition; a deleted definition

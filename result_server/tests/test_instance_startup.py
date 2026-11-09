@@ -70,6 +70,7 @@ from utils.execution_profiles import ExecutionProfileStore
 with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=True)):
     public = create_instance_app("public")
     assert public.test_client().get("/dev2/admin/execution-profiles/history/manual/1/results").status_code == 404
+    assert public.test_client().get("/dev2/admin/execution-profiles/history/receipts").status_code == 404
     console = create_instance_app("console")
     store = ExecutionProfileStore(console.config["EXECUTION_PROFILE_DB_PATH"])
     record = store.create_execution_request(request_type="gitlab_pipeline", status="submitted",
@@ -86,6 +87,9 @@ with patch("redis.from_url", return_value=fakeredis.FakeRedis(decode_responses=T
     page = client.get(prefix)
     assert page.status_code == 200
     assert 'action="' + prefix + '#execution-history"' in page.get_data(as_text=True)
+    assert 'data-history-lookup="' + prefix + '/history/receipts?' in page.get_data(as_text=True)
+    receipts = client.get(prefix + "/history/receipts")
+    assert receipts.status_code == 200 and "no-store" in receipts.headers["Cache-Control"]
     response = client.get(prefix + "/history/manual/" + str(record) + "/results")
     assert response.status_code == 200
     assert 'href="' + prefix + '#execution-history"' in response.get_data(as_text=True)

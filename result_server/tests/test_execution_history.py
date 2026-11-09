@@ -94,8 +94,11 @@ def test_admin_history_get_reloads_manual_pipeline_and_result_without_submission
             html = response.data.decode()
             assert f'Manual #{request_id}' in html
             assert 'https://gitlab.example.org/group/park/-/pipelines/42' in html
-            assert '/results/detail/manual-result.json' in html
+            assert '/results/detail/manual-result.json' not in html
             assert 'javascript:alert' not in html
+            receipts = client.get('/admin/execution-profiles/history/receipts')
+            assert receipts.status_code == 200
+            assert '/results/detail/manual-result.json' in receipts.text
         assert len(store.list_execution_requests()) == 1
     finally:
         _cleanup(dirs)
@@ -192,7 +195,12 @@ def test_history_search_paging_and_result_receipt_are_separate(history_client):
     html = response.data.decode()
     assert response.status_code == 200
     assert 'Submission / Decision' in html and 'CI: Not checked' in html
-    assert '1 matching Result' in html and 'No matching Result' in html
+    assert 'Results not checked' in html and 'No matching Result' not in html
+    receipts = client.get('/admin/execution-profiles/history/receipts?history_profile_id=park-qws&history_status=submitted')
+    assert receipts.status_code == 200 and 'no-store' in receipts.headers['Cache-Control']
+    assert '1 matching Result' in receipts.text and 'No matching Result' in receipts.text
+    assert f'Manual #{ids[0]} /' not in receipts.text
+    assert f'Manual #{ids[-1]} /' in receipts.text
     assert f'Manual #{ids[0]} /' not in html
     assert f'Manual #{ids[-1]} /' in html
     class Links(HTMLParser):
@@ -219,7 +227,7 @@ def test_all_result_links_include_fifth_and_do_not_cross_projects(history_client
         result(received / f'matching-{i}.json')
     result(received / 'wrong-project.json', project='other.example.org/group/park')
     _login_admin(client)
-    history = client.get('/admin/execution-profiles').data.decode()
+    history = client.get('/admin/execution-profiles?tab=runs&history_results=1').text
     path = f'/admin/execution-profiles/history/manual/{request_id}/results'
     assert path in history and 'View all 6 Results' in history
     detail = client.get(path)
@@ -301,9 +309,13 @@ def test_unavailable_result_directory_is_not_reported_as_zero_results(history_cl
         raise PermissionError('not readable')
     monkeypatch.setattr('utils.trigger_display._os_listdir', unavailable)
     _login_admin(client)
-    html = client.get('/admin/execution-profiles').data.decode()
+    html = client.get('/admin/execution-profiles/history/receipts').text
     assert 'Result lookup unavailable' in html
+    assert 'data-history-lookup-unavailable' in html
     assert 'No matching Result' not in html
+    fallback = client.get('/admin/execution-profiles?tab=runs&history_results=1').text
+    assert 'Check stored Results' in fallback
+    assert 'data-history-auto' not in fallback
 
 
 @pytest.mark.parametrize('query', [
@@ -325,9 +337,12 @@ def test_all_results_route_requires_admin_and_exact_record_source(history_client
     preview = request(store, dry_run=True)
     result(received / 'saved.json')
     path = f'/admin/execution-profiles/history/manual/{request_id}/results'
+    receipts = '/admin/execution-profiles/history/receipts'
     assert client.get(path).status_code in (302, 403)
+    assert client.get(receipts).status_code == 302
     _login_user(client)
     assert client.get(path).status_code == 403
+    assert client.get(receipts).status_code == 403
     _login_admin(client)
     assert client.get(path).status_code == 200
     for source, record_id in [('runner', request_id), ('manual', preview), ('bad', request_id),
@@ -344,6 +359,7 @@ def test_history_read_does_not_change_schema_or_stored_rows(history_client):
     before = snapshot()
     _login_admin(client)
     assert client.get('/admin/execution-profiles').status_code == 200
+    assert client.get('/admin/execution-profiles/history/receipts').status_code == 200
     assert client.get('/admin/execution-profiles/history/manual/1/results').status_code == 200
     assert snapshot() == before
 
@@ -359,3 +375,39 @@ def test_submission_response_ignores_history_search_parameters(history_client):
     assert context['history_page'] == 1
     assert not any(context['history_filters'].values())
     assert len(context['trigger_runs']) == 1
+
+
+def test_receipts_use_parent_and_child_pipeline_ids(history_client):
+    _, client, store, received = history_client
+    runner_id = store.create_trigger_run(
+        trigger_id='nightly', trigger_type='scheduled', status='submitted', dry_run=False,
+        payload={'gitlab_project': 'gitlab.example.org/group/park',
+                 'submit': {'response': {'id': 42, 'child_pipeline_ids': [43]}}})
+    result(received / 'child.json', pipeline=43)
+    (received / 'parent.json').write_text(json.dumps({
+        'ci_project': 'gitlab.example.org/group/park.git', 'parent_pipeline_id': ' 42 ',
+        'pipeline_id': 99, 'confidential': ['example'], 'Exp': 'example',
+    }))
+    result(received / 'wrong-project.json', project='other.example.org/group/park', pipeline=43)
+    _login_admin(client)
+    fragment = client.get('/admin/execution-profiles/history/receipts')
+    detail = client.get(f'/admin/execution-profiles/history/runner/{runner_id}/results')
+    for response in (fragment, detail):
+        assert response.status_code == 200
+        assert 'parent.json' in response.text and 'child.json' in response.text
+        assert 'wrong-project.json' not in response.text
+        assert '2 matching Results' in response.text
+
+
+def test_receipts_skip_result_reads_when_no_submissions_are_eligible(history_client, monkeypatch):
+    _, client, store, _ = history_client
+    request(store, status='submit_failed')
+    monkeypatch.setattr('utils.execution_history.build_trigger_result_links',
+                        lambda *_args, **_kwargs: pytest.fail('must not scan results'))
+    monkeypatch.setattr(ExecutionProfileStore, 'execution_pipeline_projects',
+                        lambda *_args: pytest.fail('must not scan project history'))
+    _login_admin(client)
+    response = client.get('/admin/execution-profiles/history/receipts')
+    assert response.status_code == 200
+    assert 'Not submitted' in response.text
+    assert 'No matching Result' not in response.text
