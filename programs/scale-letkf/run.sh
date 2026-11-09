@@ -134,8 +134,39 @@ run_benchmark() {
         --nodes "$nodes" --numproc-node "$((ranks / nodes))" --nthreads "$threads" >> "$RESULTS/result"
 }
 
+run_with_mps() (
+    local device="${CUDA_VISIBLE_DEVICES:?A single allocated GPU is required}"
+    local pipe
+    [[ "$device" != *,* ]] || exit 2
+    if [[ "$device" != GPU-* ]]; then
+      device=$(nvidia-smi -i "$device" --query-gpu=uuid --format=csv,noheader) || exit 1
+    fi
+    [[ "$device" == GPU-* && "$device" != *$'\n'* ]] || exit 2
+    export CUDA_VISIBLE_DEVICES="$device"
+    export CUDA_MPS_LOG_DIRECTORY="$RESULTS/mps"
+    mkdir -p "$CUDA_MPS_LOG_DIRECTORY" || exit 1
+    pipe=$(mktemp -d "${TMPDIR:-/tmp}/benchkit-mps.XXXXXXXX") || exit 1
+    export CUDA_MPS_PIPE_DIRECTORY="$pipe"
+    stop_mps() {
+      local status=$?
+      trap - EXIT
+      if printf 'quit\n' | CUDA_MPS_PIPE_DIRECTORY="$pipe" nvidia-cuda-mps-control; then
+        printf 'stopped\n' >> "$RESULTS/mps-lifecycle.log" || status=1
+        rm -rf -- "$pipe" || status=1
+      else
+        echo 'SCALE MPS shutdown failed; diagnostic directories retained' >&2
+        [ "$status" -ne 0 ] || status=1
+      fi
+      exit "$status"
+    }
+    trap stop_mps EXIT
+    nvidia-cuda-mps-control -d || exit "$?"
+    printf 'started\n' > "$RESULTS/mps-lifecycle.log" || exit 1
+    run_benchmark
+)
+
 if "$use_mps"; then
-    bk_with_mps run_benchmark
+    run_with_mps
 else
     run_benchmark
 fi
