@@ -32,6 +32,20 @@ case "${system}" in
   *) echo "Unknown system: ${system}" >&2; exit 1 ;;
 esac
 
+# The benchmark requires these staged splits. Never start the loader with
+# missing input: its upstream default can attempt a download.
+for split in train val; do
+  input="${DATA}/top/${split}/${split}_ttbar.h5"
+  if [[ ! -f "$input" || ! -r "$input" || ! -s "$input" ]]; then
+    echo "OmniLearned: required staged HDF5 missing, unreadable or empty: $input" >&2
+    exit 1
+  fi
+done
+
+# One private index tree per run, shared by its ranks, never by other jobs.
+index_root=$(mktemp -d "${PWD}/.omnilearned-index.XXXXXXXX")
+export OMNILEARNED_INDEX_ROOT="$index_root"
+
 # Per-system config: DGX Spark's unified memory holds only b64; Genoa runs
 # 25 iterations (18 s/step); Fugaku runs b8 per rank, one rank per CMG.
 CONFIG_TEMPLATE="${ARTIFACT_DIR}/top_medium_pretrain.yaml"
@@ -90,7 +104,9 @@ case "${system}" in
     SIF="${runtime_sif}"
     export PF_DIR="${ARTIFACT_DIR}/pytorch-fugaku/fugaku" SIF DATA numproc_node
     export PF_HOSTLIB="${PWD}/.pf-hostlib"
-    export PF_BIND="${PWD}:/work:rw,${DATA}:/cx_input:rw"
+    export PF_BIND="${PWD}:/work:rw,${DATA}:/cx_input:ro"
+    export OMNILEARNED_INDEX_ROOT="/work/${index_root##*/}"
+    export SINGULARITYENV_OMNILEARNED_INDEX_ROOT="$OMNILEARNED_INDEX_ROOT"
     runtime_relative="${BK_RUNTIME_DIR#"${PWD}/"}"
     export PYTHONPATH="/work/artifacts/pydeps:/work/${runtime_relative}/src" PYTHONUNBUFFERED=1
     "${PF_DIR}/pf-setup" "${numproc_node}"

@@ -183,8 +183,10 @@ def test_run_uses_observed_image_and_preserves_exit(tmp_path, exit_code, marker,
     (artifact / "top_medium_pretrain_fugaku.yaml").write_text("iterations: 2\nbatch: 8\npath: __OMNILEARNED_DATA__\n")
     for config in ("top_medium_pretrain.yaml", "top_medium_pretrain_b64.yaml", "top_medium_pretrain_cpu.yaml"):
         (artifact / config).write_text("iterations: 2\nbatch: 8\npath: __OMNILEARNED_DATA__\n")
-    (data / "top/train").mkdir()
-    (data / "top/train/data.h5").write_bytes(b"fixture")
+    for split in ("train", "val"):
+        folder = data / "top" / split
+        folder.mkdir()
+        (folder / f"{split}_ttbar.h5").write_bytes(b"fixture")
     (tmp_path / "scripts").symlink_to(ROOT / "scripts", target_is_directory=True)
     package = artifact / "runtime"
     source = package / "payload/src/omnilearned"
