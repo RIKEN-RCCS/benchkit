@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 pytest.importorskip('sqlcipher3.dbapi2')
 from test_cx_persistence import storage, encrypted_app
 from test_support import StaticAffiliationUserStore
-from utils.document_snapshot import document_snapshot, current_snapshot
+from utils.document_snapshot import DocumentSnapshot, document_snapshot, current_snapshot
 from utils.estimate_lineage import build_estimate_lineage
 from utils.storage_files import read_json, is_file, list_names
 from utils.results_loader import load_results_table, load_estimated_results_table
@@ -48,6 +48,45 @@ def compare_lineage(app, storage, payload, filename, affiliations):
             app.extensions['cx_persistence'] = storage
     assert actual == expected
     return actual
+
+
+def test_history_result_lookup_reuses_one_connection_without_retaining_documents(
+        encrypted_app, storage, monkeypatch):
+    from utils.execution_history import execution_result_links
+
+    names = [put(storage, 'results', SOURCE,
+                 {'ci_project': 'gitlab.example.org/group/benchkit',
+                  'pipeline_id': 101, 'parent_pipeline_id': 42}, prefix=f'result{i}')
+             for i in range(3)]
+    run = {'id': 1, 'status': 'submitted', 'dry_run': False,
+           'payload_json': {'gitlab_project': 'gitlab.example.org/group/benchkit',
+                            'submit': {'response': {'id': 42}}}}
+    connections = []
+    active_store = encrypted_app.extensions['cx_persistence']
+    original = active_store._connect
+    snapshots = []
+    read = DocumentSnapshot.read_json
+
+    @contextmanager
+    def connect(*args, **kwargs):
+        with original(*args, **kwargs) as conn:
+            connections.append(conn)
+            yield conn
+
+    def read_without_retention(snapshot, *args, **kwargs):
+        data = read(snapshot, *args, **kwargs)
+        assert snapshot._documents is None
+        snapshots.append(snapshot)
+        return data
+
+    monkeypatch.setattr(active_store, '_connect', connect)
+    monkeypatch.setattr(DocumentSnapshot, 'read_json', read_without_retention)
+    with encrypted_app.app_context():
+        links = execution_result_links(storage.roots['results'], [run])
+        assert current_snapshot(active_store) is None
+    assert [link['filename'] for link in links[1]] == sorted(names, reverse=True)
+    assert len(connections) == 1
+    assert len(snapshots) == 3 and all(item is snapshots[0] for item in snapshots)
 
 
 @pytest.mark.parametrize('affiliations', [[], ['dev'], ['other'], ['admin'], ['dev', 'other']])

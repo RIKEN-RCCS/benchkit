@@ -90,7 +90,8 @@ def test_default_is_runs_and_creation_is_collapsed(portal, query):
     for name in ('profile-editor', 'trigger-editor'):
         assert 'open' not in doc.find('id', name)[0]['attrs']
     assert 'CI: Not checked' in html
-    assert 'No matching Result' in html
+    assert 'Results not checked' in html
+    assert 'No matching Result' not in html
     assert '<script>alert(1)</script>' not in html
 
 
@@ -185,3 +186,23 @@ def test_existing_actions_and_csrf_fields_are_retained(portal):
     csrf_fields = doc.find('name', 'csrf_token')
     assert csrf_fields
     assert all(n['attrs']['value'] == 'synthetic-csrf' for n in csrf_fields)
+
+
+def test_profile_and_dry_run_do_not_resolve_receipts(portal, monkeypatch):
+    _, client, store = portal
+    monkeypatch.setenv('RESULT_SERVER_GITLAB_REPO', 'gitlab.example.org/group/example')
+    monkeypatch.setattr('routes.admin.execution_result_links',
+                        lambda *_args, **_kwargs: pytest.fail('history must not block this request'))
+    profile = 'source-system-demoapp-nightly'
+    for query in ('tab=profiles', 'edit=' + profile + '&history_results=1',
+                  'tab=triggers', 'tab=diagnostics', 'tab=runs'):
+        response = client.get('/admin/execution-profiles?' + query)
+        assert response.status_code == 200
+        assert 'Results not checked' in response.text
+    response = client.post('/admin/execution-profiles/dry-run-submit?history_results=1',
+                           data={'profile_id': profile, 'target_ref': 'develop'})
+    assert response.status_code == 200
+    with store.connect() as conn:
+        row = conn.execute('SELECT status FROM execution_requests WHERE dry_run=1').fetchone()
+    assert row['status'] == 'dry_run_ready'
+    assert 'data-history-auto' not in response.text

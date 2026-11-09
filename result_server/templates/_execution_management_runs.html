@@ -73,6 +73,13 @@
         <button type="submit" class="btn btn-secondary">Search</button>
         <a href="{{ url_for('admin.execution_profiles') }}#execution-history">Clear</a>
     </form>
+    {% if history_lookup_pending or history_lookup_unavailable %}
+    <div class="history-pages" data-history-lookup="{{ history_lookup_url }}"{% if history_lookup_pending and not (dry_run_result or submit_result) %} data-history-auto{% endif %}>
+        <a href="{{ history_full_lookup_url }}">Check stored Results</a>
+        <span role="status" data-history-status></span>
+    </div>
+    {% endif %}
+    <div data-history-content{% if history_lookup_unavailable %} data-history-lookup-unavailable{% endif %}>
     <div class="table-wrap">
         <table class="trigger-history-table">
             <thead>
@@ -148,4 +155,5 @@
         <span>Page {{ history_page }}</span>
         {% if history_next_url %}<a class="history-page-link" href="{{ history_next_url }}" title="Next page" aria-label="Next page">&rarr;</a>{% endif %}
     </nav>
+    </div>
 </section>

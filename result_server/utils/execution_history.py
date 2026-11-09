@@ -3,6 +3,7 @@
 import json
 
 from utils.gitlab_pipeline import GITLAB_REPO_RE
+from utils.document_snapshot import document_snapshot
 from utils.trigger_display import build_trigger_result_links, summarize_trigger_run
 
 
@@ -44,15 +45,21 @@ def _json_value(value, kind):
     return parsed if isinstance(parsed, kind) else kind()
 
 
+def can_lookup_execution_results(run):
+    return (run["status"] == "submitted" and not run["dry_run"]
+            and summarize_trigger_run(run)["pipeline_id"] != "-")
+
+
 def execution_result_links(results_dir, runs, *, pipeline_projects=None):
     """Only actual submissions with a recorded pipeline may claim Results."""
-    eligible = [run for run in runs if run["status"] == "submitted"
-                and not run["dry_run"]
-                and summarize_trigger_run(run)["pipeline_id"] != "-"]
-    return build_trigger_result_links(
-        results_dir, eligible, strict=True, pipeline_only=True,
-        pipeline_projects=pipeline_projects,
-    )
+    eligible = [run for run in runs if can_lookup_execution_results(run)]
+    if not eligible:
+        return {}
+    with document_snapshot(cache_documents=False):
+        return build_trigger_result_links(
+            results_dir, eligible, strict=True, pipeline_only=True,
+            pipeline_projects=pipeline_projects,
+        )
 
 
 def summarize_execution_history(run):

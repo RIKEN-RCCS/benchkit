@@ -16,9 +16,9 @@ def current_snapshot(store):
 
 
 class DocumentSnapshot:
-    def __init__(self, store, conn):
+    def __init__(self, store, conn, *, cache_documents=True):
         self.store, self.conn = store, conn
-        self._documents = {}
+        self._documents = {} if cache_documents else None
         self._exceptions = None
 
     def names(self, role, prefix=''):
@@ -32,6 +32,8 @@ class DocumentSnapshot:
             'SELECT 1 FROM cx_objects WHERE role=? AND name=?', (role, name)).fetchone())
 
     def read_json(self, role, name):
+        if self._documents is None:
+            return json.loads(b''.join(self.store.chunks(role, name, conn=self.conn)))
         key = role, name
         if key not in self._documents:
             self._documents[key] = b''.join(self.store.chunks(role, name, conn=self.conn))
@@ -80,7 +82,7 @@ class DocumentSnapshot:
 
 
 @contextmanager
-def document_snapshot(store=None, *, conn=None):
+def document_snapshot(store=None, *, conn=None, cache_documents=True):
     if store is None:
         from .profile_storage import configured_store
         store = configured_store()
@@ -98,10 +100,10 @@ def document_snapshot(store=None, *, conn=None):
             connection.execute('BEGIN')
             # Establish the WAL snapshot before any nested reads.
             connection.execute('SELECT ready FROM catalog_state').fetchone()
-            with document_snapshot(store, conn=connection) as snapshot:
+            with document_snapshot(store, conn=connection, cache_documents=cache_documents) as snapshot:
                 yield snapshot
         return
-    token = _active.set(DocumentSnapshot(store, conn))
+    token = _active.set(DocumentSnapshot(store, conn, cache_documents=cache_documents))
     try:
         yield _active.get()
     finally:

@@ -46,7 +46,7 @@ from utils.gitlab_pipeline import (
 from utils.benchpark import parse_benchpark_profile_form, benchpark_manual_errors
 from utils.rate_limit import rate_limited
 from utils.execution_history import (
-    execution_result_links, list_execution_history, summarize_execution_history,
+    can_lookup_execution_results, execution_result_links, list_execution_history, summarize_execution_history,
 )
 from utils.user_store import get_user_store
 
@@ -357,15 +357,16 @@ def _history_filters():
     return filters
 
 
-def _history_result_summaries(runs, pipeline_projects=None):
-    try:
-        links = execution_result_links(
-            current_app.config.get("RECEIVED_DIR", ""), runs,
-            pipeline_projects=pipeline_projects,
-        )
-        available = True
-    except OSError:
-        links, available = {}, False
+def _history_result_summaries(runs, pipeline_projects=None, *, resolve_results=True):
+    links, available = {}, True
+    if resolve_results:
+        try:
+            links = execution_result_links(
+                current_app.config.get("RECEIVED_DIR", ""), runs,
+                pipeline_projects=pipeline_projects,
+            )
+        except OSError:
+            available = False
     summaries = []
     for run in runs:
         summary = summarize_execution_history(run)
@@ -379,6 +380,8 @@ def _history_result_summaries(runs, pipeline_projects=None):
             summary["receipt_label"] = "Result lookup unavailable"
         elif summary["pipeline_id"] == "-":
             summary["receipt_label"] = "Result association unknown"
+        elif not resolve_results:
+            summary["receipt_label"] = "Results not checked"
         elif summary["result_count"]:
             noun = "Result" if summary["result_count"] == 1 else "Results"
             summary["receipt_label"] = f"{summary['result_count']} matching {noun}"
@@ -392,7 +395,7 @@ def _history_result_summaries(runs, pipeline_projects=None):
     return summaries
 
 
-def _execution_history_context(db_path):
+def _execution_history_context(db_path, *, resolve_results=False):
     filters = _history_filters()
     raw_page = request.args.get("history_page", "1") if request.method == "GET" else "1"
     if not raw_page.isascii() or not raw_page.isdecimal() or len(raw_page) > 6:
@@ -408,16 +411,28 @@ def _execution_history_context(db_path):
             store, limit=page_size + 1,
             offset=(page - 1) * page_size, **filters,
         )
-        pipeline_projects = store.execution_pipeline_projects()
+        if resolve_results and any(map(can_lookup_execution_results, runs[:page_size])):
+            pipeline_projects = store.execution_pipeline_projects()
     except sqlite3.Error as exc:
+        if resolve_results:
+            abort(503, "Execution history is unavailable")
         flash(f"Trigger run history could not be loaded: {exc}")
         runs = []
     query = {"history_" + key: value for key, value in filters.items() if value}
     def page_url(number):
         return url_for("admin.execution_profiles", **query, history_page=number,
                        _anchor="execution-history")
+    summaries = _history_result_summaries(runs[:page_size], pipeline_projects, resolve_results=resolve_results)
+    lookup_args = dict(query, history_page=page)
     return {
-        "trigger_runs": _history_result_summaries(runs[:page_size], pipeline_projects),
+        "trigger_runs": summaries,
+        "history_lookup_pending": any(run["receipt_label"] == "Results not checked" for run in summaries),
+        "history_lookup_unavailable": any(run["receipt_label"] == "Result lookup unavailable" for run in summaries),
+        "history_lookup_url": url_for("admin.execution_history_receipts", **lookup_args),
+        "history_full_lookup_url": url_for(
+            "admin.execution_profiles", tab="runs", history_results="1", **lookup_args,
+            _anchor="execution-history",
+        ),
         "history_filters": filters,
         "history_page": page,
         "history_previous_url": page_url(page - 1) if page > 1 else "",
@@ -898,7 +913,10 @@ def execution_profiles():
         profile_result=profile_result,
         registered_profiles=registered_profiles,
         trigger_definitions=trigger_definitions,
-        **_execution_history_context(db_path),
+        **_execution_history_context(
+            db_path, resolve_results=request.args.get("history_results") == "1"
+            and request.args.get("tab", "runs") == "runs" and not (edit_profile_id or edit_trigger_id),
+        ),
         trigger_observations=_list_trigger_observations(db_path),
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
@@ -945,6 +963,13 @@ def _budget_editor(profile):
     return editor
 
 
+@admin_bp.route("/execution-profiles/history/receipts", methods=["GET"])
+@admin_required
+def execution_history_receipts():
+    context = _execution_history_context(current_app.config["EXECUTION_PROFILE_DB_PATH"], resolve_results=True)
+    return render_template("_execution_management_runs.html", **context)
+
+
 @admin_bp.route("/execution-profiles/history/<source>/<int:record_id>/results", methods=["GET"])
 @admin_required
 def execution_history_results(source, record_id):
@@ -954,7 +979,8 @@ def execution_history_results(source, record_id):
     runs = list_execution_history(store, source=source, record_id=record_id, limit=1)
     if not runs:
         abort(404)
-    summary = _history_result_summaries(runs, store.execution_pipeline_projects())[0]
+    projects = store.execution_pipeline_projects() if can_lookup_execution_results(runs[0]) else None
+    summary = _history_result_summaries(runs, projects)[0]
     return render_template("execution_history_results.html", run=summary)
 
 
