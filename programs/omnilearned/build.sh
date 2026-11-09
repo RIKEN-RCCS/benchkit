@@ -20,6 +20,9 @@ cd "${SRC_DIR}"
 bk_source_adjustment train-pass-timer \
   'Measure training pass wall time separately from validation and checkpointing' \
   src/omnilearned/train.py git apply "${APP_DIR}/patches/train_pass_timer.patch"
+bk_source_adjustment private-dataset-index \
+  'Keep staged inputs read-only and write loader metadata in the job workspace' \
+  src/omnilearned/dataloader.py git apply "${APP_DIR}/patches/private-dataset-index.patch"
 cd - > /dev/null
 
 case "$system" in

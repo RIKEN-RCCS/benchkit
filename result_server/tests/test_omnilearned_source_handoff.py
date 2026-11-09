@@ -33,19 +33,21 @@ def fixture(tmp_path):
     origin = tmp_path / "origin"
     origin.mkdir()
     command(["git", "init", "-qb", "main"], cwd=origin)
-    # Reconstruct only the old hunk contexts, not the real upstream program.
-    lines = ["# synthetic training source\n"] * 420
-    offset = None
-    for line in (APP / "patches/train_pass_timer.patch").read_text().splitlines(True):
-        match = re.match(r"@@ -(\d+)", line)
-        if match:
-            offset = int(match[1]) - 1
-        elif offset is not None and line.startswith((" ", "-")):
-            lines[offset] = line[1:]
-            offset += 1
     source = origin / "src/omnilearned"
     source.mkdir(parents=True)
-    (source / "train.py").write_text("".join(lines))
+    # Reconstruct only the old hunk contexts, not the upstream program.
+    for filename, patch in (("train.py", "train_pass_timer.patch"),
+                            ("dataloader.py", "private-dataset-index.patch")):
+        lines = ["# synthetic source\n"] * 600
+        offset = None
+        for line in (APP / "patches" / patch).read_text().splitlines(True):
+            match = re.match(r"@@ -(\d+)", line)
+            if match:
+                offset = int(match[1]) - 1
+            elif offset is not None and line.startswith((" ", "-")):
+                lines[offset] = line[1:]
+                offset += 1
+        (source / filename).write_text("".join(lines))
     (source / "__init__.py").write_text("MARKER = 'synthetic adopted source'\n")
     command(["git", "add", "."], cwd=origin)
     command(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
@@ -61,6 +63,9 @@ def fixture(tmp_path):
     launcher = tmp_path / "launcher"
     executable(launcher, '''
 [[ "$1 $2" == '-m torch.distributed.run' ]] || exit 88
+[[ "$OMNILEARNED_INDEX_ROOT" == "$PWD"/.omnilearned-index.* ]]
+[[ -d "$OMNILEARNED_INDEX_ROOT" ]]
+[[ "$OMNILEARNED_INDEX_ROOT" != "$BK_OMNILEARNED_DATA"* ]]
 "$REAL_PYTHON" -B -c 'import omnilearned; from pathlib import Path; import os; p=Path(omnilearned.__file__); assert ".runtime." in str(p); assert omnilearned.MARKER == "synthetic adopted source"; assert "Train pass wall" in p.with_name("train.py").read_text(); Path(os.environ["IMPORT_TRACE"]).write_text(str(p))'
 [[ "${LAUNCH_FAILURE:-0}" == 0 ]] || exit "$LAUNCH_FAILURE"
 echo 'Train pass wall: 2.0 sec'
@@ -110,6 +115,10 @@ chmod +x "$4/uv-x86_64-unknown-linux-musl/uv"
 ''')
     executable(tools / "mpiexec", r'''
 [[ "$PYTHONPATH" == /work/artifacts/pydeps:/work/.runtime.*/payload/src ]]
+[[ "$PF_BIND" == "$PWD:/work:rw,$BK_OMNILEARNED_DATA:/cx_input:ro" ]]
+[[ "$OMNILEARNED_INDEX_ROOT" == /work/.omnilearned-index.* ]]
+[[ "$SINGULARITYENV_OMNILEARNED_INDEX_ROOT" == "$OMNILEARNED_INDEX_ROOT" ]]
+export OMNILEARNED_INDEX_ROOT="$PWD/${OMNILEARNED_INDEX_ROOT##*/}"
 export PYTHONPATH="${PYTHONPATH//\/work\//$PWD/}"
 "$FAKE_LAUNCHER" -m torch.distributed.run > train.log 2>&1
 ''')
@@ -121,9 +130,11 @@ exec "$@"
 ''')
     for name in ("wget", "ssh", "singularity", "apptainer", "sbatch", "pjsub"):
         executable(tools / name, "exit 99\n")
-    data = tmp_path / "input/top/train"
-    data.mkdir(parents=True)
-    (data / "fixture.h5").write_bytes(b"synthetic input")
+    data = tmp_path / "input"
+    for split in ("train", "val"):
+        folder = data / "top" / split
+        folder.mkdir(parents=True)
+        (folder / f"{split}_ttbar.h5").write_bytes(b"synthetic input")
     image = tmp_path / "fake.sif"
     image.write_bytes(b"synthetic image, never executed")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BK_", "_BK_", "PYTHON"))}
@@ -132,7 +143,7 @@ exec "$@"
                REAL_SHA256=shutil.which("sha256sum"), REAL_PYTHON=sys.executable,
                FAKE_LAUNCHER=str(launcher), TRACE=str(trace),
                IMPORT_TRACE=str(tmp_path / "imported"), BK_FETCH_EXPECTED_COMMIT=sha,
-               BK_OMNILEARNED_DATA=str(data.parent.parent), BK_OMNILEARNED_SIF=str(image),
+               BK_OMNILEARNED_DATA=str(data), BK_OMNILEARNED_SIF=str(image),
                BK_BUILD_CACHE_DIR=str(tmp_path / "cache"), BK_BUILD_CACHE_ENV_KEY="synthetic",
                SLURM_JOB_NODELIST="synthetic-node", SLURM_NODEID="0")
     return work, origin, sha, env
@@ -155,10 +166,14 @@ def test_fresh_source_patch_and_offline_runtime(fixture, system, nodes):
     assert result.returncode == 0, result.stdout + result.stderr
     package = work / "artifacts/runtime"
     record = json.loads((package / "build.json").read_text())
-    adjustment, = record["adjustments"]
-    assert adjustment["status"] == "applied"
-    assert adjustment["before_sha256"] != adjustment["after_sha256"]
-    assert hashlib.sha256((package / "payload/src/omnilearned/train.py").read_bytes()).hexdigest() == adjustment["after_sha256"]
+    adjustments = {change["id"]: change for change in record["adjustments"]}
+    for name, filename in (("train-pass-timer", "train.py"),
+                           ("private-dataset-index", "dataloader.py")):
+        adjustment = adjustments[name]
+        assert adjustment["status"] == "applied"
+        assert adjustment["before_sha256"] != adjustment["after_sha256"]
+        payload = package / "payload/src/omnilearned" / filename
+        assert hashlib.sha256(payload.read_bytes()).hexdigest() == adjustment["after_sha256"]
     metadata = dict(line.split("=", 1) for line in (package / "source_info.env").read_text().splitlines())
     assert base64.b64decode(metadata["BK_SOURCE_RESOLVED_COMMIT_B64"]).decode() == sha
     assert base64.b64decode(metadata["BK_REPO_URL_B64"]).decode() == "https://github.com/ViniciusMikuni/OmniLearned.git"
@@ -176,6 +191,20 @@ def test_fresh_source_patch_and_offline_runtime(fixture, system, nodes):
     assert ".runtime." in Path(env["IMPORT_TRACE"]).read_text()
     assert "FOM:" in (work / "results/result").read_text()
     assert json.loads((work / "results/build_provenance.json").read_text()) == record
+
+
+def test_missing_input_stops_before_launch(fixture):
+    work, _, _, env = fixture
+    assert build(work, env, "Fugaku").returncode == 0
+    (Path(env["BK_OMNILEARNED_DATA"]) / "top/val/val_ttbar.h5").unlink()
+    result = command(["bash", str(APP / "run.sh"), "Fugaku", "1", "1", "2"],
+                     cwd=work, env=env, check=False)
+    assert result.returncode != 0
+    assert "required staged HDF5 missing" in result.stderr
+    assert "val_ttbar.h5" in result.stderr
+    assert not (work / "train.log").exists()
+    assert not (work / ".run_marker").exists()
+    assert not list(work.glob(".omnilearned-index.*"))
 
 
 @pytest.mark.parametrize("failure", ["clone", "patch", "pip"])

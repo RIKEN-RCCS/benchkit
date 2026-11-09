@@ -1,0 +1,97 @@
+diff --git a/src/omnilearned/dataloader.py b/src/omnilearned/dataloader.py
+--- a/src/omnilearned/dataloader.py
++++ b/src/omnilearned/dataloader.py
+@@ -4,6 +4,7 @@
+ import itertools
+ import json
+ import os
++import shutil
+ from collections import OrderedDict
+ from html.parser import HTMLParser
+ from pathlib import Path
+@@ -70,18 +71,26 @@
+     return f"{base_url.rstrip('/')}/{dataset_name}/{dataset_type}/"
+-
+-
++
++
++def _index_folder(folder):
++    root = os.environ.get("OMNILEARNED_INDEX_ROOT")
++    return Path(root) / folder.parent.name / folder.name if root else folder
++
++
+ def _prepare(folder, name, split, base_url, check_remote):
+-    folder.mkdir(parents=True, exist_ok=True)
+-    with (folder / ".file_index.lock").open("a") as lock:
++    staged_only = bool(os.environ.get("OMNILEARNED_INDEX_ROOT"))
++    index_folder = _index_folder(folder)
++    index_folder.mkdir(parents=True, exist_ok=True)
++    with (index_folder / ".file_index.lock").open("a") as lock:
+         fcntl.flock(lock, fcntl.LOCK_EX)
+-        _prepare_locked(folder, name, split, base_url, check_remote)
+-
+-
+-def _prepare_locked(folder, name, split, base_url, check_remote):
+-    folder.mkdir(parents=True, exist_ok=True)
+-    local = sorted([*folder.glob("*.h5"), *folder.glob("*.hdf5")])
+-    url = get_url(name, split, base_url)
+-    if check_remote or not local:
++        _prepare_locked(folder, name, split, base_url, check_remote, index_folder, staged_only)
++
++
++def _prepare_locked(folder, name, split, base_url, check_remote, index_folder, staged_only):
++    local = sorted([p for p in [*folder.glob("*.h5"), *folder.glob("*.hdf5")] if p.is_file()])
++    if staged_only and not local:
++        raise FileNotFoundError(f"No staged HDF5 files in {folder}; downloads are disabled")
++    if not staged_only and (check_remote or not local):
++        url = get_url(name, split, base_url)
+         try:
+             remote = remote_files(url)
+         except RuntimeError:
+@@ -95,8 +104,13 @@
+             raise FileNotFoundError(
+                 f"Dataset '{name}/{split}' is unavailable: no HDF5 files in {folder} and no dataset files at {url}"
+             )
+-    files = sorted([*folder.glob("*.h5"), *folder.glob("*.hdf5")])
+-    manifest, index = folder / "file_manifest.json", folder / "file_index.npy"
++    files = local if staged_only else sorted([*folder.glob("*.h5"), *folder.glob("*.hdf5")])
++    manifest, index = index_folder / "file_manifest.json", index_folder / "file_index.npy"
++    if staged_only and not index.exists() and (folder / index.name).is_file():
++        # Preserve the staged snapshot (including which HDF5 files it indexes).
++        # Only the small metadata files are copied; HDF5 stays at the input path.
++        shutil.copyfile(folder / manifest.name, manifest)
++        shutil.copyfile(folder / index.name, index)
+     if index.exists():
+         # The index and manifest are a snapshot. Never rewrite an existing index.
+         if not manifest.exists():
+@@ -133,7 +147,7 @@
+         return
+     entries = []
+     for file in files:
+-        with h5py.File(file) as source:
++        with h5py.File(file, "r") as source:
+             if "data" not in source or "pid" not in source:
+                 raise ValueError(f"Missing data/pid in {file}")
+             if (
+@@ -150,7 +164,7 @@
+                     "mtime_ns": file.stat().st_mtime_ns,
+                 }
+             )
+-    temporary = folder / f"file_index.{os.getpid()}.tmp.npy"
++    temporary = index_folder / f"file_index.{os.getpid()}.tmp.npy"
+     array = np.lib.format.open_memmap(
+         temporary,
+         mode="w+",
+@@ -510,10 +524,10 @@
+     entries = [
+         (folder, e)
+         for folder in folders
+-        for e in json.loads((folder / "file_manifest.json").read_text())
++        for e in json.loads((_index_folder(folder) / "file_manifest.json").read_text())
+     ]
+     files = [folder / e["name"] for folder, e in entries]
+-    indices = IndexTable([folder / "file_index.npy" for folder in folders])
++    indices = IndexTable([_index_folder(folder) / "file_index.npy" for folder in folders])
+     data = HEPDataset(
+         files,
+         indices,

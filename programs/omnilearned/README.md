@@ -193,6 +193,16 @@ The `top` dataset (Top Tagging Community benchmark; 1,211,000 train /
 403,000 val / 403,000 test events, ~9.7 GB of HDF5), staged per site; paths
 and checksums in `data/README.md`. Override with `BK_OMNILEARNED_DATA`.
 
+The run requires readable, non-empty staged train and validation HDF5 files.
+It stops before launch if either is missing. The patched loader never
+downloads dataset files in a Benchkit run. It reads HDF5 directly from the
+staged location without copying it; on Fugaku that location is mounted
+read-only. The lock, index and manifest live in a fresh directory in the
+job workspace, shared only by that run's ranks. If a staged index exists,
+the loader copies its index and manifest to preserve the selected files;
+otherwise it builds them in the job workspace. The staged dataset and
+its metadata are never updated by the job.
+
 ## Known behaviors
 
 - At 4+ GPU nodes a single rank can stall silently at an end-of-pass
