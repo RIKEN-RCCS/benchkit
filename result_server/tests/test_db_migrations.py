@@ -38,16 +38,20 @@ def test_plan_is_read_only_and_migration_preserves_data(registry, tmp_path):
     state = runner.status()
     plan = runner.plan()
     assert plan["instance_id"] == state["instance_id"]
-    assert plan["steps"] == [dict(id="budget-0003-execution-targets", source=3, target=4)]
+    assert plan["steps"] == [dict(id="budget-0003-execution-targets", source=3, target=4),
+                              dict(id="budget-0004-allocation-owner", source=4, target=5)]
     assert plan["exclusive_writes"] and plan["backup_required"]
     assert registry.management_catalog(ADMIN) == before
     with registry.storage.connect(readonly=True) as conn:
         assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='db_migration_history'").fetchone()
     backup = tmp_path / "backup" / "original.db"
     result = migrate(runner, backup)
-    assert result["verified"] and result["schema_version"] == 4 and result["revision"] == revision
-    assert len(result["migrations"]) == 1
-    assert registry.management_catalog(ADMIN) == {**before, "schema_version": 4}
+    assert result["verified"] and result["schema_version"] == 5 and result["revision"] == revision
+    assert len(result["migrations"]) == 2
+    after = registry.management_catalog(ADMIN)
+    assert {k: v for k, v in after.items() if k not in ('schema_version', 'budget_defaults')} == {
+        k: v for k, v in before.items() if k not in ('schema_version', 'budget_defaults')}
+    assert after['budget_defaults'] == [dict(id='research', account_id='research-account', allocation_project_id='budget-example')]
     restored = BudgetRegistry(backup, registry.storage.key_file)
     assert restored.management_catalog(ADMIN) == before
     assert not backup.read_bytes().startswith(b"SQLite format 3")
@@ -64,10 +68,10 @@ def test_rehearsal_changes_only_the_copy(registry, tmp_path):
     before = registry.management_catalog(ADMIN)
     copy = tmp_path / "backup" / "rehearsal.db"
     result = runner.rehearse(destination=copy)
-    assert result["rehearsal"] and result["source_version"] == 3 and result["schema_version"] == 4
+    assert result["rehearsal"] and result["source_version"] == 3 and result["schema_version"] == 5
     assert result["instance_id"] != runner.status()["instance_id"]
     assert registry.management_catalog(ADMIN) == before
-    assert BudgetRegistry(copy, registry.storage.key_file).catalog(ADMIN)["schema_version"] == 4
+    assert BudgetRegistry(copy, registry.storage.key_file).catalog(ADMIN)["schema_version"] == 5
     assert not copy.read_bytes().startswith(b"SQLite format 3")
     assert copy.stat().st_mode & 0o777 == 0o600
     with pytest.raises(EncryptedDatabaseError):
@@ -162,7 +166,7 @@ def test_backup_is_under_write_lock_and_second_migrator_is_rejected(registry, tm
                                  expected_version=state["schema_version"], expected_revision=state["revision"])
         finally:
             release.set()
-        assert first.result(timeout=8)["schema_version"] == 4
+        assert first.result(timeout=8)["schema_version"] == 5
         with pytest.raises(MigrationError):
             second.result(timeout=8)
     assert not (tmp_path / "backup" / "second.db").exists()
@@ -182,10 +186,10 @@ def test_migration_never_overwrites_backup_or_source(registry, tmp_path):
 def test_numbered_chain_upgrades_only_empty_prototype(registry, tmp_path):
     legacy_empty_registry(registry)
     runner = runner_for(registry)
-    assert len(runner.plan()["steps"]) == 2
+    assert len(runner.plan()["steps"]) == 3
     assert not runner.status()["readable"]
     result = migrate(runner, tmp_path / "backup" / "prototype.db")
-    assert result["schema_version"] == 4 and len(result["migrations"]) == 2
+    assert result["schema_version"] == 5 and len(result["migrations"]) == 3
     seed(registry)
     assert runner.verify()["verified"]
 

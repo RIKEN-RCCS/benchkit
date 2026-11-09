@@ -11,13 +11,13 @@ spec.loader.exec_module(runner)
 
 
 def test_groups_keep_the_existing_sqlcipher_selection_once():
-    # Preserve the pre-split workflow selection, including the runtime report test.
+    # Preserve the complete SQLCipher selection, including new ownership coverage.
     expected = {
         "test_budget_registry.py", "test_budget_routes.py", "test_budget_groups.py",
         "test_budget_group_routes.py", "test_db_migrations.py", "test_runner_observations.py",
         "test_runner_observation_ingest_storage.py", "test_runner_observation_handoff.py",
         "test_budget_profile_preview.py", "test_budget_pipeline.py",
-        "test_budget_profile_binding.py", "test_sqlcipher_runtime_report.py",
+        "test_budget_profile_binding.py", "test_budget_ownership.py", "test_sqlcipher_runtime_report.py",
         "test_cx_persistence.py", "test_document_snapshot.py",
     }
     first, second = runner.TEST_GROUPS

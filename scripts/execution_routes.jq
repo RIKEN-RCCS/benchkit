@@ -92,6 +92,23 @@ def resolve($systems):
   | .routes;
 
 def snapshot:
+  if .version == 2 then
+    fields(["version", "registry_revision", "target", "selections"]; [])
+    | if (.registry_revision | type) != "number" or .registry_revision < 0 or
+         (.registry_revision | floor) != .registry_revision or
+         (.selections | type) != "array" or (.selections | length) == 0
+      then error("invalid snapshot selection") else . end
+    | [.selections[] | fields(["budget_id", "destination_id", "route"]; [])
+       | (.budget_id | identifier) as $budget
+       | (.destination_id | identifier) as $destination
+       | if .route.id != $destination or (.route.systems | type) != "array" or
+            (.route.systems | length) != 1 then error("invalid destination") else .route end] as $routes
+    | ($selected | split(",")) as $selected_systems
+    | if ([$routes[].systems[]] | sort) != ($selected_systems | sort) or
+         ($selected_systems | unique | length) != ($selected_systems | length)
+      then error("snapshot selection differs from requested systems") else . end
+    | {version: 1, target, routes: $routes}
+  else
   fields(["version", "registry_revision", "budget_id", "destination_id", "target", "route"]; [])
   | if (.registry_revision | type) != "number" then error("invalid registry revision")
     elif .registry_revision < 0 or (.registry_revision | floor) != .registry_revision then error("invalid registry revision")
@@ -100,7 +117,7 @@ def snapshot:
   | (.destination_id | identifier) as $destination
   | if (.route | type) != "object" or .route.id != $destination or .route.systems != [$selected]
     then error("snapshot requires exactly its selected destination and system") else . end
-  | {version, target, routes: [.route]};
+  | {version, target, routes: [.route]} end;
 
 try (catalog as $systems | strict_document
      | if $source == "snapshot" then snapshot else . end

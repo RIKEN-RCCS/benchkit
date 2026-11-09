@@ -13,8 +13,8 @@ from .gitlab_pipeline import GitLabPipelinePlan, GitLabPipelineTarget, build_pro
 @dataclass(frozen=True)
 class BudgetPipelinePlan:
     plan: GitLabPipelinePlan
-    target: GitLabPipelineTarget
-    snapshot: dict
+    target: GitLabPipelineTarget | None
+    snapshot: dict | None
 
 
 def build_budget_pipeline_plan(*, registry, actor, destination_id, expected_revision,
@@ -56,3 +56,41 @@ def build_budget_pipeline_plan(*, registry, actor, destination_id, expected_revi
         raise RegistryError("Budget pipeline target configuration is invalid")
     plan.payload["variables"]["BK_EXECUTION_ROUTE_SNAPSHOT"] = json.dumps(snapshot, separators=(",", ":"))
     return BudgetPipelinePlan(plan=plan, target=target, snapshot=snapshot)
+
+
+def build_budget_profile_plan(*, registry, actor, destination_ids, expected_revision,
+                             profile, target_ref, result_server_url, code="", system=""):
+    """Resolve every explicit system without creating extra parent pipelines."""
+    if (not isinstance(destination_ids, list) or not destination_ids or len(destination_ids) > 64
+            or not all(isinstance(item, str) and item for item in destination_ids)
+            or len(set(destination_ids)) != len(destination_ids)):
+        raise RegistryError("Select distinct Budget execution targets")
+    if ((profile or {}).get("metadata_json") or {}).get("pipeline", {}).get("backend") == "benchpark":
+        raise RegistryError("Benchpark Budget routes are not supported")
+    results = []
+    for destination_id in destination_ids:
+        results.append(build_budget_pipeline_plan(registry=registry, actor=actor, destination_id=destination_id,
+            expected_revision=expected_revision, profile=profile, target_ref=target_ref,
+            result_server_url=result_server_url, code=code))
+    systems = [item.snapshot["route"]["systems"][0] for item in results]
+    if len(set(systems)) != len(systems) or set(systems) != set(profile.get("system") or []):
+        raise RegistryError("Select exactly one Budget execution target for every profile system")
+    first = results[0]
+    if any(item.target != first.target or item.snapshot["target"] != first.snapshot["target"] for item in results):
+        raise RegistryError("One profile cannot combine different GitLab connections")
+    requested = system.split(",") if system else list(profile["system"])
+    if not requested or len(set(requested)) != len(requested) or not set(requested) <= set(systems):
+        raise RegistryError("Requested systems differ from the selected Budgets")
+    selected = [item for name in requested for item in results if item.snapshot["route"]["systems"] == [name]]
+    if len(results) == 1:
+        return first
+    plan = build_profile_pipeline_plan(profile=profile, allocation_project_id="", gitlab_repo=first.target.repo,
+        target_ref=target_ref, result_server_url=result_server_url, target_id=first.target.id,
+        code=code, system=",".join(requested))
+    if plan.errors:
+        raise RegistryError("Budget pipeline target configuration is invalid")
+    snapshot = dict(version=2, registry_revision=expected_revision, target=first.snapshot["target"],
+                    selections=[{key: item.snapshot[key] for key in ("budget_id", "destination_id", "route")}
+                                for item in selected])
+    plan.payload["variables"]["BK_EXECUTION_ROUTE_SNAPSHOT"] = json.dumps(snapshot, separators=(",", ":"))
+    return BudgetPipelinePlan(plan, first.target, snapshot)

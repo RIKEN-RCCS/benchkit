@@ -1,5 +1,9 @@
 # Encrypted Budget Registry
 
+See [Budget allocation ownership](../reference/budget-allocation-ownership.md)
+for the schema-5 transition, grouped Profile selection and copy-only rehearsal.
+Schema changes are explicit and require compatible clients, including backup validators.
+
 The budget registry is an independent SQLCipher database for shared execution
 configuration. An opt-in Portal management view and explicit profile bindings
 are available. Budget-backed submission requires a separately enabled CI target/ref.
@@ -210,16 +214,19 @@ plan is not a durable permission grant.
 
 ### Profile Bindings
 
-CX administrators can edit a registered, approved, single-system profile and
-save its Budget selection. Budget managers continue managing their assigned
+CX administrators can save an approved Profile and its Budget selections in one
+operation. A selection covers every explicit Profile system exactly once, using
+one GitLab connection; unsupported cross-project groups are rejected rather than
+split into extra pipelines. Budget managers continue managing their assigned
 Budget settings; this does not grant access to the CX administrator profile
-editor. No applicant membership is introduced. Multi-system profiles remain
-unchanged and cannot be silently narrowed by selecting a single destination.
+editor. No applicant membership is introduced. Multi-system scopes cannot be
+silently narrowed by selecting only one destination.
 
 The binding is stored in the existing profile database metadata, not the Budget
 database, with its authorizing identity, profile fingerprint and reviewed route
-snapshot. No schema migration or automatic assignment is performed. Generic
-profile updates and request approvals cannot create, remove or replace a binding.
+snapshot. No automatic assignment is performed. Generic metadata cannot inject,
+remove or replace a binding. Administrator request approval can explicitly save
+reviewed Budget selections atomically with the approved Profile.
 Relevant profile changes require reviewing the selection again. Saving checks
 the rendered profile state and registry revision to detect concurrent edits.
 
@@ -231,7 +238,10 @@ they do not fall back to the legacy GitLab selector. Bindings are not implicitly
 cleared by an empty form value. Legacy profiles without a binding retain their
 existing behavior. Trigger request records include the resolved snapshot; treat
 these records and the profile database as operational data, not public exports.
-Budget database encryption does not encrypt this separate profile database.
+Budget database encryption does not by itself encrypt the separate Profile store.
+New Benchkit Profiles created through a Budget-configured Portal require a
+selection before submitting. Existing unbound Profiles remain compatible until
+explicitly migrated; direct allocations are no longer edited on the Profile form.
 
 ### Enable Submission
 
@@ -450,6 +460,6 @@ implemented. The current review identifies affected registry destinations,
 not every external profile or scheduled trigger. Updates to enabled records
 affect subsequent resolution after saving.
 
-Profile references, execution selection, and the shared manual/scheduled/watch
-resolver remain pending. Runner registration, scheduler authorization, and CI
+Profile references and the shared manual/preview/scheduled/watch planner are
+implemented. Runner registration, scheduler authorization, and CI
 input compatibility still require validation before execution is enabled.

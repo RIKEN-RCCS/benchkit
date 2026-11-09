@@ -33,9 +33,12 @@ def main(argv=None):
         else:
             registry = BudgetRegistry(args.database, args.key_file)
             if args.command == "init":
-                registry.initialize()
+                registry.initialize(normalized=True)
             if args.command in ("migrate-empty", "migrate-targets"):
-                runner = EncryptedSQLiteMigrator(BudgetMigrationBackend(args.database, args.key_file))
+                backend = BudgetMigrationBackend(args.database, args.key_file)
+                # Legacy commands retain their advertised schema-4 destination.
+                backend.target_version = 4
+                runner = EncryptedSQLiteMigrator(backend)
                 state = runner.plan()
                 allowed = (1, 2) if args.command == "migrate-empty" else (3,)
                 if state["schema_version"] not in allowed:

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from utils.benchpark import profile_pipeline_config, result_pipeline_backend
+from utils.budget_profile_binding import allocation_display
 from utils.execution_profiles import ExecutionProfileStore, load_execution_profiles
 from utils.node_hours import compute_node_hours, extract_timestamp_from_filename
 from utils.result_records import format_result_timestamp, load_result_json
@@ -108,7 +109,7 @@ def build_profile_usage_overview(received_dir: str, db_path: str | None, *, sele
                 "code": _scope_label(profile.get("code", [])),
                 "system": _scope_label(profile.get("system", [])),
                 "exp": _scope_label(profile.get("exp", [])),
-                "allocation_project_id": profile.get("allocation_project_id") or "-",
+                "allocation_project_id": allocation_display(profile),
                 "trigger_count": len(profile_triggers),
                 "enabled_trigger_count": sum(1 for trigger in profile_triggers if trigger.get("enabled")),
                 "trigger_labels": [_trigger_label(trigger) for trigger in profile_triggers[:3]],

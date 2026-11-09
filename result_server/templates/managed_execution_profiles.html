@@ -262,7 +262,7 @@
                             </div>
                             <div>
                                 <dt>Allocation</dt>
-                                <dd><span class="managed-mono">{{ profile.allocation_project_id or '-' }}</span></dd>
+                                <dd><span class="managed-mono">{% from '_profile_allocation.html' import allocation_label %}{{ allocation_label(profile) }}</span></dd>
                             </div>
                             <div>
                                 <dt>Valid</dt>

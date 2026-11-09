@@ -11,6 +11,7 @@ class BudgetMigrationBackend:
         Migration("budget-0001-empty-prototype", 1, 3, BudgetRegistry._migrate_empty_to_three),
         Migration("budget-0002-configured-targets", 2, 3, BudgetRegistry._migrate_empty_to_three),
         Migration("budget-0003-execution-targets", 3, 4, BudgetRegistry._migrate_targets),
+        Migration("budget-0004-allocation-owner", 4, 5, BudgetRegistry._migrate_allocations),
     )
 
     def __init__(self, path, key_file):
@@ -19,6 +20,33 @@ class BudgetMigrationBackend:
 
     def copy_at(self, path):
         return type(self)(path, self.storage.key_file)
+
+    @staticmethod
+    def restore_version_four(conn):
+        """Materialize old allocation columns on a newly created rollback copy."""
+        if BudgetRegistry._schema(conn) != 5:
+            raise MigrationError("Rollback copy requires a version-5 registry")
+        conn.execute('DROP VIEW budget_destinations')
+        conn.execute("ALTER TABLE destinations ADD COLUMN allocation_project_id TEXT NOT NULL DEFAULT ''")
+        conn.execute('''UPDATE destinations SET allocation_project_id=(
+            SELECT allocation_project_id FROM budget_defaults WHERE id=destinations.budget_id)''')
+        conn.execute('UPDATE registry_meta SET schema_version=4 WHERE singleton=1')
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='db_migration_history'").fetchone():
+            conn.execute('DELETE FROM db_migration_history WHERE target_version=5')
+
+    def compatibility_copy(self, destination):
+        with self.storage.connect(readonly=True) as conn:
+            self.verify(conn)
+            if self.status(conn)['schema_version'] != 5:
+                raise MigrationError("Rollback copy requires a version-5 registry")
+        self.storage.backup(destination)
+        copy = self.copy_at(destination)
+        with copy.storage.connect() as conn:
+            with conn:
+                conn.execute('BEGIN IMMEDIATE')
+                self.restore_version_four(conn)
+                copy.verify(conn)
+                return dict(copy.status(conn), rollback_copy=True)
 
     def status(self, conn):
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -33,8 +61,8 @@ class BudgetMigrationBackend:
         history = ([dict(row) for row in conn.execute("SELECT * FROM db_migration_history ORDER BY target_version")]
                    if "db_migration_history" in tables else [])
         return dict(kind=self.kind, schema_version=version, revision=revision,
-                    readable_versions=[3, 4], writable_versions=[3, 4],
-                    readable=version in (3, 4), writable=version in (3, 4), migrations=history)
+                    readable_versions=[3, 4, 5], writable_versions=[3, 4, 5],
+                    readable=version in (3, 4, 5), writable=version in (3, 4, 5), migrations=history)
 
     def preflight(self, conn):
         self.storage._check_connection(conn)
@@ -45,7 +73,7 @@ class BudgetMigrationBackend:
                     conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
                     for table in ("budgets", managers, "connections", "execution_accounts", "destinations", "registry_history")):
                 raise MigrationError("Populated prototypes require a separately reviewed migration")
-        elif version in (3, 4):
+        elif version in (3, 4, 5):
             self._verify_relationships(conn, version)
         else:
             raise MigrationError("Unsupported Budget schema version")
@@ -62,8 +90,14 @@ class BudgetMigrationBackend:
                     UNION ALL SELECT 1 FROM budget_defaults g JOIN destinations d ON d.budget_id=g.id
                     WHERE g.allocation_project_id<>d.allocation_project_id LIMIT 1""").fetchone():
                 raise MigrationError("Budget common settings are inconsistent")
+        if version == 5 and conn.execute("""SELECT 1 FROM destinations d
+                LEFT JOIN budget_defaults g ON g.id=d.budget_id
+                LEFT JOIN execution_accounts a ON a.id=g.account_id
+                JOIN budgets b ON b.id=d.budget_id
+                WHERE g.id IS NULL OR a.system<>b.system LIMIT 1""").fetchone():
+            raise MigrationError("Budget allocation ownership is incomplete")
 
     def verify(self, conn):
         self.preflight(conn)
-        if self.status(conn)["schema_version"] not in (3, 4):
+        if self.status(conn)["schema_version"] not in (3, 4, 5):
             raise MigrationError("Budget schema is not supported for application use")

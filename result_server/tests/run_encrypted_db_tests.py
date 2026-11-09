@@ -17,7 +17,7 @@ TEST_GROUPS = (
     ("test_budget_registry.py", "test_budget_groups.py", "test_db_migrations.py",
      "test_runner_observations.py", "test_runner_observation_ingest_storage.py",
      "test_runner_observation_handoff.py", "test_budget_profile_preview.py",
-     "test_budget_pipeline.py", "test_budget_profile_binding.py",
+     "test_budget_pipeline.py", "test_budget_profile_binding.py", "test_budget_ownership.py",
      "test_sqlcipher_runtime_report.py", "test_cx_persistence.py", "test_document_snapshot.py"),
 )
 

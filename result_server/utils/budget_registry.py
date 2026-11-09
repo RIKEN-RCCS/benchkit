@@ -13,7 +13,7 @@ from .encrypted_sqlite import EncryptedSQLite
 from .gitlab_pipeline import configured_gitlab_targets
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 
 
@@ -78,7 +78,7 @@ class BudgetRegistry:
     def __init__(self, db_path, key_file):
         self.storage = EncryptedSQLite(db_path, key_file)
 
-    def initialize(self):
+    def initialize(self, *, normalized=False):
         with self.storage.connect(create=True) as conn:
             with conn:
                 conn.execute("BEGIN IMMEDIATE")
@@ -87,7 +87,7 @@ class BudgetRegistry:
                     schema_version INTEGER NOT NULL,
                     revision INTEGER NOT NULL
                 )""")
-                conn.execute("INSERT INTO registry_meta VALUES (1, ?, 0)", (SCHEMA_VERSION,))
+                conn.execute("INSERT INTO registry_meta VALUES (1, 4, 0)")
                 conn.execute("""CREATE TABLE budgets (
                     id TEXT PRIMARY KEY,
                     label TEXT NOT NULL,
@@ -141,6 +141,8 @@ class BudgetRegistry:
                     before_json TEXT NOT NULL,
                     after_json TEXT NOT NULL
                 )""")
+                if normalized:
+                    self._migrate_allocations(conn)
 
     def migrate_empty(self):
         """Explicitly upgrade an unused prototype without losing data.
@@ -199,19 +201,47 @@ class BudgetRegistry:
         conn.execute("""CREATE TABLE budget_defaults (
             id TEXT PRIMARY KEY REFERENCES budgets(id), account_id TEXT NOT NULL REFERENCES execution_accounts(id),
             allocation_project_id TEXT NOT NULL)""")
-        conn.execute("UPDATE registry_meta SET schema_version=? WHERE singleton=1", (SCHEMA_VERSION,))
+        conn.execute("UPDATE registry_meta SET schema_version=4 WHERE singleton=1")
+
+    @staticmethod
+    def _migrate_allocations(conn):
+        """Remove per-target allocation copies only after exact agreement."""
+        if BudgetRegistry._schema(conn) != 4:
+            raise RegistryError("Allocation migration requires a version-4 registry")
+        EncryptedSQLite._check_connection(conn)
+        if conn.execute("""SELECT 1 FROM destinations GROUP BY budget_id
+                HAVING COUNT(DISTINCT allocation_project_id)>1
+                UNION ALL SELECT 1 FROM destinations d JOIN budget_defaults g ON g.id=d.budget_id
+                WHERE d.allocation_project_id<>g.allocation_project_id LIMIT 1""").fetchone():
+            raise RegistryError("Allocation copies disagree; explicit review is required")
+        if conn.execute("""SELECT 1 FROM destinations d
+                WHERE NOT EXISTS(SELECT 1 FROM budget_defaults g WHERE g.id=d.budget_id)
+                GROUP BY d.budget_id HAVING COUNT(DISTINCT account_id)>1 LIMIT 1""").fetchone():
+            raise RegistryError("Common execution settings require explicit selection")
+        conn.execute("""INSERT INTO budget_defaults(id,account_id,allocation_project_id)
+            SELECT d.budget_id, d.account_id, d.allocation_project_id FROM destinations d
+            WHERE NOT EXISTS(SELECT 1 FROM budget_defaults g WHERE g.id=d.budget_id)
+            AND d.id=(SELECT MIN(x.id) FROM destinations x WHERE x.budget_id=d.budget_id)""")
+        conn.execute("ALTER TABLE destinations DROP COLUMN allocation_project_id")
+        conn.execute("""CREATE VIEW budget_destinations AS SELECT d.*,g.allocation_project_id
+            FROM destinations d JOIN budget_defaults g ON g.id=d.budget_id""")
+        conn.execute("UPDATE registry_meta SET schema_version=5 WHERE singleton=1")
+
+    @staticmethod
+    def _destinations(conn):
+        return "budget_destinations" if BudgetRegistry._schema(conn) == 5 else "destinations"
 
     @staticmethod
     def _schema(conn):
         row = conn.execute("SELECT schema_version FROM registry_meta WHERE singleton=1").fetchone()
-        if row is None or row["schema_version"] not in (3, SCHEMA_VERSION):
+        if row is None or row["schema_version"] not in (3, 4, SCHEMA_VERSION):
             raise RegistryError("Unsupported budget registry schema; explicit migration required")
         return row["schema_version"]
 
     @staticmethod
     def _revision(conn):
         row = conn.execute("SELECT schema_version, revision FROM registry_meta WHERE singleton=1").fetchone()
-        if row is None or row["schema_version"] not in (3, SCHEMA_VERSION):
+        if row is None or row["schema_version"] not in (3, 4, SCHEMA_VERSION):
             raise RegistryError("Unsupported budget registry schema; explicit migration required")
         return row["revision"]
 
@@ -430,13 +460,21 @@ class BudgetRegistry:
         if duplicate:
             raise RegistryError("This budget already has an execution destination")
         if not group_update and conn.execute(
-                "SELECT 1 FROM destinations WHERE budget_id=? AND id<>? AND allocation_project_id<>?",
+                f"SELECT 1 FROM {self._destinations(conn)} WHERE budget_id=? AND id<>? AND allocation_project_id<>?",
                 (budget_id, id, values["allocation_project_id"])).fetchone():
             raise RegistryError("Change the allocation for all execution targets in the Budget editor")
         if not group_update and self._schema(conn) >= 4 and conn.execute(
                 "SELECT 1 FROM budget_defaults WHERE id=? AND allocation_project_id<>?",
                 (budget_id, values["allocation_project_id"])).fetchone():
             raise RegistryError("Change the allocation in the grouped Budget editor")
+        if self._schema(conn) == 5:
+            common = conn.execute("SELECT * FROM budget_defaults WHERE id=?", (budget_id,)).fetchone()
+            if common is None:
+                self._save(conn, actor, "budget_defaults", dict(id=budget_id, account_id=account_id,
+                           allocation_project_id=values["allocation_project_id"]))
+            elif common["allocation_project_id"] != values["allocation_project_id"]:
+                raise RegistryError("Change the allocation in the grouped Budget editor")
+            values.pop("allocation_project_id")
         return self._save(conn, actor, "destinations", values)
 
     @staticmethod
@@ -502,7 +540,7 @@ class BudgetRegistry:
         if not isinstance(targets, list) or not 1 <= len(targets) <= 64:
             raise RegistryError("Select between 1 and 64 execution targets")
         with self._edit(actor, expected_revision, preview=preview) as conn:
-            if self._schema(conn) != SCHEMA_VERSION:
+            if self._schema(conn) < 4:
                 raise RegistryError("Execution groups require an explicit database migration")
             seen_ids, seen_systems = set(), set()
             for target in targets:
@@ -533,7 +571,7 @@ class BudgetRegistry:
             self._save(conn, actor, "budget_defaults", dict(id=budget_id, account_id=account_id,
                        allocation_project_id="" if allocation_project_id == "" else _id(allocation_project_id)),
                        skip_unchanged=True)
-            previous = conn.execute("SELECT * FROM destinations WHERE budget_id=?", (budget_id,)).fetchall()
+            previous = conn.execute(f"SELECT * FROM {self._destinations(conn)} WHERE budget_id=?", (budget_id,)).fetchall()
             for target in targets:
                 selected_account = target["account_id"] or account_id
                 other = conn.execute("SELECT connection_id FROM execution_accounts WHERE id=?", (selected_account,)).fetchone()
@@ -585,7 +623,8 @@ class BudgetRegistry:
             self._authorize(conn, actor)
             catalog = {"revision": self._revision(conn), "schema_version": self._schema(conn)}
             for table in ("budgets", "budget_managers", "connections", "execution_accounts", "destinations"):
-                catalog[table] = [dict(row) for row in conn.execute(f"SELECT * FROM {table}")]
+                source = self._destinations(conn) if table == "destinations" else table
+                catalog[table] = [dict(row) for row in conn.execute(f"SELECT * FROM {source}")]
             catalog["budget_defaults"] = ([dict(row) for row in conn.execute("SELECT * FROM budget_defaults")]
                                           if self._schema(conn) >= 4 else [])
             for record in catalog["execution_accounts"]:
@@ -634,14 +673,15 @@ class BudgetRegistry:
                 self._authorize(conn, actor)
             catalog = {"revision": revision, "schema_version": self._schema(conn)}
             for table in ("budgets", "budget_managers", "connections", "execution_accounts", "destinations"):
+                source = self._destinations(conn) if table == "destinations" else table
                 if allowed is None:
-                    rows = conn.execute(f"SELECT * FROM {table}")
+                    rows = conn.execute(f"SELECT * FROM {source}")
                 elif table in ("connections", "execution_accounts"):
                     rows = []
                 else:
                     column = "id" if table == "budgets" else "budget_id"
                     placeholders = ",".join("?" for _ in allowed)
-                    rows = conn.execute(f"SELECT * FROM {table} WHERE {column} IN ({placeholders})", allowed)
+                    rows = conn.execute(f"SELECT * FROM {source} WHERE {column} IN ({placeholders})", allowed)
                 catalog[table] = [dict(row) for row in rows]
             for record in catalog["execution_accounts"]:
                 record.pop("account_name", None)
@@ -665,10 +705,10 @@ class BudgetRegistry:
         with self.storage.connect(readonly=True) as conn:
             conn.execute("BEGIN")
             revision = self._revision(conn)
-            row = conn.execute("""SELECT d.*, b.label AS budget_label, b.enabled, b.system AS budget_system,
+            row = conn.execute(f"""SELECT d.*, b.label AS budget_label, b.enabled, b.system AS budget_system,
                        b.valid_from, b.valid_until, a.system AS account_system,
                        a.build_tag, a.run_tag, a.id_token_audience, c.id AS connection_id
-                FROM destinations d JOIN budgets b ON b.id=d.budget_id
+                FROM {self._destinations(conn)} d JOIN budgets b ON b.id=d.budget_id
                 JOIN execution_accounts a ON a.id=d.account_id
                 JOIN connections c ON c.id=a.connection_id WHERE d.id=?""", (destination_id,)).fetchone()
             if row is None:

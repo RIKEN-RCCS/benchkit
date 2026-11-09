@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 from collections.abc import Iterable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -349,7 +350,10 @@ class ExecutionProfileStore:
 
     def connect(self):
         """Return a context-managed connection on the selected backend."""
-        from .profile_storage import profile_connection
+        from .profile_storage import profile_connection, _transaction
+        active = _transaction.get()
+        if active and active[0] == os.path.abspath(self.db_path):
+            return nullcontext(active[1])
         key = self._key()
         if key:
             return profile_connection(self.db_path, key)
@@ -795,6 +799,40 @@ class ExecutionProfileStore:
         with self.connect() as conn:
             self._upsert_profile_in_conn(conn, profile, actor=actor, now=now)
 
+    def save_profile_budget(self, profile, registry, actor, destination_ids, revision, *, expected_fingerprint=None):
+        """Save the reviewed profile and its selection in one profile transaction."""
+        from .budget_profile_binding import prepare_binding, selection_fingerprint
+        from .budget_registry import RegistryError
+
+        if not actor.is_admin:
+            raise RegistryError("Profile Budget selection requires administrator approval")
+        self.migrate()
+        with self.connect() as conn:
+            if not conn.in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
+            previous = next((p for p in self._list_profiles_in_conn(conn) if p["id"] == profile["id"]), None)
+            if previous and selection_fingerprint(previous) != expected_fingerprint:
+                raise RegistryError("Profile changed; reload before saving")
+            if previous and previous["allocation_project_id"] and not profile.get("allocation_project_id"):
+                profile = dict(profile, allocation_project_id=previous["allocation_project_id"])
+            binding = prepare_binding(profile, registry, actor, destination_ids, revision)
+            profile = dict(profile, allocation_project_id="", metadata_json=dict(profile.get("metadata_json") or {},
+                                                                                 execution_mode="budget"))
+            now = _utc_now_iso()
+            self._upsert_profile_in_conn(conn, profile, actor=actor.principal, now=now)
+            self._save_budget_binding_in_conn(conn, profile["id"], binding, actor.principal, now)
+
+    def _save_budget_binding_in_conn(self, conn, profile_id, binding, actor, now, *, event_type="budget_binding_updated"):
+        from .budget_profile_binding import profile_fingerprint
+
+        stored = next(p for p in self._list_profiles_in_conn(conn) if p["id"] == profile_id)
+        binding = dict(binding, profile_fingerprint=profile_fingerprint(stored))
+        metadata = dict(stored["metadata_json"], budget_binding=binding, execution_mode="budget")
+        conn.execute("UPDATE execution_profiles SET metadata_json=?,updated_at=? WHERE id=?",
+                     (_json_dump(metadata), now, profile_id))
+        self._add_profile_event_in_conn(conn, profile_id=profile_id, actor=actor,
+            event_type=event_type, payload={}, created_at=now)
+
     def _upsert_profile_in_conn(
         self,
         conn: sqlite3.Connection,
@@ -820,9 +858,13 @@ class ExecutionProfileStore:
             previous = json.loads(existing["metadata_json"] or "{}")
             if "budget_binding" in previous:
                 metadata["budget_binding"] = previous["budget_binding"]
+            if previous.get("execution_mode") == "budget":
+                metadata["execution_mode"] = "budget"
             if isinstance(previous, dict) and "pipeline" in previous and "pipeline" not in metadata:
                 metadata["pipeline"] = previous["pipeline"]
         profile["metadata_json"] = metadata
+        if metadata.get("execution_mode") == "budget" and profile.get("allocation_project_id"):
+            raise ValueError("Budget profiles do not accept direct allocations")
         approved_by = ""
         approved_at = ""
         if profile["status"] == "approved":
@@ -1801,6 +1843,8 @@ class ExecutionProfileStore:
         actor: str,
         comment: str = "",
         profile_overrides: dict[str, Any] | None = None,
+        budget_selection=None,
+        budget_required=False,
     ) -> tuple[bool, list[str]]:
         """Approve, reject, request changes, or cancel a profile request."""
         if action not in {"approve", "reject", "request_changes", "cancel"}:
@@ -1880,7 +1924,25 @@ class ExecutionProfileStore:
                     profile, errors = normalize_profile(payload)
                     if errors or profile is None:
                         return False, errors
+                    binding = None
+                    if budget_selection:
+                        from .budget_profile_binding import prepare_binding
+                        from .budget_registry import RegistryError
+                        registry, budget_actor, ids, revision = budget_selection
+                        if not budget_actor.is_admin:
+                            return False, ["Profile Budget selection requires administrator approval"]
+                        try:
+                            binding = prepare_binding(profile, registry, budget_actor, ids, revision)
+                        except RegistryError:
+                            return False, ["Budget selection is unavailable or requires review"]
+                        profile = dict(profile, allocation_project_id="")
+                    if budget_required and profile.get("metadata_json", {}).get("pipeline", {}).get("backend") != "benchpark":
+                        if profile["allocation_project_id"] and not binding:
+                            return False, ["Select a Budget instead of entering an allocation"]
+                        profile["metadata_json"] = dict(profile["metadata_json"], execution_mode="budget")
                     self._upsert_profile_in_conn(conn, profile, actor=actor, now=now)
+                    if binding:
+                        self._save_budget_binding_in_conn(conn, profile["id"], binding, actor, now)
                     created_profile_id = profile["id"]
                     self._add_profile_event_in_conn(
                         conn,

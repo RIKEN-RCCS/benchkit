@@ -1,0 +1,18 @@
+{% macro allocation_label(profile) -%}
+{% set metadata = profile.metadata_json if profile.metadata_json is mapping else {} %}
+{% if 'budget_binding' in metadata %}Budget selected{% elif metadata.get('execution_mode') == 'budget' %}Budget selection required{% else %}{{ profile.allocation_project_id or '-' }}{% endif %}
+{%- endmacro %}
+
+{% macro budget_selection(editor) -%}
+{% if editor and editor.choices %}
+<input type="hidden" name="registry_revision" value="{{ editor.revision }}">
+<input type="hidden" name="profile_fingerprint" value="{{ editor.fingerprint }}">
+<label class="profile-form-wide" data-budget-selection>Budget Execution Targets
+    <select name="destination_id" multiple size="{{ [editor.choices | length, 8] | min }}">
+    {% for choice in editor.choices %}
+        <option value="{{ choice.id }}" {% if choice.id in editor.selected_ids %}selected{% endif %}>{{ choice.budget_label }} @ {{ choice.managed_system }} / {{ choice.system }} / {{ choice.allocation_project_id or 'No allocation override' }}</option>
+    {% endfor %}
+    </select>
+</label>
+{% endif %}
+{%- endmacro %}
