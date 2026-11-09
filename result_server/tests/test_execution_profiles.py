@@ -2516,7 +2516,8 @@ def test_admin_execution_profiles_edit_link_prefills_form(tmp_path):
         assert "Edit Profile" in html
         assert 'name="id" required placeholder="demoapp-demosystem-project00010" value="demoapp-demosystem"' in html
         assert 'name="activity" placeholder="FutureSystem" value="CX"' in html
-        assert 'name="allocation_project_id" placeholder="project00010" value="project00010"' in html
+        assert 'name="allocation_project_id"' not in html
+        assert 'Legacy Allocation: project00010' in html
         assert 'name="system" placeholder="DemoSystem" value="DemoSystem"' in html
         assert "demoapp</textarea>" in html
         assert "Cancel Edit" in html

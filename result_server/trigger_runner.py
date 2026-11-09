@@ -14,28 +14,26 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
-    from utils.budget_profile_binding import build_bound_profile_plan, has_budget_binding, require_budget_pipeline_capability
+    from utils.budget_profile_binding import build_bound_profile_plan, build_profile_execution_plan, has_budget_binding, require_budget_pipeline_capability
     from utils.budget_registry import RegistryError
     from utils.encrypted_sqlite import EncryptedDatabaseError
     from utils.execution_profiles import ExecutionProfileStore
     from utils.instance_config import resolve_instance_settings
     from utils.gitlab_pipeline import (
         GitLabPipelinePlan,
-        build_profile_pipeline_plan,
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
         scheduled_submission_status,
     )
 except ModuleNotFoundError:  # pragma: no cover - supports python -m result_server.trigger_runner
-    from result_server.utils.budget_profile_binding import build_bound_profile_plan, has_budget_binding, require_budget_pipeline_capability
+    from result_server.utils.budget_profile_binding import build_bound_profile_plan, build_profile_execution_plan, has_budget_binding, require_budget_pipeline_capability
     from result_server.utils.budget_registry import RegistryError
     from result_server.utils.encrypted_sqlite import EncryptedDatabaseError
     from result_server.utils.execution_profiles import ExecutionProfileStore
     from result_server.utils.instance_config import resolve_instance_settings
     from result_server.utils.gitlab_pipeline import (
         GitLabPipelinePlan,
-        build_profile_pipeline_plan,
         configured_gitlab_target,
         configured_gitlab_trigger_token,
         submit_pipeline_plan,
@@ -205,26 +203,15 @@ def _build_trigger_plan(
         today=now.date().isoformat(),
     )
     profile = profile_result.profile
-    gitlab_target, target_errors = configured_gitlab_target(trigger.get("gitlab_target", ""))
     target_ref = trigger.get("target_ref") or os.environ.get("RESULT_SERVER_GITLAB_REF", "")
-    plan = build_profile_pipeline_plan(
-        profile=profile,
-        gitlab_repo=gitlab_target.repo if gitlab_target else "",
-        target_ref=target_ref,
-        allocation_project_id=profile_result.allocation_project_id,
-        result_server_url=result_server_url,
-        target_id=gitlab_target.id if gitlab_target else trigger.get("gitlab_target", ""),
-    )
-    budget_snapshot = None
-    if has_budget_binding(profile):
-        try:
-            result = build_bound_profile_plan(profile, target_ref=target_ref, result_server_url=result_server_url)
-            plan, gitlab_target, target_errors = result.plan, result.target, []
-            budget_snapshot = result.snapshot
-        except (RegistryError, EncryptedDatabaseError):
-            gitlab_target, target_errors = None, []
-            plan = GitLabPipelinePlan("", {"ref": target_ref, "variables": {}},
-                                      ["Budget selection is unavailable or requires review"], [])
+    try:
+        result = build_profile_execution_plan(profile, target_ref=target_ref, result_server_url=result_server_url,
+                                               target_id=trigger.get("gitlab_target", ""))
+        plan, gitlab_target, budget_snapshot, target_errors = result.plan, result.target, result.snapshot, []
+    except (RegistryError, EncryptedDatabaseError):
+        gitlab_target, target_errors, budget_snapshot = None, [], None
+        plan = GitLabPipelinePlan("", {"ref": target_ref, "variables": {}},
+                                  ["Budget selection is unavailable or requires review"], [])
     variables = dict(plan.payload.get("variables", {}))
     variables["BK_TRIGGER_ID"] = trigger.get("id", "")
     variables["BK_TRIGGER_TYPE"] = trigger.get("trigger_type", "")

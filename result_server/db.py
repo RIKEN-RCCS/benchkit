@@ -17,7 +17,7 @@ except ModuleNotFoundError:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("status", "plan", "rehearse", "migrate", "verify"))
+    parser.add_argument("command", choices=("status", "plan", "rehearse", "rollback-copy", "migrate", "verify"))
     parser.add_argument("--kind", choices=("budget",), required=True)
     parser.add_argument("--database", required=True)
     parser.add_argument("--key-file", required=True)
@@ -28,13 +28,13 @@ def main(argv=None):
     parser.add_argument("--expect-instance", help="Instance ID returned by status or plan")
     parser.add_argument("--confirm", action="store_true", help="Confirm target and compatible clients")
     args = parser.parse_args(argv)
-    if args.command == "rehearse" and not args.destination:
-        parser.error("rehearse requires --destination")
+    if args.command in ("rehearse", "rollback-copy") and not args.destination:
+        parser.error("copy operation requires --destination")
     if args.command == "migrate" and (not args.backup or not args.confirm
                                      or args.expect_version is None or args.expect_revision is None or not args.expect_instance):
         parser.error("migrate requires --backup, --expect-version, --expect-revision, --expect-instance and --confirm")
-    if args.destination and args.command != "rehearse":
-        parser.error("--destination is only valid with rehearse")
+    if args.destination and args.command not in ("rehearse", "rollback-copy"):
+        parser.error("--destination is only valid with a copy operation")
     if args.command != "migrate" and (args.backup or args.confirm or args.expect_version is not None or args.expect_revision is not None or args.expect_instance):
         parser.error("migration options are only valid with migrate")
     try:
@@ -44,6 +44,8 @@ def main(argv=None):
                                     expected_revision=args.expect_revision, expected_instance=args.expect_instance)
         elif args.command == "rehearse":
             result = runner.rehearse(destination=args.destination)
+        elif args.command == "rollback-copy":
+            result = runner.backend.compatibility_copy(args.destination)
         else:
             result = getattr(runner, args.command)()
     except (EncryptedDatabaseError, RegistryError, MigrationError) as exc:

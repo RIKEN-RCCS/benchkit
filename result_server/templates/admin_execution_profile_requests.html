@@ -412,7 +412,7 @@
                             <dl class="request-detail-list">
                                 <div>
                                     <dt>Allocation</dt>
-                                    <dd>{{ owned_profile.allocation_project_id or '-' }}</dd>
+                                    <dd>{% from '_profile_allocation.html' import allocation_label %}{{ allocation_label(owned_profile) }}</dd>
                                 </div>
                             </dl>
                         </td>
@@ -712,10 +712,8 @@
                                 Final Profile ID
                                 <input type="text" name="approved_profile_id" value="{{ item.profile_id }}">
                             </label>
-                            <label>
-                                Allocation Project ID
-                                <input type="text" name="allocation_project_id" placeholder="project00010">
-                            </label>
+                            {% from '_profile_allocation.html' import budget_selection %}
+                            {{ budget_selection(budget_editor) }}
                             <label>
                                 Valid From
                                 <input type="date" name="valid_from">
@@ -788,7 +786,7 @@
                         <dl class="request-detail-list">
                             <div>
                                 <dt>Allocation</dt>
-                                <dd>{{ linked_profile.allocation_project_id or '-' }}</dd>
+                                <dd>{% from '_profile_allocation.html' import allocation_label %}{{ allocation_label(linked_profile) }}</dd>
                             </div>
                             <div>
                                 <dt>Triggers</dt>

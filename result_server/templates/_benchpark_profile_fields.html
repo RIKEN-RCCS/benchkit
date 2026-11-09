@@ -27,6 +27,10 @@ document.addEventListener("DOMContentLoaded", function () {
             field.disabled = backendSelect.value !== "benchpark";
             field.closest("label").hidden = field.disabled;
         });
+        backendSelect.closest("form").querySelectorAll('[data-budget-selection]').forEach(function (label) {
+            label.hidden = backendSelect.value === "benchpark";
+            label.querySelector("select").disabled = label.hidden;
+        });
     }
     if (backendSelect) backendSelect.addEventListener("change", updateBackendFields);
     updateBackendFields();

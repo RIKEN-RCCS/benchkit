@@ -25,8 +25,8 @@ from flask import (
 from utils.admin_policy import is_valid_email, parse_affiliations
 from utils.audit_logging import audit_event
 from utils.budget_profile_binding import (
-    build_bound_profile_plan, configured_registry, current_actor, has_budget_binding,
-    prepare_binding, selection_fingerprint, require_budget_pipeline_capability,
+    build_profile_execution_plan, configured_registry, current_actor, has_budget_binding,
+    selection_fingerprint, require_budget_pipeline_capability,
 )
 from utils.budget_registry import RegistryError
 from utils.encrypted_sqlite import EncryptedDatabaseError
@@ -38,8 +38,6 @@ from utils.execution_profiles import (
 )
 from utils.gitlab_pipeline import (
     GitLabPipelinePlan,
-    build_profile_pipeline_plan,
-    configured_gitlab_target,
     configured_gitlab_targets,
     configured_gitlab_trigger_token,
     profile_scope_csv,
@@ -118,6 +116,10 @@ def _parse_execution_profile_form():
     code = _split_form_list(request.form.get("code", ""))
     system = _split_form_list(request.form.get("system", ""))
     allocation_project_id = request.form.get("allocation_project_id", "").strip()
+    if allocation_project_id and current_app.config.get("BUDGET_REGISTRY_DB_PATH"):
+        errors.append("Select a Budget instead of entering an allocation")
+    if current_app.config.get("BUDGET_REGISTRY_DB_PATH") and not metadata.get("pipeline", {}).get("backend") == "benchpark":
+        metadata["execution_mode"] = "budget"
     if allocation_project_id and len(system) != 1:
         system_label = ", ".join(system) if system else "none"
         errors.append(
@@ -773,30 +775,19 @@ def _build_execution_pipeline_plan(store):
     effective_code = code or profile_scope_csv(profile, "code")
     effective_system = system or profile_scope_csv(profile, "system")
     effective_exp = exp or profile_scope_csv(profile, "exp")
-    gitlab_target, target_errors = configured_gitlab_target(gitlab_target_id)
-    plan = build_profile_pipeline_plan(
-        profile=profile,
-        gitlab_repo=gitlab_target.repo if gitlab_target else "",
-        target_ref=target_ref,
-        code=effective_code,
-        system=effective_system,
-        allocation_project_id=resolve_result.allocation_project_id,
-        result_server_url=_portal_result_server_url(),
-        target_id=gitlab_target.id if gitlab_target else gitlab_target_id,
-    )
-    if has_budget_binding(profile):
-        try:
-            users = get_user_store()
-            result = build_bound_profile_plan(profile, target_ref=target_ref, result_server_url=_portal_result_server_url(),
-                                              registry=configured_registry(current_app.config), users=users,
-                                              actor=current_actor(session.get("user_email", ""), users),
-                                              code=code, system=system)
-            plan, gitlab_target, target_errors = result.plan, result.target, []
-            effective_system = plan.payload["variables"]["system"]
-        except (RegistryError, EncryptedDatabaseError):
-            gitlab_target, target_errors = None, []
-            plan = GitLabPipelinePlan("", {"ref": target_ref, "variables": {}},
-                                      ["Budget selection is unavailable or requires review"], [])
+    try:
+        users = get_user_store() if has_budget_binding(profile) else None
+        result = build_profile_execution_plan(profile, target_ref=target_ref,
+            result_server_url=_portal_result_server_url(), target_id=gitlab_target_id,
+            registry=configured_registry(current_app.config) if has_budget_binding(profile) else None,
+            users=users, actor=current_actor(session.get("user_email", ""), users) if users else None,
+            code=code, system=system)
+        plan, gitlab_target, target_errors = result.plan, result.target, []
+        effective_system = plan.payload["variables"].get("system", effective_system)
+    except (RegistryError, EncryptedDatabaseError):
+        gitlab_target, target_errors = None, []
+        plan = GitLabPipelinePlan("", {"ref": target_ref, "variables": {}},
+                                  ["Budget selection is unavailable or requires review"], [])
     variables = plan.payload.setdefault("variables", {})
     manual_trigger_id = profile["id"] if profile else profile_id
     variables["BK_TRIGGER_ID"] = manual_trigger_id
@@ -923,13 +914,14 @@ def execution_profiles():
 
 
 def _budget_editor(profile):
-    if not profile:
-        return None
+    profile = profile or {}
     metadata = profile.get("metadata_json") or {}
     binding = metadata.get("budget_binding") if isinstance(metadata, dict) else None
     snapshot = binding.get("snapshot") if isinstance(binding, dict) else None
     selected = snapshot.get("destination_id", "") if isinstance(snapshot, dict) else ""
-    editor = dict(selected=selected, fingerprint=selection_fingerprint(profile), choices=[], error="", revision=None)
+    selected_ids = ([item["destination_id"] for item in snapshot.get("selections", [])]
+                    if isinstance(snapshot, dict) and snapshot.get("version") == 2 else ([selected] if selected else []))
+    editor = dict(selected=selected, selected_ids=selected_ids, fingerprint=selection_fingerprint(profile), choices=[], error="", revision=None)
     editor["submission_paused"] = not os.environ.get("RESULT_SERVER_BUDGET_PIPELINE_TARGET_REFS")
     if not current_app.config.get("BUDGET_REGISTRY_DB_PATH") and not has_budget_binding(profile):
         return None
@@ -939,14 +931,15 @@ def _budget_editor(profile):
         editor["revision"] = catalog["revision"]
         today = datetime.now(UTC).date().isoformat()
         editor["choices"] = [row for row in catalog["destinations"]
-                             if profile.get("system") == [row["system"]] and row["enabled"]
+                             if (not profile.get("system") or row["system"] in profile["system"]) and row["enabled"]
                              and (not row["valid_from"] or row["valid_from"] <= today)
                              and (not row["valid_until"] or row["valid_until"] >= today)]
+        if actor.is_admin:
+            registry = configured_registry(current_app.config)
+            for choice in editor["choices"]:
+                choice["allocation_project_id"] = registry.resolve(actor, choice["id"])["route"]["allocation_project_id"]
         if not editor["choices"]:
-            editor["error"] = "No active Budget matches this profile's single system."
-        if profile.get("status") != "approved" or not profile.get("enabled"):
-            editor["choices"] = []
-            editor["error"] = "An active approved profile is required."
+            editor["error"] = "No active Budget matches this profile's systems."
     except (RegistryError, EncryptedDatabaseError):
         editor["error"] = "Budget selection is unavailable."
     return editor
@@ -977,10 +970,9 @@ def save_execution_profile_budget(profile_id):
         profile = next((item for item in store.list_profiles() if item["id"] == profile_id), None)
         if profile is None:
             abort(404)
-        binding = prepare_binding(profile, configured_registry(current_app.config), actor,
-                                  request.form.get("destination_id", ""), int(request.form.get("registry_revision", "")))
-        store.set_budget_binding(profile_id, binding, expected_fingerprint=request.form.get("profile_fingerprint", ""),
-                                 actor=actor.principal)
+        store.save_profile_budget(profile, configured_registry(current_app.config), actor,
+                                  request.form.getlist("destination_id"), int(request.form.get("registry_revision", "")),
+                                  expected_fingerprint=request.form.get("profile_fingerprint", ""))
         flash("Budget selection saved.")
     except (ValueError, EncryptedDatabaseError, sqlite3.Error):
         flash("Budget selection was not saved. Reload and review the profile and Budget settings.")
@@ -1015,6 +1007,7 @@ def execution_profile_requests():
         default_target_ref=_default_trigger_ref(),
         gitlab_targets=configured_gitlab_targets()[0],
         review_mode=True,
+        budget_editor=_budget_editor(None),
         create_endpoint="admin.create_execution_profile_request",
     )
 
@@ -1397,6 +1390,9 @@ def review_execution_profile_request(request_id):
     actor = session.get("user_email", "")
     profile_overrides = {}
     if action == "approve":
+        if request.form.get("allocation_project_id", "").strip() and current_app.config.get("BUDGET_REGISTRY_DB_PATH"):
+            flash("Select a Budget on the approved profile instead of entering an allocation.")
+            return redirect(url_for("admin.execution_profile_requests"))
         profile_overrides = {
             "id": request.form.get("approved_profile_id", "").strip(),
             "allocation_project_id": request.form.get("allocation_project_id", "").strip(),
@@ -1404,12 +1400,22 @@ def review_execution_profile_request(request_id):
             "valid_until": request.form.get("valid_until", "").strip(),
         }
     store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
+    budget_selection = None
+    if action == "approve" and request.form.getlist("destination_id"):
+        try:
+            budget_selection = (configured_registry(current_app.config), current_actor(actor, get_user_store()),
+                                request.form.getlist("destination_id"), int(request.form.get("registry_revision", "")))
+        except (ValueError, EncryptedDatabaseError):
+            flash("Budget selection was not saved. Reload and review the settings.")
+            return redirect(url_for("admin.execution_profile_requests"))
     ok, errors = store.review_profile_request(
         request_id,
         action=action,
         actor=actor,
         comment=comment,
         profile_overrides=profile_overrides,
+        budget_selection=budget_selection,
+        budget_required=bool(current_app.config.get("BUDGET_REGISTRY_DB_PATH")),
     )
     created_triggers = []
     trigger_errors = []
@@ -1586,8 +1592,21 @@ def upsert_execution_profile():
 
     try:
         store = ExecutionProfileStore(current_app.config.get("EXECUTION_PROFILE_DB_PATH"))
-        store.upsert_profile(profile, actor=session.get("user_email", ""))
-    except sqlite3.Error as exc:
+        ids = request.form.getlist("destination_id")
+        if ids:
+            users = get_user_store()
+            actor = current_actor(session.get("user_email", ""), users)
+            store.save_profile_budget(profile, configured_registry(current_app.config), actor, ids,
+                int(request.form.get("registry_revision", "")),
+                expected_fingerprint=request.form.get("profile_fingerprint"))
+        else:
+            previous = next((p for p in store.list_profiles() if p["id"] == profile["id"]), None)
+            if previous and not has_budget_binding(previous):
+                profile["metadata_json"].pop("execution_mode", None)
+            if previous and previous.get("allocation_project_id"):
+                profile["allocation_project_id"] = previous["allocation_project_id"]
+            store.upsert_profile(profile, actor=session.get("user_email", ""))
+    except (sqlite3.Error, RegistryError) as exc:
         audit_event(
             "admin_execution_profile_save_failed",
             actor=session.get("user_email"),
