@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 pytest.importorskip('sqlcipher3.dbapi2')
 
 from utils.cx_persistence import CxPersistence
+from utils import cx_migration
 from utils.cx_migration import import_snapshot, recover_copy
 from utils.encrypted_sqlite import EncryptedDatabaseError, generate_key
 from utils.execution_profiles import ExecutionProfileStore
@@ -69,6 +70,34 @@ def test_explicit_migration_recovery_and_rebuild_keep_opaque_bytes(snapshot, tmp
         assert conn.execute('SELECT COUNT(*) FROM query_records').fetchone()[0] == 1
         assert conn.execute('SELECT COUNT(*) FROM query_records WHERE directory=?', (roots['estimates'],)).fetchone()[0] == 0
     assert {k: hashlib.sha256((Path(roots[k[0]]) / k[1]).read_bytes()).hexdigest() for k in files} == original
+
+
+def test_retained_file_change_is_rejected_before_final_snapshot_check(snapshot, monkeypatch):
+    store, profile, roots, _ = snapshot
+    original_put = store.put
+    snapshot_files = cx_migration._snapshot_files
+    scan_count = 0
+
+    def initial_scan_only(roots):
+        nonlocal scan_count
+        scan_count += 1
+        assert scan_count == 1, 'Migration reached the final snapshot comparison'
+        return snapshot_files(roots)
+
+    def put_and_change_source(role, name, source, **kwargs):
+        result = original_put(role, name, source, **kwargs)
+        if role == store.LEGACY_FILES_ROLE:
+            with open(source.name, 'ab') as changed:
+                changed.write(b' changed during import')
+        return result
+
+    monkeypatch.setattr(cx_migration, '_snapshot_files', initial_scan_only)
+    monkeypatch.setattr(store, 'put', put_and_change_source)
+    with pytest.raises(ValueError, match='^Snapshot changed while reading$'):
+        import_snapshot(store, profile_copy=profile, source_roots=roots, preserve_legacy_files=True)
+    assert scan_count == 1
+    with store._connect(readonly=True) as conn:
+        assert conn.execute('SELECT ready FROM catalog_state').fetchone()[0] == 0
 
 
 def test_default_migration_still_rejects_non_json(snapshot):

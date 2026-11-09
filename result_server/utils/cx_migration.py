@@ -184,24 +184,28 @@ def import_snapshot(destination, *, profile_copy, source_roots, identity=None, s
                     total += before.st_size
                     if total > max_total_bytes:
                         raise ValueError("Snapshot exceeds configured total limit")
+                    is_retained = False
                     with path.open("rb") as source:
                         if role in ("results", "estimates"):
                             from .legacy_files import document_file_identity
-                            if preserve_legacy_files and document_file_identity(role, name) is None:
+                            is_retained = preserve_legacy_files and document_file_identity(role, name) is None
+                            if is_retained:
                                 destination.put(destination.LEGACY_FILES_ROLE, role + '/' + name,
                                                 source, limit=max_file_bytes, conn=conn)
-                                retained += 1
-                                continue
-                            if path.suffix != ".json":
-                                raise ValueError("Unexpected non-JSON document in snapshot")
-                            destination.put_document(role, name, source.read(), conn=conn, update_metadata=False)
+                            else:
+                                if path.suffix != ".json":
+                                    raise ValueError("Unexpected non-JSON document in snapshot")
+                                destination.put_document(role, name, source.read(), conn=conn, update_metadata=False)
                         else:
                             destination.put(role, name, source, limit=max_file_bytes, conn=conn)
                     after = _regular(path)
                     if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
                             after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
                         raise ValueError("Snapshot changed while reading")
-                    counts[role] += 1
+                    if is_retained:
+                        retained += 1
+                    else:
+                        counts[role] += 1
             stems = {row[0].split("/", 1)[0] for row in conn.execute("SELECT name FROM cx_objects WHERE role='inputs'") if '/' in row[0]}
             stems.update(path.name for path in roots['inputs'].iterdir() if path.is_dir() and not path.is_symlink())
             for stem in sorted(stems):
