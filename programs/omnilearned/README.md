@@ -39,9 +39,9 @@ settings and has not been tuned.
 
 `source.env` declares the upstream URL and pinned commit. Each build makes a
 fresh private checkout rather than reusing an existing `OmniLearned` directory.
-The timer patch is applied explicitly; its before/after hashes and diff hash
-are recorded with the resolved source commit. An incompatible patch fails the
-build instead of accepting a matching text marker as evidence of application.
+The timer and dataset-index patches are applied explicitly; their before/after
+hashes and diff hashes are recorded with the resolved source commit. An
+incompatible patch fails the build.
 
 Successful builds publish the adjusted tracked source (plus the generated
 `_version.py`, when present) in `artifacts/runtime`, with an inventory of paths,
@@ -49,8 +49,8 @@ modes and SHA-256 values. Runs validate and restore this payload into a private
 directory and select its `src` through `PYTHONPATH`, without fetching Git source
 again. Source and adjustment metadata accompany the Result. This checks the
 build/run handoff, not upstream authenticity, dependency completeness, or the
-integrity of the separately staged SIF and dataset. Existing build dependencies,
-SIF selection and dataset observation policies are unchanged.
+integrity of the SIF or dataset. See [The Fugaku SIF](#the-fugaku-sif) for image
+verification and [Dataset](#dataset) for input handling and observation.
 
 **GPUs and Genoa.** `build.sh` makes a venv with `torch==2.11.0` (on
 aarch64 PyPI ships the CUDA wheel) and installs OmniLearned. `run.sh` uses
@@ -69,9 +69,10 @@ official `torch==2.11.0` wheel plus torch_fugaku (a batch-parallel `bmm`, SVE
 `gelu`/`gelu_backward`/`tanh`, oneDNN off, and DDP gradients summed over
 Fujitsu MPI). `build.sh`, on the login node:
 
-1. fetches OmniLearned and applies the timer patch, as on every system;
-2. fetches pytorch-fugaku's launch scripts at a pinned commit;
-3. installs OmniLearned's dependencies (`fugaku-requirements.txt`, exact
+1. fetches OmniLearned and applies the timer and dataset-index patches, as on every system;
+2. selects the SIF and verifies the default image as described below;
+3. fetches pytorch-fugaku's launch scripts at a pinned commit;
+4. installs OmniLearned's dependencies (`fugaku-requirements.txt`, exact
    versions) as aarch64 wheels into `artifacts/pydeps`, with a pinned static
    `uv` (the login node's Python is 3.6).
 
@@ -123,10 +124,13 @@ and checked by `build.sh`, the normal-mode rows ran 16.6 and 60.4 events/s at 1 
 
 ## The Fugaku SIF
 
-`build.sh` downloads the pytorch-fugaku image (commit `d7fb755`, built by that
-repo's CI) into `artifacts/` and checks its SHA-256. The download is HTTPS
-from a public registry, needs no credentials, and is pinned by digest.
-`BK_OMNILEARNED_SIF` selects a pre-staged file instead (not checked).
+`build.sh` downloads the default pytorch-fugaku SIF (commit `d7fb755`, built by
+that repo's CI) into `artifacts/` if it is absent. The public GHCR blob is fetched
+over HTTPS by digest without user credentials. The build checks the default
+file against the pinned SHA-256 even when reusing a local copy.
+`BK_OMNILEARNED_SIF` selects a pre-staged file instead: the build checks that
+it exists, but does not compare it with the pinned SHA-256. Both paths are
+subject to the run-time hash observation described below.
 
 | | |
 |---|---|
@@ -165,8 +169,8 @@ observation is not prevented by this record.
 
 The selected `BK_OMNILEARNED_DATA` root's `top/` tree is recorded once through
 `bk_record_input`, before MPI launch and outside the training timer. This
-describes staged inputs (including available index/manifest files), not a
-claim that every split/file was consumed. Newly generated files and later
+describes staged inputs (including any staged index/manifest files), not a
+claim that every split/file was consumed. Job-local loader metadata and later
 changes are not covered by that pre-launch observation. Hashing the staged
 tree adds launch-side I/O; it is not repeated for every rank. Observation
 is skipped on DGX Spark to preserve its deliberate no-warmup policy for
@@ -193,8 +197,8 @@ The `top` dataset (Top Tagging Community benchmark; 1,211,000 train /
 403,000 val / 403,000 test events, ~9.7 GB of HDF5), staged per site; paths
 and checksums in `data/README.md`. Override with `BK_OMNILEARNED_DATA`.
 
-The run requires readable, non-empty staged train and validation HDF5 files.
-It stops before launch if either is missing. The patched loader never
+The run stops before launch if either required staged train or validation HDF5
+file is missing, unreadable, or empty. The patched loader never
 downloads dataset files in a Benchkit run. It reads HDF5 directly from the
 staged location without copying it; on Fugaku that location is mounted
 read-only. The lock, index and manifest live in a fresh directory in the
