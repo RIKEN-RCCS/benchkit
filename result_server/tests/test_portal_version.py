@@ -24,9 +24,9 @@ def test_release_notes_have_unique_versions_and_descending_dates():
     dates = [date.fromisoformat(release["date"]) for release in dated_releases]
     assert len(versions) == len(set(versions))
     assert dates == sorted(dates, reverse=True)
-    assert releases[0]["version"] == "Unreleased"
-    assert releases[0]["date"] == ""
-    assert len(dated_releases) == len(releases) - 1
+    assert releases[0]["version"] == "v2026.11.11"
+    assert releases[0]["date"] == "2026-11-11"
+    assert len(dated_releases) == len(releases)
     for release, released_on in zip(dated_releases, dates):
         assert release["version"] == released_on.strftime("v%Y.%m.%d")
 
@@ -47,7 +47,7 @@ def test_dated_changes_version_matches_an_exact_release_tag(monkeypatch, tmp_pat
     assert info == {"label": release["version"], "commit": "123456789abc", "source": "git"}
 
 
-def test_planned_changes_do_not_override_an_untagged_checkout(monkeypatch, tmp_path):
+def test_dated_changes_do_not_override_an_untagged_checkout(monkeypatch, tmp_path):
     monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: tmp_path)
 
     def fake_run_git(args, git_root):

@@ -9,10 +9,10 @@ from pathlib import Path
 
 RELEASE_NOTES = [
     {
-        "version": "Unreleased",
-        "date": "",
+        "version": "v2026.11.11",
+        "date": "2026-11-11",
         "title": "Result discovery and execution tracking",
-        "summary": "Updates prepared for the next public CX Portal release. The release date is not yet scheduled.",
+        "summary": "CX Portal release for November 11, 2026, with improved result discovery and execution tracking.",
         "changes": [
             "Find available benchmark results by system, application and experiment, and retain comparison selections across searches.",
             "Improve Result search and authenticated Usage report responsiveness with a rebuildable index.",

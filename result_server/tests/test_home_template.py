@@ -123,17 +123,21 @@ def test_changes_page_renders_release_notes(monkeypatch):
 
 
 @pytest.mark.parametrize("prefix,public", [("", True), ("/console", False)])
-def test_changes_page_renders_unreleased_without_date_and_keeps_history(prefix, public):
-    from utils.portal_version import portal_release_notes
+def test_changes_page_renders_release_date_and_keeps_history(prefix, public):
+    from utils.portal_version import portal_release_notes, portal_version_info
 
     app = _home_app(prefix)
     app.config["PUBLIC_PORTAL_MODE"] = public
+    app.config["PORTAL_VERSION"] = portal_version_info(env={"RESULT_SERVER_VERSION": "v2026.11.11"})
     response = app.test_client().get(prefix + "/changes")
     assert response.status_code == 200
     text = response.get_data(as_text=True)
     releases = portal_release_notes()
-    assert releases[0]["version"] == "Unreleased"
-    assert releases[0]["date"] == ""
+    assert releases[0]["version"] == "v2026.11.11"
+    assert releases[0]["date"] == "2026-11-11"
+    assert '<span class="changes-release-date">2026-11-11</span>' in text
+    assert '<span class="portal-version-label">v2026.11.11</span>' in text
+    assert "The release date is not yet scheduled." not in text
     assert '<span class="changes-release-date"></span>' not in text
     for release in releases:
         for field in ("version", "date", "title", "summary"):
