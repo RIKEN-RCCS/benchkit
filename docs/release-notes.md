@@ -1,8 +1,8 @@
 # Benchkit Release Notes
 
-## Unreleased - Result discovery and execution tracking
+## v2026.11.11 - Result discovery and execution tracking
 
-Updates prepared for the next public CX Portal release. The release date is not yet scheduled.
+CX Portal release for November 11, 2026, with improved result discovery and execution tracking.
 
 - Find available benchmark results by system, application and experiment, and retain comparison selections across searches.
 - Improve Result search and authenticated Usage report responsiveness with a rebuildable index.
