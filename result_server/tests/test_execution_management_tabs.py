@@ -9,6 +9,8 @@ from test_execution_profiles import (
     _admin_app, _cleanup, _login_admin, _login_user, _profile, _scheduled_trigger,
 )
 from test_execution_history import request as record_request
+from utils.budget_profile_binding import selection_fingerprint
+from utils.budget_registry import RegistryActor, RegistryError
 from utils.execution_profiles import ExecutionProfileStore
 
 
@@ -206,3 +208,75 @@ def test_profile_and_dry_run_do_not_resolve_receipts(portal, monkeypatch):
         row = conn.execute('SELECT status FROM execution_requests WHERE dry_run=1').fetchone()
     assert row['status'] == 'dry_run_ready'
     assert 'data-history-auto' not in response.text
+
+
+def test_profiles_show_saved_budgets_and_activity(portal, monkeypatch):
+    _, client, store = portal
+    before = {}
+    for name, metadata, activity in (
+        ('single', {'budget_binding': {'snapshot': {'version': 1, 'destination_id': 'active'}}}, 'CX <test>'),
+        ('multiple', {'budget_binding': {'snapshot': {'version': 2, 'selections': [
+            {'destination_id': 'active'}, {'destination_id': 'expired'},
+            {'destination_id': 'disabled'}, {'destination_id': 'missing'},
+        ]}}}, ''),
+        ('review', {'budget_binding': {'snapshot': {'version': 2, 'selections': [None]}}}, ''),
+        ('required', {'execution_mode': 'budget'}, ''),
+        ('unbound', {}, ''),
+    ):
+        profile = _profile(id=name, metadata_json=metadata, activity=activity,
+                           allocation_project_id='retained-legacy' if name == 'single' else '')
+        store.upsert_profile(profile, actor='admin')
+        if 'budget_binding' in metadata:
+            stored = next(row for row in store.list_profiles() if row['id'] == name)
+            store.set_budget_binding(name, metadata['budget_binding'],
+                                     expected_fingerprint=selection_fingerprint(stored), actor='admin')
+    before = {row['id']: row['metadata_json'] for row in store.list_profiles()}
+    seen = []
+    actor = RegistryActor('admin@test.com', True)
+    monkeypatch.setattr('routes.admin.current_actor', lambda *_: actor)
+
+    class Catalog:
+        def list_destinations(self, requested_actor):
+            seen.append(requested_actor)
+            return {'destinations': [
+                dict(id='active', budget_label='CX & Benchmark', managed_system='Fugaku', system='Fugaku',
+                     enabled=True, valid_from='', valid_until=''),
+                dict(id='expired', budget_label='Old', managed_system='Fugaku', system='Target A',
+                     enabled=True, valid_from='', valid_until='2000-01-01'),
+                dict(id='disabled', budget_label='Disabled budget', managed_system='Cloud', system='Cloud',
+                     enabled=False, valid_from='', valid_until=''),
+                dict(id='not-saved', budget_label='Do not display', managed_system='Fugaku', system='Fugaku',
+                     enabled=True, valid_from='', valid_until=''),
+            ]}
+
+    monkeypatch.setattr('routes.admin.configured_registry', lambda _: Catalog())
+    page = client.get('/admin/execution-profiles?tab=profiles')
+    assert page.status_code == 200
+    assert seen == [actor]
+    html = page.text
+    assert 'Budget / Allocation</th>' in html and 'Activity</th>' in html
+    assert 'CX &amp; Benchmark @ Fugaku +3' in html
+    assert 'Old @ Fugaku / Target A (Expired)' in html
+    assert 'Disabled budget @ Cloud (Disabled)' in html
+    assert 'Saved target unavailable' in html
+    assert 'Saved Budget selection needs review' in html
+    assert 'Budget selection required' in html and 'Not connected' in html
+    assert 'class="profile-col-activity">CX &lt;test&gt;</td>' in html
+    assert 'class="profile-col-activity">Not set</td>' in html
+    assert 'Do not display' not in html and 'retained-legacy' not in html
+    assert 'Legacy allocation:' in html and 'project00010' in html
+    assert 'edit=single' in html and '<details class="profile-budget-targets">' in html
+    assert {p['id']: p['metadata_json'] for p in store.list_profiles()} == before
+
+    def unavailable(_):
+        raise RegistryError('private diagnostic')
+
+    monkeypatch.setattr('routes.admin.configured_registry', unavailable)
+    page = client.get('/admin/execution-profiles?tab=profiles')
+    assert page.status_code == 200
+    assert 'Budget catalog unavailable' in page.text and 'private diagnostic' not in page.text
+    assert 'Saved target unavailable' not in page.text
+    _login_user(client)
+    page = client.get('/admin/execution-profiles?tab=profiles')
+    assert page.status_code in (302, 403)
+    assert 'CX &amp; Benchmark' not in page.text and 'CX &lt;test&gt;' not in page.text

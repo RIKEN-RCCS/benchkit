@@ -37,10 +37,26 @@
         background: #f4f4f5;
         color: #52525b;
     }
+    .profile-table {
+        table-layout: fixed;
+        min-width: 65rem;
+    }
     .profile-table td {
         vertical-align: middle;
-        white-space: nowrap;
+        max-width: none;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
     }
+    .profile-table th.profile-col-trigger { width: 11rem; }
+    .profile-table th.profile-col-id { width: 15%; }
+    .profile-table th.profile-col-scope { width: 18%; }
+    .profile-table th.profile-col-budget { width: 16%; }
+    .profile-table th.profile-col-activity { width: 14%; }
+    .profile-table th.profile-col-manage { width: 6.5rem; }
+    .profile-governance-period { display: block; }
+    .profile-budget-targets summary { cursor: pointer; }
+    .profile-budget-targets ul { margin: 4px 0 0; padding-inline-start: 1.25rem; }
     .profile-mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 13px;
@@ -125,9 +141,6 @@
         color: #475569;
         font-size: 12px;
         font-weight: 700;
-        white-space: nowrap;
-    }
-    .profile-scope-line {
         white-space: nowrap;
     }
     .profile-id-link {
@@ -220,17 +233,10 @@
     .trigger-type-fields-active {
         display: contents;
     }
-    .profile-col-trigger {
-        width: 1%;
-    }
-    .profile-table td.profile-col-trigger {
-        min-width: 15rem;
-        max-width: none;
-        white-space: normal;
-    }
     .profile-table .profile-row-actions form {
         flex-wrap: wrap;
-        width: 15rem;
+        width: 100%;
+        min-width: 0;
     }
     .profile-table .profile-row-actions .profile-benchpark-ref {
         flex: 0 0 100%;
@@ -245,24 +251,6 @@
     }
     .profile-table .profile-row-actions .profile-icon-button {
         flex: 0 0 22px;
-    }
-    .profile-col-id {
-        width: 16ch;
-        max-width: 16ch;
-    }
-    .profile-col-id .profile-mono {
-        display: inline-block;
-        max-width: 16ch;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        vertical-align: bottom;
-        white-space: nowrap;
-    }
-    .profile-col-scope {
-        min-width: 22ch;
-    }
-    .profile-col-governance {
-        min-width: 28ch;
     }
     .profile-check-label {
         display: inline-flex;

@@ -1,4 +1,7 @@
-{% from '_profile_allocation.html' import allocation_label, budget_selection %}
+{% from '_profile_allocation.html' import budget_selection %}
+{% macro saved_budget_target(target) -%}
+{{ target.label }}{% if target.status %} ({{ target.status }}){% endif %}
+{%- endmacro %}
     <div class="profile-summary-grid">
         <div class="profile-summary-card">
             <strong>{{ profile_result.profiles | length }}</strong>
@@ -31,9 +34,11 @@
                 <tr>
                     <th class="profile-col-trigger">Trigger</th>
                     <th class="profile-col-id">ID</th>
-                    <th class="profile-col-scope">Scope / Allocation</th>
+                    <th class="profile-col-scope">Scope</th>
+                    <th class="profile-col-budget">Budget / Allocation</th>
+                    <th class="profile-col-activity">Activity</th>
                     <th class="profile-col-governance">Governance</th>
-                    <th>Manage</th>
+                    <th class="profile-col-manage">Manage</th>
                 </tr>
             </thead>
             <tbody>
@@ -78,7 +83,7 @@
                         <a class="profile-mono profile-id-link" href="{{ url_for('admin.execution_profiles', edit=profile.id) }}" title="{{ profile.id }}">{{ profile.id }}</a>
                     </td>
                     <td class="profile-col-scope">
-                        <span class="profile-scope-line">
+                        <span>
                             <span class="profile-mono">{{ profile.code | join(', ') or '*' }}{% if profile.metadata_json is mapping and profile.metadata_json.get('pipeline') is mapping and profile.metadata_json.pipeline.get('backend') == 'benchpark' %}<br>Benchpark: {{ profile.metadata_json.pipeline.site }} / {{ profile.metadata_json.pipeline.experiment_config }}{% endif %}</span>
                             on
                             <span class="profile-mono">{{ profile.system | join(', ') or '*' }}</span>
@@ -86,15 +91,38 @@
                             / <span class="profile-mono">{{ profile.exp | join(', ') }}</span>
                             {% endif %}
                         </span>
-                        / <span class="profile-mono">{{ allocation_label(profile) }}</span>
                     </td>
-                    <td class="profile-col-governance">
-                        {{ profile.activity or '-' }} / {{ profile.approved_by or '-' }} /
-                        {% if profile.valid_from or profile.valid_until %}
-                        {{ profile.valid_from or 'open' }} to {{ profile.valid_until or 'open' }}
+                    <td class="profile-col-budget">
+                        {% set budget = profile_budget_summaries.get(profile.id) %}
+                        {% if budget and budget.targets %}
+                            {% if budget.targets | length > 1 %}
+                            <details class="profile-budget-targets">
+                                <summary>{{ saved_budget_target(budget.targets[0]) }} +{{ budget.targets | length - 1 }}</summary>
+                                <ul>
+                                    {% for target in budget.targets %}<li>{{ saved_budget_target(target) }}</li>{% endfor %}
+                                </ul>
+                            </details>
+                            {% else %}
+                            {{ saved_budget_target(budget.targets[0]) }}
+                            {% endif %}
+                        {% elif budget %}
+                            {{ budget.status }}
+                        {% elif profile.allocation_project_id %}
+                            Legacy allocation: <span class="profile-mono">{{ profile.allocation_project_id }}</span>
                         {% else %}
-                        open-ended
+                            Not connected
                         {% endif %}
+                    </td>
+                    <td class="profile-col-activity">{{ profile.activity or 'Not set' }}</td>
+                    <td class="profile-col-governance">
+                        <span>{{ profile.approved_by or '-' }}</span>
+                        <span class="profile-governance-period">
+                            {% if profile.valid_from or profile.valid_until %}
+                            {{ profile.valid_from or 'open' }} to {{ profile.valid_until or 'open' }}
+                            {% else %}
+                            open-ended
+                            {% endif %}
+                        </span>
                     </td>
                     <td>
                         <div class="profile-mini-actions">
@@ -107,7 +135,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="5">No execution profiles are registered.</td>
+                    <td colspan="7">No execution profiles are registered.</td>
                 </tr>
             {% endfor %}
             </tbody>
