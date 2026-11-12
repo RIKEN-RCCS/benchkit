@@ -51,6 +51,9 @@ def test_admin_selects_and_saves_without_duplicate_gitlab_input(editor, monkeypa
     assert "Budget selection saved" in page.get_data(as_text=True)
     row = re.search(r'<tr data-profile-row.*?</tr>', page.get_data(as_text=True), re.S).group()
     assert 'name="gitlab_target"' not in row
+    assert "Research @ Example Center / Fugaku" in row
+    assert 'class="profile-col-activity">Public Example</td>' in row
+    assert re.search(r'<option value="selected"\s+selected>', page.text)
     assert bindings.has_budget_binding(store.list_profiles()[0])
     submitted = []
     def submit(plan, *, token):

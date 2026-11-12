@@ -912,6 +912,7 @@ def execution_profiles():
         "admin_execution_profiles.html",
         profile_result=profile_result,
         registered_profiles=registered_profiles,
+        profile_budget_summaries=_profile_budget_summaries(registered_profiles),
         trigger_definitions=trigger_definitions,
         **_execution_history_context(
             db_path, resolve_results=request.args.get("history_results") == "1"
@@ -929,6 +930,64 @@ def execution_profiles():
         gitlab_targets=configured_gitlab_targets()[0],
         budget_editor=_budget_editor(edit_profile),
     )
+
+
+def _profile_budget_summaries(profiles):
+    summaries, saved = {}, {}
+    for profile in profiles:
+        if not has_budget_binding(profile):
+            continue
+        metadata = profile.get("metadata_json")
+        binding = metadata.get("budget_binding") if isinstance(metadata, dict) else None
+        snapshot = binding.get("snapshot") if isinstance(binding, dict) else None
+        profile_id = profile["id"]
+        if isinstance(metadata, dict) and metadata.get("execution_mode") == "budget" and "budget_binding" not in metadata:
+            summaries[profile_id] = {"status": "Budget selection required"}
+            continue
+        items = []
+        if isinstance(snapshot, dict) and type(snapshot.get("version")) is int:
+            if snapshot["version"] == 1:
+                items = [snapshot]
+            elif snapshot["version"] == 2:
+                items = snapshot.get("selections")
+        ids = ([item.get("destination_id") if isinstance(item, dict) else None for item in items]
+               if isinstance(items, list) and 0 < len(items) <= 64 else [])
+        if not ids or not all(isinstance(value, str) and value.strip() for value in ids) or len(set(ids)) != len(ids):
+            summaries[profile_id] = {"status": "Saved Budget selection needs review"}
+            continue
+        saved[profile_id] = ids
+    if not saved:
+        return summaries
+
+    try:
+        actor = current_actor(session.get("user_email", ""), get_user_store())
+        catalog = configured_registry(current_app.config).list_destinations(actor)
+    except (RegistryError, EncryptedDatabaseError, sqlite3.Error):
+        summaries.update({profile_id: {"status": "Budget catalog unavailable"} for profile_id in saved})
+        return summaries
+
+    destinations = {row["id"]: row for row in catalog["destinations"]}
+    today = datetime.now(UTC).date().isoformat()
+    for profile_id, ids in saved.items():
+        targets = []
+        for destination_id in ids:
+            row = destinations.get(destination_id)
+            if row is None:
+                targets.append({"label": "Saved target unavailable", "status": ""})
+                continue
+            label = f"{row['budget_label']} @ {row['managed_system']}"
+            if row["system"] != row["managed_system"]:
+                label += f" / {row['system']}"
+            status = ""
+            if not row["enabled"]:
+                status = "Disabled"
+            elif row["valid_until"] and row["valid_until"] < today:
+                status = "Expired"
+            elif row["valid_from"] and row["valid_from"] > today:
+                status = "Not yet active"
+            targets.append({"label": label, "status": status})
+        summaries[profile_id] = {"targets": targets}
+    return summaries
 
 
 def _budget_editor(profile):
@@ -1740,6 +1799,7 @@ def dry_run_execution_profile_submit():
         "admin_execution_profiles.html",
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
+        profile_budget_summaries=_profile_budget_summaries(profile_result.profiles),
         trigger_definitions=_list_trigger_definitions(db_path),
         **_execution_history_context(db_path),
         trigger_observations=_list_trigger_observations(db_path),
@@ -1856,6 +1916,7 @@ def submit_execution_profile_pipeline():
         "admin_execution_profiles.html",
         profile_result=profile_result,
         registered_profiles=profile_result.profiles,
+        profile_budget_summaries=_profile_budget_summaries(profile_result.profiles),
         trigger_definitions=_list_trigger_definitions(db_path),
         **_execution_history_context(db_path),
         trigger_observations=_list_trigger_observations(db_path),
