@@ -19,6 +19,7 @@ class _HomeLinks(HTMLParser):
         super().__init__()
         self.links = []
         self.access_notes = 0
+        self.participation_headings = 0
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
@@ -27,6 +28,8 @@ class _HomeLinks(HTMLParser):
             self.links.append(attrs)
         if tag == "span" and "home-access-note" in attrs.get("class", "").split():
             self.access_notes += 1
+        if tag == "h2" and attrs.get("id") == "participate":
+            self.participation_headings += 1
 
 
 def _home_app(prefix=""):
@@ -56,10 +59,21 @@ def test_home_entry_points_follow_access_mode(monkeypatch, prefix, public, role)
                 sess["user_email"] = "user@example.invalid"
         response = client.get(f"{prefix}/")
     assert response.status_code == 200
-    page = _HomeLinks(response.get_data(as_text=True))
+    html = response.get_data(as_text=True)
+    page = _HomeLinks(html)
     cards = page.links
     assert page.access_notes == int(not public and role is None)
     hrefs = [card["href"] for card in cards]
+    assert hrefs.count("#participate") == page.participation_headings == int(public)
+    assert ("<title>CX Portal | HPC and AI Application Benchmarks</title>" in html) is public
+    assert ("<h1 class=\"page-title\">CX Portal</h1>" in html) is public
+    assert ("CX supports benchmarking for HPC and AI applications." in html) is public
+    assert ("benchmark results approved for public release" in html) is public
+    assert ("What can application developers gain?" in html) is public
+    assert ("<strong>Browse public benchmark results</strong>" in html) is public
+    assert ("<strong>Participate in CX</strong>" in html) is public
+    assert ("representative inputs, and the metrics you want to measure" in html) is public
+    assert ("User Guide: Add a New Application" in html) is (not public)
     with app.test_request_context():
         from flask import url_for
 
