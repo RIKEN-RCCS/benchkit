@@ -95,12 +95,18 @@
 .nav-dropdown-menu a:hover { background-color: #f0f0f0; }
 .nav-dropdown-menu hr { margin: 4px 0; border: none; border-top: 1px solid #eee; }
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+@media (max-width: 480px) {
+    .nav-bar--public { position: static; padding: 0 8px; }
+    .nav-bar--public .nav-left { min-width: 0; flex-wrap: wrap; }
+    .nav-bar--public .nav-brand { flex-basis: 100%; margin-right: 0; padding: 10px 8px; }
+    .nav-bar--public .nav-link { padding-inline: 8px; }
+}
 </style>
 
 {% set public_portal_mode = config.get('PUBLIC_PORTAL_MODE', False) %}
 {% set console_prefix = '/dev2/console' if request.path == '/dev2' or request.path.startswith('/dev2/') else ('/dev/console' if request.path == '/dev' or request.path.startswith('/dev/') else ('/console' if request.path == '/console' or request.path.startswith('/console/') else '')) %}
 
-<nav class="nav-bar">
+<nav class="nav-bar{% if public_portal_mode %} nav-bar--public{% endif %}">
     <div class="nav-left">
         <a href="{{ url_for('home') }}" class="nav-brand">CX Portal</a>
         <a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">Home</a>
