@@ -244,7 +244,7 @@ def test_public_portal_mode_hides_home_restricted_entry_points(monkeypatch):
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Browse Results" in html
+    assert "Browse public benchmark results" in html
     assert "View All Systems" in html
     assert "Estimated Results (login required)" not in html
     assert "Open Estimated Results" not in html
@@ -272,7 +272,7 @@ def test_public_portal_mode_hides_home_restricted_entry_points_when_authenticate
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Browse Results" in html
+    assert "Browse public benchmark results" in html
     assert "View All Systems" in html
     assert "Open Estimated Results" not in html
     assert "Operations Views" not in html

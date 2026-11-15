@@ -1,10 +1,10 @@
 {% extends "_results_base.html" %}
 
-{% block title %}CX Portal{% endblock %}
-{% block page_title %}CX Data Flow, Connected Systems, and Portal Access{% endblock %}
+{% block title %}CX Portal{% if config.get('PUBLIC_PORTAL_MODE', False) %} | HPC and AI Application Benchmarks{% endif %}{% endblock %}
+{% block page_title %}{% if config.get('PUBLIC_PORTAL_MODE', False) %}CX Portal{% else %}CX Data Flow, Connected Systems, and Portal Access{% endif %}{% endblock %}
 {% block page_subtitle %}
 {% if config.get('PUBLIC_PORTAL_MODE', False) %}
-This portal publishes public CX benchmark results and connected system information for integrated HPC applications.
+CX supports benchmarking for HPC and AI applications. The CX Portal lets you browse benchmark results approved for public release and review the conditions under which they were measured.
 {% else %}
 This portal is part of the CX Framework, supporting continuous benchmarking, estimation, and feedback for integrated HPC applications.
 {% endif %}
@@ -75,19 +75,24 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
 
 <section class="home-content-grid {% if is_operator %}home-content-grid-three{% endif %}">
     <section class="page-card">
+        {% if public_surface %}
+        <h2 class="section-title">What can application developers gain?</h2>
+        <p class="section-intro">By participating in CX, you can see how your application behaves under different computing conditions and use repeated measurements to understand the effects of code changes, porting, and optimization. Recording the conditions alongside the measurements makes it easier to interpret results and share those approved for publication with collaborators.</p>
+        {% else %}
         <h2 class="section-title">Main Entry Points</h2>
-        <p class="section-intro">
-            {% if public_surface %}
-            Start here for the public portal pages used to browse measured results and connected systems.
-            {% else %}
-            Start here for the main portal pages used to browse measured results, projected outputs, and connected systems.
-            {% endif %}
-        </p>
+        <p class="section-intro">Start here for the main portal pages used to browse measured results, projected outputs, and connected systems.</p>
+        {% endif %}
         <div class="home-link-list">
             <a class="home-link-card" href="{{ url_for('results.results') }}">
-                <strong>Browse Results</strong>
+                <strong>{% if public_surface %}Browse public benchmark results{% else %}Browse Results{% endif %}</strong>
                 <span>Browse measured benchmark results, compare runs, and inspect result-quality detail pages.</span>
             </a>
+            {% if public_surface %}
+            <a class="home-link-card" href="#participate">
+                <strong>Participate in CX</strong>
+                <span>Find the technical guides for preparing your application for benchmarking.</span>
+            </a>
+            {% endif %}
             {% if show_restricted_entries or not public_portal_mode %}
             <a class="home-link-card" href="{% if show_restricted_entries %}{{ url_for('estimated.estimated_results') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
                 {% if show_restricted_entries %}
@@ -107,11 +112,16 @@ This portal is part of the CX Framework, supporting continuous benchmarking, est
         </div>
     </section>
 
-    <section class="page-card">
+    <section class="page-card"{% if public_surface %} aria-labelledby="participate"{% endif %}>
+        {% if public_surface %}
+        <h2 class="section-title" id="participate" tabindex="-1">Participate in CX: Add an application</h2>
+        <p class="section-intro">Prepare your build and run instructions, representative inputs, and the metrics you want to measure. Use the Benchkit guide to define a benchmark, or the Benchpark guide if you use Benchpark to prepare the application.</p>
+        {% else %}
         <h2 class="section-title">User Guide: Add a New Application</h2>
         <p class="section-intro">
             These guides explain how to add benchmark applications with Benchkit and coordinate Benchpark-based application bring-up.
         </p>
+        {% endif %}
         <div class="home-link-list">
             <a class="home-link-card" href="{{ guide_links.add_app }}" target="_blank" rel="noopener noreferrer">
                 <strong>Benchkit Application Guide</strong>
