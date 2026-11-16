@@ -1,6 +1,9 @@
 """Persisted manual history renders without resubmission or cross-project links."""
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 
 import pytest
 
@@ -13,13 +16,13 @@ from utils.trigger_display import build_trigger_result_links
 
 
 def request(store, *, project='gitlab.example.org/group/park', pipeline=42,
-            status='submitted', dry_run=False, request_type='gitlab_pipeline'):
+            status='submitted', dry_run=False, request_type='gitlab_pipeline', backend='benchpark'):
     return store.create_execution_request(
         request_type=request_type, status=status, dry_run=dry_run,
         profile_id='park-qws', target_ref='main', code='qws', system='ExampleSystem',
         actor='admin@test.com', errors=['Submission rejected'] if status != 'submitted' else [],
         payload={'gitlab_project': project, 'gitlab_target': 'park',
-                 'payload': {'ref': 'main', 'variables': {'BK_PIPELINE_BACKEND': 'benchpark'}},
+                 'payload': {'ref': 'main', 'variables': {'BK_PIPELINE_BACKEND': backend}},
                  'submit': {'response': {'id': pipeline, 'web_url': 'javascript:alert(1)'}}},
     )
 
@@ -30,6 +33,94 @@ def result(path, *, project='gitlab.example.org/group/park', pipeline=42):
         'execution_trigger': {'id': 'park-qws', 'type': 'manual_button'},
         'code': 'qws', 'system': 'ExampleSystem', 'FOM': 1, 'FOM_unit': 's',
     }))
+
+
+def _capture_benchkit_result(workspace, *, server="", project=""):
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    workspace.mkdir()
+    (workspace / "scripts").symlink_to(scripts, target_is_directory=True)
+    original = workspace / "results"
+    original.mkdir()
+    (original / "result").write_text(
+        "FOM:1.25 FOM_unit:s FOM_version:test Exp:CASE0 node_count:1 numproc_node:2 nthreads:3\n")
+    (original / "result0.json").write_text('{"historical":true}\n')
+    bin_dir = workspace / "bin"
+    bin_dir.mkdir()
+    curl = bin_dir / "curl"
+    curl.write_text("""#!/bin/bash
+set -euo pipefail
+for arg in "$@"; do
+    case "$arg" in
+        https://results.example.invalid/api/ingest/result) endpoint=1 ;;
+        @results/result0.json) file=${arg#@} ;;
+    esac
+done
+[[ ${endpoint:-} == 1 && -n ${file:-} && ! -e "$CAPTURE_RESULT" ]]
+cp "$file" "$CAPTURE_RESULT"
+printf '%s\n' '{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","timestamp":"20261116_010000"}'
+""")
+    curl.chmod(0o700)
+    for name in ("client.crt", "client.key"):
+        (workspace / name).touch()
+    captured = workspace / "captured.json"
+    env = {
+        "PATH": str(bin_dir) + os.pathsep + os.defpath, "HOME": str(workspace),
+        "LC_ALL": "C", "BK_PUBLIC_ACCESS_CHECK": "0", "CAPTURE_RESULT": str(captured),
+        "RESULT_SERVER": "https://results.example.invalid",
+        "RESULT_SERVER_CLIENT_CERT": str(workspace / "client.crt"),
+        "RESULT_SERVER_CLIENT_KEY": str(workspace / "client.key"),
+        "PARENT_PIPELINE_ID": "42", "CI_SERVER_URL": server, "CI_PROJECT_PATH": project,
+    }
+    completed = subprocess.run(
+        ["bash", "scripts/result_server/process_and_send_results.sh",
+         "demo", "system", "cross", "build", "run", "43"],
+        cwd=workspace, env=env, capture_output=True, text=True, timeout=30)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert (original / "result0.json").read_text() == '{"historical":true}\n'
+    payload = json.loads(captured.read_bytes())
+    assert "ci_project" not in payload or isinstance(payload["ci_project"], str)
+    assert "_server_uuid" not in payload
+    assert (payload["pipeline_id"], payload["parent_pipeline_id"]) == (43, 42)
+    assert float(payload["FOM"]) == 1.25 and payload["FOM_unit"] == "s"
+    return captured
+
+
+def test_generated_benchkit_results_do_not_cross_gitlab_hosts_in_history(history_client, tmp_path):
+    _app, client, store, received = history_client
+    projects = {
+        "old": "swc.example.invalid/group/subgroup/kit",
+        "new": "gitlab.com/group/subgroup/kit",
+    }
+    ids = {}
+    for name, project in projects.items():
+        host, path = project.split("/", 1)
+        ids[name] = request(store, project=project, backend="benchkit")
+        payload = _capture_benchkit_result(tmp_path / name, server=f"https://{host}/", project=path)
+        assert json.loads(payload.read_bytes())["ci_project"] == project
+        shutil.copyfile(payload, received / f"{name}.json")
+    # A legacy Result with the same numbers must remain unassigned under either filter.
+    legacy = _capture_benchkit_result(tmp_path / "legacy")
+    assert "ci_project" not in json.loads(legacy.read_bytes())
+    shutil.copyfile(legacy, received / "legacy.json")
+    # Same parent submission and same child Result pipeline ID on both hosts.
+    _login_admin(client)
+    for name, other in (("old", "new"), ("new", "old")):
+        response = client.get(f"/admin/execution-profiles/history/manual/{ids[name]}/results")
+        assert response.status_code == 200
+        assert f"https://{projects[name]}/-/pipelines/42" in response.text
+        assert f"/results/detail/{name}.json" in response.text
+        assert f"/results/detail/{other}.json" not in response.text
+        assert "/results/detail/legacy.json" not in response.text
+
+
+@pytest.mark.parametrize("server, project", [
+    ("https://gitlab.com", ""),
+    ("https://user:synthetic@gitlab.com", "group/kit"),
+    ("https://gitlab.com", "group/../kit"),
+])
+def test_unusable_ci_identity_is_omitted_from_benchkit_post_body(tmp_path, server, project):
+    captured = _capture_benchkit_result(tmp_path / "fixture", server=server, project=project)
+    assert "ci_project" not in json.loads(captured.read_bytes())
 
 
 def test_manual_requests_survive_reload_and_link_by_project_and_pipeline(tmp_path):

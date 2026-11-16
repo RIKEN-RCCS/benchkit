@@ -36,6 +36,23 @@ node_count='how_many'
 numproc_node=""
 nthreads=""
 
+# Match the Portal's host/project identity, not the benchmark source repository.
+ci_project_block=""
+ci_server_pattern='^https?://([A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]+)?)/?$'
+ci_project_pattern='^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+$'
+ci_project_path="${CI_PROJECT_PATH:-}"
+if [[ "$ci_project_path" =~ $ci_project_pattern &&
+      "/$ci_project_path/" != */./* && "/$ci_project_path/" != */../* &&
+      "${CI_SERVER_URL:-}" =~ $ci_server_pattern ]]; then
+  ci_project="${BASH_REMATCH[1],,}/$ci_project_path"
+  if ! ci_project_json=$(jq -cn --arg project "$ci_project" '$project'); then
+    echo "ERROR: Failed to encode the CI project identity" >&2
+    exit 1
+  fi
+  ci_project_block=",
+  \"ci_project\": $ci_project_json"
+fi
+
 # Read the lightweight profiler manifest from a padata archive and turn it into
 # the small profile_data block stored in result*.json. Missing or unreadable
 # archives are ignored so FOM result generation is not blocked by profiler
@@ -1224,7 +1241,7 @@ write_result_json() {
   "nthreads": "$nthreads",
   "description": "$description",
   "confidential": "$confidential",
-  "source_info": $source_info_block${observation_definition_block}${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
+  "source_info": $source_info_block${observation_definition_block}${input_info_json_block}${timing_observations_json_block}${profile_data_block}${fom_breakdown_block}${timing_block}${mode_block}${trigger_block}${build_job_block}${run_job_block}${pipeline_id_block}${parent_pipeline_id_block}${ci_project_block}${execution_trigger_block}${environment_snapshot_json_block}${build_cache_json_block}${node_status_snapshot_json_block}
 }
 EOF
   then
