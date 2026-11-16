@@ -117,7 +117,7 @@ jobs:
         id: gitlab-repo-com
         uses: ./trusted/.github/actions/prepare-gitlab-repo
         with:
-          gitlab-repo: gitlab.com/yoshifuminakamura/benchkit.git
+          gitlab-repo: gitlab.com/cx-benchmarks/benchkit.git
 
       - name: Check out target ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
