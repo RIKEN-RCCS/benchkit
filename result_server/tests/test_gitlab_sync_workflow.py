@@ -12,6 +12,7 @@ import pytest
 
 
 WORKFLOW = Path(__file__).resolve().parents[2] / '.github/workflows/sync-to-gitlab.yml'
+SYNTHETIC_DEPLOY_KEY = 'synthetic deploy key only'
 
 
 def job(name):
@@ -30,14 +31,36 @@ def push_script(name):
 def mirrors(tmp_path):
     tools = tmp_path / 'tools'
     tools.mkdir()
+    ssh_tmp = tmp_path / 'ssh-tmp'
+    ssh_tmp.mkdir()
     fake_git = tools / 'git'
     fake_git.write_text('#!' + sys.executable + '\n' + textwrap.dedent('''
-        import json, os, pathlib, sys, time
+        import json, os, pathlib, shlex, stat, sys, time
         args = sys.argv[1:]
         target = os.environ['TEST_MIRROR']
         if args[:2] == ['remote', 'add']:
-            assert args[2] == ('gitlab' if target == 'swc' else 'gitlab-com')
-            assert args[3].startswith('https://oauth2:')
+            assert len(args) == 4
+            if target == 'swc':
+                assert args[2:] == ['gitlab', 'https://oauth2:test-placeholder@example.invalid/repo.git']
+            else:
+                assert args[2] == 'gitlab-com'
+                assert args[3].startswith('git@gitlab.com:') and args[3].endswith('.git')
+                assert 'GITLAB_COM_DEPLOY_KEY' not in os.environ
+                ssh = shlex.split(os.environ['GIT_SSH_COMMAND'])
+                assert ssh[:3] == ['ssh', '-F', '/dev/null']
+                key = pathlib.Path(ssh[ssh.index('-i') + 1])
+                options = {value for flag, value in zip(ssh, ssh[1:]) if flag == '-o'}
+                assert {'IdentityAgent=none', 'IdentitiesOnly=yes', 'BatchMode=yes',
+                        'StrictHostKeyChecking=yes', 'HostKeyAlgorithms=ssh-ed25519'} <= options
+                known_hosts, = (pathlib.Path(value.split('=', 1)[1]) for value in options
+                                if value.startswith('UserKnownHostsFile='))
+                assert key.parent.parent == pathlib.Path(os.environ['TMPDIR'])
+                assert known_hosts.parent == key.parent
+                assert stat.S_IMODE(key.parent.stat().st_mode) == 0o700
+                assert stat.S_IMODE(key.stat().st_mode) == stat.S_IMODE(known_hosts.stat().st_mode) == 0o600
+                assert key.read_text() == os.environ['TEST_EXPECTED_KEY'] + '\\n'
+                host, algorithm, public_key = known_hosts.read_text().split()
+                assert (host, algorithm) == ('gitlab.com', 'ssh-ed25519') and public_key
             raise SystemExit(0)
         assert args[0] == 'push'
         with open(os.environ['TEST_CALLS'], 'a') as out:
@@ -50,16 +73,17 @@ def mirrors(tmp_path):
         raise SystemExit(1 if failure == 'all' or (failure == 'tags' and '--tags' in args) else 0)
     '''))
     fake_git.chmod(0o700)
-    return tmp_path, dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
+    yield tmp_path, dict(PATH=str(tools) + os.pathsep + os.defpath, HOME=str(tmp_path),
+                         TMPDIR=str(ssh_tmp), TEST_EXPECTED_KEY=SYNTHETIC_DEPLOY_KEY,
                          GITLAB_TOKEN='test-placeholder', GITLAB_REPO_HOST_PATH='example.invalid/repo.git',
-                         GITLAB_COM_TOKEN='test-placeholder',
-                         GITLAB_COM_REPO_HOST_PATH='gitlab.com/example/repo.git')
+                         GITLAB_COM_DEPLOY_KEY=SYNTHETIC_DEPLOY_KEY)
+    assert not list(ssh_tmp.iterdir())
 
 
 def command(mirrors, target, **overrides):
     root, env = mirrors
-    return ['bash', '-c', push_script('sync-swc' if target == 'swc' else 'sync-gitlab-com')], dict(
-        env, TEST_MIRROR=target, TEST_CALLS=str(root / (target + '.jsonl')), **overrides)
+    return ['bash', '-c', push_script('sync-swc' if target == 'swc' else 'sync-gitlab-com')], {
+        **env, 'TEST_MIRROR': target, 'TEST_CALLS': str(root / (target + '.jsonl')), **overrides}
 
 
 def run(mirrors, target, **overrides):
@@ -119,8 +143,10 @@ def test_primary_configuration_is_required(mirrors, variable):
     assert calls(mirrors, 'swc') == []
 
 
-def test_optional_mirror_without_token_is_skipped(mirrors):
-    assert run(mirrors, 'com', GITLAB_COM_TOKEN='').returncode == 0
+def test_gitlab_com_deploy_key_is_required(mirrors):
+    result = run(mirrors, 'com', GITLAB_COM_DEPLOY_KEY='')
+    assert result.returncode != 0
+    assert 'GITLAB_COM_DEPLOY_KEY is required' in result.stdout
     assert calls(mirrors, 'com') == []
 
 
