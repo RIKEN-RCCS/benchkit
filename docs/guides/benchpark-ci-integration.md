@@ -98,7 +98,12 @@ Benchpark results; Benchkit-only list/detail/compare output retains its existing
 An existing build.harness.name=benchpark also identifies historical Benchpark
 results, without rewriting stored data or inferring the producer from Caliper.
 
-New results with a recorded CI project match Portal history by project plus
+New Benchkit CI results also record `ci_project` from `CI_SERVER_URL` and
+`CI_PROJECT_PATH` when both supply a host and a project path. Local conversions
+without this information omit the field; existing Results are not rewritten.
+The CI project identifier can be visible in published Result comparisons;
+review it along with other provenance before publishing a Result.
+Results with a recorded CI project match Portal history by host/project plus
 pipeline ID. An ID shared by multiple projects is ambiguous for an old result
 without a project and does not supply Activity or trigger context. Historical
 Benchpark records identified by their harness cannot borrow Benchkit run context.
