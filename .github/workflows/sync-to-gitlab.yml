@@ -65,15 +65,24 @@ jobs:
 
       - name: Push protected branches and tags to GitLab.com
         env:
-          GITLAB_COM_TOKEN: ${{ secrets.GITLAB_COM_TOKEN }}
-          GITLAB_COM_REPO_HOST_PATH: gitlab.com/cx-benchmarks/benchkit.git
+          GITLAB_COM_DEPLOY_KEY: ${{ secrets.GITLAB_COM_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${GITLAB_COM_TOKEN}" ]; then
-            echo "GITLAB_COM_TOKEN is not set; skipping GitLab.com mirror ${GITLAB_COM_REPO_HOST_PATH}."
-            exit 0
+          if [ -z "$GITLAB_COM_DEPLOY_KEY" ]; then
+            echo "GITLAB_COM_DEPLOY_KEY is required for GitLab.com synchronization."
+            exit 1
           fi
-          git remote add gitlab-com "https://oauth2:${GITLAB_COM_TOKEN}@${GITLAB_COM_REPO_HOST_PATH}"
+
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          printf '%s\n' "$GITLAB_COM_DEPLOY_KEY" > "$ssh_dir/deploy_key"
+          unset GITLAB_COM_DEPLOY_KEY
+
+          # GitLab.com publishes this ED25519 host key in its instance documentation.
+          printf '%s\n' 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf' > "$ssh_dir/known_hosts"
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i '$ssh_dir/deploy_key' -o IdentityAgent=none -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o UserKnownHostsFile='$ssh_dir/known_hosts'"
+          git remote add gitlab-com git@gitlab.com:cx-benchmarks/benchkit.git
           git push -o ci.skip gitlab-com \
             refs/remotes/origin/develop:refs/heads/develop \
             refs/remotes/origin/main:refs/heads/main
