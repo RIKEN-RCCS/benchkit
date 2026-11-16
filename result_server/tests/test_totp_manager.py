@@ -22,7 +22,7 @@ from utils import totp_manager
 ])
 def test_qr_png_and_provisioning_uri(monkeypatch, email, issuer):
     """Exercise the real QR/Pillow path using synthetic enrollment data."""
-    secret = "JBSWY3DPEHPK3PXP"
+    secret = base64.b32encode(b"synthetic-otp-secret").decode("ascii")
     actual_make = totp_manager.qrcode.make
     observed = []
 
