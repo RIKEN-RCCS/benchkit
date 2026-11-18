@@ -153,22 +153,25 @@ collect_measurement_artifacts_for_result() {
     printf '%s\t%s\n' "$legacy_tgz_file" ""
   fi
 
+  local paths
+  paths=$(jq -r '
+    def entries: arrays | .[] | objects;
+    def file_reference_paths:
+      (.fom_breakdown | objects | (.sections, .overlaps) | entries | .artifacts | entries),
+      (.timing_observations | objects | .observations | entries |
+        (.artifact, (select(.format == "benchkit-observation-bundle/v1") | .summary | objects | .bundle))),
+      (.node_status_snapshot | objects | .artifact);
+    file_reference_paths | objects | select(.type == "file_reference") | .path | strings |
+      select(length > 0 and (explode | all(. >= 32 and . != 127)))
+  ' "$json_file") || return 1
+
   while IFS= read -r artifact_path; do
     [[ -n "$artifact_path" ]] || continue
     if is_safe_local_measurement_artifact_path "$artifact_path" && [[ -z "${seen_artifacts[$artifact_path]:-}" ]]; then
       seen_artifacts["$artifact_path"]=1
       printf '%s\t%s\n' "$artifact_path" "$artifact_path"
     fi
-  done < <(jq -r '
-    def file_reference_paths:
-      ((.fom_breakdown.sections // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
-      ((.fom_breakdown.overlaps // [])[]? | (.artifacts // [])[]? | select(.type == "file_reference") | .path // empty),
-      ((.timing_observations.observations // [])[]? | .artifact? | select(.type == "file_reference") | .path // empty),
-      ((.timing_observations.observations // [])[]? | select(.format == "benchkit-observation-bundle/v1") |
-        .summary.bundle? | select(.type == "file_reference") | .path // empty),
-      (.node_status_snapshot.artifact? | select(.type == "file_reference") | .path // empty);
-    file_reference_paths
-  ' "$json_file" 2>/dev/null || true)
+  done <<< "$paths"
 }
 
 upload_measurement_artifact() {
@@ -176,7 +179,7 @@ upload_measurement_artifact() {
   local uuid="$2"
   local timestamp="$3"
   local artifact_path="${4:-}"
-  local response
+  local response curl_status
 
   echo "Uploading measurement artifact $artifact_file with UUID $uuid"
   local curl_auth_args=()
@@ -189,22 +192,24 @@ upload_measurement_artifact() {
     curl_form_args+=(-F "artifact_path=${artifact_path}")
   fi
   bk_result_server_set_curl_args
-  if response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/measurement-artifact" \
+  if response=$(curl --retry 0 --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/measurement-artifact" \
     "${curl_form_args[@]}" 2>&1); then
     if [[ -n "$response" ]]; then
       echo "$response"
     fi
     echo "Uploaded measurement artifact $artifact_file"
     return 0
+  else
+    curl_status=$?
   fi
 
-  if printf '%s\n' "$response" | grep -q '413'; then
+  if [[ $curl_status == 22 && $response =~ error:[[:space:]]413([^0-9]|$) ]]; then
     echo "WARNING: Skipping measurement artifact upload because the server rejected ${artifact_file} as too large (HTTP 413)." >&2
     echo "WARNING: Result JSON was already ingested; the measurement artifact remains available as a CI artifact for downstream jobs." >&2
     return 0
   fi
 
-  echo "ERROR: Failed to upload measurement artifact ${artifact_file}" >&2
+  echo "No successful PA receipt for ${artifact_file}. Check PA storage status using Result ID ${uuid} before any resubmission." >&2
   echo "$response" >&2
   return 1
 }
@@ -227,13 +232,14 @@ for json_file in results/result*.json; do
 
   profile_archive_paths=()
   measurement_artifact_specs=()
+  artifact_listing=$(collect_measurement_artifacts_for_result "$json_file" "$tgz_file")
   while IFS=$'\t' read -r artifact_file artifact_path; do
     [[ -n "$artifact_file" ]] || continue
     if is_profile_archive_path "$artifact_file"; then
       profile_archive_paths+=("$artifact_file")
     fi
     measurement_artifact_specs+=("${artifact_file}"$'\t'"${artifact_path}")
-  done < <(collect_measurement_artifacts_for_result "$json_file" "$tgz_file")
+  done <<< "$artifact_listing"
 
   profile_data_summary=$(build_profile_data_summary_for_archives "${profile_archive_paths[@]}")
   if [[ -n "$profile_data_summary" ]]; then
@@ -253,7 +259,7 @@ for json_file in results/result*.json; do
   # Post JSON and capture response
   curl_auth_args=()
   bk_result_server_set_curl_args
-  if ! response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
+  if ! response=$(curl --retry 0 --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
     -H "Content-Type: application/json" \
     --data-binary @"$json_file"); then
     echo "No successful Result receipt. Check stored records before resubmitting." >&2
