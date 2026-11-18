@@ -1,3 +1,4 @@
+import os
 import json
 import os
 from pathlib import Path
@@ -8,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from utils.estimate_version_snapshot import read_estimation_version_snapshot
+from utils.estimate_version_snapshot import read_estimation_version_snapshot as _read
 
 
 def git(repo, *args):
@@ -21,6 +22,9 @@ def commit(repo):
         "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")
     return git(repo, "rev-parse", "HEAD")
 
+
+def read_estimation_version_snapshot(repo, *args, **kwargs):
+    return _read(repo, *args, trusted_root=repo, expected_owner=os.geteuid(), **kwargs)
 
 @pytest.fixture
 def repo(tmp_path):

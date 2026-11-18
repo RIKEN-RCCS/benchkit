@@ -1,5 +1,6 @@
 """Version overview tests use only temporary JSON and local Git fixtures."""
 
+import os
 import json
 from pathlib import Path
 import subprocess
@@ -19,6 +20,19 @@ from utils import estimate_version_list as listing
 def git(repo, *args):
     return subprocess.check_output(["git", "-C", str(repo), *args], stderr=subprocess.PIPE, text=True).strip()
 
+
+@pytest.fixture(autouse=True)
+def trust_test_owner(monkeypatch):
+    from utils import estimate_version_snapshot as snapshots
+    from utils import estimate_version_view as views
+    def reference(repo, ref, **kwargs):
+        kwargs.setdefault('expected_owner', os.geteuid())
+        return snapshots.read_estimation_version_reference(repo, ref, **kwargs)
+    def read(repo, ref, code, **kwargs):
+        kwargs.setdefault('expected_owner', os.geteuid())
+        return snapshots.read_estimation_version_snapshot(repo, ref, code, **kwargs)
+    monkeypatch.setattr(listing, 'read_estimation_version_reference', reference)
+    monkeypatch.setattr(views, 'read_estimation_version_snapshot', read)
 
 @pytest.fixture
 def app(tmp_path):
@@ -152,9 +166,9 @@ def test_ref_is_pinned_even_when_configured_ref_moves(app, monkeypatch):
     original = listing.read_estimation_version_reference
     commit = git(app.config["ESTIMATION_VERSION_REPO"], "rev-parse", "HEAD")
     calls = []
-    def resolve(repository, ref):
+    def resolve(repository, ref, **kwargs):
         calls.append(ref)
-        resolved = original(repository, ref)
+        resolved = original(repository, ref, **kwargs)
         declaration = Path(repository) / "programs/demo/estimate.metadata.json"
         declaration.write_text(json.dumps({"version": "1"}))
         git(repository, "add", ".")

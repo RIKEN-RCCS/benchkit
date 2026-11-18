@@ -1,3 +1,4 @@
+import subprocess
 import os
 import sys
 from datetime import date
@@ -31,88 +32,14 @@ def test_release_notes_have_unique_versions_and_descending_dates():
         assert release["version"] == released_on.strftime("v%Y.%m.%d")
 
 
-def test_dated_changes_version_matches_an_exact_release_tag(monkeypatch, tmp_path):
-    release = next(item for item in portal_version.portal_release_notes() if item["date"])
-    monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: tmp_path)
-
-    def fake_run_git(args, git_root):
-        assert git_root == tmp_path
-        if args == ["rev-parse", "--short=12", "HEAD"]:
-            return "123456789abc"
-        assert args == ["describe", "--tags", "--exact-match", "HEAD"]
-        return release["version"]
-
-    monkeypatch.setattr(portal_version, "_run_git", fake_run_git)
-    info = portal_version.portal_version_info(env={})
-    assert info == {"label": release["version"], "commit": "123456789abc", "source": "git"}
+def test_version_does_not_run_git(monkeypatch, tmp_path):
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: (_ for _ in ()).throw(AssertionError('Git executed')))
+    assert portal_version.portal_version_info(env={}, start_path=tmp_path) == {'label':'development','commit':'','source':'default'}
 
 
-def test_dated_changes_do_not_override_an_untagged_checkout(monkeypatch, tmp_path):
-    monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: tmp_path)
-
-    def fake_run_git(args, git_root):
-        if args == ["rev-parse", "--short=12", "HEAD"]:
-            return "123456789abc"
-        if args == ["describe", "--tags", "--exact-match", "HEAD"]:
-            return ""
-        assert args == ["describe", "--tags", "--always", "--dirty"]
-        return "v2026.10.15-100-g1234567-dirty"
-
-    monkeypatch.setattr(portal_version, "_run_git", fake_run_git)
-    info = portal_version.portal_version_info(env={})
-    assert info["label"] == "v2026.10.15-100-g1234567-dirty"
-    assert info["label"] != portal_version.portal_release_notes()[0]["version"]
-    assert info["source"] == "git"
+def test_version_uses_reviewed_metadata():
+    assert portal_version.portal_version_info(env={'RESULT_SERVER_VERSION':'vtest','RESULT_SERVER_SOURCE_COMMIT':'a'*40}) == {'label':'vtest','commit':'a'*40,'source':'environment'}
 
 
-def test_portal_version_prefers_environment(monkeypatch, tmp_path):
-    monkeypatch.setenv("RESULT_SERVER_VERSION", "vtest")
-    monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: tmp_path)
-    monkeypatch.setattr(
-        portal_version,
-        "_run_git",
-        lambda args, git_root: "abc123def456" if args[:1] == ["rev-parse"] else "vold",
-    )
-
-    info = portal_version.portal_version_info()
-
-    assert info["label"] == "vtest"
-    assert info["commit"] == "abc123def456"
-    assert info["source"] == "environment"
-
-
-def test_portal_version_uses_exact_git_tag(monkeypatch, tmp_path):
-    monkeypatch.delenv("RESULT_SERVER_VERSION", raising=False)
-    monkeypatch.delenv("BENCHKIT_PORTAL_VERSION", raising=False)
-    monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: tmp_path)
-
-    def fake_run_git(args, git_root):
-        if args[:1] == ["rev-parse"]:
-            return "123456789abc"
-        if args == ["describe", "--tags", "--exact-match", "HEAD"]:
-            return "v2026.08.31"
-        return "v2026.08.31-1-g1234567"
-
-    monkeypatch.setattr(portal_version, "_run_git", fake_run_git)
-
-    info = portal_version.portal_version_info()
-
-    assert info == {
-        "label": "v2026.08.31",
-        "commit": "123456789abc",
-        "source": "git",
-    }
-
-
-def test_portal_version_falls_back_to_development(monkeypatch):
-    monkeypatch.delenv("RESULT_SERVER_VERSION", raising=False)
-    monkeypatch.delenv("BENCHKIT_PORTAL_VERSION", raising=False)
-    monkeypatch.setattr(portal_version, "_find_git_root", lambda start_path: None)
-
-    info = portal_version.portal_version_info()
-
-    assert info == {
-        "label": "development",
-        "commit": "",
-        "source": "default",
-    }
+def test_version_rejects_unexpected_values():
+    assert portal_version.portal_version_info(env={'RESULT_SERVER_VERSION':'/secret/value','RESULT_SERVER_SOURCE_COMMIT':'bad'}) == {'label':'development','commit':'','source':'default'}

@@ -9,6 +9,7 @@ import re
 import sqlite3
 import stat
 import subprocess
+import shutil
 import threading
 import time
 import uuid
@@ -74,6 +75,8 @@ def atomic_json(path, value, reader_uid=None):
 
 def read_current(root, maximum_age=300):
     root = Path(root)
+    if (root / 'withdrawn').exists():
+        raise ValueError('Publication withdrawn')
     path = root / 'current.json'
     if path.is_symlink() or path.stat().st_size > 4096:
         raise ValueError('Invalid public generation pointer')
@@ -81,6 +84,8 @@ def read_current(root, maximum_age=300):
     identifier = value['generation']
     if not isinstance(identifier, str) or not re.fullmatch(r'g-[0-9a-f]{32}', identifier):
         raise ValueError('Invalid public generation')
+    if time.time() >= value['expires_at']:
+        raise ValueError('Publication lease expired')
     age = time.time() - value['checked_at']
     if not -30 <= age <= maximum_age:
         raise ValueError('Public generation expired')
@@ -116,80 +121,132 @@ class PublicApplication:
             environ['cx.public.checked_at'] = pointer['checked_at']
         except (OSError,ValueError,TypeError,KeyError):
             return Response('Public export unavailable',status=503)(environ,start_response)
-        return app(environ,start_response)
+        iterator = app(environ,start_response)
+        def stream():
+            try:
+                for chunk in iterator:
+                    try:
+                        current, _ = read_current(self.root)
+                    except (OSError, ValueError, KeyError):
+                        break
+                    if current != generation:
+                        break
+                    yield chunk
+            finally:
+                close = getattr(iterator, 'close', None)
+                if close:
+                    close()
+        return stream()
 
 
 class Publisher:
-    def __init__(self, store, root, private_state, reader_uid=None):
+    """Publish approved content with a trusted reader supervisor.
+
+    control.quiesce(timeout=5) must stop every reader, including children and
+    outstanding responses, and return only after that group is empty.
+    control.stage(expires_at=...) must supervise the writer independently and
+    invoke expiry cleanup even if the writer crashes.
+    control.activate(expires_at=...) must bound the lifetime of that group.
+    expire() is the companion cleanup operation for that supervised deadline.
+    """
+    maximum_generations = 2
+    maximum_age = 15 * 60
+    maximum_bytes = 256 * 1024 * 1024
+
+    def __init__(self, store, root, private_state, reader_uid=None, *, control, policy):
+        if reader_uid is None or reader_uid <= 0 or reader_uid == os.geteuid():
+            raise ValueError('A distinct reader identity is required')
         self.store = store
-        self.reader_uid = reader_uid
         self.root = Path(root)
         self.private_state = Path(private_state)
+        self.reader_uid = reader_uid
+        if any(not callable(getattr(control, name, None)) for name in ['quiesce','stage','activate']):
+            raise ValueError('A reader supervisor is required')
+        self.control = control
+        self.policy = policy
         self.root.mkdir(mode=0o750, exist_ok=True)
         (self.root / 'generations').mkdir(mode=0o750, exist_ok=True)
-        self.root.chmod(0o750)
-        (self.root / 'generations').chmod(0o750)
-        if reader_uid is not None:
-            grant_reader(self.root, reader_uid)
-            grant_reader(self.root / 'generations', reader_uid)
+        grant_reader(self.root, reader_uid)
+        grant_reader(self.root / 'generations', reader_uid)
 
-    def update(self, fault=None):
-        from utils.document_snapshot import document_snapshot
+    def _retire(self):
+        for path in list((self.root / 'generations').iterdir()) + list(self.root.glob('.pending-*')):
+            if path.is_symlink() or not path.is_dir():
+                raise ValueError('Unexpected publication entry')
+            for item in [path, *path.rglob('*')]:
+                if item.is_symlink():
+                    raise ValueError('Unexpected publication link')
+                subprocess.run(['/usr/bin/setfacl', '-b', str(item)], check=True, capture_output=True)
+                item.chmod(0o700 if item.is_dir() else 0o600)
+            shutil.rmtree(path)
+
+    def _withdraw(self):
+        atomic_json(self.root / 'withdrawn', {'withdrawn': True})
+        started = time.monotonic()
+        self.control.quiesce(timeout=5)
+        if time.monotonic() - started > 5:
+            raise RuntimeError('Reader shutdown deadline exceeded')
+        (self.root / 'current.json').unlink(missing_ok=True)
+        self._retire()
+
+    def expire(self):
+        """Trusted supervisor cleanup at the lease deadline, even without updates."""
+        self.private_state.parent.mkdir(parents=True, exist_ok=True)
+        with self.private_state.with_suffix('.lock').open('a+b') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            self._withdraw()
+
+    def update(self, fault=None, *, change=None):
         from utils.public_projection import export_public
-        self.private_state.parent.mkdir(mode=0o700, exist_ok=True)
-        lock_path = self.private_state.with_suffix('.lock')
-        with lock_path.open('a+b') as lock:
+        self.private_state.parent.mkdir(parents=True, exist_ok=True)
+        with self.private_state.with_suffix('.lock').open('a+b') as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 return {'status': 'busy'}
-            with document_snapshot(self.store) as snapshot:
-                rows = [tuple(row) for row in snapshot.conn.execute(
-                    'SELECT role,name,sha256,generation FROM cx_objects ORDER BY role,name')]
-                revision = hashlib.sha256(json.dumps(rows).encode()).hexdigest()
-                previous = json.loads(self.private_state.read_text()) if self.private_state.exists() else {}
-                if previous.get('revision') == revision:
-                    try:
-                        generation, _ = read_current(self.root, maximum_age=float('inf'))
-                        if not (generation / 'manifest.json').is_file():
-                            raise ValueError('Public generation incomplete')
-                        with sqlite3.connect((generation / 'index/catalog.sqlite3').as_uri()+'?mode=ro',uri=True) as index:
-                            if index.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
-                                raise ValueError('Public index failed verification')
-                        if generation.name == previous.get('generation'):
-                            atomic_json(self.root / 'current.json', {'generation': generation.name, 'checked_at': time.time()},self.reader_uid)
-                            return {'status': 'unchanged'}
-                    except (OSError,ValueError,KeyError,TypeError,sqlite3.Error):
-                        pass
-                identifier = 'g-' + uuid.uuid4().hex
-                pending = self.root / ('.pending-' + identifier)
-                destination = self.root / 'generations' / identifier
-                manifest = export_public(self.store, pending)
+            # Reclassification must use change(), so old readers are withdrawn
+            # before the source transaction is committed. Failure never restores
+            # an earlier pointer or resumes a reader against withdrawn content.
+            self._withdraw()
+            identifier = 'g-' + uuid.uuid4().hex
+            pending = self.root / ('.pending-' + identifier)
+            destination = self.root / 'generations' / identifier
+            expiry = time.time() + self.maximum_age
+            self.control.stage(expires_at=expiry)
+            try:
+                if change is not None:
+                    change()
+                manifest = export_public(self.store, pending, policy=self.policy,
+                                         maximum_bytes=self.maximum_bytes, published_path=destination)
                 if fault:
                     fault('after_export')
-                # Only the derived public index contains these source bindings.
-                with sqlite3.connect(pending / 'index/catalog.sqlite3') as connection:
-                    for table in ('catalog_state', 'catalog_sources', 'query_records'):
-                        connection.execute('UPDATE ' + table + ' SET directory=replace(directory,?,?)',
-                                           (str(pending), str(destination)))
                 for path in [pending, *pending.rglob('*')]:
                     if path.is_symlink():
-                        raise ValueError('Public publication refuses symbolic links')
+                        raise ValueError('Publication link rejected')
                     path.chmod(0o750 if path.is_dir() else 0o640)
-                    if self.reader_uid is not None:
-                        grant_reader(path,self.reader_uid)
+                    grant_reader(path, self.reader_uid)
                     if path.is_file():
-                        with path.open('rb') as data:
-                            os.fsync(data.fileno())
+                        with path.open('rb') as stream:
+                            os.fsync(stream.fileno())
                 os.replace(pending, destination)
-                directory_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
-                try:
-                    os.fsync(directory_fd)
-                finally:
-                    os.close(directory_fd)
+                if time.time() >= expiry:
+                    raise RuntimeError('Publication lease expired during generation')
+                size = sum(p.stat().st_size for p in destination.rglob('*') if p.is_file())
+                if size > self.maximum_bytes:
+                    raise ValueError('Publication exceeds capacity')
+                atomic_json(self.root / 'current.json',
+                            {'generation': identifier, 'checked_at': time.time(), 'expires_at': expiry}, self.reader_uid)
                 if fault:
-                    fault('before_pointer')
-                atomic_json(self.root / 'current.json', {'generation': identifier, 'checked_at': time.time()},self.reader_uid)
-                atomic_json(self.private_state, {'generation': identifier, 'revision': revision})
-                self.private_state.chmod(0o600)
+                    fault('before_activate')
+                self.root.joinpath('withdrawn').unlink()
+                self.control.activate(expires_at=expiry)
+                atomic_json(self.private_state, {'generation': identifier})
+                complete = getattr(self.control, 'complete', None)
+                if complete is not None:
+                    complete()
                 return {'status': 'published', 'results': manifest['results'], 'archives': manifest['archives']}
+            except BaseException:
+                # Keep fail-closed state until a complete rebuild from current
+                # approvals succeeds. No fallback to a stale successful export.
+                self._withdraw()
+                raise
