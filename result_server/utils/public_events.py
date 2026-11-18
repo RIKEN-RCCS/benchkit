@@ -4,10 +4,22 @@ import os
 from pathlib import Path
 
 
+def request_rebuild(directory):
+    """Request a complete projection of the saved store; no ingest is performed."""
+    Path(directory, "pending").touch(mode=0o600)
+
+
 def notify_publication():
     directory = os.environ.get("RESULT_SERVER_PUBLICATION_QUEUE")
-    if directory:
-        Path(directory, "pending").touch(mode=0o600)
+    if not directory:
+        return {}
+    try:
+        request_rebuild(directory)
+    except OSError:
+        import logging
+        logging.getLogger(__name__).error("Receipt saved but publication notification failed")
+        return {"publication_notification": "failed"}
+    return {"publication_notification": "queued"}
 
 
 def publish_pending(directory, publisher):
@@ -42,13 +54,19 @@ def main():
 
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument('configuration', type=Path)
+    parser.add_argument('--request-rebuild', action='store_true',
+                        help='Queue a rebuild from saved data and exit')
     args = parser.parse_args()
     config = json.loads(args.configuration.read_text())
+    if args.request_rebuild:
+        request_rebuild(config['queue'])
+        print('queued')
+        return
     store = CxPersistence(**config['store'])
     control = SystemdPublicationControl(**config['supervisor'])
     publisher = Publisher(store, control.root, control.private_state, control.reader_uid,
                           control=control, policy=AutomaticDisclosure(config['benchmarks']))
-    publish_pending(config['queue'], publisher)
+    print(publish_pending(config['queue'], publisher))
 
 
 if __name__ == '__main__':

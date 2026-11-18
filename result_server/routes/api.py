@@ -435,7 +435,7 @@ def ingest_result():
     )
     _index_environment_snapshot(saved)
     _index_saved_json("result", saved)
-    notify_publication()
+    notification = notify_publication()
     audit_event(
         "ingest_accepted",
         actor=runner_id,
@@ -443,7 +443,7 @@ def ingest_result():
         result="success",
         details={"ingest_type": "result", "id": saved["id"]},
     )
-    return _saved_json_response(saved), 200
+    return {**_saved_json_response(saved), **notification}, 200
 
 
 @api_bp.route("/api/ingest/estimate", methods=["POST"])
@@ -553,7 +553,7 @@ def ingest_measurement_artifact():
     else:
         write_archive()
 
-    notify_publication()
+    notification = notify_publication()
     print(f"Saved: {save_path}", flush=True)
     response = {
         "status": "uploaded",
@@ -574,7 +574,7 @@ def ingest_measurement_artifact():
             "replaced": response["replaced"],
         },
     )
-    return response, 200
+    return {**response, **notification}, 200
 
 
 @api_bp.route("/api/ingest/estimation-artifacts", methods=["POST"])

@@ -99,3 +99,27 @@ public Result are considered. The exporter reconstructs the download from
 finite numeric values and uses the registered basename for the public link.
 Unsupported formats remain private. The opt-in systemd acceptance test
 contains a working configuration with synthetic data.
+
+#### Receipt responses and rebuilding a missing publication
+
+HTTP 200 for a Result or PA upload confirms storage. Keep the returned ID,
+timestamp and filename. With the queue configured, `publication_notification`
+is `queued` when the marker was created, or `failed` when storage succeeded
+and the notification operation raised an OS error. Both responses acknowledge
+one saved upload. Continue using its receipt and do not post it again to
+trigger publication. With the queue disabled the existing response is unchanged.
+A lost connection before the response leaves receipt status unknown. Check the
+saved store before considering any retry. Result submission allocates a new ID
+and replaying the same submission can create a duplicate.
+
+An administrator with read access to CONFIG and write access to its queue can run
+`python -m utils.public_events --request-rebuild CONFIG` to enqueue a complete
+projection of the saved store. This also recovers receipts committed before the
+ingest process died without sending a notification. The command prints `queued`.
+The configured path unit or trusted one-shot worker must process the marker.
+The worker prints `published` on completed publication, `busy` on contention,
+and `idle` when there is no work. Verify the current generation and expected
+public content. Repeating the request may rotate the public generation, but
+writes no input records and creates no duplicate Result or PA entry. Invalid
+optional file references are skipped individually while valid siblings and
+other Results continue through publication.

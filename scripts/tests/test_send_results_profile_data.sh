@@ -120,7 +120,10 @@ cat > "${TMP_DIR}/bin/curl" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$*" >> "${TMP_DIR}/curl_calls.log"
 if printf '%s\n' "$*" | grep -q '/api/ingest/result'; then
-  printf '%s\n' '{"id":"11111111-2222-3333-4444-555555555555","timestamp":"20260413_230000"}'
+  if [ "${FAKE_RECEIPT_LOST:-0}" = 1 ]; then
+    exit 52
+  fi
+  printf '%s\n' '{"id":"11111111-2222-3333-4444-555555555555","timestamp":"20260413_230000","publication_notification":"failed"}'
   exit 0
 fi
 if printf '%s\n' "$*" | grep -q '/api/ingest/measurement-artifact'; then
@@ -373,6 +376,9 @@ grep -q 'artifact_path=results/padata_k003.tgz' "${TMP_DIR}/measurement_artifact
 grep -q 'artifact_path=results/qws_timing_CASE0.json' "${TMP_DIR}/measurement_artifact_uploads.log"
 test "$(grep -c '/api/ingest/measurement-artifact' "${TMP_DIR}/measurement_artifact_uploads.log")" = "5"
 
+# A stored Result with a failed publication notice is not sent twice.
+test "$(grep -c '/api/ingest/result' "${TMP_DIR}/curl_calls.log")" = "1"
+
 mkdir -p "${TMP_DIR}/case413/results"
 cp "${TMP_DIR}/results/result0.json" "${TMP_DIR}/case413/results/result0.json"
 cp "${TMP_DIR}/results/padata0.tgz" "${TMP_DIR}/case413/results/padata0.tgz"
@@ -390,5 +396,16 @@ unset FAKE_MEASUREMENT_ARTIFACT_STATUS
 grep -q 'HTTP 413' "${TMP_DIR}/case413/send_results_413.log"
 grep -q 'All done.' "${TMP_DIR}/case413/send_results_413.log"
 grep -q '"_server_uuid": "11111111-2222-3333-4444-555555555555"' "${TMP_DIR}/case413/results/result0.json"
+
+mkdir -p "${TMP_DIR}/lost/results"
+cp "${TMP_DIR}/results/result0.json" "${TMP_DIR}/lost/results/result0.json"
+: > "${TMP_DIR}/curl_calls.log"
+pushd "${TMP_DIR}/lost" >/dev/null
+if FAKE_RECEIPT_LOST=1 bash "${REPO_DIR}/scripts/result_server/send_results.sh" > sender.log 2>&1; then
+  exit 1
+fi
+grep -q 'Check stored records before resubmitting' sender.log
+test "$(grep -c '/api/ingest/result' "${TMP_DIR}/curl_calls.log")" = "1"
+popd >/dev/null
 
 echo "send_results profile_data test passed"
