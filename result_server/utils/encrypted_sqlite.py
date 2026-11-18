@@ -77,6 +77,21 @@ class EncryptedSQLite:
         if self.path.parent == self.key_file.parent:
             raise EncryptedDatabaseError("Keep the key outside the database directory")
 
+    def _validate_data(self, path, info=None, *, directory=False):
+        access = None
+        if os.environ.get("RESULT_SERVER_SHARED_DB_POLICY"):
+            try:
+                from .shared_db_access import configured_access
+            except ImportError:
+                from utils.shared_db_access import configured_access
+            access = configured_access(self.path)
+        if access is not None:
+            access.validate(path, info or path.stat(), directory=directory)
+        elif directory:
+            _private_parent(self.path)
+        else:
+            _check_file(info or path.stat())
+
     @contextmanager
     def connect(self, *, create: bool = False, readonly: bool = False):
         if create and readonly:
@@ -85,13 +100,15 @@ class EncryptedSQLite:
         key = _read_key(self.key_file)
         conn = None
         try:
-            _private_parent(self.path)
+            if self.path.resolve() != self.path:
+                raise EncryptedDatabaseError("Database path must not be a symlink")
+            self._validate_data(self.path.parent, directory=True)
             flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
             if create:
                 flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             fd = os.open(self.path, flags, 0o600)
             with os.fdopen(fd, "rb") as handle:
-                _check_file(os.fstat(handle.fileno()))
+                self._validate_data(self.path, os.fstat(handle.fileno()))
                 if not create and os.fstat(handle.fileno()).st_size == 0:
                     raise EncryptedDatabaseError("Database is not initialized")
                 if handle.read(16) == b"SQLite format 3\x00":
@@ -101,7 +118,7 @@ class EncryptedSQLite:
                 if sidecar.exists() or sidecar.is_symlink():
                     if sidecar.is_symlink():
                         raise EncryptedDatabaseError("Database sidecar must not be a symlink")
-                    _check_file(sidecar.stat())
+                    self._validate_data(sidecar)
             mode = "ro" if readonly else "rw"
             conn = db.connect(self.path.as_uri() + "?mode=" + mode, uri=True, timeout=5)
             # PRAGMA does not support placeholders. Only encoded random bytes
