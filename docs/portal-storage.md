@@ -111,6 +111,9 @@ trigger publication. With the queue disabled the existing response is unchanged.
 A lost connection before the response leaves receipt status unknown. Check the
 saved store before considering any retry. Result submission allocates a new ID
 and replaying the same submission can create a duplicate.
+The sender skips malformed artifact references and continues with valid ones.
+If a PA response is lost after Result acceptance, the sender stops and reports
+the accepted Result ID. Use that ID to check whether the PA was stored.
 
 An administrator with read access to CONFIG and write access to its queue can run
 `python -m utils.public_events --request-rebuild CONFIG` to enqueue a complete
