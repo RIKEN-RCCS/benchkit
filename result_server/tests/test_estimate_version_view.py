@@ -58,7 +58,7 @@ def test_selects_requested_applied_and_candidate_packages_without_mutating_input
     assert result["unknown_count"] == 1  # No external model version declaration.
     assert result["status"] == "different"
     assert snapshot[1][0][1] == {"packages": ["scaling"],
-                                "section_packages": ["ensemble", "identity", "predictor"]}
+                                "section_packages": ["ensemble", "identity", "predictor"], "trusted_root":CONFIG["ESTIMATION_VERSION_REPO"]}
     assert payload == original
     assert "/configured/repository" not in str(result)
 

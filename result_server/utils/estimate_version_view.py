@@ -34,7 +34,7 @@ def build_estimate_version_check(estimate, config):
     try:
         snapshot = read_estimation_version_snapshot(
             repository, ref, estimate["code"], packages=sorted(packages),
-            section_packages=sorted(sections),
+            section_packages=sorted(sections), trusted_root=repository,
         )
     except (ValueError, TypeError):
         view["unknown_count"] = 1

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
-from pathlib import Path
 
 
 RELEASE_NOTES = [
@@ -53,70 +51,22 @@ RELEASE_NOTES = [
 ]
 
 
-def _find_git_root(start_path: Path) -> Path | None:
-    current = start_path.resolve()
-    if current.is_file():
-        current = current.parent
-    for path in (current, *current.parents):
-        if (path / ".git").exists():
-            return path
-    return None
-
-
-def _run_git(args: list[str], git_root: Path) -> str:
-    try:
-        completed = subprocess.run(
-            ["git", "-c", "safe.directory=" + os.fspath(git_root.resolve()), *args],
-            cwd=git_root,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=2,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    if completed.returncode != 0:
-        return ""
-    return completed.stdout.strip()
-
-
-def portal_version_info(
-    env: dict[str, str] | None = None,
-    *,
-    start_path: str | os.PathLike[str] | None = None,
-) -> dict[str, str]:
-    """Return the release label and source commit displayed by the portal."""
-    source = env if env is not None else os.environ
-    explicit_version = (
-        source.get("RESULT_SERVER_VERSION", "").strip()
-        or source.get("BENCHKIT_PORTAL_VERSION", "").strip()
-    )
-
-    git_root = _find_git_root(Path(start_path or __file__))
-    commit = ""
-    git_label = ""
-    if git_root is not None:
-        commit = _run_git(["rev-parse", "--short=12", "HEAD"], git_root)
-        git_label = _run_git(["describe", "--tags", "--exact-match", "HEAD"], git_root)
-        if not git_label:
-            git_label = _run_git(["describe", "--tags", "--always", "--dirty"], git_root)
-
-    if explicit_version:
-        label = explicit_version
-        source_name = "environment"
-    elif git_label:
-        label = git_label
-        source_name = "git"
+def portal_version_info(env=None, *, start_path=None):
+    """Display administrator-supplied release metadata without invoking Git."""
+    import re
+    source = os.environ if env is None else env
+    value = source.get('RESULT_SERVER_VERSION') or source.get('BENCHKIT_PORTAL_VERSION')
+    label = value.strip() if isinstance(value, str) else ''
+    commit = source.get('RESULT_SERVER_SOURCE_COMMIT')
+    commit = commit.strip() if isinstance(commit, str) else ''
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,79}', label):
+        label = 'development'
+        name = 'default'
     else:
-        label = "development"
-        source_name = "default"
-
-    return {
-        "label": label,
-        "commit": commit,
-        "source": source_name,
-    }
+        name = 'environment'
+    if not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', commit):
+        commit = ''
+    return {'label': label, 'commit': commit, 'source': name}
 
 
 def portal_release_notes() -> list[dict[str, object]]:

@@ -12,7 +12,7 @@ _MAX_DOCUMENT_BYTES = 128 * 1024
 _MAX_PACKAGES = 64
 
 
-def read_estimation_version_snapshot(repository, ref, code, *, packages=(), section_packages=()):
+def read_estimation_version_snapshot(repository, ref, code, *, packages=(), section_packages=(), trusted_root=None, expected_owner=0):
     """Read explicitly requested declarations at one resolved commit, without fetch.
 
     The caller supplies a trusted local repository and full ref or commit SHA.
@@ -31,9 +31,11 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
            for name in packages + section_packages):
         raise ValueError("invalid package name")
 
+    def call(*args):
+        return _git(repository, *args, trusted_root=trusted_root, expected_owner=expected_owner)
     snapshot = {"ref": ref, "commit": None, "code": code, "app": None,
                 "packages": {}, "section_packages": {}, "unknowns": []}
-    reference = read_estimation_version_reference(repository, ref)
+    reference = read_estimation_version_reference(repository, ref, trusted_root=trusted_root, expected_owner=expected_owner)
     snapshot.update(commit=reference["commit"], unknowns=reference["unknowns"])
     if snapshot["commit"] is None:
         return snapshot
@@ -41,7 +43,7 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
 
     def read(path, name):
         try:
-            tree = _git(repository, "ls-tree", "-z", commit, "--", path)
+            tree = call( "ls-tree", "-z", commit, "--", path)
             if not tree:
                 raise _Unknown("missing_declaration")
             # A symlink also has a blob object, so check the tree mode first.
@@ -50,10 +52,10 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
             if (mode not in (b"100644", b"100755") or kind != b"blob"
                     or stored_path != path.encode() + b"\0"):
                 raise _Unknown("unsupported_declaration_type")
-            size = int(_git(repository, "cat-file", "-s", oid.decode()))
+            size = int(call( "cat-file", "-s", oid.decode()))
             if size > _MAX_DOCUMENT_BYTES:
                 raise _Unknown("oversized_declaration")
-            data = json.loads(_git(repository, "cat-file", "blob", oid.decode()),
+            data = json.loads(call( "cat-file", "blob", oid.decode()),
                               object_pairs_hook=_unique_object)
             if not isinstance(data, dict):
                 raise _Unknown("invalid_declaration")
@@ -77,7 +79,7 @@ def read_estimation_version_snapshot(repository, ref, code, *, packages=(), sect
     return snapshot
 
 
-def read_estimation_version_reference(repository, ref):
+def read_estimation_version_reference(repository, ref, *, trusted_root=None, expected_owner=0):
     """Resolve the configured local ref once without fetching or executing code."""
     if not isinstance(ref, str) or not _REF.fullmatch(ref) or ".." in ref:
         raise ValueError("a full ref or commit SHA is required")
@@ -85,7 +87,7 @@ def read_estimation_version_reference(repository, ref):
     try:
         try:
             partial_clone = _git(repository, "config", "--local", "--get-regexp",
-                                 r"^(extensions\.partialclone|remote\..*\.promisor)$")
+                                 r"^(extensions\.partialclone|remote\..*\.promisor)$", trusted_root=trusted_root, expected_owner=expected_owner)
         except subprocess.CalledProcessError as exc:
             if exc.returncode != 1:
                 raise
@@ -93,7 +95,7 @@ def read_estimation_version_reference(repository, ref):
         if partial_clone:
             reference["unknowns"].append({"reason": "partial_clone_not_supported"})
             return reference
-        commit = _git(repository, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+        commit = _git(repository, "rev-parse", "--verify", f"{ref}^{{commit}}", trusted_root=trusted_root, expected_owner=expected_owner).decode().strip()
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
             raise ValueError("invalid commit response")
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -116,7 +118,10 @@ def _unique_object(pairs):
     return value
 
 
-def _git(repository, *args):
+def _git(repository, *args, trusted_root=None, expected_owner=0):
+    from .trusted_git import validate
+    if not validate(repository, trusted_root, expected_owner):
+        raise OSError("Repository is outside trusted deployment")
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1")

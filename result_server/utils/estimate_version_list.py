@@ -35,7 +35,7 @@ def build_version_check_list(directory, config, *, status="different", code="", 
         return context
     context["enabled"] = True
     try:
-        reference.update(read_estimation_version_reference(repository, ref))
+        reference.update(read_estimation_version_reference(repository, ref, trusted_root=repository))
     except (TypeError, ValueError):
         pass
     context["reference"] = reference

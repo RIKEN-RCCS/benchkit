@@ -122,7 +122,7 @@ def archive_visibility(documents):
     return visibility
 
 
-def export_public(store, destination):
+def export_public(store, destination, *, policy=None, maximum_bytes=256 * 1024 * 1024, published_path=None):
     """New generation only. Caller publishes it only after successful validation."""
     from utils.result_catalog import ResultCatalog
     from utils.result_file import PUBLIC_PADATA_FILENAME_RE, UUID_PATTERN, _extract_confidential_tags
@@ -131,6 +131,9 @@ def export_public(store, destination):
     root.mkdir(mode=0o700)
     for name in ('received', 'estimated_results', 'received_padata', 'received_estimation_artifacts', 'index'):
         (root / name).mkdir(mode=0o700)
+    from .public_disclosure import DisclosurePolicy
+    policy = policy or DisclosurePolicy()
+    used = 0
     count = 0
     # A single SQL transaction fixes visibility and bytes for the entire export.
     from utils.document_snapshot import document_snapshot
@@ -142,25 +145,65 @@ def export_public(store, destination):
         for name in snapshot.names('results'):
             document = snapshot.read_json('results', name)
             value = public_document(document)
+            value = policy.document(name, document, value)
             if value is None:
                 continue
             store._name(name)
-            (root / 'received' / name).write_text(json.dumps(value, ensure_ascii=True, allow_nan=False))
+            encoded = json.dumps(value, ensure_ascii=True, allow_nan=False).encode()
+            used += len(encoded)
+            if used > maximum_bytes:
+                raise ValueError('Export exceeds budget')
+            (root / 'received' / name).write_bytes(encoded)
             count += 1
         artifact_count = 0
         archives = snapshot.names('artifacts')
         for name in archives:
+            if name not in policy.archives:
+                continue
             identifier = UUID_PATTERN.search(name)
             if (PUBLIC_PADATA_FILENAME_RE.fullmatch(name) and identifier is not None
                     and archive_access.get(identifier.group(0).lower(), False)):
-                with (root / 'received_padata' / name).open('xb') as output:
-                    for chunk in store.chunks('artifacts', name, conn=snapshot.conn):
-                        output.write(chunk)
-                artifact_count += 1
-    catalog = ResultCatalog(root / 'index/catalog.sqlite3', root / 'received',
+                payload = bytearray()
+                for chunk in store.chunks('artifacts', name, conn=snapshot.conn):
+                    payload.extend(chunk)
+                    if len(payload) > maximum_bytes:
+                        raise ValueError('Archive exceeds budget')
+                selected = policy.archive(name, bytes(payload), maximum_bytes=maximum_bytes-used)
+                if selected is not None:
+                    used += len(selected)
+                    (root / 'received_padata' / name).write_bytes(selected)
+                    artifact_count += 1
+    # Build the derived index in memory so it cannot exceed the disk budget.
+    import sqlite3
+    from contextlib import contextmanager
+    class MemoryCatalog(ResultCatalog):
+        @contextmanager
+        def _lock(self):
+            yield
+        @contextmanager
+        def _connect(self, readonly=False, *, upgrading=False):
+            yield self.connection
+    catalog = MemoryCatalog(root / 'index/catalog.sqlite3', root / 'received',
                             artifact_directory=root / 'received_padata')
-    catalog.initialize()
-    catalog.rebuild()
+    connection = sqlite3.connect(':memory:')
+    try:
+        connection.row_factory = sqlite3.Row
+        catalog.connection = connection
+        catalog.initialize_schema(connection)
+        catalog.rebuild()
+        if published_path is not None:
+            for table in ('catalog_state', 'catalog_sources', 'query_records'):
+                connection.execute('UPDATE '+table+' SET directory=replace(directory,?,?)',
+                                   (str(root), str(published_path)))
+            connection.commit()
+        size = connection.execute('PRAGMA page_count').fetchone()[0] * connection.execute('PRAGMA page_size').fetchone()[0]
+        # Reserve space for the destination and its rollback journal.
+        if used + 2 * size + 4096 > maximum_bytes:
+            raise ValueError('Index exceeds export budget')
+        with sqlite3.connect(root/'index/catalog.sqlite3') as output:
+            connection.backup(output)
+    finally:
+        connection.close()
     manifest = {'version': 1, 'created_at': time.time(), 'results': count, 'archives': artifact_count}
     (root / 'manifest.json').write_text(json.dumps(manifest))
     return manifest
