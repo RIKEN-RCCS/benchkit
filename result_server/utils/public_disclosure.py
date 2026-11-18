@@ -79,3 +79,144 @@ class DisclosurePolicy:
             return output.getvalue()
         except (tarfile.TarError, OSError, ValueError, EOFError):
             return None
+
+
+class AutomaticDisclosure:
+    """Administrator-defined rules by benchmark, independent of individual Results."""
+    maximum_input_bytes = DisclosurePolicy.maximum_input_bytes
+
+    def __init__(self, benchmarks):
+        self.benchmarks = benchmarks
+
+    def document(self, name, source, projected):
+        import re
+        if projected is None or not isinstance(source.get('confidential'), (type(None), str, list)):
+            return None
+        code = projected.get('code')
+        rules = self.benchmarks.get(code, {})
+        fields = ('system', 'code', 'Exp', 'FOM', 'FOM_unit', 'FOM_version',
+                  'node_count', 'numproc_node', 'nthreads', 'cpus_per_node',
+                  '_server_uuid', '_server_timestamp')
+        result = {key: projected[key] for key in fields if key in projected}
+        from utils.result_table_rows import _extract_result_activity
+        activity = _extract_result_activity(source) or source.get('execution_activity')
+        if isinstance(activity, str) and activity:
+            result['environment_snapshot'] = {'summary': {'activity': activity}}
+        info = projected.get('source_info', {})
+        raw_info = source.get('source_info')
+        if isinstance(raw_info, dict) and raw_info.get('repo_url') in rules.get('public_repositories', []):
+            ref = info.get('ref_name') or info.get('branch')
+            commit = info.get('resolved_commit') or info.get('commit_hash', '')
+            if ref in rules.get('refs', []) and re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', commit):
+                result['source_info'] = {'source_type':'git', 'ref_name':ref, 'resolved_commit':commit[:7]}
+        if info.get('source_type') == 'file':
+            for algorithm, length in (('sha256sum', 12), ('md5sum', 8)):
+                checksum = info.get(algorithm)
+                if checksum and checksum in rules.get('public_checksums', []):
+                    result['source_info'] = {'source_type':'file', algorithm:checksum[:length]}
+                    break
+        profile = projected.get('profile_data', {})
+        public_profile = {}
+        for key, allowed in rules.get('profile', {}).items():
+            value = profile.get(key)
+            if isinstance(value, list):
+                values = [item for item in value if item in allowed]
+                if values:
+                    public_profile[key] = values
+            elif value in allowed:
+                public_profile[key] = value
+        if type(profile.get('run_count')) is int:
+            public_profile['run_count'] = profile['run_count']
+        if public_profile:
+            result['profile_data'] = public_profile
+        build = projected.get('build', {})
+        public_build = {}
+        if build.get('tool') in rules.get('build_tools', []):
+            public_build['tool'] = build['tool']
+        spack = build.get('spack', {})
+        selected = {}
+        for role in ('compiler', 'mpi', 'packages'):
+            candidates = spack.get(role, []) if role == 'packages' else [spack.get(role, {})]
+            values = [entry for entry in candidates if entry.get('name') in rules.get(role, {})
+                      and entry.get('version') in rules[role][entry['name']]]
+            if values:
+                selected[role] = values if role == 'packages' else values[0]
+        if selected:
+            public_build['spack'] = selected
+        if public_build:
+            result['build'] = public_build
+        metrics = projected.get('metrics', {})
+        scalar = {k:v for k,v in metrics.get('scalar', {}).items() if k in rules.get('scalar_metrics', [])}
+        if scalar:
+            result['metrics'] = {'scalar':scalar}
+        vector = metrics.get('vector', {})
+        table = vector.get('table', {})
+        layout = rules.get('vector_layout')
+        if layout and all(vector.get(k) == layout.get(k) for k in ('x_axis', 'y_axis')) and (
+                table.get('columns') == layout['columns'] and all(
+                    len(row) == len(layout['columns']) and all(type(v) in (int, float) for v in row)
+                    for row in table.get('rows', []))):
+            result.setdefault('metrics', {})['vector'] = vector
+        return result
+
+    def artifact_rules(self, source):
+        from utils.measurement_artifacts import measurement_artifact_basename_from_path, stored_measurement_artifact_filename
+        if not all(isinstance(source.get(k), str) for k in ('code', '_server_uuid', '_server_timestamp')):
+            return {}
+        configured = self.benchmarks.get(source['code'], {}).get('pa', {})
+        found = {}
+        breakdown = source.get('fom_breakdown') or {}
+        for group in ('sections', 'overlaps'):
+            for section in breakdown.get(group, []):
+                for item in section.get('artifacts', []):
+                    if item.get('type') != 'file_reference':
+                        continue
+                    basename = measurement_artifact_basename_from_path(item.get('path'))
+                    if basename in configured:
+                        name = stored_measurement_artifact_filename(source['_server_timestamp'], source['_server_uuid'], basename)
+                        found[name] = (basename, configured[basename])
+        return found
+
+    def numeric_archive(self, payload, rule, maximum_bytes):
+        """Publish only registered CSV columns containing finite numeric measurements."""
+        import csv
+        import math
+        member_name = rule['member']
+        columns = rule['columns']
+        try:
+            with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as archive:
+                data = None
+                expanded = 0
+                for index, member in enumerate(archive):
+                    expanded += member.size
+                    if index >= 256 or expanded > min(maximum_bytes, 16 * 1024 * 1024):
+                        return None
+                    if member.name != member_name:
+                        continue
+                    if data is not None or not member.isreg() or not 0 < member.size <= 1024 * 1024:
+                        return None
+                    data = archive.extractfile(member).read()
+            if data is None:
+                return None
+            rows = csv.DictReader(io.StringIO(data.decode('utf-8')), strict=True)
+            headers = rows.fieldnames or []
+            if len(headers) != len(set(headers)) or not set(columns) <= set(headers):
+                return None
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(columns)
+            for row in rows:
+                numbers = [float(row[k]) for k in columns]
+                if not all(map(math.isfinite, numbers)):
+                    return None
+                writer.writerow(numbers)
+            content = output.getvalue().encode()
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode='w:gz') as dest:
+                info = tarfile.TarInfo(member_name)
+                info.size = len(content)
+                dest.addfile(info, io.BytesIO(content))
+            result = buf.getvalue()
+            return result if len(result) <= maximum_bytes else None
+        except (ValueError, OSError, EOFError, tarfile.TarError, csv.Error, TypeError):
+            return None
