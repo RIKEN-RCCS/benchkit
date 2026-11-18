@@ -74,6 +74,22 @@ def reader(root, port):
         application.config.update(REDIS_CONN=None,REDIS_PREFIX='synthetic:',AUTH_REQUIRES_REDIS=False)
     app._configure_redis = no_redis
     application = PublicApplication(root/'public', 0)
+    probe = root/'access-probe.json'
+    if probe.exists() and any((root/'public/generations').glob('*/received_padata/*')):
+        from utils.public_delivery import read_current
+        generation, _ = read_current(root/'public')
+        assert next((generation/'received').iterdir()).read_bytes()
+        assert next((generation/'received_padata').iterdir()).read_bytes()
+        denied = []
+        for path in json.loads(probe.read_text()):
+            try:
+                with open(path, 'rb') as stream:
+                    stream.read(1)
+            except PermissionError:
+                denied.append(True)
+            else:
+                raise AssertionError('Private file accessible to public service')
+        (root/'sessions/access.json').write_text(json.dumps(denied))
     def entry(environ, start_response):
         if environ['PATH_INFO'] == '/stream':
             from utils.public_delivery import read_current

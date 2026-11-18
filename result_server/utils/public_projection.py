@@ -131,10 +131,13 @@ def export_public(store, destination, *, policy=None, maximum_bytes=256 * 1024 *
     root.mkdir(mode=0o700)
     for name in ('received', 'estimated_results', 'received_padata', 'received_estimation_artifacts', 'index'):
         (root / name).mkdir(mode=0o700)
-    from .public_disclosure import DisclosurePolicy
+    from .public_disclosure import AutomaticDisclosure, DisclosurePolicy
     policy = policy or DisclosurePolicy()
+    automatic = isinstance(policy, AutomaticDisclosure)
+
     used = 0
     count = 0
+    artifact_count = 0
     # A single SQL transaction fixes visibility and bytes for the entire export.
     from utils.document_snapshot import document_snapshot
     app = Flask(__name__)
@@ -148,6 +151,29 @@ def export_public(store, destination, *, policy=None, maximum_bytes=256 * 1024 *
             value = policy.document(name, document, value)
             if value is None:
                 continue
+            if automatic:
+                references = []
+                for artifact, (basename, rule) in policy.artifact_rules(document).items():
+                    if not archive_access.get(document.get('_server_uuid', '').lower(), False):
+                        continue
+                    if not PUBLIC_PADATA_FILENAME_RE.fullmatch(artifact) or not snapshot.exists('artifacts', artifact):
+                        continue
+                    payload = bytearray()
+                    for chunk in store.chunks('artifacts', artifact, conn=snapshot.conn):
+                        payload.extend(chunk)
+                        if len(payload) > min(maximum_bytes - used, 16 * 1024 * 1024):
+                            break
+                    else:
+                        selected = policy.numeric_archive(bytes(payload), rule, maximum_bytes - used)
+                        if selected is not None:
+                            target = root / 'received_padata' / artifact
+                            if not target.exists():
+                                target.write_bytes(selected)
+                                used += len(selected)
+                                artifact_count += 1
+                            references.append({'type':'file_reference', 'path':'results/' + basename})
+                if references:
+                    value['fom_breakdown'] = {'sections':[{'name':'Profile', 'artifacts':references}]}
             store._name(name)
             encoded = json.dumps(value, ensure_ascii=True, allow_nan=False).encode()
             used += len(encoded)
@@ -155,8 +181,7 @@ def export_public(store, destination, *, policy=None, maximum_bytes=256 * 1024 *
                 raise ValueError('Export exceeds budget')
             (root / 'received' / name).write_bytes(encoded)
             count += 1
-        artifact_count = 0
-        archives = snapshot.names('artifacts')
+        archives = [] if automatic else snapshot.names('artifacts')
         for name in archives:
             if name not in policy.archives:
                 continue

@@ -13,6 +13,7 @@ import tarfile
 import tempfile
 from datetime import datetime
 
+from utils.public_events import notify_publication
 from utils.auth import verify_ingest_key, verify_trusted_proxy_auth
 from utils.audit_logging import audit_event
 from utils.environment_snapshots import index_environment_snapshot
@@ -434,6 +435,7 @@ def ingest_result():
     )
     _index_environment_snapshot(saved)
     _index_saved_json("result", saved)
+    notify_publication()
     audit_event(
         "ingest_accepted",
         actor=runner_id,
@@ -551,6 +553,7 @@ def ingest_measurement_artifact():
     else:
         write_archive()
 
+    notify_publication()
     print(f"Saved: {save_path}", flush=True)
     response = {
         "status": "uploaded",

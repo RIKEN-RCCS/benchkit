@@ -70,3 +70,32 @@ repository, its ancestors and Git metadata must satisfy owner and write-mode
 checks before Git runs. Unsupported metadata layouts and configuration includes
 produce an unavailable version result. Service configuration must select the
 trusted location and owner as part of its separate deployment review.
+
+### Automatic publication after ingest
+
+For the encrypted ingest service, set `RESULT_SERVER_PUBLICATION_QUEUE` to a
+private, shared notification directory. Successful Result and measurement
+artifact receipts create a coalescing pending marker after saving the input.
+Configure a path unit with PathExists conditions on both `pending` and
+`publishing` in that directory. Its one-shot service invokes
+`python -m utils.public_events CONFIG`. Use a unique writer service for this
+installation. An interrupted publication retains the working marker for retry.
+A storage commit and a filesystem notification are separate operations. A
+reconciliation job can enqueue a rebuild after an unclean ingest shutdown.
+
+The administrator-owned JSON configuration supplies the queue directory,
+encrypted store constructor arguments, supervisor arguments and a
+`benchmarks` object keyed by benchmark code. Missing optional rules omit the
+corresponding fields. Each benchmark may define public repositories and refs,
+known public file checksums, allowed profile values by field, build tools,
+compiler/MPI/package versions, scalar metric names and a numeric vector layout.
+Activity and the standard public Result fields are automatically projected.
+Keep configuration, registry and command selection outside the ingest and
+reader identities' write permissions.
+
+For PA output, map a known archive basename under `pa` to a registered CSV
+member name and a list of numeric columns. Only matching references on a
+public Result are considered. The exporter reconstructs the download from
+finite numeric values and uses the registered basename for the public link.
+Unsupported formats remain private. The opt-in systemd acceptance test
+contains a working configuration with synthetic data.

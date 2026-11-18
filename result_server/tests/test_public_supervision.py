@@ -80,9 +80,6 @@ def service():
         state()
     for unit in units:
         subprocess.run(['systemctl', 'stop', unit], capture_output=True, timeout=10)
-    with open('/tmp/portal-supervisor-unit-debug.log', 'a') as log:
-        for unit in units:
-            subprocess.run(['journalctl', '--no-pager', '-u', unit, '-n', '60', '-o', 'cat'], stdout=log, stderr=log)
     for unit in units:
         subprocess.run(['systemctl', 'reset-failed', unit], capture_output=True)
     shutil.rmtree(root)
