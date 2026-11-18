@@ -253,9 +253,12 @@ for json_file in results/result*.json; do
   # Post JSON and capture response
   curl_auth_args=()
   bk_result_server_set_curl_args
-  response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
+  if ! response=$(curl --fail -sS "${curl_auth_args[@]}" -X POST "${RESULT_SERVER}/api/ingest/result" \
     -H "Content-Type: application/json" \
-    --data-binary @"$json_file")
+    --data-binary @"$json_file"); then
+    echo "No successful Result receipt. Check stored records before resubmitting." >&2
+    exit 1
+  fi
 
   echo "Response: $response"
 

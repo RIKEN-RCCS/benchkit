@@ -147,13 +147,13 @@ def export_public(store, destination, *, policy=None, maximum_bytes=256 * 1024 *
                                            for name in snapshot.names('results'))
         for name in snapshot.names('results'):
             document = snapshot.read_json('results', name)
-            value = public_document(document)
-            value = policy.document(name, document, value)
+            projected = public_document(document)
+            value = policy.document(name, document, projected)
             if value is None:
                 continue
             if automatic:
                 references = []
-                for artifact, (basename, rule) in policy.artifact_rules(document).items():
+                for artifact, (basename, rule) in policy.artifact_rules(projected).items():
                     if not archive_access.get(document.get('_server_uuid', '').lower(), False):
                         continue
                     if not PUBLIC_PADATA_FILENAME_RE.fullmatch(artifact) or not snapshot.exists('artifacts', artifact):
