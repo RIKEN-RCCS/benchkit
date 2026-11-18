@@ -33,6 +33,10 @@ def catalog_for(path, directory, **kwargs):
             if root is not None and str(Path(root).absolute()) != store.sources.get(role):
                 raise CatalogUnavailable("Encrypted persistence source binding mismatch")
         return store
+    from flask import current_app, has_app_context
+    if has_app_context() and 'PUBLIC_EXPORT_OWNER_UID' in current_app.config:
+        from .public_delivery import PublicCatalog
+        return PublicCatalog(path, directory, **kwargs)
     return ResultCatalog(path, directory, **kwargs)
 
 
