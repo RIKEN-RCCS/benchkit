@@ -156,7 +156,7 @@ def _configure_execution_profiles(app, base_dir):
     )
 
 
-def _register_portal_blueprints(app, prefix):
+def _register_portal_blueprints(app, prefix, *, enable_runner_api=True):
     """Register all portal blueprints using the given URL prefix."""
     from routes.admin import admin_bp, profile_requests_bp
     from routes.auth import auth_bp
@@ -165,7 +165,8 @@ def _register_portal_blueprints(app, prefix):
     from routes.runner_monitor import register_runner_monitor
 
     register_security_metadata_routes(app, prefix=prefix)
-    app.register_blueprint(api_bp, url_prefix=prefix)
+    if enable_runner_api:
+        app.register_blueprint(api_bp, url_prefix=prefix)
     app.register_blueprint(results_bp, url_prefix=f"{prefix}/results")
     app.register_blueprint(estimated_bp, url_prefix=f"{prefix}/estimated")
     app.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
@@ -179,15 +180,22 @@ def _register_portal_blueprints(app, prefix):
     register_runner_observation_ingest(app, prefix)
 
 
-def create_app(prefix="", base_dir=None, *, instance_settings=None, public_portal_mode=None):
+def create_app(prefix="", base_dir=None, *, instance_settings=None, public_portal_mode=None, public_export=False):
     """Create a configured Flask application for the main or dev portal."""
     if base_dir is None:
         raise ValueError("base_dir must be specified")
     from utils.profile_storage import persistence_settings
     persistence_settings()
 
-    ingest_keys = parse_ingest_keys()
-    preflight_errors = validate_production_config(os.environ, ingest_keys)
+    if public_export:
+        from utils.public_projection import validate_public_environment
+        validate_public_environment()
+    ingest_setting = os.environ.get("RESULT_SERVER_INGEST_ENABLED", "true").strip().lower()
+    if ingest_setting not in {"true", "false"}:
+        raise ValueError("RESULT_SERVER_INGEST_ENABLED must be true or false")
+    ingest_enabled = not public_export and ingest_setting == "true"
+    ingest_keys = parse_ingest_keys() if ingest_enabled else {}
+    preflight_errors = validate_production_config(os.environ, ingest_keys, require_ingest_keys=ingest_enabled)
     if preflight_errors:
         for error in preflight_errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -204,7 +212,7 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     configure_audit_logging(app)
     configure_public_site_info(app)
 
-    _configure_session(app, base_dir)
+    _configure_session(app, os.environ["RESULT_SERVER_PUBLIC_STATE_DIR"] if public_export else base_dir)
     _configure_redis(app, prefix, instance_settings)
     _configure_user_store(app)
     _configure_totp_issuer(app, prefix, instance_settings)
@@ -227,7 +235,7 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
     init_csrf(app, exempt_blueprints=(api_bp, runner_observation_ingest_bp))
 
     register_home_routes(app, prefix=prefix)
-    _register_portal_blueprints(app, prefix)
+    _register_portal_blueprints(app, prefix, enable_runner_api=ingest_setting == "true")
 
     def systemlist():
         from utils.system_info import get_all_systems_info, summarize_systems_info
@@ -241,6 +249,9 @@ def create_app(prefix="", base_dir=None, *, instance_settings=None, public_porta
 
     app.add_url_rule(f"{prefix}/systems", endpoint="systemlist", view_func=systemlist)
 
+    if public_export:
+        from utils.public_projection import install_public_export_guard
+        install_public_export_guard(app, base_dir)
     return app
 
 
@@ -249,12 +260,16 @@ def create_instance_app(surface="public"):
     if surface not in {"public", "console"}:
         raise ValueError("surface must be public or console")
     settings = resolve_instance_settings()
+    public_export = os.environ.get('RESULT_SERVER_PUBLIC_EXPORT') == '1'
+    if public_export and surface != 'public':
+        raise ValueError('Public export settings cannot start a Console')
     prefix = settings.url_prefix + ("/console" if surface == "console" else "")
     return create_app(
         prefix=prefix,
         base_dir=settings.data_dir,
         instance_settings=settings,
         public_portal_mode=surface == "public",
+        public_export=public_export,
     )
 
 

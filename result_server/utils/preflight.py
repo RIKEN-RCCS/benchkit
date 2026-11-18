@@ -56,15 +56,15 @@ def validate_ingest_keys(
 def validate_production_config(
     env: Mapping[str, str],
     ingest_keys: Mapping[str, str],
+    *, require_ingest_keys: bool = True,
 ) -> list[str]:
     """Return production startup errors for insecure result_server config."""
     errors = _validate_secret("FLASK_SECRET_KEY", env.get("FLASK_SECRET_KEY"))
-    errors.extend(
-        validate_ingest_keys(
+    if require_ingest_keys:
+        errors.extend(validate_ingest_keys(
             ingest_keys,
             trusted_proxy_auth=env.get("RESULT_SERVER_TRUSTED_PROXY_AUTH", "").strip(),
-        )
-    )
+        ))
     if env.get("FLASK_DEBUG") in {"1", "true", "True"}:
         errors.append("FLASK_DEBUG must not be enabled for app.py")
     return errors
