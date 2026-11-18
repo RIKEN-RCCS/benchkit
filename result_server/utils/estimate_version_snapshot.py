@@ -121,7 +121,8 @@ def _git(repository, *args):
     env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1")
     return subprocess.run(
-        ["git", "--no-pager", "--no-replace-objects", "--literal-pathspecs",
+        ["git", "-c", "safe.directory=" + os.path.realpath(repository),
+         "--no-pager", "--no-replace-objects", "--literal-pathspecs",
          "-C", os.fspath(repository), *args],
         check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=10, env=env,

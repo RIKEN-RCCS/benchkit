@@ -66,7 +66,7 @@ def _find_git_root(start_path: Path) -> Path | None:
 def _run_git(args: list[str], git_root: Path) -> str:
     try:
         completed = subprocess.run(
-            ["git", *args],
+            ["git", "-c", "safe.directory=" + os.fspath(git_root.resolve()), *args],
             cwd=git_root,
             check=False,
             stdout=subprocess.PIPE,
