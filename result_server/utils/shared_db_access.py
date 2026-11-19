@@ -17,8 +17,29 @@ class SharedAccess:
         if (not expected(info.st_mode) or info.st_uid not in self.writers or info.st_mode & 0o007
                 or (not directory and info.st_nlink != 1) or path.resolve() != path):
             raise EncryptedDatabaseError('Unsafe shared database ownership or type')
-        result = subprocess.run(['/usr/bin/getfacl','--absolute-names','--omit-header','--numeric',str(path)],
-                                check=True,capture_output=True,text=True)
+        # Inspect the observed inode, even when SQLite unlinks its name concurrently.
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            current = os.fstat(descriptor)
+            if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                error = EncryptedDatabaseError('Shared database identity changed')
+                error.reason = 'identity_changed'
+                raise error
+            try:
+                result = subprocess.run(
+                    ['/usr/bin/getfacl', '--absolute-names', '--omit-header', '--numeric',
+                     '/proc/self/fd/' + str(descriptor)], pass_fds=(descriptor,),
+                    capture_output=True, text=True)
+            except OSError:
+                error = EncryptedDatabaseError('Unable to run shared database ACL inspection')
+                error.reason = 'acl_inspection_failed'
+                raise error from None
+            if result.returncode:
+                error = EncryptedDatabaseError('Unable to inspect shared database ACL')
+                error.reason = 'acl_inspection_failed'
+                raise error
+        finally:
+            os.close(descriptor)
         entries = {}
         for line in result.stdout.splitlines():
             line = line.split('#',1)[0].strip()
@@ -33,7 +54,9 @@ class SharedAccess:
         expected_entries = {'user:':permissions,'group:':'---','other:':'---','mask:':permissions}
         expected_entries.update({'user:'+str(uid):permissions for uid in self.writers})
         if entries != expected_entries:
-            raise EncryptedDatabaseError('Shared database ACL differs from explicit policy')
+            error = EncryptedDatabaseError('Shared database ACL differs from explicit policy')
+            error.reason = 'acl_mismatch'
+            raise error
         if directory:
             defaults = {}
             for line in result.stdout.splitlines():
