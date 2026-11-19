@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import logging
 import os
 from pathlib import Path
 import re
@@ -12,6 +13,13 @@ import stat
 
 class EncryptedDatabaseError(RuntimeError):
     """A deliberately value-free storage error suitable for an operator report."""
+
+
+class SidecarValidationError(EncryptedDatabaseError):
+    """Only the file kind and a controlled reason are suitable for diagnostics."""
+    def __init__(self, kind, reason):
+        self.diagnostic = {'component': kind, 'reason': reason}
+        super().__init__(kind + ': ' + reason)
 
 
 def _private_parent(path: Path) -> None:
@@ -92,6 +100,47 @@ class EncryptedSQLite:
         else:
             _check_file(info or path.stat())
 
+    def _validate_sidecar(self, suffix, db_identity):
+        path = Path(str(self.path) + suffix)
+        kind = suffix[1:]
+        for attempt in range(2):
+            try:
+                observed = path.lstat()
+            except FileNotFoundError:
+                # Absent at entry, or confirmed absent on the one allowed recheck.
+                return
+            except PermissionError:
+                raise SidecarValidationError(kind, 'access_denied') from None
+            try:
+                if not stat.S_ISREG(observed.st_mode):
+                    raise SidecarValidationError(kind, 'unsafe_type')
+                self._validate_data(path, observed)
+                after = path.lstat()
+                if (observed.st_dev, observed.st_ino) != (after.st_dev, after.st_ino):
+                    raise SidecarValidationError(kind, 'identity_changed')
+                return
+            except FileNotFoundError as error:
+                # A missing policy file or ACL tool must never authorize a retry.
+                if error.filename != os.fspath(path):
+                    raise SidecarValidationError(kind, 'validation_dependency_missing') from None
+                if kind not in ('shm', 'wal') or attempt:
+                    raise SidecarValidationError(kind, 'disappeared_after_observation') from None
+                logging.getLogger(__name__).warning(
+                    'sidecar=%s reason=disappeared_after_observation action=recheck', kind)
+                # Revalidate the database and its containing directory before checking
+                # the optional file again. A replacement must pass every original check.
+                self._validate_data(self.path.parent, directory=True)
+                current = self.path.lstat()
+                if (current.st_dev, current.st_ino) != db_identity:
+                    raise SidecarValidationError(kind, 'database_identity_changed')
+                self._validate_data(self.path, current)
+            except PermissionError:
+                raise SidecarValidationError(kind, 'access_denied') from None
+            except SidecarValidationError:
+                raise
+            except EncryptedDatabaseError as error:
+                raise SidecarValidationError(kind, getattr(error, 'reason', 'policy_validation_failed')) from None
+
     @contextmanager
     def connect(self, *, create: bool = False, readonly: bool = False):
         if create and readonly:
@@ -108,17 +157,15 @@ class EncryptedSQLite:
                 flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             fd = os.open(self.path, flags, 0o600)
             with os.fdopen(fd, "rb") as handle:
-                self._validate_data(self.path, os.fstat(handle.fileno()))
+                info = os.fstat(handle.fileno())
+                db_identity = (info.st_dev, info.st_ino)
+                self._validate_data(self.path, info)
                 if not create and os.fstat(handle.fileno()).st_size == 0:
                     raise EncryptedDatabaseError("Database is not initialized")
                 if handle.read(16) == b"SQLite format 3\x00":
                     raise EncryptedDatabaseError("Plaintext databases are not accepted")
             for suffix in ("-wal", "-shm", "-journal"):
-                sidecar = Path(str(self.path) + suffix)
-                if sidecar.exists() or sidecar.is_symlink():
-                    if sidecar.is_symlink():
-                        raise EncryptedDatabaseError("Database sidecar must not be a symlink")
-                    self._validate_data(sidecar)
+                self._validate_sidecar(suffix, db_identity)
             mode = "ro" if readonly else "rw"
             conn = db.connect(self.path.as_uri() + "?mode=" + mode, uri=True, timeout=5)
             # PRAGMA does not support placeholders. Only encoded random bytes
