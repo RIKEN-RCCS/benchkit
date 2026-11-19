@@ -13,6 +13,7 @@ from .measurement_artifacts import (
 )
 from .session_user_context import get_session_user_context
 from .storage_files import is_file, read_json, list_names, send_object
+from .document_snapshot import document_snapshot
 from .encrypted_sqlite import EncryptedDatabaseError
 
 
@@ -71,8 +72,10 @@ def get_file_confidential_tags(filename: str, save_dir: str):
 
     # For measurement artifacts, find the matching Result JSON by UUID and reuse its tags.
     tags = []
-    for _json_filename, data in _matching_result_json_for_padata(filename, save_dir):
-        tags.extend(_extract_confidential_tags(data))
+    # Reuse one read transaction while checking every matching Result, including duplicates.
+    with document_snapshot(cache_documents=False):
+        for _json_filename, data in _matching_result_json_for_padata(filename, save_dir):
+            tags.extend(_extract_confidential_tags(data))
     return _unique_tags(tags)
 
 

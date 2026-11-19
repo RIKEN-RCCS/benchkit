@@ -1136,3 +1136,34 @@ def test_uuid_lookup_uses_the_index_and_preserves_duplicate_filename_order(encry
                                                headers={'X-API-Key': 'synthetic-key'})
     assert response.status_code == 200
     assert response.get_json()['value'] == 'new'
+
+
+def test_pa_permissions_share_one_read_snapshot_and_refresh_on_next_request(storage, monkeypatch):
+    from utils.result_file import get_file_confidential_tags
+    identifier = "c08f11d2-c602-4313-b2c6-20f4143c6710"
+    artifact = f"padata_20261119_010203_{identifier}.tgz"
+    first = f"result-{identifier.upper()}.json"
+    storage.put_document("results", first, b'{"confidential":["alpha"]}', update_metadata=False)
+
+    def set_declared(tag):
+        payload = {"_server_uuid": identifier.upper(), "confidential": [tag]}
+        storage.put_document("results", "older.json", json.dumps(payload).encode(), update_metadata=False)
+
+    set_declared("beta")
+    app = Flask(__name__)
+    app.extensions["cx_persistence"] = storage
+    connect = storage._connect
+    opens = []
+
+    def measured(*args, **kwargs):
+        opens.append(kwargs.get("readonly"))
+        return connect(*args, **kwargs)
+
+    monkeypatch.setattr(storage, "_connect", measured)
+    with app.app_context():
+        assert set(get_file_confidential_tags(artifact, storage.roots["results"])) == {"alpha", "beta"}
+        assert opens == [True]
+        set_declared("gamma")
+        opens.clear()
+        assert set(get_file_confidential_tags(artifact, storage.roots["results"])) == {"alpha", "gamma"}
+        assert opens == [True]
