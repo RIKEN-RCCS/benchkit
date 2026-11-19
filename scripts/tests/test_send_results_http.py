@@ -19,7 +19,7 @@ RESULT_ID = "11111111-2222-4333-8444-555555555555"
 
 
 class SenderReceiptTest(unittest.TestCase):
-    def run_sender(self, lose_receipt):
+    def run_sender(self, lose_receipt, dot_segment=False):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             cert, key = root / "cert.pem", root / "key.pem"
@@ -38,6 +38,8 @@ class SenderReceiptTest(unittest.TestCase):
                 bundle.addfile(info, io.BytesIO(data))
             ref = {"type": "file_reference", "path": "results/profile.tgz"}
             refs = [False, "invalid", {"type": "file_reference", "path": [ref["path"]]}, ref, ref]
+            if dot_segment:
+                refs = [{"type": "file_reference", "path": "results/./profile.tgz"}, ref]
             if lose_receipt:
                 (results / "after.tgz").write_bytes(archive.read_bytes())
                 refs.append({"type": "file_reference", "path": "results/after.tgz"})
@@ -100,6 +102,9 @@ class SenderReceiptTest(unittest.TestCase):
 
     def test_later_valid_reference_arrives_once(self):
         self.run_sender(False)
+
+    def test_dot_segment_before_valid_reference(self):
+        self.run_sender(False, dot_segment=True)
 
     def test_lost_pa_receipt_stops_without_repost(self):
         self.run_sender(True)

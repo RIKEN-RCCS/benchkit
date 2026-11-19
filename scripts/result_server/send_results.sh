@@ -131,16 +131,16 @@ is_profile_archive_path() {
 is_safe_local_measurement_artifact_path() {
   local artifact_path="$1"
 
-  case "$artifact_path" in
-    results/*.tgz|results/*.tar.gz|results/*.json) ;;
-    *) return 1 ;;
+  local LC_ALL=C
+  local basename_pattern='^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(tgz|tar\.gz|json)$'
+
+  # Match the ingest API's path rules before opening the local file.
+  [[ "$artifact_path" == results/* ]] || return 1
+  case "/$artifact_path/" in
+    *//*|*/./*|*/../*|*\\*) return 1 ;;
   esac
 
-  case "$artifact_path" in
-    /*|*"/../"*|../*|*"/.."|*\\*) return 1 ;;
-  esac
-
-  [[ -f "$artifact_path" ]]
+  [[ ${artifact_path##*/} =~ $basename_pattern && -f "$artifact_path" ]]
 }
 
 collect_measurement_artifacts_for_result() {
