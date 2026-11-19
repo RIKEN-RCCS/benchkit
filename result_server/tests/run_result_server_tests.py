@@ -14,6 +14,8 @@ def split_test_files(suite_path: Path, count: int = 2) -> tuple[list[Path], ...]
     """Balance file sizes without splitting file-scoped fixtures across jobs."""
     files = {path for pattern in ("test_*.py", "*_test.py")
              for path in suite_path.rglob(pattern) if path.is_file()}
+    # The encrypted database job collects this file with SQLCipher installed.
+    files.discard(suite_path / "test_encrypted_publication.py")
     if count not in (2, 4):
         raise ValueError("Expected two or four test shards")
     groups = tuple([] for _ in range(count))

@@ -23,6 +23,7 @@ def test_file_shards_cover_nested_new_tests_once_with_stable_order(tmp_path, cou
         path.parent.mkdir(exist_ok=True)
         path.write_text("#" * (40 - index * 9))
     (tmp_path / "helper.py").write_text("not a test")
+    (tmp_path / "test_encrypted_publication.py").touch()
     groups = runner.split_test_files(tmp_path, count)
     assert all(groups)
     assert sum(map(len, groups)) == len(set(sum((list(g) for g in groups), [])))
