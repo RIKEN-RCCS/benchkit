@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 
@@ -96,18 +97,44 @@ def build_trigger_result_links(
         if strict:
             raise OSError("Result directory is not configured")
         return {}
+    indexed_runs = [_index_trigger_run(run) for run in runs]
     try:
-        filenames = sorted(
-            [name for name in _os_listdir(results_dir) if name.endswith(".json")],
-            reverse=True,
-        )
+        with _execution_filenames(results_dir, indexed_runs, pipeline_only) as filenames:
+            return _match_result_links(results_dir, filenames, indexed_runs, pipeline_only, pipeline_projects)
     except OSError:
         if strict:
             raise
         return {}
 
+
+@contextmanager
+def _execution_filenames(results_dir, runs, pipeline_only):
+    """Hold the index and canonical reads in one snapshot (or filesystem writer lock)."""
+    from flask import current_app, has_app_context
+    from .profile_storage import configured_store
+    from .cx_persistence import catalog_for
+    from .result_catalog import CatalogUnavailable
+    from .encrypted_sqlite import EncryptedDatabaseError
+
+    path = current_app.config.get('RESULT_CATALOG_PATH') if has_app_context() else None
+    if pipeline_only and path and 'PUBLIC_EXPORT_OWNER_UID' not in current_app.config:
+        store = configured_store()
+        try:
+            catalog = catalog_for(path, results_dir)
+            # SQLCipher shares document_snapshot; plaintext readers exclude JSON writers.
+            with (nullcontext() if store else catalog._lock()), catalog.snapshot() as reader:
+                names = reader.execution_candidates(runs)
+                if names is None:
+                    names = sorted((name for name in _os_listdir(results_dir) if name.endswith('.json')), reverse=True)
+                yield names
+        except (CatalogUnavailable, EncryptedDatabaseError, sqlite3.Error):
+            raise OSError('Execution Result lookup is unavailable') from None
+    else:
+        yield sorted((name for name in _os_listdir(results_dir) if name.endswith('.json')), reverse=True)
+
+
+def _match_result_links(results_dir, filenames, indexed_runs, pipeline_only, pipeline_projects):
     by_run_id: dict[int, list[dict[str, str]]] = {}
-    indexed_runs = [_index_trigger_run(run) for run in runs]
     projects_by_id = {}
     for pipeline_id, projects in (pipeline_projects or {}).items():
         projects_by_id[pipeline_id] = set(projects)

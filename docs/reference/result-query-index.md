@@ -11,7 +11,7 @@ data, not another authoritative database or encrypted storage.
   page is loaded from JSON, rechecking permissions and filters. Archive links use
   indexed filenames instead of directory listings. Details/comparisons/downloads
   retain their existing access checks.
-  This does not index every detail/comparison/history API, the Estimate list or
+  This does not index every detail/comparison API, the Estimate list or
   Version Check; those are separate consumers, not silently changed here.
 - Node-Hours, Profile Operations, Performance Telemetry, Evidence Snapshot and
   its CSV share a read-only catalog snapshot within each report. SQL narrows
@@ -29,6 +29,50 @@ data, not another authoritative database or encrypted storage.
   Evidence Snapshot applies it independently to the latest Result, Estimate and
   eligible public reuse packet. CSV exports use those same selections without
   changing publication eligibility or evidence checks.
+
+## Execution History Receipt Lookup
+
+The Runs view's explicit stored-Result check uses a derived filename index keyed
+by recorded CI project and pipeline ID. Both Result pipeline and parent pipeline
+IDs are indexed. Only candidate documents are loaded; the existing canonical
+Result matcher still decides which history rows may claim them. Same-numbered
+pipelines in different projects, ambiguous legacy Results without a project,
+producer boundaries, duplicate UUIDs and filename-descending link order retain
+their existing meanings. This is not GitLab monitoring or proof that a job ran.
+
+Receipt and replacement update the lookup in the same transaction as other
+Result facts. Deletion through the existing catalog hook removes its entries.
+Encrypted storage shares one document snapshot across candidate selection and
+canonical reads. Filesystem catalog readers hold the participating writer lock
+until candidate documents are read, so a concurrent replacement cannot mix
+old candidate metadata with new JSON. A busy or invalid enabled lookup is
+reported as unavailable, not as zero matching Results.
+
+The lookup is an optional derived extension, not a new Profile/Budget schema or
+new storage binding. New stores initialize it; existing v2 catalogs and encrypted
+stores gain it on an explicit rebuild through their existing lifecycle tools.
+Until then, Runs retains the legacy scan path without altering old databases on
+GET. No initialization or rebuild is triggered by browsing history. Rebuild an
+isolated copy and compare output before selecting an updated store. Encrypted
+rebuilds read canonical encrypted documents, not logical-directory placeholders.
+
+Index-aware writers preserve a dirty state until a complete rebuild succeeds.
+An older writer that updates Result membership but not the new lookup invalidates
+the lookup through database triggers; a later incremental receipt cannot make it
+ready again. Mixed-version writers and out-of-band source edits remain unsupported.
+If reverting application code, rebuild the derived lookup before re-enabling new
+indexed readers after older writers have run. No Result or artifact needs to be
+rewritten for this extension.
+
+Profile editing and dry-run planning still do not perform receipt lookup. Result
+association remains administrator-only through the existing routes. No new URL,
+automatic refresh, retry or submission action is introduced.
+
+Synthetic output/read-count and timing comparisons are reproducible with
+`python -B result_server/tests/measure_execution_result_index.py --output /tmp/execution-index.json`.
+This creates temporary data and test keys only; it does not read an application
+database or contact a runner. Timing depends on hardware and filesystem; source
+document read counts and output equality are checked independently of timing.
 
 The catalog stores selected timing, resource, trigger/backend, snapshot summary,
 cache and estimate fields. Evidence quality/public eligibility is derived with

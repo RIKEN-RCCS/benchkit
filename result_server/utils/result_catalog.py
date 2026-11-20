@@ -113,6 +113,46 @@ class ResultCatalog:
         """)
         conn.execute("INSERT INTO catalog_state VALUES(1,2,?,0,NULL,NULL)", (self.directory,))
         self._create_query_schema(conn)
+        self._create_execution_schema(conn)
+
+    @staticmethod
+    def _create_execution_schema(conn):
+        # Optional derived extension: existing stores gain it only on rebuild.
+        conn.execute('''CREATE TABLE IF NOT EXISTS execution_lookup_state(
+            id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL, ready INTEGER NOT NULL)''')
+        conn.execute('INSERT OR IGNORE INTO execution_lookup_state VALUES(1,1,0)')
+        conn.execute('''CREATE TABLE IF NOT EXISTS execution_pipeline_refs(
+            filename TEXT NOT NULL, pipeline_id TEXT NOT NULL, ci_project TEXT NOT NULL,
+            PRIMARY KEY(filename,pipeline_id))''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS execution_pipeline_lookup
+            ON execution_pipeline_refs(pipeline_id,ci_project,filename)''')
+        for operation in ('INSERT', 'UPDATE', 'DELETE'):
+            conn.execute(f'''CREATE TRIGGER IF NOT EXISTS execution_lookup_{operation.lower()}
+                AFTER {operation} ON result_entries BEGIN
+                UPDATE execution_lookup_state SET ready=0 WHERE id=1; END''')
+
+    @staticmethod
+    def _has_execution_index(conn):
+        return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='execution_lookup_state'").fetchone())
+
+    @staticmethod
+    def _execution_index_ready(conn):
+        if not ResultCatalog._has_execution_index(conn):
+            return None
+        row = conn.execute('SELECT ready FROM execution_lookup_state WHERE id=1').fetchone()
+        if not row:
+            raise CatalogUnavailable('Execution lookup state is missing')
+        return row[0]
+
+    @classmethod
+    def _put_execution(cls, conn, filename, payload, *, ready):
+        if ready is None:
+            return
+        from .trigger_display import _result_pipeline_ids
+        project = str(payload.get('ci_project') or '').strip().removesuffix('.git')
+        conn.executemany('INSERT INTO execution_pipeline_refs VALUES(?,?,?)',
+                         ((filename, pipeline, project) for pipeline in _result_pipeline_ids(payload)))
+        conn.execute('UPDATE execution_lookup_state SET ready=? WHERE id=1', (ready,))
 
     def _create_query_schema(self, conn):
         conn.executescript('''BEGIN IMMEDIATE;
@@ -156,6 +196,7 @@ class ResultCatalog:
         self._name(filename)
         if not isinstance(payload, dict):
             raise ValueError("Expected a Result object")
+        execution_ready = self._execution_index_ready(conn)
         self._remove(conn, filename)
         # Use exactly the same confidentiality normalization as the Result loader.
         tags = sorted(set(_extract_confidential_tags(payload)))
@@ -172,6 +213,7 @@ class ResultCatalog:
         conn.execute("INSERT INTO result_entries VALUES(?,?)", (filename, group))
         conn.execute("UPDATE candidate_groups SET count=count+1 WHERE id=?", (group,))
         self._put_report(conn, self.directory, filename, payload)
+        self._put_execution(conn, filename, payload, ready=execution_ready)
 
     @staticmethod
     def _put_report(conn, directory, filename, payload):
@@ -191,11 +233,16 @@ class ResultCatalog:
 
     @staticmethod
     def _remove(conn, filename):
+        ready = ResultCatalog._execution_index_ready(conn)
+        if ready is not None:
+            conn.execute('DELETE FROM execution_pipeline_refs WHERE filename=?', (filename,))
         previous = conn.execute("SELECT group_id FROM result_entries WHERE filename=?", (filename,)).fetchone()
         if previous:
             conn.execute("DELETE FROM result_entries WHERE filename=?", (filename,))
             conn.execute("UPDATE candidate_groups SET count=count-1 WHERE id=?", (previous[0],))
             conn.execute("DELETE FROM candidate_groups WHERE id=? AND count=0", (previous[0],))
+        if ready is not None:
+            conn.execute('UPDATE execution_lookup_state SET ready=? WHERE id=1', (ready,))
 
     @contextmanager
     def writer(self, *, complete=False):
@@ -218,6 +265,9 @@ class ResultCatalog:
     def rebuild(self):
         """Explicit operator operation. Do not call from request rendering."""
         with self.writer(complete=True) as conn:
+            self._create_execution_schema(conn)
+            conn.execute('UPDATE execution_lookup_state SET ready=0 WHERE id=1')
+            conn.execute('DELETE FROM execution_pipeline_refs')
             conn.execute("DELETE FROM result_entries")
             conn.execute("DELETE FROM candidate_groups")
             conn.execute('DELETE FROM query_records')
@@ -251,6 +301,7 @@ class ResultCatalog:
                             raise ValueError('Expected a Result object')
                         self._put_report(conn, root, path.name, payload)
             conn.execute("""UPDATE catalog_state SET rebuilt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1""")
+            conn.execute('UPDATE execution_lookup_state SET ready=1 WHERE id=1')
 
     def replace(self, filename, payload, write_json):
         """Publish one replacement; callback must atomically save that filename."""
