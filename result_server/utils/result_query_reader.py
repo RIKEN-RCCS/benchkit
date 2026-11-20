@@ -13,6 +13,22 @@ class ResultQueryReader:
     def __init__(self, conn, sources):
         self.conn, self.sources = conn, sources
 
+    def execution_candidates(self, runs):
+        """Return filenames only; callers must still check canonical Result metadata."""
+        from .result_catalog import ResultCatalog
+        if not ResultCatalog._has_execution_index(self.conn):
+            return None
+        state = self.conn.execute('SELECT version,ready FROM execution_lookup_state WHERE id=1').fetchone()
+        if not state or tuple(state) != (1, 1):
+            raise CatalogUnavailable('Execution lookup needs rebuilding')
+        names = set()
+        identities = {(pipeline, run['project']) for run in runs for pipeline in run['pipeline_ids']}
+        for pipeline, project in sorted(identities):
+            names.update(row[0] for row in self.conn.execute('''
+                SELECT filename FROM execution_pipeline_refs
+                WHERE pipeline_id=? AND ci_project IN ('',?)''', (pipeline, project)))
+        return sorted(names, reverse=True)
+
     def fiscal_years(self, selection=None):
         clauses, args = ['directory=?', 'timestamp IS NOT NULL'], [self.sources['results']]
         if selection:

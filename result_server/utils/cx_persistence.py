@@ -108,6 +108,7 @@ class CxPersistence(ResultCatalog):
         ExecutionProfileStore(self.path, key_file=self.storage.key_file).migrate()
         with self.storage.connect() as conn:
             conn.execute('UPDATE catalog_state SET ready=1')
+            conn.execute('UPDATE execution_lookup_state SET ready=1 WHERE id=1')
             conn.commit()
         self.check()
 
@@ -416,6 +417,14 @@ class CxPersistence(ResultCatalog):
                 raise EncryptedDatabaseError("Persistence import is incomplete")
             if conn.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0] != 12:
                 raise EncryptedDatabaseError('Unsupported Profile schema')
+            execution_index = self._has_execution_index(conn)
+            if execution_index:
+                state = conn.execute('SELECT version,ready FROM execution_lookup_state WHERE id=1').fetchone()
+                if not state or tuple(state) != (1, 1):
+                    raise EncryptedDatabaseError('Execution lookup needs rebuilding')
+                if conn.execute('''SELECT 1 FROM execution_pipeline_refs p WHERE NOT EXISTS
+                    (SELECT 1 FROM result_entries e WHERE e.filename=p.filename) LIMIT 1''').fetchone():
+                    raise EncryptedDatabaseError('Execution lookup has an unknown Result')
             objects = [(row[0], row[1]) for row in conn.execute("SELECT role,name FROM cx_objects")]
             documents = {(self.roots[role], name) for role, name in objects if role in ("results", "estimates")}
             facts = {(row[0], row[1]) for row in conn.execute("SELECT directory,filename FROM query_records")}
@@ -441,6 +450,14 @@ class CxPersistence(ResultCatalog):
                     if actual != tuple(json.dumps(value, sort_keys=True) for value in expected):
                         raise EncryptedDatabaseError("Stored report facts disagree with the canonical document")
                     if role == 'results':
+                        if execution_index:
+                            from .trigger_display import _result_pipeline_ids
+                            expected_refs = {(pipeline, str(payload.get('ci_project') or '').strip().removesuffix('.git'))
+                                             for pipeline in _result_pipeline_ids(payload)}
+                            actual_refs = {tuple(item) for item in conn.execute(
+                                'SELECT pipeline_id,ci_project FROM execution_pipeline_refs WHERE filename=?', (name,))}
+                            if actual_refs != expected_refs:
+                                raise EncryptedDatabaseError('Execution lookup disagrees with canonical Result')
                         from .result_file import _extract_confidential_tags
                         tags = sorted(set(_extract_confidential_tags(payload)))
                         row = conn.execute('''SELECT g.system,g.code,g.exp,g.visibility,g.public,g.id
@@ -477,6 +494,9 @@ class CxPersistence(ResultCatalog):
     def rebuild(self):
         """Rebuild facts from canonical encrypted bytes, never from stale JSON files."""
         with self.transaction() as conn:
+            self._create_execution_schema(conn)
+            conn.execute('UPDATE execution_lookup_state SET ready=0 WHERE id=1')
+            conn.execute('DELETE FROM execution_pipeline_refs')
             conn.execute("DELETE FROM result_entries")
             conn.execute("DELETE FROM candidate_groups")
             conn.execute("DELETE FROM query_records")
@@ -496,6 +516,7 @@ class CxPersistence(ResultCatalog):
                 elif role == "artifacts" and name.endswith('.tgz'):
                     self._put_archive(conn, name)
             conn.execute("UPDATE catalog_state SET rebuilt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),ready=1")
+            conn.execute('UPDATE execution_lookup_state SET ready=1 WHERE id=1')
 
 
 def configure_persistence(app):

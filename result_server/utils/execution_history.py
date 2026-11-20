@@ -55,11 +55,15 @@ def execution_result_links(results_dir, runs, *, pipeline_projects=None):
     eligible = [run for run in runs if can_lookup_execution_results(run)]
     if not eligible:
         return {}
-    with document_snapshot(cache_documents=False):
-        return build_trigger_result_links(
-            results_dir, eligible, strict=True, pipeline_only=True,
-            pipeline_projects=pipeline_projects,
-        )
+    from .encrypted_sqlite import EncryptedDatabaseError
+    try:
+        with document_snapshot(cache_documents=False):
+            return build_trigger_result_links(
+                results_dir, eligible, strict=True, pipeline_only=True,
+                pipeline_projects=pipeline_projects,
+            )
+    except EncryptedDatabaseError:
+        raise OSError('Execution Result lookup is unavailable') from None
 
 
 def summarize_execution_history(run):
