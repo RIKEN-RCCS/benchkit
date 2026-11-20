@@ -10,7 +10,7 @@ import pytest
 from werkzeug.test import Client
 from werkzeug.wrappers import Response
 
-from test_public_disclosure import ARCHIVE, NAME, SECRET, fixture, store
+from test_public_disclosure import ARCHIVE, NAME, SECRET, UUID, fixture, store, tar
 from test_public_retirement import Control
 from utils.public_delivery import PublicApplication, Publisher, read_current
 from utils.public_disclosure import AutomaticDisclosure
@@ -157,6 +157,40 @@ def test_source_change_invalidates_previous_approval(store, tmp_path):
     source['FOM'] = 3
     store.put_document('results',NAME,json.dumps(source).encode())
     assert export_public(store,tmp_path/'changed',policy=policy)['results'] == 0
+
+
+def test_automatic_pa_rejects_unsafe_members_without_hiding_result(store, tmp_path, monkeypatch):
+    timestamp = '20260101_010101'
+    members = {'safe.tgz': 'metrics/data.csv', 'absolute.tgz': '/data.csv',
+               'parent.tgz': 'metrics/../data.csv'}
+    rules = {name: {'member': member, 'columns': ['seconds']} for name, member in members.items()}
+    refs = [{'type': 'file_reference', 'path': 'results/' + name} for name in members]
+    doc = {'code': 'demo', 'Exp': 'archive-case', '_server_uuid': UUID, '_server_timestamp': timestamp,
+           'fom_breakdown': {'sections': [{'artifacts': refs}]}}
+    store.put_document('results', NAME, json.dumps(doc).encode())
+    stored_names = {}
+    payload = tar({'metrics/data.csv': b'seconds,other\n12,34\n'})
+    for name in members:
+        stored = f'padata_{timestamp}_{UUID}_{name}'
+        store.put('artifacts', stored, io.BytesIO(payload), limit=len(payload))
+        stored_names[name] = stored
+
+    publisher = Publisher(store, tmp_path/'public', tmp_path/'state/p.json', 123,
+                          control=Control(), policy=AutomaticDisclosure({'demo': {'pa': rules}}))
+    assert publisher.update() == {'status': 'published', 'results': 1, 'archives': 1}
+    generation, _ = read_current(publisher.root)
+    public = json.loads((generation/'received'/NAME).read_bytes())
+    assert public['fom_breakdown']['sections'][0]['artifacts'] == [refs[0]]
+    client = public_client(publisher.root, tmp_path, monkeypatch)
+    detail = client.get('/results/detail/' + NAME)
+    assert detail.status_code == 200 and b'archive-case' in detail.data
+    for name in ('absolute.tgz', 'parent.tgz'):
+        assert client.get('/results/' + stored_names[name]).status_code == 404
+    response = client.get('/results/' + stored_names['safe.tgz'])
+    assert response.status_code == 200
+    with tarfile.open(fileobj=io.BytesIO(response.data), mode='r:gz') as archive:
+        assert archive.getnames() == ['metrics/data.csv']
+        assert archive.extractfile('metrics/data.csv').read().splitlines() == [b'seconds', b'12.0']
 
 
 def test_result_approval_does_not_approve_archive_contents(store,tmp_path):

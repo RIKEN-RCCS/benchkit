@@ -18,6 +18,13 @@ def _subset(approved, source):
     return type(approved) is type(source) and approved == source
 
 
+def _safe_member_name(name):
+    if not isinstance(name, str) or not name:
+        return False
+    path = PurePosixPath(name)
+    return not path.is_absolute() and '..' not in path.parts
+
+
 class DisclosurePolicy:
     """Approvals name exact source versions and exact values or member bytes."""
     maximum_input_bytes = 256 * 1024 * 1024
@@ -54,8 +61,7 @@ class DisclosurePolicy:
                         expanded += member.size
                         if expanded > self.maximum_input_bytes:
                             raise ValueError('Archive expansion exceeds budget')
-                        path = PurePosixPath(member.name)
-                        if path.is_absolute() or '..' in path.parts or member.name in seen:
+                        if not _safe_member_name(member.name) or member.name in seen:
                             raise ValueError('Unsafe archive')
                         seen.add(member.name)
                         if len(seen) > 4096:
@@ -184,7 +190,9 @@ class AutomaticDisclosure:
     def numeric_archive(self, payload, rule, maximum_bytes):
         """Publish only registered CSV columns containing finite numeric measurements."""
         import csv
-        member_name = rule['member']
+        member_name = rule.get('member')
+        if not _safe_member_name(member_name):
+            return None
         columns = rule['columns']
         try:
             with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as archive:
