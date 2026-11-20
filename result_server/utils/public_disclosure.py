@@ -156,7 +156,9 @@ class AutomaticDisclosure:
         if public_build:
             result['build'] = public_build
         metrics = projected.get('metrics', {})
-        scalar = {k:v for k,v in metrics.get('scalar', {}).items() if k in rules.get('scalar_metrics', [])}
+        scalar = {k:v for k,v in metrics.get('scalar', {}).items()
+                  if k in rules.get('scalar_metrics', []) and
+                  (type(v) is int or (type(v) is float and math.isfinite(v)))}
         if scalar:
             result['metrics'] = {'scalar':scalar}
         vector = metrics.get('vector', {})
@@ -164,7 +166,8 @@ class AutomaticDisclosure:
         layout = rules.get('vector_layout')
         if layout and all(vector.get(k) == layout.get(k) for k in ('x_axis', 'y_axis')) and (
                 table.get('columns') == layout['columns'] and all(
-                    len(row) == len(layout['columns']) and all(type(v) in (int, float) for v in row)
+                    len(row) == len(layout['columns']) and all(
+                        type(v) is int or (type(v) is float and math.isfinite(v)) for v in row)
                     for row in table.get('rows', []))):
             result.setdefault('metrics', {})['vector'] = vector
         return result
