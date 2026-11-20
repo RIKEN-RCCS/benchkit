@@ -1,6 +1,7 @@
 """Public disclosure and retirement checks that require an encrypted store."""
 import io
 import json
+import math
 import os
 import tarfile
 import time
@@ -12,6 +13,7 @@ from werkzeug.wrappers import Response
 from test_public_disclosure import ARCHIVE, NAME, SECRET, fixture, store
 from test_public_retirement import Control
 from utils.public_delivery import PublicApplication, Publisher, read_current
+from utils.public_disclosure import AutomaticDisclosure
 from utils.public_projection import export_public
 
 
@@ -89,15 +91,7 @@ def test_sensitive_values_and_members_absent_in_http(store, tmp_path, monkeypatc
     for p in [destination,*destination.rglob('*')]:
         p.chmod(0o750 if p.is_dir() else 0o640)
     (root/'current.json').write_text(json.dumps({'generation':destination.name,'checked_at':time.time(),'expires_at':time.time()+900}))
-    for variable in ['RESULT_SERVER_PERSISTENCE_DB','RESULT_SERVER_PERSISTENCE_KEY', 'RESULT_SERVER_PERSISTENCE_ARTIFACT_DB', 'RESULT_SERVER_KEYS','RESULT_SERVER_KEY','RESULT_SERVER_BUDGET_DB_KEY_FILE','RESULT_SERVER_RUNNER_MONITOR_KEY_FILE', 'RESULT_SERVER_SHARED_DB_POLICY']:
-        monkeypatch.delenv(variable, raising=False)
-    monkeypatch.setenv('FLASK_SECRET_KEY','x'*64)
-    monkeypatch.setenv('RESULT_SERVER_PUBLIC_STATE_DIR',str(tmp_path/'session'))
-    import app
-    def no_redis(application, *args):
-        application.config.update(REDIS_CONN=None,REDIS_PREFIX='test:',AUTH_REQUIRES_REDIS=False)
-    monkeypatch.setattr(app,'_configure_redis',no_redis)
-    client = Client(PublicApplication(root, os.geteuid()), Response)
+    client = public_client(root, tmp_path, monkeypatch)
     for url in ['/results/?search=1','/results/detail/'+NAME]:
         response = client.get(url)
         assert response.status_code == 200
@@ -111,6 +105,51 @@ def test_sensitive_values_and_members_absent_in_http(store, tmp_path, monkeypatc
         assert content.getnames() == ['public.txt']
         assert content.extractfile('public.txt').read() == b'approved result'
     assert SECRET.encode() not in (destination/'index/catalog.sqlite3').read_bytes()
+
+
+def public_client(root, tmp_path, monkeypatch):
+    for variable in ['RESULT_SERVER_PERSISTENCE_DB','RESULT_SERVER_PERSISTENCE_KEY', 'RESULT_SERVER_PERSISTENCE_ARTIFACT_DB', 'RESULT_SERVER_KEYS','RESULT_SERVER_KEY','RESULT_SERVER_BUDGET_DB_KEY_FILE','RESULT_SERVER_RUNNER_MONITOR_KEY_FILE', 'RESULT_SERVER_SHARED_DB_POLICY']:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv('FLASK_SECRET_KEY','x'*64)
+    monkeypatch.setenv('RESULT_SERVER_PUBLIC_STATE_DIR',str(tmp_path/'session'))
+    import app
+    def no_redis(application, *args):
+        application.config.update(REDIS_CONN=None,REDIS_PREFIX='test:',AUTH_REQUIRES_REDIS=False)
+    monkeypatch.setattr(app,'_configure_redis',no_redis)
+    return Client(PublicApplication(root, os.geteuid()), Response)
+
+
+def test_automatic_publication_omits_only_nonfinite_fom(store, tmp_path, monkeypatch):
+    originals = {}
+    for i, fom in enumerate([float('nan'), float('inf'), -float('inf'), 42.5]):
+        uid = f'12345678-1234-1234-1234-{i:012d}'
+        name = f'result_20260101_010101_{uid}.json'
+        doc = {'system': 'sample', 'code': 'demo', 'Exp': f'mixed-case-{i}',
+               'FOM': fom, 'FOM_unit': 's', '_server_uuid': uid,
+               'environment_snapshot': {'summary': {'activity': f'activity-{i}'}}}
+        raw = json.dumps(doc).encode()
+        store.put_document('results', name, raw)
+        originals[name] = raw
+
+    publisher = Publisher(store, tmp_path/'public', tmp_path/'state/p.json', 123,
+                          control=Control(), policy=AutomaticDisclosure({}))
+    assert publisher.update() == {'status': 'published', 'results': 4, 'archives': 0}
+    generation, _ = read_current(publisher.root)
+    client = public_client(publisher.root, tmp_path, monkeypatch)
+    listing = client.get('/results/?search=1')
+    assert listing.status_code == 200
+    for name, raw in originals.items():
+        assert store.read('results', name) == raw
+        expected = json.loads(raw)
+        if not math.isfinite(expected['FOM']):
+            del expected['FOM']
+        public = json.loads((generation/'received'/name).read_bytes(), parse_constant=pytest.fail)
+        assert public == expected
+        assert expected['Exp'].encode() in listing.data
+        assert expected['environment_snapshot']['summary']['activity'].encode() in listing.data
+        detail = client.get('/results/detail/' + name)
+        assert detail.status_code == 200
+        assert expected['Exp'].encode() in detail.data
 
 
 def test_source_change_invalidates_previous_approval(store, tmp_path):
