@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import pytest
 from utils.cx_persistence import CxPersistence
 from utils.encrypted_sqlite import generate_key
-from utils.public_disclosure import DisclosurePolicy, digest
+from utils.public_disclosure import AutomaticDisclosure, DisclosurePolicy, digest
 
 SECRET = 'synthetic-do-not-publish'
 UUID = '12345678-1234-1234-1234-123456789abc'
@@ -57,3 +57,13 @@ def test_unreviewed_archive_content_is_denied():
     policy = DisclosurePolicy(archives={ARCHIVE:{'source_sha256':hashlib.sha256(raw).hexdigest(),
                             'members':{'public.txt':hashlib.sha256(b'expected').hexdigest()}}})
     assert policy.archive(ARCHIVE,raw,maximum_bytes=1024) is None
+
+
+@pytest.mark.parametrize('member', ['/data.csv', 'metrics/../data.csv'])
+def test_unsafe_output_member_rejected_before_reading_archive(member, monkeypatch):
+    def unexpected_open(*args, **kwargs):
+        pytest.fail('An ineligible output name must be rejected regardless of the input contents')
+
+    monkeypatch.setattr(tarfile, 'open', unexpected_open)
+    rule = {'member': member, 'columns': ['seconds']}
+    assert AutomaticDisclosure({}).numeric_archive(b'', rule, 1024) is None
