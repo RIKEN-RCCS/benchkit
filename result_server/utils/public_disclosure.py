@@ -2,6 +2,7 @@
 import hashlib
 import io
 import json
+import math
 from pathlib import PurePosixPath
 import tarfile
 
@@ -98,6 +99,9 @@ class AutomaticDisclosure:
                   'node_count', 'numproc_node', 'nthreads', 'cpus_per_node',
                   '_server_uuid', '_server_timestamp')
         result = {key: projected[key] for key in fields if key in projected}
+        fom = result.get('FOM')
+        if isinstance(fom, float) and not math.isfinite(fom):
+            del result['FOM']
         from utils.result_table_rows import _extract_result_activity
         activity = _extract_result_activity(source) or source.get('execution_activity')
         if isinstance(activity, str) and activity:
@@ -180,7 +184,6 @@ class AutomaticDisclosure:
     def numeric_archive(self, payload, rule, maximum_bytes):
         """Publish only registered CSV columns containing finite numeric measurements."""
         import csv
-        import math
         member_name = rule['member']
         columns = rule['columns']
         try:
