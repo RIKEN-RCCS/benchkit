@@ -152,6 +152,53 @@ def test_automatic_publication_omits_only_nonfinite_fom(store, tmp_path, monkeyp
         assert expected['Exp'].encode() in detail.data
 
 
+@pytest.mark.parametrize('kind', ['scalar', 'vector'])
+@pytest.mark.parametrize('number', [float('nan'), float('inf'), -float('inf'), 2.5])
+def test_automatic_publication_filters_nonfinite_metrics(store, tmp_path, monkeypatch, kind, number):
+    layout = {'x_axis': {'name': 'size'}, 'y_axis': {'name': 'time'},
+              'columns': ['size', 'seconds']}
+    policy = AutomaticDisclosure({'demo': {'scalar_metrics': ['seconds', 'count'],
+                                         'vector_layout': layout}})
+    originals = {}
+    for i in range(2):
+        uid = f'12345678-1234-1234-1234-{i:012d}'
+        name = f'result_20260101_010101_{uid}.json'
+        value = number if i == 0 else 1.5
+        metrics = {'scalar': {'seconds': value, 'count': 7, 'private': 99}} if kind == 'scalar' else {
+            'vector': {'x_axis': layout['x_axis'], 'y_axis': layout['y_axis'],
+                       'table': {'columns': layout['columns'], 'rows': [[1, 10], [2, value], [4, 30]]}}}
+        doc = {'code': 'demo', 'Exp': f'metric-case-{i}', '_server_uuid': uid, 'FOM': 3.5,
+               'environment_snapshot': {'summary': {'activity': f'activity-{i}'}}, 'metrics': metrics}
+        raw = json.dumps(doc).encode()
+        store.put_document('results', name, raw)
+        originals[name] = raw
+    publisher = Publisher(store, tmp_path/'public', tmp_path/'state/p.json', 123,
+                          control=Control(), policy=policy)
+    assert publisher.update() == {'status': 'published', 'results': 2, 'archives': 0}
+    generation, _ = read_current(publisher.root)
+    client = public_client(publisher.root, tmp_path, monkeypatch)
+    listing = client.get('/results/?search=1')
+    assert listing.status_code == 200
+    for i, (name, raw) in enumerate(originals.items()):
+        assert store.read('results', name) == raw
+        expected = json.loads(raw)
+        if kind == 'scalar':
+            del expected['metrics']['scalar']['private']
+            if i == 0 and not math.isfinite(number):
+                del expected['metrics']['scalar']['seconds']
+        elif i == 0 and not math.isfinite(number):
+            del expected['metrics']
+        public = json.loads((generation/'received'/name).read_bytes(), parse_constant=pytest.fail)
+        assert public == expected
+        assert expected['Exp'].encode() in listing.data
+        assert f'activity-{i}'.encode() in listing.data
+        detail = client.get('/results/detail/' + name)
+        assert detail.status_code == 200
+        assert expected['Exp'].encode() in detail.data
+        if kind == 'vector':
+            assert (b'id="vectorChart"' in detail.data) == ('metrics' in expected)
+
+
 def test_source_change_invalidates_previous_approval(store, tmp_path):
     source, policy = fixture(store)
     source['FOM'] = 3
