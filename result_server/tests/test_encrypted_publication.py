@@ -161,7 +161,7 @@ def test_source_change_invalidates_previous_approval(store, tmp_path):
 
 def test_automatic_pa_rejects_unsafe_members_without_hiding_result(store, tmp_path, monkeypatch):
     timestamp = '20260101_010101'
-    members = {'safe.tgz': 'metrics/data.csv', 'absolute.tgz': '/data.csv',
+    members = {'safe.tgz': 'metrics/data.csv', 'absolute.tgz': str(tmp_path/'data.csv'),
                'parent.tgz': 'metrics/../data.csv'}
     rules = {name: {'member': member, 'columns': ['seconds']} for name, member in members.items()}
     refs = [{'type': 'file_reference', 'path': 'results/' + name} for name in members]
@@ -169,9 +169,11 @@ def test_automatic_pa_rejects_unsafe_members_without_hiding_result(store, tmp_pa
            'fom_breakdown': {'sections': [{'artifacts': refs}]}}
     store.put_document('results', NAME, json.dumps(doc).encode())
     stored_names = {}
-    payload = tar({'metrics/data.csv': b'seconds,other\n12,34\n'})
-    for name in members:
+    for name, member in members.items():
         stored = f'padata_{timestamp}_{UUID}_{name}'
+        payload = tar({member: b'seconds,other\n12,34\n'})
+        with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as source:
+            assert source.getnames() == [rules[name]['member']]
         store.put('artifacts', stored, io.BytesIO(payload), limit=len(payload))
         stored_names[name] = stored
 
