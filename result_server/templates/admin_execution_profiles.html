@@ -348,8 +348,9 @@
 </nav>
 {% for key, label in execution_tabs %}
 <div id="execution-panel-{{ key }}" data-execution-panel="{{ key }}"
+     {% if selected_tab == key %}data-execution-loaded{% endif %}
      role="region" aria-labelledby="execution-tab-{{ key }}"{% if selected_tab != key %} hidden{% endif %}>
-    {% include '_execution_management_' ~ key ~ '.html' %}
+    {% if selected_tab == key %}{% include '_execution_management_' ~ key ~ '.html' %}{% endif %}
 </div>
 {% endfor %}
 </div>

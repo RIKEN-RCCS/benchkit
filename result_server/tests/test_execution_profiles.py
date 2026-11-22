@@ -2236,7 +2236,7 @@ def test_admin_execution_profiles_renders_profile_summary(tmp_path):
     try:
         with app.test_client() as client:
             _login_admin(client)
-            resp = client.get("/admin/execution-profiles")
+            resp = client.get("/admin/execution-profiles?tab=profiles")
 
         html = resp.data.decode()
         assert resp.status_code == 200
@@ -2274,7 +2274,7 @@ def test_admin_execution_profiles_filters_registered_profiles_by_status(tmp_path
     try:
         with app.test_client() as client:
             _login_admin(client)
-            resp = client.get("/admin/execution-profiles")
+            resp = client.get("/admin/execution-profiles?tab=profiles")
 
         html = resp.data.decode()
         assert resp.status_code == 200

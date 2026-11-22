@@ -323,7 +323,7 @@ def test_manual_controls_keep_benchkit_default_but_require_benchpark_ref(configu
     try:
         with app.test_client() as client:
             _login_admin(client)
-            response = client.get('/admin/execution-profiles')
+            response = client.get('/admin/execution-profiles?tab=profiles')
         rows = re.findall(r'<tr data-profile-row.*?</tr>', response.get_data(as_text=True), re.S)
         park = next(row for row in rows if 'value="park-qws"' in row)
         kit = next(row for row in rows if 'value="kit-qws"' in row)

@@ -103,6 +103,9 @@ class CxPersistence(ResultCatalog):
             """)
             conn.execute("INSERT INTO cx_state VALUES(1,?,?,?)",
                          (SCHEMA_VERSION, json.dumps(self.roots, sort_keys=True), instance_id))
+            from . import estimate_list_index
+            estimate_list_index.initialize(conn)
+            conn.execute('UPDATE estimate_list_state SET ready=1 WHERE id=1')
             conn.commit()
         from .execution_profiles import ExecutionProfileStore
         ExecutionProfileStore(self.path, key_file=self.storage.key_file).migrate()
@@ -213,6 +216,8 @@ class CxPersistence(ResultCatalog):
                 self._put(conn, name, payload)
             else:
                 self._put_report(conn, self.roots[role], name, payload)
+                from . import estimate_list_index
+                estimate_list_index.put(conn, name, payload)
             from .result_metadata_index import index_result_metadata
             from .environment_snapshots import index_environment_snapshot
             if update_metadata:
@@ -418,6 +423,11 @@ class CxPersistence(ResultCatalog):
             if conn.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0] != 12:
                 raise EncryptedDatabaseError('Unsupported Profile schema')
             execution_index = self._has_execution_index(conn)
+            from . import estimate_list_index
+            estimate_index = estimate_list_index.exists(conn)
+            if estimate_index:
+                estimate_list_index.select(conn, public_only=True, authenticated=False,
+                    affiliations=(), page=1, per_page=1, filters={})
             if execution_index:
                 state = conn.execute('SELECT version,ready FROM execution_lookup_state WHERE id=1').fetchone()
                 if not state or tuple(state) != (1, 1):
@@ -449,6 +459,8 @@ class CxPersistence(ResultCatalog):
                     actual = tuple(json.dumps(json.loads(value), sort_keys=True) for value in row)
                     if actual != tuple(json.dumps(value, sort_keys=True) for value in expected):
                         raise EncryptedDatabaseError("Stored report facts disagree with the canonical document")
+                    if role == 'estimates' and estimate_index and name.endswith('.json'):
+                        estimate_list_index.verify_document(conn, name, payload)
                     if role == 'results':
                         if execution_index:
                             from .trigger_display import _result_pipeline_ids
@@ -491,9 +503,34 @@ class CxPersistence(ResultCatalog):
         recovered.check()
         return recovered
 
+    def rebuild_estimate_list(self):
+        """Explicitly rebuild only the optional Estimate index, without expiring sessions."""
+        from . import estimate_list_index
+        from .document_snapshot import document_snapshot
+        with self._connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            try:
+                estimate_list_index.initialize(conn)
+                conn.execute('UPDATE estimate_list_state SET ready=0 WHERE id=1')
+                conn.execute('DELETE FROM estimate_list_entries')
+                with document_snapshot(self, conn=conn, cache_documents=False) as snapshot:
+                    for name, payload in snapshot.documents('estimates'):
+                        if not isinstance(payload, dict):
+                            raise EncryptedDatabaseError('Expected a canonical Estimate object')
+                        estimate_list_index.put(conn, name, payload)
+                conn.execute('UPDATE estimate_list_state SET ready=1 WHERE id=1')
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+
     def rebuild(self):
         """Rebuild facts from canonical encrypted bytes, never from stale JSON files."""
         with self.transaction() as conn:
+            from . import estimate_list_index
+            estimate_list_index.initialize(conn)
+            conn.execute('UPDATE estimate_list_state SET ready=0 WHERE id=1')
+            conn.execute('DELETE FROM estimate_list_entries')
             self._create_execution_schema(conn)
             conn.execute('UPDATE execution_lookup_state SET ready=0 WHERE id=1')
             conn.execute('DELETE FROM execution_pipeline_refs')
@@ -513,10 +550,12 @@ class CxPersistence(ResultCatalog):
                         self._put(conn, name, payload)
                     else:
                         self._put_report(conn, self.roots[role], name, payload)
+                        estimate_list_index.put(conn, name, payload)
                 elif role == "artifacts" and name.endswith('.tgz'):
                     self._put_archive(conn, name)
             conn.execute("UPDATE catalog_state SET rebuilt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),ready=1")
             conn.execute('UPDATE execution_lookup_state SET ready=1 WHERE id=1')
+            conn.execute('UPDATE estimate_list_state SET ready=1 WHERE id=1')
 
 
 def configure_persistence(app):

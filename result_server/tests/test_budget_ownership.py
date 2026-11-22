@@ -351,7 +351,7 @@ def test_new_profile_cannot_submit_before_selection_but_legacy_is_unchanged(edit
     client = app.test_client()
     login(client)
     old = store.list_profiles()[0]
-    page = client.get('/admin/execution-profiles')
+    page = client.get('/admin/execution-profiles?tab=profiles')
     values = {'csrf_token': hidden(page, 'csrf_token'), 'id': 'pending', 'status': 'approved',
               'code': 'demo', 'system': 'Fugaku'}
     response = client.post('/admin/execution-profiles/upsert', data=values, follow_redirects=True)

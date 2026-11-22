@@ -1,12 +1,7 @@
 from flask import abort, current_app, make_response, render_template, request, url_for
 
-from utils.results_loader import (
-    ESTIMATED_FIELD_MAP,
-    load_estimated_results_table,
-)
 from utils.session_user_context import get_session_user_context
 from utils.system_info import get_all_systems_info
-from utils.table_filters import get_filter_options
 from utils.table_pagination import ALLOWED_PER_PAGE, DEFAULT_PER_PAGE
 from utils.result_file import require_authenticated_session
 from utils.estimate_version_list import build_version_check_list
@@ -16,6 +11,9 @@ from utils.table_page_utils import (
     render_table_page_response,
 )
 from utils.table_query_params import parse_table_query_params
+from utils.estimated_list_page import load_estimated_page
+from utils.result_catalog import CatalogUnavailable
+from utils.encrypted_sqlite import EncryptedDatabaseError
 
 
 ESTIMATION_LINKS = {
@@ -66,24 +64,15 @@ def register_estimated_list_routes(estimated_bp):
 
         params = parse_table_query_params(request.args)
         estimated_dir = current_app.config["ESTIMATED_DIR"]
-        rows, columns, pagination_info = load_estimated_results_table(
-            estimated_dir,
-            public_only=False,
-            authenticated=True,
-            affiliations=user_context["affiliations"],
-            page=params["page"],
-            per_page=params["per_page"],
-            filter_system=params["filter_system"],
-            filter_code=params["filter_code"],
-            filter_exp=params["filter_exp"],
-        )
-        filter_options = get_filter_options(
-            estimated_dir,
-            public_only=False,
-            authenticated=True,
-            affiliations=user_context["affiliations"],
-            field_map=ESTIMATED_FIELD_MAP,
-        )
+        try:
+            rows, columns, pagination_info, filter_options = load_estimated_page(
+                estimated_dir, affiliations=user_context["affiliations"],
+                page=params["page"], per_page=params["per_page"],
+                filter_system=params["filter_system"], filter_code=params["filter_code"],
+                filter_exp=params["filter_exp"],
+            )
+        except (CatalogUnavailable, EncryptedDatabaseError):
+            abort(503, description='Estimate list unavailable; index verification may be required')
         page_context = build_table_page_context_from_params(
             rows=rows,
             columns=columns,
