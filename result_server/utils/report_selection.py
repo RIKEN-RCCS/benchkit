@@ -2,15 +2,15 @@
 
 from datetime import date
 
-from utils.app_support_matrix import load_app_system_support_matrix
+from utils.app_support_matrix import load_app_system_definitions
 from utils.node_hours import extract_timestamp_from_filename
 
 
 def definition_options(code=None, system=None, exp=None):
-    systems, apps = load_app_system_support_matrix()
+    systems, apps = load_app_system_definitions()
     return {
         'systems': sorted(set(systems) | ({system} if system else set())),
-        'codes': sorted({row['app'] for row in apps} | ({code} if code else set())),
+        'codes': sorted(set(apps) | ({code} if code else set())),
         'exps': [exp] if exp else [],
     }
 

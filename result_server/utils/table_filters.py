@@ -1,7 +1,7 @@
 import os
-from utils.storage_files import list_names
+from .storage_files import list_names
 
-from utils.result_records import load_visible_result_json
+from .result_records import load_visible_result_json
 
 DEFAULT_RESULT_FIELD_MAP = {"system": "system", "code": "code", "exp": "Exp"}
 

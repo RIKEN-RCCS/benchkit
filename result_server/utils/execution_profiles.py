@@ -2330,23 +2330,30 @@ class ExecutionProfileStore:
         # A runner record has no stored profile ID. Only the current definition
         # can supply it; deleted definitions remain unattributed, not guessed.
         query = """
-            SELECT * FROM (
+            WITH selected AS (SELECT * FROM (
                 SELECT r.id, 'runner' AS history_source,
                        COALESCE(t.profile_id, '') AS profile_id,
                        r.trigger_id, r.trigger_type, r.status, r.dry_run,
-                       r.reason, r.payload_json, r.errors_json, r.actor,
                        r.created_at, '' AS target_ref
                 FROM trigger_runs r
                 LEFT JOIN trigger_definitions t ON t.id = r.trigger_id
                 UNION ALL
                 SELECT id, 'manual' AS history_source, profile_id,
                        '' AS trigger_id, 'manual_button' AS trigger_type,
-                       status, dry_run, '' AS reason, payload_json, errors_json,
-                       actor, created_at, target_ref
+                       status, dry_run, created_at, target_ref
                 FROM execution_requests
                 WHERE request_type = 'gitlab_pipeline' AND dry_run = 0
             )
-        """ + where + " ORDER BY created_at DESC, id DESC, history_source DESC LIMIT ? OFFSET ?"
+        """ + where + """ ORDER BY created_at DESC, id DESC, history_source DESC LIMIT ? OFFSET ?)
+            SELECT s.*,
+                   CASE WHEN s.history_source='runner' THEN r.reason ELSE '' END AS reason,
+                   CASE WHEN s.history_source='runner' THEN r.payload_json ELSE e.payload_json END AS payload_json,
+                   CASE WHEN s.history_source='runner' THEN r.errors_json ELSE e.errors_json END AS errors_json,
+                   CASE WHEN s.history_source='runner' THEN r.actor ELSE e.actor END AS actor
+            FROM selected s
+            LEFT JOIN trigger_runs r ON s.history_source='runner' AND r.id=s.id
+            LEFT JOIN execution_requests e ON s.history_source='manual' AND e.id=s.id
+            ORDER BY s.created_at DESC, s.id DESC, s.history_source DESC"""
         with self.connect() as conn:
             return [dict(row) for row in conn.execute(query, (*params, limit, offset))]
 

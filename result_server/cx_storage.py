@@ -36,7 +36,7 @@ def _private_json(path, limit):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("initialize", "migrate-copy", "check", "backup-copy", "recover-copy", "rebuild-copy"))
+    parser.add_argument("operation", choices=("initialize", "migrate-copy", "check", "backup-copy", "recover-copy", "rebuild-copy", "rebuild-estimate-list-copy"))
     parser.add_argument("--plan", required=True, help="Private JSON plan with explicit paths; never a key value")
     args = parser.parse_args(argv)
     os.umask(0o077)
@@ -73,6 +73,9 @@ def main(argv=None):
                 store.check()
             elif args.operation == "rebuild-copy":
                 store.rebuild()
+                store.check()
+            elif args.operation == "rebuild-estimate-list-copy":
+                store.rebuild_estimate_list()
                 store.check()
             else:
                 target = Path(plan["destination"])

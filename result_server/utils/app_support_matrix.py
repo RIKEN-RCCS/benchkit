@@ -120,6 +120,19 @@ def _extract_supported_systems(content, candidate_systems):
     return supported
 
 
+def load_app_system_definitions(programs_dir=None, system_csv_path=None):
+    """Read option names without interpreting build/run support or caching policy."""
+    root = os.path.normpath(programs_dir or _DEFAULT_PROGRAMS_DIR)
+    systems = load_registered_systems(system_csv_path=system_csv_path)
+    if not os.path.isdir(root):
+        return systems, []
+    with os.scandir(root) as entries:
+        apps = sorted((entry.name for entry in entries
+                       if entry.is_dir() and os.path.exists(os.path.join(entry.path, 'list.csv'))),
+                      key=str.lower)
+    return systems, apps
+
+
 def load_app_system_support_matrix(programs_dir=None, system_csv_path=None):
     programs_root = os.path.normpath(programs_dir or _DEFAULT_PROGRAMS_DIR)
     registered_systems = load_registered_systems(system_csv_path=system_csv_path)

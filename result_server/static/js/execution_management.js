@@ -54,6 +54,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function select(view, explicit = false) {
         if (!links.some(link => link.dataset.executionTab === view)) view = "runs";
+        const panel = panels.find(item => item.dataset.executionPanel === view);
+        if (panel && !panel.hasAttribute("data-execution-loaded")) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", view);
+            if (view !== "profiles") url.searchParams.delete("edit");
+            if (view !== "triggers") url.searchParams.delete("edit_trigger");
+            window.location.assign(url);
+            return;
+        }
         panels.forEach(panel => { panel.hidden = panel.dataset.executionPanel !== view; });
         links.forEach(link => {
             if (link.dataset.executionTab === view) link.setAttribute("aria-current", "page");
@@ -82,6 +91,8 @@ document.addEventListener("DOMContentLoaded", function () {
     links.forEach(link => {
         link.addEventListener("click", function (event) {
             if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            const panel = panels.find(item => item.dataset.executionPanel === link.dataset.executionTab);
+            if (!panel?.hasAttribute("data-execution-loaded")) return;
             event.preventDefault();
             const url = new URL(window.location.href);
             url.searchParams.set("tab", link.dataset.executionTab);

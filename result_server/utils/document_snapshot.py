@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
 import json
+import hashlib
 from uuid import UUID
 
 
@@ -40,6 +41,53 @@ class DocumentSnapshot:
         # A fresh JSON value prevents caller mutations from affecting subsequent
         # permission/payload reads, without Python-level deep copies of large records.
         return json.loads(self._documents[key])
+
+    def documents(self, role, names=None):
+        """Stream verified canonical JSON in one query, without caching payloads."""
+        from .encrypted_sqlite import EncryptedDatabaseError
+        if role not in ('results', 'estimates'):
+            raise ValueError('Expected a canonical document role')
+        args = [role]
+        where = 'o.role=? AND substr(o.name,-5)=\'.json\''
+        if names is not None:
+            names = list(names)
+            if not names:
+                return
+            if len(names) > 200 or len(names) != len(set(names)):
+                raise ValueError('Expected a bounded page of distinct documents')
+            for name in names:
+                self.store._object_name(role, name)
+            where += ' AND o.name IN (' + ','.join('?' for _ in names) + ')'
+            args.extend(names)
+        cursor = self.conn.execute('''SELECT o.name,o.size,o.sha256,o.generation,c.ordinal,c.data
+            FROM cx_objects o LEFT JOIN cx_chunks c ON c.role=o.role AND c.name=o.name
+            WHERE ''' + where + ' ORDER BY o.name DESC,c.ordinal', args)
+        current, raw, expected, ordinal = None, bytearray(), None, 0
+        seen = 0
+        def decoded():
+            if (len(raw), hashlib.sha256(raw).hexdigest()) != expected:
+                raise EncryptedDatabaseError('Stored object checksum mismatch')
+            return json.loads(raw)
+        for row in cursor:
+            if row['name'] != current:
+                if current is not None:
+                    yield current, decoded()
+                    seen += 1
+                current, raw, ordinal = row['name'], bytearray(), 0
+                self.store._object_name(role, current)
+                expected = row['size'], row['sha256']
+                if row['generation']:
+                    raise EncryptedDatabaseError('Stored object backend binding is invalid')
+            if row['ordinal'] is not None:
+                if row['ordinal'] != ordinal:
+                    raise EncryptedDatabaseError('Stored document chunks are incomplete')
+                raw.extend(row['data'])
+                ordinal += 1
+        if current is not None:
+            yield current, decoded()
+            seen += 1
+        if names is not None and seen != len(names):
+            raise EncryptedDatabaseError('Selected canonical document is missing')
 
     def source_names(self, identifier):
         # The persisted index also contains filename identities. Callers must

@@ -76,11 +76,57 @@ Historical indexes retain unnormalized UUIDs. A declaration-only SQL projection
 once per snapshot finds compatibility exceptions; noncanonical declarations,
 multi-chunk documents and malformed records use the verified document reader.
 This projection still scales with Result bytes/count and is not a constant-time
-lookup guarantee. Estimates are read once per snapshot and remain filtered by
+lookup guarantee. Lineage Estimates are read once per snapshot and remain filtered by
 the requesting user's permissions. This change requires neither schema changes
 nor index rebuilding. Filesystem mode retains its existing behavior and is not
 a transactional filesystem snapshot. Indexed navigation is not a replacement
 for the full integrity check described below.
+
+### Estimate List Selection
+
+Estimate lists use an optional, rebuildable projection of document names, source
+checksums, search fields and visibility tags. Selection, authorized filter options,
+counting and paging share one read snapshot. Only the selected page's canonical
+documents are decoded; each document's chunks, byte count, checksum, permissions
+and search conditions are checked before returning rows. A present but incomplete
+or stale index fails closed instead of returning a partial list. Index scans and
+distinct filter options still scale with record count; this is not constant-time
+storage access or a replacement for full integrity checking.
+
+New instances and full `rebuild-copy` operations create the projection. Existing
+encrypted instances without it remain readable using one verified document pass
+for both rows and filter options. Requests and application restart do not create
+tables or rebuild indexes. To enable page-bounded canonical reads on an existing
+instance, first rehearse this explicit operation on a consistent private copy:
+
+```sh
+python -B -m result_server.cx_storage rebuild-estimate-list-copy --plan /example/private/plan.json
+```
+
+The plan needs `database`, `key_file` and, when nondefault, `artifact_database`.
+The operation rebuilds only this derived projection in one transaction, preserving
+canonical bytes, existing Profile schemas and authentication/session values,
+including expired entries. A failed rebuild rolls back. Normal Estimate receipt
+updates canonical bytes and the projection together; deletion cascades to index
+entries. Compatible paired backup/recovery preserves the projection. Switching
+back to a build that does not maintain it requires rebuilding before it can be
+used again by a projection-aware build. Validate rows, counts, filter options and
+permissions after rebuilding; do not select a partially prepared database.
+
+### Console Read Boundaries
+
+Execution Profiles prepares only the selected Profiles, Triggers, Runs or
+Diagnostics panel. Existing tab URLs, legacy section hashes, search filters and
+history pagination remain supported; another tab is loaded with a normal GET.
+Profile editing and dry-run do not prepare hidden history or wait for Result
+matching. Runs retains its separate, explicit Result lookup. Combined manual and
+Runner history applies its existing filters and deterministic ordering before
+fetching the selected page's payloads.
+
+Usage filter definitions read registered application/system names, not build/run
+scripts or the full support matrix. Usage aggregation and authorization are
+unchanged. No decrypted documents, permission decisions or definition results are
+cached across requests.
 
 ## Offline Copy Migration
 
@@ -181,6 +227,7 @@ protect application memory, OS logs, bootstrap settings or separately held keys.
 ```sh
 python -B -m pytest -q result_server/tests/test_cx_persistence.py
 python -B -m pytest -q result_server/tests/test_document_snapshot.py
+python -B -m pytest -q result_server/tests/test_estimated_list_page.py result_server/tests/test_execution_management_tabs.py result_server/tests/test_definition_options_fast.py
 python -B result_server/tests/measure_cx_persistence.py --records 1000 --artifact-mib 32
 ```
 

@@ -973,7 +973,8 @@ with store.connect() as conn:
 
 
 @pytest.mark.parametrize('entry', ['module', 'script'])
-def test_copy_cli_runs_without_pythonpath(storage, entry):
+@pytest.mark.parametrize('operation', ['check', 'rebuild-estimate-list-copy'])
+def test_copy_cli_runs_without_pythonpath(storage, entry, operation):
     import subprocess
     root = Path(__file__).resolve().parents[2]
     plan = storage.path.parent / 'cli-plan.json'
@@ -982,7 +983,7 @@ def test_copy_cli_runs_without_pythonpath(storage, entry):
     command = (['-m', 'result_server.cx_storage'] if entry == 'module'
                else ['result_server/cx_storage.py'])
     env = {key: value for key, value in os.environ.items() if key != 'PYTHONPATH'}
-    result = subprocess.run([sys.executable, '-B', *command, 'check', '--plan', str(plan)],
+    result = subprocess.run([sys.executable, '-B', *command, operation, '--plan', str(plan)],
                             cwd=root, env=env, capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)['status'] == 'success'

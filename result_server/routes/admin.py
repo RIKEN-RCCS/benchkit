@@ -395,7 +395,7 @@ def _history_result_summaries(runs, pipeline_projects=None, *, resolve_results=T
     return summaries
 
 
-def _execution_history_context(db_path, *, resolve_results=False):
+def _execution_history_context(db_path, *, resolve_results=False, load_records=True):
     filters = _history_filters()
     raw_page = request.args.get("history_page", "1") if request.method == "GET" else "1"
     if not raw_page.isascii() or not raw_page.isdecimal() or len(raw_page) > 6:
@@ -410,7 +410,7 @@ def _execution_history_context(db_path, *, resolve_results=False):
         runs = list_execution_history(
             store, limit=page_size + 1,
             offset=(page - 1) * page_size, **filters,
-        )
+        ) if load_records else []
         if resolve_results and any(map(can_lookup_execution_results, runs[:page_size])):
             pipeline_projects = store.execution_pipeline_projects()
     except sqlite3.Error as exc:
@@ -892,11 +892,18 @@ def users():
 def execution_profiles():
     """Render site-local execution profiles for admin review."""
     db_path = current_app.config.get("EXECUTION_PROFILE_DB_PATH")
-    profile_result = load_execution_profiles(db_path)
-    registered_profiles = profile_result.profiles
-    trigger_definitions = _list_trigger_definitions(db_path)
     edit_profile_id = request.args.get("edit", "").strip()
     edit_trigger_id = request.args.get("edit_trigger", "").strip()
+    tab = request.args.get('tab', 'runs')
+    if tab not in ('runs', 'profiles', 'triggers', 'diagnostics'):
+        tab = 'runs'
+    if edit_profile_id or request.args.get('edit'):
+        tab = 'profiles'
+    elif edit_trigger_id or request.args.get('edit_trigger'):
+        tab = 'triggers'
+    profile_result = load_execution_profiles(db_path) if tab != 'runs' else None
+    registered_profiles = profile_result.profiles if profile_result else []
+    trigger_definitions = _list_trigger_definitions(db_path) if tab == 'triggers' else []
     edit_profile = None
     if edit_profile_id:
         edit_profile = next(
@@ -912,13 +919,13 @@ def execution_profiles():
         "admin_execution_profiles.html",
         profile_result=profile_result,
         registered_profiles=registered_profiles,
-        profile_budget_summaries=_profile_budget_summaries(registered_profiles),
+        profile_budget_summaries=_profile_budget_summaries(registered_profiles) if tab == 'profiles' else {},
         trigger_definitions=trigger_definitions,
         **_execution_history_context(
-            db_path, resolve_results=request.args.get("history_results") == "1"
-            and request.args.get("tab", "runs") == "runs" and not (edit_profile_id or edit_trigger_id),
+            db_path, resolve_results=request.args.get("history_results") == "1" and tab == 'runs',
+            load_records=tab == 'runs',
         ),
-        trigger_observations=_list_trigger_observations(db_path),
+        trigger_observations=_list_trigger_observations(db_path) if tab == 'diagnostics' else [],
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),
@@ -928,7 +935,7 @@ def execution_profiles():
         dry_run_result=None,
         submit_result=None,
         gitlab_targets=configured_gitlab_targets()[0],
-        budget_editor=_budget_editor(edit_profile),
+        budget_editor=_budget_editor(edit_profile) if tab == 'profiles' else None,
     )
 
 
@@ -1794,15 +1801,14 @@ def dry_run_execution_profile_submit():
         },
     )
 
-    profile_result = load_execution_profiles(db_path)
     return render_template(
         "admin_execution_profiles.html",
-        profile_result=profile_result,
-        registered_profiles=profile_result.profiles,
-        profile_budget_summaries=_profile_budget_summaries(profile_result.profiles),
-        trigger_definitions=_list_trigger_definitions(db_path),
+        profile_result=None,
+        registered_profiles=[],
+        profile_budget_summaries={},
+        trigger_definitions=[],
         **_execution_history_context(db_path),
-        trigger_observations=_list_trigger_observations(db_path),
+        trigger_observations=[],
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),
@@ -1911,15 +1917,14 @@ def submit_execution_profile_pipeline():
         },
     )
 
-    profile_result = load_execution_profiles(db_path)
     return render_template(
         "admin_execution_profiles.html",
-        profile_result=profile_result,
-        registered_profiles=profile_result.profiles,
-        profile_budget_summaries=_profile_budget_summaries(profile_result.profiles),
-        trigger_definitions=_list_trigger_definitions(db_path),
+        profile_result=None,
+        registered_profiles=[],
+        profile_budget_summaries={},
+        trigger_definitions=[],
         **_execution_history_context(db_path),
-        trigger_observations=_list_trigger_observations(db_path),
+        trigger_observations=[],
         profile_filter="all",
         profile_filter_options=_profile_filter_options(),
         today=datetime.now(UTC).date().isoformat(),

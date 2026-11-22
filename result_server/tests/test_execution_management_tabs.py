@@ -90,7 +90,7 @@ def test_default_is_runs_and_creation_is_collapsed(portal, query):
     doc = Document(html)
     assert selected(doc) == ['runs']
     for name in ('profile-editor', 'trigger-editor'):
-        assert 'open' not in doc.find('id', name)[0]['attrs']
+        assert not doc.find('id', name)
     assert 'CI: Not checked' in html
     assert 'Results not checked' in html
     assert 'No matching Result' not in html
@@ -179,7 +179,8 @@ def test_submit_errors_remain_visible_in_runs(portal, query):
 def test_existing_actions_and_csrf_fields_are_retained(portal):
     app, client, _ = portal
     app.jinja_env.globals['csrf_token'] = lambda: 'synthetic-csrf'
-    doc = Document(client.get('/admin/execution-profiles').text)
+    doc = Document(client.get('/admin/execution-profiles?tab=profiles').text +
+                   client.get('/admin/execution-profiles?tab=triggers').text)
     actions = {n['attrs']['action'] for n in doc.find('action')}
     assert '/admin/execution-profiles/upsert' in actions
     assert '/admin/execution-profiles/triggers/upsert' in actions
@@ -200,7 +201,10 @@ def test_profile_and_dry_run_do_not_resolve_receipts(portal, monkeypatch):
                   'tab=triggers', 'tab=diagnostics', 'tab=runs'):
         response = client.get('/admin/execution-profiles?' + query)
         assert response.status_code == 200
-        assert 'Results not checked' in response.text
+        assert ('Results not checked' in response.text) == (query == 'tab=runs')
+    for name in ('_profile_budget_summaries', '_list_trigger_definitions', '_list_trigger_observations'):
+        monkeypatch.setattr('routes.admin.' + name,
+                            lambda *args, **kwargs: pytest.fail('Dry-run prepared a hidden tab'))
     response = client.post('/admin/execution-profiles/dry-run-submit?history_results=1',
                            data={'profile_id': profile, 'target_ref': 'develop'})
     assert response.status_code == 200
@@ -208,6 +212,34 @@ def test_profile_and_dry_run_do_not_resolve_receipts(portal, monkeypatch):
         row = conn.execute('SELECT status FROM execution_requests WHERE dry_run=1').fetchone()
     assert row['status'] == 'dry_run_ready'
     assert 'data-history-auto' not in response.text
+
+
+@pytest.mark.parametrize('tab', ['profiles', 'triggers', 'diagnostics'])
+def test_hidden_history_does_not_execute_a_query(portal, monkeypatch, tab):
+    _, client, _ = portal
+    monkeypatch.setattr('routes.admin.list_execution_history',
+                        lambda *args, **kwargs: pytest.fail('Hidden Runs must not be prepared'))
+    response = client.get('/admin/execution-profiles?tab=' + tab)
+    assert response.status_code == 200
+    doc = Document(response.text)
+    assert len(doc.find('data-execution-loaded')) == 1
+    assert selected(doc) == [tab]
+
+
+def test_runs_do_not_prepare_hidden_editors_or_diagnostics(portal, monkeypatch):
+    _, client, _ = portal
+    def forbidden(*args, **kwargs):pytest.fail('Hidden view preparation')
+    for name in ('load_execution_profiles', '_profile_budget_summaries', '_budget_editor',
+                 '_list_trigger_definitions', '_list_trigger_observations'):
+        monkeypatch.setattr('routes.admin.' + name, forbidden)
+    assert client.get('/admin/execution-profiles?tab=runs').status_code == 200
+
+
+@pytest.mark.parametrize('query', ['history_page=0', 'history_since=bad-date',
+                                  'history_since=2026-02-01&history_until=2026-01-01'])
+def test_hidden_tab_still_validates_preserved_history_filters(portal, query):
+    _, client, _ = portal
+    assert client.get('/admin/execution-profiles?tab=profiles&' + query).status_code == 400
 
 
 def test_profiles_show_saved_budgets_and_activity(portal, monkeypatch):
