@@ -1,0 +1,46 @@
+{% extends "_results_base.html" %}
+{% block title %}Execution Evidence{% endblock %}
+{% block page_subtitle %}{% endblock %}
+{% block content %}
+<style>
+.evidence-table { table-layout: fixed; width: 100%; }
+.evidence-table td, .evidence-table th { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.evidence-meta { overflow-wrap: anywhere; }
+</style>
+<a href="{{ url_for('admin.execution_profiles', tab='runs') }}#execution-history">&larr; Runs</a>
+<h2>{{ run.history_source }} #{{ run.record_id }}</h2>
+<dl class="evidence-meta">
+<dt>Submission</dt><dd>{{ run.decision_label }}</dd>
+<dt>Project</dt><dd>{{ run.gitlab_project }}</dd>
+<dt>Pipeline</dt><dd>{% if run.pipeline_url %}<a href="{{ run.pipeline_url }}" target="_blank" rel="noopener noreferrer">#{{ run.pipeline_id }}</a>{% else %}Unknown{% endif %}</dd>
+</dl>
+{% if run.evidence %}
+<dl class="evidence-meta">
+<dt>Observed at</dt><dd>{{ run.evidence.observed_at }}</dd>
+<dt>Imported at</dt><dd>{{ run.evidence.imported_at }}</dd>
+<dt>GitLab pipeline state</dt><dd>{{ run.evidence.status }}</dd>
+</dl>
+<h3>Pipelines</h3>
+<div class="table-wrap"><table class="evidence-table">
+<thead><tr><th>Pipeline</th><th>Parent</th><th>Observed state</th></tr></thead><tbody>
+{% for p in run.evidence.observation.pipelines %}
+<tr><td><a href="https://{{ p.project }}/-/pipelines/{{ p.id }}" target="_blank" rel="noopener noreferrer">{{ p.project }} #{{ p.id }}</a></td><td>{% if p.parent %}{{ p.parent.project }} #{{ p.parent.id }}{% else %}Submission root{% endif %}</td><td>{{ p.status }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<h3>Jobs</h3>
+<div class="table-wrap"><table class="evidence-table">
+<thead><tr><th>Job / Stage</th><th>GitLab</th><th>Compute job</th><th>Started / State / Exit</th><th>Evidence</th></tr></thead><tbody>
+{% for j in run.evidence.observation.jobs %}
+<tr><td><a href="https://{{ j.project }}/-/jobs/{{ j.id }}" target="_blank" rel="noopener noreferrer">{{ j.name }}</a><br>{{ j.stage }} / {{ j.phase }}</td><td>{{ j.status }}<br>Pipeline #{{ j.pipeline_id }}</td>
+{% if j.compute %}<td>{{ j.compute.scheduler }} / {{ j.compute.job_id }}</td><td>{{ 'Unknown' if j.compute.started is none else ('Yes' if j.compute.started else 'No') }} / {{ j.compute.status }} / {{ 'Unknown' if j.compute.exit_code is none else j.compute.exit_code }}</td><td>{{ j.compute.source }}<br>{{ j.compute.observed_at }}</td>
+{% else %}<td>Unknown</td><td>Unknown / Unknown / Unknown</td><td>No compute evidence imported</td>{% endif %}</tr>
+{% else %}<tr><td colspan="5">No job evidence imported</td></tr>{% endfor %}
+</tbody></table></div>
+<h3>Recent Observations</h3>
+<div class="table-wrap"><table class="evidence-table">
+<thead><tr><th>Observed at</th><th>Pipeline state</th><th>Unfinished jobs</th></tr></thead><tbody>
+{% for item in observations %}<tr><td>{{ item.observed_at }}</td><td>{{ item.status }}</td><td>{{ item.stages }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p>{{ run.evidence_label }}</p>{% endif %}
+<a href="{{ run.results_url }}">Stored Results</a>
+{% endblock %}

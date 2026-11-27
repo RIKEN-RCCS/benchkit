@@ -392,7 +392,29 @@ def _history_result_summaries(runs, pipeline_projects=None, *, resolve_results=T
             record_id=summary["record_id"],
         )
         summaries.append(summary)
+    _attach_execution_evidence(summaries)
     return summaries
+
+
+def _attach_execution_evidence(summaries):
+    from utils.execution_evidence import ExecutionEvidenceStore, presentation
+    from utils.encrypted_sqlite import EncryptedDatabaseError
+    persistence = current_app.extensions.get('cx_persistence')
+    values = {}
+    available = persistence is not None
+    if available and os.path.abspath(current_app.config['EXECUTION_PROFILE_DB_PATH']) != str(persistence.path):
+        available = False
+    if available and summaries:
+        try:
+            values = ExecutionEvidenceStore(persistence).current(summaries)
+        except (ValueError, TypeError, KeyError, OSError, sqlite3.Error, EncryptedDatabaseError):
+            available = False
+    for summary in summaries:
+        envelope = values.get(f"{summary['source']}:{summary['record_id']}") if available else None
+        summary['evidence'] = presentation(envelope) if envelope else None
+        summary['evidence_label'] = 'No execution evidence imported' if available else 'Execution evidence unavailable'
+        summary['evidence_url'] = url_for('admin.execution_history_evidence',
+            source=summary['source'], record_id=summary['record_id'])
 
 
 def _execution_history_context(db_path, *, resolve_results=False, load_records=True):
@@ -1048,6 +1070,28 @@ def execution_history_results(source, record_id):
     projects = store.execution_pipeline_projects() if can_lookup_execution_results(runs[0]) else None
     summary = _history_result_summaries(runs, projects)[0]
     return render_template("execution_history_results.html", run=summary)
+
+
+@admin_bp.route('/execution-profiles/history/<source>/<int:record_id>/evidence', methods=['GET'])
+@admin_required
+def execution_history_evidence(source, record_id):
+    if source not in {'manual', 'runner'} or not 1 <= record_id < 2**63:
+        abort(404)
+    store = ExecutionProfileStore(current_app.config['EXECUTION_PROFILE_DB_PATH'])
+    runs = list_execution_history(store, source=source, record_id=record_id, limit=1)
+    if not runs:
+        abort(404)
+    # No Result scan and no remote request on this page.
+    summary = _history_result_summaries(runs, resolve_results=False)[0]
+    observations = []
+    if summary['evidence']:
+        from utils.execution_evidence import ExecutionEvidenceStore
+        from utils.encrypted_sqlite import EncryptedDatabaseError
+        try:
+            observations = ExecutionEvidenceStore(current_app.extensions['cx_persistence']).observations(summary)
+        except (ValueError, TypeError, KeyError, OSError, sqlite3.Error, EncryptedDatabaseError):
+            abort(503, 'Execution evidence is unavailable')
+    return render_template('execution_history_evidence.html', run=summary, observations=observations)
 
 
 @admin_bp.route("/execution-profiles/<profile_id>/budget", methods=["POST"])

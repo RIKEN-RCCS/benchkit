@@ -107,7 +107,15 @@
                         {% if run.profile_id %}<span class="trigger-run-subline">Profile {{ run.profile_id }}</span>{% endif %}
                     </td>
                     <td><span title="{{ run.status }}">{{ run.decision_label }}</span>
-                        {% if run.pipeline_id != '-' %}<span class="trigger-run-subline">CI: {{ run.ci_status }}</span>{% endif %}
+                        {% if run.pipeline_id != '-' %}
+                        {% if run.evidence %}
+                        <span class="trigger-run-subline">CI observed: {{ run.evidence.status }}</span>
+                        {% if run.evidence.children %}<span class="trigger-run-subline">Child pipelines: {{ run.evidence.children }}</span>{% endif %}
+                        <span class="trigger-run-subline">{{ run.evidence.stages }}</span>
+                        <span class="trigger-run-subline">{{ run.evidence.observed_at }}</span>
+                        {% else %}<span class="trigger-run-subline">CI: {{ run.ci_status }} / {{ run.evidence_label }}</span>{% endif %}
+                        <a class="trigger-run-subline" href="{{ run.evidence_url }}">Execution evidence</a>
+                        {% endif %}
                     </td>
                     <td title="{{ run.reason }}">
                         <span class="trigger-run-reason">{{ run.reason_label or run.reason }}</span>
