@@ -19,7 +19,7 @@ def test_groups_keep_the_existing_sqlcipher_selection_once():
         "test_budget_profile_preview.py", "test_budget_pipeline.py",
         "test_budget_profile_binding.py", "test_budget_ownership.py", "test_sqlcipher_runtime_report.py",
         "test_cx_persistence.py", "test_document_snapshot.py", "test_estimated_list_page.py",
-        "test_encrypted_publication.py",
+        "test_encrypted_publication.py", "test_execution_evidence.py",
     }
     first, second = runner.TEST_GROUPS
     assert first and second

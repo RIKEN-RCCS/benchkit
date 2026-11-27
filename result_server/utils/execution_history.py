@@ -2,9 +2,9 @@
 
 import json
 
-from utils.gitlab_pipeline import GITLAB_REPO_RE
-from utils.document_snapshot import document_snapshot
-from utils.trigger_display import build_trigger_result_links, summarize_trigger_run
+from .gitlab_pipeline import GITLAB_REPO_RE
+from .document_snapshot import document_snapshot
+from .trigger_display import build_trigger_result_links, summarize_trigger_run
 
 
 def list_execution_history(store, *, limit=80, offset=0, **filters):
